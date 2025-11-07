@@ -33,8 +33,8 @@ __lcmp:
 	bne	differ
 	lda	@tmp2
 	cmp	@tmp
-differ:
 	beq	done
+differ:
 	bcs	clear_n
 	lda	#0xFF
 done:	rts
@@ -45,11 +45,11 @@ clear_n:
 
 ;
 ;	The top of the comparison is different as we need to get the
-;	signed comparison checks righ ttoo
+;	signed comparison checks right too
 ;
 signs:
 	bvc	done
-	eor	#0xFF
+	eor	#0xFF		; clear N and Z
 	ora	#0x01
 	rts
 
@@ -67,34 +67,34 @@ is_ne:
 	lda	#0
 	tax
 	rts
-is_gt:
+is_lt:
 	beq	ret0
-is_ge:
+is_le:
 	bmi	ret0
 ret1:
-	lda	#1
 	ldx	#0
+	lda	#1		; so that Z is correct
 	rts
 
-is_le:
+is_ge:
 	beq	ret1
-is_lt:
+is_gt:
 	bmi	ret1
 	lda	#0
 	tax
 	rts
 
-is_ugt:
+is_ult:
 	beq	ret0
-is_uge:
+is_ule:
 	ldx	#0
 	txa
 	rol	a
 	rts
 
-is_ule:
+is_uge:
 	beq	ret1
-is_ult:
+is_ugt:
 	bcc	ret1
 	lda	#0
 	tax

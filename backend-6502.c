@@ -2509,7 +2509,7 @@ unsigned gen_node(struct node *n)
 			output("sta @hireg");
 		}
 		/* We have to special case this to get the value setting right */
-		if (size == 2)
+		if (size > 1)
 			load_x(v >> 8);
 		load_a(v & 0xFF);
 		return 1;

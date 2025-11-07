@@ -17,7 +17,7 @@ __pushl:
 	sec
 	sbc	#4
 	sta	@sp
-	bcc	l1
+	bcs	l1
 	dec	@sp+1
 l1:	ldy	#3
 	lda	@hireg+1
@@ -52,7 +52,7 @@ __pushlw:
 	sec
 	sbc	#4
 	sta	@sp
-	bcc	l2
+	bcs	l2
 	dec	@sp+1
 l2:	ldy	#3
 	lda	#0
