@@ -20,4 +20,5 @@ __negatel:
 	eor	#0xFF
 	adc	#0
 	sta	@hireg+1
+	pla
 	rts
