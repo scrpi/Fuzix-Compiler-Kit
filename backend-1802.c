@@ -865,6 +865,5 @@ unsigned gen_node(struct node *n)
 		/* Pass it down */
 		return 0;
 	}
-	fprintf(stderr, "No rule for %x\n", n->op);
 	return 0;
 }
