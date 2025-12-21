@@ -89,7 +89,8 @@ void gen_frame(unsigned size,  unsigned aframe)
 	if (use_fp) {
 		printf("\tld iy,0x%x\n", (uint16_t) - size);
 		printf("\tadd iy,sp\n");
-		printf("\tld sp,iy\n");
+		if (size != 0)
+			printf("\tld sp,iy\n");
 		return;
 	}
 	if (size > 10) {
