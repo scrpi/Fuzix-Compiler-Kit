@@ -33,13 +33,15 @@ skipadd:
 	rets
 
 __divu:
-	call @__pop2
+	mov %2,b
+	call @__popw
 	call @__div16x16 ; do the division
 	movd r3,r5
 	rets
 
 __remu:
-	call @__pop2
+	mov %2,b
+	call @__popw
 	call @__div16x16
 	movd r11,r5
 	rets

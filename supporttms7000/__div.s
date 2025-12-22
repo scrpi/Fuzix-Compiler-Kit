@@ -8,7 +8,8 @@
 	.code
 
 __div:
-	call @__pop2		; first arg ino r2,r3 working in r4,r5
+	mov %2,b
+	call @__popw		; first arg ino r2,r3 working in r4,r5
 __dodivs:
 	clr r10			; sign info
 	or r2,r2		; negative ?
@@ -41,7 +42,8 @@ sign_ok:
 	rets
 
 __rem:
-	call @__pop2
+	mov %2,b
+	call @__popw
 __dorems:
 	clr r10			; sign info
 	or r2,r2		; negative ?
