@@ -2050,7 +2050,7 @@ static unsigned gen_fast_remainder(unsigned r, unsigned s, unsigned long n)
  *	that the right hand side is suitable. If this returns 0 it will instead
  *	fall back to doing it stack based.
  *
- *	On entry the working value in in r0-r3, and the other value is
+ *	On entry the working value in in r2-r5, and the other value is
  *	not yet resolved. Typically this is useful for stuff like a constant
  *	load, but we can do a lot of reg/reg ops this way.
  */
@@ -2113,7 +2113,7 @@ unsigned gen_direct(struct node *n)
 			return 1;
 		}
 		return 0;
-	/* Some of these would benefit from helpers using r1r/r15 r0-r3 or
+	/* Some of these would benefit from helpers using r1r/r15 r2-r5 or
 	   similar. FIXME : will need to rework the repeated_ stuff when we
 	   do tracking into loops of rr_dec etc */
 	/* TODO: this code magically knows load_direct will not work on a float. FIXME */
@@ -3280,8 +3280,8 @@ unsigned gen_node(struct node *n)
 	case T_LTLT:
 		if (nr)
 			return 1;
-		/* The value to shift by is in r3, the value is stacked */
-		load_r_r(R_WORK, 3);
+		/* The value to shift by is in r5, the value is stacked */
+		load_r_r(R_WORK,  5);
 		pop_ac(size);	/* Recover working reg off stack */
 		printf("\tor r%u,r%u\n", R_WORK, R_WORK);
 		v = ++label_count;
@@ -3294,8 +3294,8 @@ unsigned gen_node(struct node *n)
 	case T_GTGT:
 		if (nr)
 			return 1;
-		/* The value to shift by is in r3, the value is stacked */
-		load_r_r(R_WORK, 3);
+		/* The value to shift by is in r5, the value is stacked */
+		load_r_r(R_WORK, 5);
 		pop_ac(size);	/* Recover working reg off stack */
 		printf("\tor r%u,r%u\n", R_WORK, R_WORK);
 		v = ++label_count;
