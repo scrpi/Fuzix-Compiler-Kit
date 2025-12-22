@@ -708,11 +708,11 @@ static void single_op(unsigned op, uint8_t r)
         res |= (reg[r] >> 4);
         break;
     case 0x08:	/* PUSH */
-        reg[sp++] = reg[r];
+        reg[++sp] = reg[r];
         res = reg[r];
         break;
     case 0x09:	/* POP */
-        res = reg[--sp];
+        res = reg[sp--];
         return;
     case 0x0A:	/* DJNZ off */
         res = reg[r] - 1;
