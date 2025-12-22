@@ -757,7 +757,7 @@ static void logic_r_r(unsigned r1, unsigned r2, unsigned size, unsigned op)
 
 	/* R is now 1 after low byte */
 	while(size--)
-		printf("\t%s r%u,r%u\n", opn, --r1, --r2);
+		printf("\t%s r%u,r%u\n", opn, --r2, --r1);
 }
 
 static void load_l_sprel(unsigned r, unsigned off)
@@ -1142,13 +1142,15 @@ static void pop_op(unsigned r, const char *op, unsigned size)
 static void logic_popeq(unsigned size, const char *op)
 {
 	unsigned n = size;
+	unsigned r = 5;	/* Starting register */
 	pop_rr(R_INDEX);
 	add_r_const(R_INDEX, size - 1, 2);
+	/* Points to the low byte of the value */
 	while(n) {
 		load_r_memr(R_WORK, R_INDEX, 1);
 		r_decw(R_INDEX);
-		r_modify(6 - n, 1);
-		op_r_r(6 - n, R_WORK, op);
+		r_modify(r, 1);
+		op_r_r(r--, R_WORK, op);
 		n--;
 	}
 	store_r_memr(R_AC, R_INDEX, size);
