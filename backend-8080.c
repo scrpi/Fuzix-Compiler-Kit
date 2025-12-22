@@ -3,7 +3,6 @@
  *	- Use the BC register either via a register hint in the compiler or by looking for
  *	  a non pointer arg candidate (especially on 8080 where the loads are expensive)
  *	- Improve initialized variable generation in stack frame creation
- *	- Avoid the two xchg calls on a void function cleanup (see gen_cleanup)
  *	- Do we want a single "LBREF or NREF name print" function
  *	- Optimize xor 0xff with cpl ?
  *	- Inline load and store of long to static/global/label (certainly for -O2)
