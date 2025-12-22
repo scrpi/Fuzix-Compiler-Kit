@@ -2706,8 +2706,9 @@ unsigned gen_shortcut(struct node *n)
 		/* Generate the address of the function */
 		codegen_lr(r);
 		invalidate_all();
-		/* Rather than mess with indirection use a helper */
-		printf("\tcall @__jmpr4\n");
+		printf("\tpush r4\n");
+		printf("\tpush r5\n");
+		printf("\trets\n");
 		return 1;
 	}
 	if (n->op == T_CALLNAME) {
