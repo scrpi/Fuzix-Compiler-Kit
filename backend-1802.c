@@ -230,6 +230,8 @@ unsigned gen_exit(const char *tail, unsigned n)
 
 void gen_jump(const char *tail, unsigned n)
 {
+	if (unreachable)
+		return;
 	byteop_direct(op_jump);
 	printf("\t.word L%d%s\n", n, tail);
 	unreachable = 1;
@@ -237,12 +239,16 @@ void gen_jump(const char *tail, unsigned n)
 
 void gen_jfalse(const char *tail, unsigned n)
 {
+	if (unreachable)
+		return;
 	byteop_direct(op_jfalse);
 	printf("\t.word L%d%s\n", n, tail);
 }
 
 void gen_jtrue(const char *tail, unsigned n)
 {
+	if (unreachable)
+		return;
 	byteop_direct(op_jtrue);
 	printf("\t.word L%d%s\n", n, tail);
 }

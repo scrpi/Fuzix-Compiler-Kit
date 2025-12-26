@@ -437,6 +437,8 @@ unsigned gen_exit(const char *tail, unsigned n)
 
 void gen_jump(const char *tail, unsigned n)
 {
+	if (unreachable)
+		return;
 	/* Force anything deferred to complete before the jump */
 	outputne("jr L%u%s", n, tail);
 	unreachable = 1;
@@ -444,6 +446,8 @@ void gen_jump(const char *tail, unsigned n)
 
 void gen_jfalse(const char *tail, unsigned n)
 {
+	if (unreachable)
+		return;
 	switch(ccvalid) {
 	case CC_VALID:
 		outputne("jr nz, L%u%s", n, tail);
@@ -458,6 +462,8 @@ void gen_jfalse(const char *tail, unsigned n)
 
 void gen_jtrue(const char *tail, unsigned n)
 {
+	if (unreachable)
+		return;
 	switch(ccvalid) {
 	case CC_VALID:
 		outputne("jr z, L%u%s", n, tail);
