@@ -2005,6 +2005,9 @@ static void gen_fast_mul(unsigned r, unsigned s, unsigned long n)
 
 static unsigned gen_fast_div(unsigned r, unsigned s, unsigned long n)
 {
+	return 0;
+#if 0
+	/* TODO DEBUG*/ 
 	unsigned hr = r;
 	if (n & (n - 1))
 		return 0;
@@ -2021,6 +2024,7 @@ static unsigned gen_fast_div(unsigned r, unsigned s, unsigned long n)
 	r_modify(r, s);
 	rshift_r(r, s, ilog2(n), 1);
 	return 1;
+#endif	
 }
 
 static unsigned gen_fast_udiv(unsigned r, unsigned s, unsigned long n)
