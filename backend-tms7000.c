@@ -2443,9 +2443,9 @@ unsigned gen_direct(struct node *n)
 		/* FIXME: will need an "and not register" check */
 		if (r->op == T_CONSTANT) {
 			if (nr  && size <= 2) {
-				load_r_memr(0, R_ACPTR, size);
-				add_r_const(0, v, size);
-				store_r_memr(0, R_ACPTR, size);
+				load_r_memr(2, R_ACPTR, size);
+				add_r_const(2, v, size);
+				store_r_memr(2, R_ACPTR, size);
 				return 1;
 			}
 			/* Copy the pointer over but keep R12/13 */
