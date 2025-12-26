@@ -713,7 +713,7 @@ static void single_op(unsigned op, uint8_t r)
         break;
     case 0x09:	/* POP */
         res = reg[sp--];
-        return;
+        break;
     case 0x0A:	/* DJNZ off */
         res = reg[r] - 1;
         clocks += 2;
