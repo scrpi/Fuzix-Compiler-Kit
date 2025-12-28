@@ -27,7 +27,7 @@ negc:
 __cast_l:
 __cast_ul:
 	or r4,r4
-	jnc negw
+	jn negw
 	clr r2
 	clr r3
 	rets
