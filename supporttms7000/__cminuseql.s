@@ -6,23 +6,29 @@ __cminuseql:
 
 	lda *r5
 	sub r13,a
+	push st
 	sta *r5
 	mov a,r13
 	decd r5
 
 	lda *r5
+	pop st
 	sbb r12,a
+	push st
 	sta *r5
 	mov a,r12
 	decd r5
 
 	lda *r5
+	pop st
 	sbb r11,a
+	push st
 	sta *r5
 	mov a,b
 	decd r5
 
 	lda *r5
+	pop st
 	sbb r10,a
 	sta *r5
 	mov a,r2

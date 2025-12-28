@@ -38,7 +38,7 @@ uns2:
 	add %1,r3
 	adc %0,r2
 sign_ok:
-	movd r1,r3
+	movd r3,r5
 	rets
 
 __rem:

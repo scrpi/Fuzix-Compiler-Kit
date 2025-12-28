@@ -90,6 +90,8 @@ static void flush_all(unsigned f)
 
 #define R_SPL		15
 #define R_SPH		14
+#define R_B		1
+#define R_A		0
 
 /* We use 0xEx as a magic token. We don't have working sets like the Z8
    but 0xEx is as good as anything else */
@@ -313,11 +315,6 @@ static void op_r_r(unsigned r1, unsigned r2, const char *op)
 		invalidate_ac();
 	r_modify(r1, 1);
 	printf("\t%s r%u,r%u\n", op, r2, r1);
-}
-
-static void opnoeff_r(unsigned r, const char *op)
-{
-	printf("\t%s r%u\n", op, r);
 }
 
 static void opnoeff_r_r(unsigned r1, unsigned r2, const char *op)
@@ -922,6 +919,12 @@ static void store_local_helper(struct node *r, unsigned v, unsigned size)
 	printf(";after pargr r12_sp %d\n", r12_sp);
 }
 
+static void r_lda(unsigned rr)
+{
+	printf("\tlda *r%u\n", rr + 1);	/*? helper to always invalidate 0 ? */
+	r_modify(0,1);
+}
+
 /* TODO: support the T_DEREF of AC into AC case specially by having a
    loadac%u which is ld r12, r2 ldr 13,r3 fall into load%u */
 static void load_r_memr(unsigned val, unsigned rr, unsigned size)
@@ -951,12 +954,14 @@ static void load_r_memr(unsigned val, unsigned rr, unsigned size)
 	}
 	add_r_const(rr, size - 1, 2);
 	r_modify(val, size);
-	printf("\tlda *r%u\n", rr + 1);	/*? helper to always invalidate 0 ? */
+	r_lda(rr);
 	val += size;
-	load_r_r(--val, 0);
+	/* Don't move R0 into R0 */
+	if (val != 1)
+		load_r_r(--val, 0);
 	while(--size) {
 		r_decw(rr);
-		printf("\tlda *r%u\n", rr + 1);
+		r_lda(rr);
 		load_r_r(--val, 0);
 	}
 }
@@ -986,11 +991,11 @@ static void revload_r_memr(unsigned val, unsigned rr, unsigned size)
 	}
 
 	r_modify(val, size);
-	printf("\tlda *r%u\n", rr + 1);
+	r_lda(rr);
 	load_r_r(val, 0);
 	while(--size) {
 		r_decw(rr);
-		printf("\tlda *r%u\n", rr + 1);
+		r_lda(rr);
 		load_r_r(--val, 0);
 	}
 }
@@ -1012,7 +1017,9 @@ static void store_r_memr(unsigned val, unsigned rr, unsigned size)
 	}
 	add_r_const(rr, size - 1, 2);
 	val += size;
-	load_r_r(0, --val);
+	/* Check if already in R0 */
+	if (val != 1)
+		load_r_r(0, --val);
 	printf("\tsta *r%u\n", rr + 1);
 	while(--size) {
 		r_decw(rr);
@@ -1350,8 +1357,8 @@ static unsigned logic_eq_direct_r(struct node *r, unsigned v, unsigned size, uns
 {
 	if (r->op == T_CONSTANT) {
 		/* Could spot 0000 and FFFF but prob no point */
-		load_r_r(R_INDEX, 2);
-		load_r_r(R_INDEX + 1, 3);
+		load_r_r(R_INDEX, R_ACPTR);
+		load_r_r(R_INDEX + 1, R_ACPTR+1);
 		load_r_memr(R_AC, R_INDEX, size);
 		logic_r_const(R_AC, v, size, op);
 		store_r_memr(R_AC, R_INDEX, size);
@@ -2508,9 +2515,9 @@ unsigned gen_direct(struct node *n)
 		/* FIXME: will need an "and not register" check */
 		if (r->op == T_CONSTANT) {
 			if ((n->flags & NORETURN)  && size <= 2) {
-				load_r_memr(0, R_ACPTR, size);
-				sub_r_const(0, v, size);
-				store_r_memr(0, R_ACPTR, size);
+				load_r_memr(2, R_ACPTR, size);
+				sub_r_const(2, v, size);
+				store_r_memr(2, R_ACPTR, size);
 				return 1;
 			}
 			/* Copy the pointer over but keep R12/13 */
@@ -3438,7 +3445,7 @@ unsigned gen_node(struct node *n)
 	/* += and -= we can inline except for long size. Only works for non
 	   regvar case as written though */
 	case T_PLUSEQ:
-		if (n->type == FLOAT || optsize)
+		if (n->type == FLOAT || optsize || size > 2)
 			return 0;
 		/* Pointer is on stack, value in ac */
 		pop_rr(R_INDEX);
@@ -3447,22 +3454,24 @@ unsigned gen_node(struct node *n)
 		x = size;
 		add_r_const(R_INDEX, size - 1, 2);
 		/* Now points to top byte */
-		load_r_memr(R_WORK, R_INDEX, 1);
-		op_r_r(5, R_WORK, "add");
-		invalidate_ac();
-		v = 4;
-		while(--x) {
-			r_decw(R_INDEX);
-			load_r_memr(R_WORK, R_INDEX, 1);
-			op_r_r(v-- , R_WORK, "adc");
-			invalidate_ac();
+		/* This is ugly because the carry flag is destroyed by almost anything */
+		if (size == 1) {
+			load_r_memr(R_A, R_INDEX, 1);
+			op_r_r(5, R_A, "add");
+			return 1;
 		}
+		load_r_memr(R_WORK, R_INDEX, 1);
+		r_decw(R_INDEX);
+		load_r_memr(R_A, R_INDEX, 1);
+		op_r_r(5, R_WORK, "add");
+		op_r_r(4 , R_A, "adc");
+		invalidate_ac();
 		/* Result is now in AC, and index points to start of
 		   object */
 		store_r_memr(R_AC, R_INDEX, size);
 		return 1;
 	case T_MINUSEQ:
-		if (n->type == FLOAT || optsize)
+		if (n->type == FLOAT || optsize || size > 2)
 			return 0;
 		/* Pointer is on stack, value in ac */
 		pop_rr(R_INDEX);
@@ -3470,19 +3479,18 @@ unsigned gen_node(struct node *n)
 		   fix */
 		x = size;
 		add_r_const(R_INDEX, size - 1, 2);
-		/* Now points to low byte */
-		load_r_memr(R_WORK, R_INDEX, 1);
-		op_r_r(R_WORK, 3, "sub");
-		invalidate_ac();
-		load_r_r(5, R_WORK);
-		v = 4;
-		while(--x) {
-			r_decw(R_INDEX);
-			load_r_memr(R_WORK, R_INDEX, 1);
-			op_r_r(R_WORK, x, "sbb");
-			invalidate_ac();
-			load_r_r(v--, R_WORK);
+		/* This is ugly because the carry flag is destroyed by almost anything */
+		if (size == 1) {
+			load_r_memr(R_A, R_INDEX, 1);
+			op_r_r(5, R_A, "sub");
+			return 1;
 		}
+		load_r_memr(R_WORK, R_INDEX, 1);
+		r_decw(R_INDEX);
+		load_r_memr(R_A, R_INDEX, 1);
+		op_r_r(5, R_WORK, "sub");
+		op_r_r(4, R_A, "sbb");
+		invalidate_ac();
 		/* Result is now in AC, and index points to start of
 		   object */
 		store_r_memr(R_AC, R_INDEX, size);

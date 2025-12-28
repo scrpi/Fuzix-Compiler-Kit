@@ -9,21 +9,27 @@ __plusplusl:
 	lda *r5
 	mov a,b
 	add r13,a
+	push st
 	sta *r5
 	decd r5
 	lda *r5
 	mov a,r13
-	add r12,a
+	pop st
+	adc r12,a
+	push st
 	sta *r5
 	decd r5
 	lda *r5
 	mov a,r3
-	add r11,a
+	pop st
+	adc r11,a
+	push st
 	sta *r5
 	decd r5
 	lda *r5
 	mov a,r2
-	add r10,a
+	pop st
+	adc r10,a
 	sta *r5
 	mov b,r5
 	mov r13,r4
