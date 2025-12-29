@@ -9,23 +9,20 @@
 __ccgtul:
 	movd r15,r13
 	lda *r13
-	cmp a,r2
-	jnc true		; carry is set on equality
-	jmp nbyte
+	jmp cmprest
 __ccgtl:
 	movd r15,r13
 	lda *r13
 	xor r2,a
 	jpz samesign
 	xor r2,a
-	jn true
+	jpz true
 	jmp false
-
 samesign:
 	xor r2,a
+cmprest:
 	cmp a,r2
 	jnc true		; carry set on equality
-nbyte:
 	jnz false
 	add %1,r13
 	adc %0,r12
