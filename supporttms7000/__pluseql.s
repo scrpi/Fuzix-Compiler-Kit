@@ -13,25 +13,31 @@ __pluseql:
 
 	lda *r13
 	add a,r5
+	push st
 	mov r5,a
 	sta *r13
 	decd r13
 
 	lda *r13
+	pop st
 	adc a,r4
-	mov r5,a
+	push st
+	mov r4,a
 	sta *r13
 	decd r13
 
 	lda *r13
+	pop st
 	adc a,r3
-	mov r5,a
+	push st
+	mov r3,a
 	sta *r13
 	decd r13
 
 	lda *r13
+	pop st
 	adc a,r2
-	mov r5,a
+	mov r2,a
 	sta *r13
 
 	rets
