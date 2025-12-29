@@ -1,3 +1,7 @@
+;
+;	The compiler knows and expects B to move to the last register number
+;	when called
+;
 	.export __pop
 	.export __popw
 	.export __popl

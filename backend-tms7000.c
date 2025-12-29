@@ -1074,7 +1074,8 @@ static void pop_r(unsigned r)
 	/* Always via the small helper */
 	printf("\tcall @__pop\n");
 	r_modify(0, 1);
-	load_r_r(r, 0);
+	if (r)
+		load_r_r(r, 0);
 }
 
 static void push_rr(unsigned rr)
@@ -1092,6 +1093,7 @@ static void pop_rr(unsigned rr)
 	r_modify(rr, 2);
 	load_r_constb(1, rr);
 	printf("\tcall @__popw\n");
+	r_adjust(1, 1, 1, NULL);
 }
 
 static void pop_rl(unsigned rr)
@@ -1101,6 +1103,7 @@ static void pop_rl(unsigned rr)
 	r_modify(rr, 4);
 	load_r_constb(1, rr);
 	printf("\tcall @__popl\n");
+	r_adjust(1, 3, 1, NULL);
 }
 
 static void pop_ac(unsigned size)
@@ -1139,9 +1142,9 @@ static void pop_op(unsigned r, const char *op, unsigned size)
 		r = 6 - size;
 	}
 	while(size--) {
-		pop_r(R_WORK);
+		pop_r(R_A);
 		r_modify(r, 1);
-		printf("\t%s r%u,r%u\n", op, r++, R_WORK);
+		printf("\t%s r%u,r%u\n", op, R_A, r++);
 	}
 }
 
