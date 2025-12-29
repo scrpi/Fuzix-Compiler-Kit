@@ -10,7 +10,7 @@ __ccltul:
 	movd r15,r13
 	lda *r13
 	cmp r2,a
-	jnc true
+	jnc true		; carry is set on equality
 	jmp nbyte
 __ccltl:
 	movd r15,r13
@@ -24,25 +24,25 @@ __ccltl:
 samesign:
 	xor r2,a
 	cmp r2,a
-	jnc true
+	jnc true		; carry set on equality
 nbyte:
 	jnz false
 	add %1,r13
 	adc %0,r12
 	lda *r13
-	cmp a,r3
+	cmp r3,a
 	jnc true
 	jnz false
 	add %1,r13
 	adc %0,r12
 	lda *r13
-	cmp a,r4
+	cmp r4,a
 	jnc true
 	jnz false
 	add %1,r13
 	adc %0,r12
 	lda *r13
-	cmp a,r5
+	cmp r5,a
 	jnc true
 false:
 	clr r5
