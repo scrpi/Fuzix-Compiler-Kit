@@ -75,6 +75,7 @@ __div32x32:
 	push r8
 	push r7
 	push r6
+	push a
 	lda *r13
 	mov a,r6
 	add %1,r13
@@ -89,6 +90,7 @@ __div32x32:
 	adc %0,r12
 	lda *r13
 	mov a,r9
+	pop a
 	push r13
 	push r12
 
@@ -175,12 +177,12 @@ skipadd:
 	; info bits in A
 	or a,a
 	jz is_rem
-	movd r5,r1
 	movd r7,r3
+	movd r9,r5
 	jmp mod_result
 is_rem:
-	movd r9,r1
-	movd r11,r3	; We want the remainder
+	movd r11,r3
+	movd r13,r5	; We want the remainder
 mod_result:
 	; Result is now in r0-r3
 	pop b		; Get the sign info back
