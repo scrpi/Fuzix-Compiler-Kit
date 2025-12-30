@@ -255,7 +255,7 @@ static void load_r_label(unsigned r, struct node *n, unsigned off)
 		set_ac_node(n);
 	}
 	r_modify(r, 2);
-	printf("\tmovd %%>T%u+%u,r%u\n", n->val2, off, r + 1);
+	printf("\tmovd %%T%u+%u,r%u\n", n->val2, off, r + 1);
 }
 
 static void load_r_r(unsigned r1, unsigned r2)
@@ -1071,6 +1071,7 @@ static void pop_r(unsigned r)
 		invalidate_ac();
 		r = r & 0x0F;
 	}
+	load_r_constb(R_B, r);
 	/* Always via the small helper */
 	printf("\tcall @__pop\n");
 	r_modify(0, 1);
@@ -1080,6 +1081,11 @@ static void pop_r(unsigned r)
 
 static void push_rr(unsigned rr)
 {
+	if (rr == R_ACINT && opt < 3) {
+		printf("\tcall @__pushac\n");
+		load_r_r(0, 4);
+		return;
+	}
 	if (R_ISAC(rr))
 		rr = rr & 0x0F;
 	push_r(rr + 1);
@@ -1127,8 +1133,13 @@ static void push_ac(unsigned size)
 		push_rr(R_ACINT);
 		break;
 	case 4:
-		push_rr(R_ACINT);
-		push_rr(R_ACLONG);
+		if (opt < 3) {
+			printf("\rcall @__pushacl\n");
+			load_r_r(0, 2);
+		} else {
+			push_rr(R_ACINT);
+			push_rr(R_ACLONG);
+		}
 		break;
 	default:
 		error("psz");
@@ -1158,10 +1169,10 @@ static void logic_popeq(unsigned size, const char *op)
 	/* Points to the low byte of the value */
 	while(n) {
 		load_r_memr(R_WORK, R_INDEX, 1);
-		r_decw(R_INDEX);
 		r_modify(r, 1);
 		op_r_r(r--, R_WORK, op);
-		n--;
+		if (--n)
+			r_decw(R_INDEX);
 	}
 	store_r_memr(R_AC, R_INDEX, size);
 }
