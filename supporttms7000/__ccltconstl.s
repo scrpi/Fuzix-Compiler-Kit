@@ -1,5 +1,5 @@
 ;
-;	r10-r13 v r2-r5
+;	r12-r15 v r2-r5
 ;
 ;	TODO: ponder instead putting the constant as the words following ?
 ;
@@ -39,31 +39,27 @@ __ccltconstl:
 	jmp false
 samesign:
 	xor r10,r2
-	cmp r10,r2
-	jc true
-	jnz false
-	jmp next
-
 __ccltconstul:
-	cmp r10,r2
-	jc true
+	cmp r2,r10
+	jnc true
 	jnz false
 next:
-	cmp r11,r3
-	jc true
+	cmp r3,r11
+	jnc true
 	jnz false
-	cmp r12,r4
-	jc true
+	cmp r4,r12
+	jnc true
 	jnz false
-	cmp r13,r5
-	jc true
-false:
-	clr r4
-	clr r5
-	rets
+	cmp r5,r13
+	jnc true
+	jnz false
 true:
 	clr r4
 	mov %1,r5
+	rets
+false:
+	clr r4
+	clr r5
 	rets
 
 __ccgteqconst0l:
