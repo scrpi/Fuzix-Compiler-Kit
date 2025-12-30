@@ -51,8 +51,7 @@ next:
 	jnc true
 	jnz false
 	cmp r5,r13
-	jnc true
-	jnz false
+	jc false		; C is set on equality as well.
 true:
 	clr r4
 	mov %1,r5
