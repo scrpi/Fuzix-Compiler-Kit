@@ -576,13 +576,23 @@ static void cmpne_r_0(unsigned r, unsigned size)
 	if (R_ISAC(r))
 		r = 6 - size;
 	else
-		load_r_constb(5, 0);
-	if (size == 1)
-		printf("\tor r%u, r5\n", r);
-	else while(--size)
-		printf("\tor r%u, r5\n", r++);
+		error("cnac");	/* Only accumulator supported for now */
+	if (size == 1) {
+		load_r_constb(4, 0);
+		printf("\tor r5, r5\n");
+	} else if (size == 2) {
+		printf("\tor r4, r5\n");
+		load_r_constb(4, 0);
+		/* Flags were mashed by the load */
+		printf("\tor r5,r5\n");
+	} else {	/* 32bit we can optimize slightly */
+		printf("\tor r4, r5\n");
+		/* Clear r4 early so flags stay valid */
+		load_r_constb(4, 0);
+		printf("\tor r2, r5\n");
+		printf("\tor r3, r5\n");
+	}
 	r_modify(5, 1);
-	load_r_constb(4,0);
 	printf("\tjz X%u\n", ++label_count);
 	load_r_constb(5, 1);
 	printf("X%u:\n", label_count);
