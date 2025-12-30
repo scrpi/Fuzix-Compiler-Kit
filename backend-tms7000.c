@@ -769,15 +769,12 @@ static void logic_r_r(unsigned r1, unsigned r2, unsigned size, unsigned op)
 
 static void load_l_sprel(unsigned r, unsigned off)
 {
-	/* On the TMS7000 we have no movw %const,r but we have a good chance
-	   that this will turn into a clr somewhere or a transfer */
+	/* On the TMS7000 we have movd %const,r */
 	if (off) {
 		load_r_const(r, off, 2);
 		add_rr_rr(r, R_SPH);
-	} else {
-		load_r_r(r + 1, R_SPL);
-		load_r_r(r, R_SPH);
-	}
+	} else
+		load_rr_rr(r, R_SPH);
 
 	if (r == R_INDEX) {
 		r12_valid = 1;
@@ -794,10 +791,8 @@ static void load_l_sprel(unsigned r, unsigned off)
 /* FIXME: use decd when we can */
 static void load_l_mod(unsigned r, unsigned rs, unsigned diff, unsigned off)
 {
-	if (r != rs) {
-		load_r_r(r, rs);
-		load_r_r(r + 1, rs + 1);
-	}
+	if (r != rs)
+		load_rr_rr(r, rs);
 	add_r_const(r, -diff, 2);
 
 	if (r == R_INDEX) {
@@ -1071,8 +1066,10 @@ static void push_r(unsigned r)
 {
 	if (R_ISAC(r))
 		r = r & 0x0F;
-	load_r_r(0, r);
-	printf("\tdecd r15\n\tsta *r15\n");
+	if (r != 0)
+		load_r_r(0, r);
+	r_decw(R_SPH);
+	printf("\tsta *r15\n");
 }
 
 static void pop_r(unsigned r)
@@ -1093,7 +1090,7 @@ static void push_rr(unsigned rr)
 {
 	if (rr == R_ACINT && opt < 3) {
 		printf("\tcall @__pushac\n");
-		load_r_r(0, 4);
+		r_modify(0, 1);
 		return;
 	}
 	if (R_ISAC(rr))
@@ -1144,8 +1141,9 @@ static void push_ac(unsigned size)
 		break;
 	case 4:
 		if (opt < 3) {
-			printf("\rcall @__pushacl\n");
-			load_r_r(0, 2);
+			printf("\tcall @__pushacl\n");
+			/* TODO - r copy if known is needed */
+			r_modify(0, 1);
 		} else {
 			push_rr(R_ACINT);
 			push_rr(R_ACLONG);
@@ -1884,8 +1882,7 @@ void gen_helpclean(struct node *n)
 void gen_switch(unsigned n, unsigned type)
 {
 	/* TODO: this probably belongs as a routine in the cpu bits */
-	printf("\tmov %%>Sw%u,r%u\n", n, R_INDEX);
-	printf("\tmov %%<Sw%u,r%u\n", n, R_INDEX + 1);
+	printf("\tmovd %%Sw%u,r%u\n", n, R_INDEX + 1);
 	r_modify(R_INDEX, 2);
 	/* TODO: tracking fixes for R14/15 when tracking added ??*/
 	invalidate_all();
@@ -2595,68 +2592,67 @@ static unsigned argstack_helper(struct node *n, unsigned sz)
 {
 	unsigned v = n->value;
 	if (n->op == T_CONSTANT) {
-		/* No point for bytes */
-		if (sz == 1)
-			return 0;
+		if (sz == 1) {
+			load_r_constb(0, v);
+			push_r(0);
+			return 1;
+		}
+		/* ?? is FFFF worth doing aka -1 */
 		/* Handle a couple of special word cases */
 		if (sz == 2) {
 			if (v < 2) {
-				r_set(5, v);
-				r_set(4, v >> 8);
-				r_modify(12, 2);
-				printf("\tcall @__push%u\n", (unsigned)n->value);
+				r_modify(14, 2);
+				r_set(0, 0);
+				printf("\tcall @__push%u\n", v);
 				return 1;
 			}
 		}
+		/* Similar long cases */
 		if (sz == 4) {
-			/* Long it matters */
-			if (n->value == 0) {
-				/* This clears r2/r3 */
-				r_set(2, 0);
-				r_set(3, 0);
-				r_modify(12, 2);
-				printf("\tcall @__pushl0\n");
+			if (v < 2) {
+				r_modify(14, 2);
+				r_set(0, 0);
+				printf("\tcall @__pushl%u\n", v);
 				return 1;
 			}
-			/* For optsize we do this differently */
-			if (!optsize && !(n->value & 0xFFFF0000UL)) {
-				load_r_const(R_AC, n->value, 2);
-				r_set(2, 0);
-				r_set(3, 0);
-				r_modify(12, 2);
+		}
+		/* We commonly push bytes and words into longs */
+		if (sz == 4) {
+			if (!(n->value & 0xFFFFFF00UL)) {
+				load_r_const(R_A, v, 1);
+				r_modify(14, 2);
+				r_set(0, 0);
+				printf("\tcall @__pushl0r\n");
+				return 1;
+			}
+			if (!(n->value & 0xFFFF0000UL)) {
+				load_r_const(R_AC, v, 2);
+				r_modify(14, 2);
+				r_set(0, 0);
 				printf("\tcall @__pushl0a\n");
 				return 1;
 			}
 		}
-		/* is it worth using __pushl for anything evaluated ? */
-	}
-	if (optsize && n->op == T_CONSTANT) {
-		if (sz == 2) {
-			r_modify(14, 2);
-			load_r_const(R_ACINT, n->value, 2);
-			push_rr(R_ACINT);
-			return 1;
-		} else if (sz == 4) {
-			r_modify(12, 2);
-			r_set(5, v);
-			r_set(4, v >> 8);
-			v = n->value >> 16;
-			r_set(3, v);
-			r_set(2, v >> 8);
-			push_rr(R_ACINT);
-			push_rr(R_ACLONG);
-			return 1;
-		}
 	}
 	/* Push a local argument */
-	if (n->op == T_LREF && n->value + sp < 254 && sz != 1) {
-		load_r_constb(R_INDEX + 1, n->value + sp);
-		r_modify(10, 4);
+	if (n->op == T_LREF && sz != 1) {
+		/* We want to point the index at the end of the value as we have decd
+		   but not incd */
+		if (v + sp + sz - 1 < 256) {
+			load_r_constb(R_INDEX + 1, v + sp + sz - 1);
+			if (sz == 2)
+				printf("\tcall @__pushln\n");
+			else
+				printf("\tcall @__pushlnl\n");
+		} else {
+			load_r_constw(R_INDEX, v + sp + sz - 1);
+			if (sz == 2)
+				printf("\tcall @__pushlnw\n");
+			else
+				printf("\tcall @__pushlnwl\n");
+		}
+		r_modify(12, 4);
 		r_modify(R_AC, sz);
-		if (sz == 2)
-			printf("\tcall @__pushln\n");
-		else
-			printf("\tcall @__pushlnl\n");
 		return 1;
 	}
 	return 0;
@@ -2666,12 +2662,15 @@ static unsigned argstack_helper(struct node *n, unsigned sz)
 static void argstack(struct node *n)
 {
 	unsigned sz = get_size(n->type);
-	unsigned r = R_AC + 4;
 
-	if (n->op == T_RREF)
-		r = R_REG(n->value) + 2;
-	else {
-		if (optsize && argstack_helper(n, sz)) {
+	if (n->op == T_RREF) {
+		unsigned r = R_REG(n->value) + 2;
+		sp += sz;
+		while(sz--)
+			push_r(--r);
+		return;
+	} else {
+		if (opt < 2 && argstack_helper(n, sz)) {
 			sp += sz;
 			return;
 		}
@@ -2680,9 +2679,7 @@ static void argstack(struct node *n)
 		/* TODO optsize case for long call @__pushl (mods 12/13) ?? */
 	}
 	/* And stack it */
-	sp += sz;
-	while(sz--)
-		push_r(--r);
+	gen_push(n);
 }
 
 /* We handle function arguments specially as we both push them to a different

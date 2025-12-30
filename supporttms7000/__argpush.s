@@ -2,74 +2,117 @@
 ;	Argument stack shorteners
 ;
 
-	.export __pushl0
-	.export __pushl0a
+	; Push a local variable
 	.export __pushln
 	.export __pushlnl
-	.export __pushl
-	.export __pushw
+	.export __pushlnw
+	.export __pushlnwl
+
+	; Short form pushes for constant helpers
 	.export	__push0
 	.export	__push1
+	.export __pushl0
+	.export __pushl1
+	.export __pushl0r
+	.export __pushl0a
+
+;
+;	On entry r13 is the offset on the stack
+;
+__pushln:
+	clr	r12
+__pushlnw:
+	add	r15,r13
+	adc	r14,r12
+	; r12/r13 now points to the end of the variable
+	; low byte
+	lda	*r13
+	; push
+	decd	r15
+	sta	*r15
+	; high byte
+	decd	r13
+	lda	*r13
+	; push
+	decd	r15
+	sta	*r15
+	rets
 
 __pushlnl:
-	movd	r15,r13
-	add	r11,r13
-	adc	%3,r12
-
+	clr	r12
+__pushlnwl:
+	add	r15,r13
+	adc	r14,r12
+	; r12/r13 now points to the end of the variable
+	; low byte
 	lda	*r13
-	mov	a,r5
+	; push
+	decd	r15
+	sta	*r15
+	; second byte
 	decd	r13
 	lda	*r13
-	mov	a,r4
-	lda	*r13
-	mov	a,r3
-	decd	r13
-	lda	*r13
-	mov	a,r2
-	jmp	__pushl
-__pushl0:
-	clr	r4
-	clr	r5
-__pushl0a:
-	clr	r2
-	clr	r3
-__pushl:
-	decd	r13
-	mov	r5,a
-	sta	*r13
+	; push
+	decd	r15
+	sta	*r15
+	; third byte
 	dec	r13
-	mov	r4,a
-	sta	*r13
+	lda	*r13
+	; push
+	decd	r15
+	sta	*r15
+	; final byte
 	decd	r13
-	mov	r3,a
-	sta	*r13
-	dec	r13
-	mov	r2,a
-	sta	*r13
+	lda	*r13
+	; push
+	decd	r15
+	sta	*r15
 	rets
-__pushln:
-	movd	r15,r13
-	add	r11,r13
-	adc	%1,r12
 
-	lda	*r13
-	mov	a,r5
-	decd	r13
-	lda	*r13
-	mov	a,r4
-	jmp	__pushw
+
+
+; Push the accumulator word as a long
+__pushl0a:
+	mov	r5,r0
+	decd	r15
+	sta	*r15
+	mov	r4,r0
+	decd	r15
+	sta	*r15
+	jmp	__push0
+; Push 1 as a long
+__pushl1:
+	mov	%1,r0
+	jmp	__pushl0r
+; Push 0 as a long
+__pushl0:
+	clr	r0
+; Push r0 byte as a long
+__pushl0r:
+	decd	r15
+	sta	*r15
+	clr	r0
+	decd	r15
+	sta	*r15
+	decd	r15
+	sta	*r15
+	decd	r15
+	sta	*r15
+	rets
+; Push 1 as a word
 __push1:
-	mov	%1,r5
-	jmp	__push0r
+	mov	%1,r0
+	decd	r15
+	sta	*r15
+	clr	r0
+	decd	r15
+	sta	*r15
+	rets
+; Push 0 as a word
 __push0:
-	clr	r5
-__push0r:
-	clr	r4
-__pushw:
-	decd	r13
-	mov	r5,a
-	sta	*r13
-	decd	r13
-	mov	r4,a
-	sta	*r13
+	clr	r0
+	decd	r15
+	sta	*r15
+	decd	r15
+	sta	*r15
 	rets
