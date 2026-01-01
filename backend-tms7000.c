@@ -7,6 +7,13 @@
  *	TODO: cconly cases we can avoid loading out of A after a read
  *	      - will need some infrastructure changes in this backend ?
  *	TODO: use byteify stuff
+ *	TODO: for locals we would benefit (as would Z8) from helpers that
+ *	      do "get pointer into index, and value into ac" and for -Os
+ *	      probably also helpers for "pluseq to local" that just load
+ *	      the local offset into r12/r13 and the helper does adds of sp
+ *	      and falls into the usual helper.
+ *	TODO: optimise multi-byte shifts by register register move
+ *	TODO: optimise __booll()
  */
 
 #include <stdio.h>
@@ -2490,14 +2497,14 @@ unsigned gen_direct(struct node *n)
 			return 1;
 		}
 		if (size <= 2 && load_direct(R_WORK, r, 1)) {
-			load_r_memr(0, R_ACPTR, size);
-			add_r_r(0, R_WORK, size);
-			store_r_memr(0, R_ACPTR, size);
-			if (size == 2) {
-				load_r_r(R_ACINT, 0);
-				load_r_r(R_ACINT + 1, 1);
-			} else {
-				load_r_r(R_ACCHAR, 0);
+			load_r_memr(2, R_ACPTR, size);
+			add_r_r(2, R_WORK, size);
+			store_r_memr(2, R_ACPTR, size);
+			if (!nr) {
+				if (size == 2)
+					load_rr_rr(R_ACINT, 2);
+				else
+					load_r_r(R_ACCHAR, 2);
 			}
 			return 1;
 		}
@@ -2554,11 +2561,11 @@ unsigned gen_direct(struct node *n)
 			load_r_memr(2, R_ACPTR, size);
 			sub_r_r(2, R_WORK, size);
 			store_r_memr(2, R_ACPTR, size);
-			if (size == 2) {
-				load_r_r(R_ACINT, 0);
-				load_r_r(R_ACINT + 1, 1);
-			} else {
-				load_r_r(R_ACCHAR, 0);
+			if (!nr) {
+				if (size == 2)
+					load_rr_rr(R_ACINT, 2);
+				else
+					load_r_r(R_ACCHAR, 2);
 			}
 			return 1;
 		}
@@ -2815,7 +2822,7 @@ unsigned gen_shortcut(struct node *n)
 		}
 		return 1;
 	}
-	/* TODO: Do PLUSEQ/MINUSEQ for CONST non FLOAT akin to above */
+	/* TODO: Do PLUSEQ/ for CONST non FLOAT akin to above */
 	if (n->op == T_RSTORE && (n->flags & NORETURN))
 		return load_direct(R_REG(n->value), r, 1);
 
@@ -3499,22 +3506,24 @@ unsigned gen_node(struct node *n)
 		/* Hardcoded for AC for the moment but not hard to
 		   fix */
 		x = size;
-		add_r_const(R_INDEX, size - 1, 2);
 		/* This is ugly because the carry flag is destroyed by almost anything */
 		if (size == 1) {
 			load_r_memr(R_A, R_INDEX, 1);
-			op_r_r(5, R_A, "sub");
+			op_r_r(R_A, 5, "sub");
+			store_r_memr(R_A, R_INDEX, 1);
+			if (!nr)
+				load_r_r(5, R_A);
 			return 1;
 		}
-		load_r_memr(R_WORK, R_INDEX, 1);
-		r_decw(R_INDEX);
-		load_r_memr(R_A, R_INDEX, 1);
-		op_r_r(5, R_WORK, "sub");
-		op_r_r(4, R_A, "sbb");
+		load_r_memr(R_WORK, R_INDEX, 2);
+		op_r_r(R_WORK + 1, 5, "sub");
+		op_r_r(R_WORK, 4, "sbb");
 		invalidate_ac();
 		/* Result is now in AC, and index points to start of
 		   object */
-		store_r_memr(R_AC, R_INDEX, size);
+		store_r_memr(R_WORK, R_INDEX, 2);
+		if (!nr)
+			load_rr_rr(R_ACPTR, R_WORK);
 		return 1;
 	}
 	return 0;
