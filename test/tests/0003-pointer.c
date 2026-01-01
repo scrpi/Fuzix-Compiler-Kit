@@ -38,5 +38,10 @@ int main(int argc, char *argv[])
     bp2 = buf2 + 37;
     if (bp2 - buf2 != 37)
         return 8;
+    bp = buf + 1;
+    if (--bp != buf)
+        return 9;
+    if (bp-- != buf)
+        return 9;
     return 0;
 }
