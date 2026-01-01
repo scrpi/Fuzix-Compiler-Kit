@@ -7,6 +7,8 @@
 
 __minuseql:
 	call @__pop12
+	add %3,r13
+	adc %0,r12
 
 	lda *r13
 	sub r5,a
