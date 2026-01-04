@@ -14,8 +14,10 @@ __remul:
 remdivul:
 	movd r15,r13	; r12 points to data
 	call @__div32x32
-	; Pull 4 off stack
-	jmp __cleanup4
+	; Pull 4 off C stack
+	add	%4,r15
+	adc	%0,r14
+	rets
 
 __reml:
 	mov %1,a	; signed remainder

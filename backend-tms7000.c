@@ -27,7 +27,7 @@
 #define BYTE(x)		(((unsigned)(x)) & 0xFF)
 #define WORD(x)		(((unsigned)(x)) & 0xFFFF)
 
-#define ARGBASE	0	/* Bytes between arguments and locals if no reg saves */
+#define ARGBASE		2	/* Bytes between arguments and locals if no reg saves */
 
 #define T_NREF		(T_USER)		/* Load of C global/static */
 #define T_CALLNAME	(T_USER+1)		/* Function call by name */
@@ -1192,12 +1192,6 @@ static void logic_popeq(unsigned size, const char *op)
 	store_r_memr(R_AC, R_INDEX, size);
 }
 
-static void ret_op(void)
-{
-	printf("\trets\n");
-	unreachable = 1;
-}
-
 /* Do a left shift by some means */
 static void lshift_r(unsigned r, unsigned size, unsigned l)
 {
@@ -1482,7 +1476,8 @@ struct node *gen_rewrite_node(struct node *n)
 
 	/* Structure field references from locals. These end up big on the TMS7000 so use
 	   a helper for the lot */
-	if (optsize && op == T_DEREF && r->op == T_PLUS && r->right->op == T_CONSTANT) {
+	/* BUG */
+	if ((optsize | 0) && op == T_DEREF && r->op == T_PLUS && r->right->op == T_CONSTANT) {
 		/* For now just do lrefs of offsets within 256 bytes */
 		if (r->left->op == T_LREF && r->left->value < 256) {
 			printf("; rewrite deref plus lref const\n");
@@ -1503,8 +1498,9 @@ struct node *gen_rewrite_node(struct node *n)
 		}
 		/* TODO: T_DEREFPLUS / T_EQPLUS for Super8 */
 	}
+	/* BUG */
 	/* Structure field assign - same idea */
-	if (optsize && op == T_EQ && l->op == T_PLUS && l->right->op == T_CONSTANT) {
+	if ((optsize | 0) && op == T_EQ && l->op == T_PLUS && l->right->op == T_CONSTANT) {
 		/* Same restrictions */
 		if (l->left->op == T_LSTORE && l->left->value < 256) {
 			n->op = T_LSTSTORE;
@@ -1706,36 +1702,34 @@ void gen_frame(unsigned size, unsigned aframe)
 	r12_valid = 0;
 	r4_valid = 0;
 
-	if (size > 3 && opt < 1 && size < 256) {
+	/* Return address to move to the C stack */
+	/* Big endian but upwards growing stack */
+	printf("\tpop r13\n\tpop r12\n");
+
+	if (size < 256) {
 		load_r_constb(11, size);
 		printf("\tcall @__frame\n");
+		r_set(10,0);
 		return;
+	} else  {
+		load_r_constw(10, size);
+		printf("\tcall __frame16\n");
+		/* TODO set r values ? */
+		r_modify(12,4);
 	}
-	if (size > 4) {
-		/* Special handling because of the stack and interrupts */
-		load_r_r(R_INDEX, R_SPL);
-		/* TODO: will need special tracking of course */
-		printf("\tsub %%%u,r%u\n", size & 0xFF, R_INDEX);
-		printf("\tsbb %%%u,r%u\n", size >> 8, R_SPH);
-		load_r_r(R_SPL, R_INDEX);
-		return;
-	}
-	while(size--)
-		r_decw(R_SPH);
 }
 
 void gen_exitjp(unsigned size)
 {
-	if (size == 0)
-		ret_op();
-	else if (size > 255) {
+	size++;		/* To fold in part of return address recovery */
+	if (size > 255) {
 		load_r_const(R_WORK, size, 2);
 		printf("\tbr @__cleanup\n");
 	} else if (size > 8) {
 		load_r_const(R_WORK + 1, size, 1);
 		printf("\tbr @__cleanupb\n");
-	} else
-		printf("\tbr @__cleanup%u\n", size);
+	} else	/* Helpers are named correctly by size */
+		printf("\tbr @__cleanup%u\n", size - 1);
 	unreachable = 1;
 }
 
@@ -1754,11 +1748,12 @@ void gen_epilogue(unsigned size, unsigned argsize)
 			pop_rr(R_REG(r));
 		}
 	}
+	/* +1 to fold in the other half of the pop */
 	if (!(func_flags & F_VARARG)) {
-		gen_exitjp(argsize);
+		gen_exitjp(argsize);	
 		return;
 	}
-	ret_op();
+	gen_exitjp(0);
 }
 
 void gen_label(const char *tail, unsigned n)
@@ -1843,6 +1838,7 @@ void gen_helpcall(struct node *n)
 		gen_push(n->right);
 	invalidate_ac();
 	printf("\tcall @__");
+	r_modify(0, 2);
 	r_modify(2, 4);
 	r_modify(10,4);
 }
@@ -2751,9 +2747,7 @@ unsigned gen_shortcut(struct node *n)
 		/* Generate the address of the function */
 		codegen_lr(r);
 		invalidate_all();
-		printf("\tpush r4\n");
-		printf("\tpush r5\n");
-		printf("\trets\n");
+		printf("\tcall *r5\n");
 		return 1;
 	}
 	if (n->op == T_CALLNAME) {
@@ -3252,6 +3246,8 @@ unsigned gen_node(struct node *n)
 	case T_PLUS:
 		/* Tricky as big endian on stack */
 		/* FIXME: needs a !reg check */
+#if 0
+		/* Not safe because we mess up flags on the pop_r */
 		if (size == 4 && n->type != FLOAT && !optsize) {
 			/* Games time */
 			pop_r(R_WORK);
@@ -3264,6 +3260,7 @@ unsigned gen_node(struct node *n)
 			op_r_r(0, R_WORK, "adc");
 			return 1;
 		}
+#endif		
 		if (size > 2)
 			return 0;
 		/* FIXME: will need a "not register" check .. otherwise
@@ -3282,6 +3279,8 @@ unsigned gen_node(struct node *n)
 		/* We are doing stack - ac. This isn't ideal but we've
 		   dealt with the simple cases already. We could more
 		   in gen_shortcut perhaps if it is still an issue */
+#if 0
+		/* Not safe as we mess up flags on pop_r */
 		if (size == 4 && n->type != FLOAT && !optsize) {
 			/* Lots of joy involved */
 			pop_r(R_WORK);
@@ -3298,6 +3297,7 @@ unsigned gen_node(struct node *n)
 			load_r_r(0, R_WORK);
 			return 1;
 		}
+#endif
 		if (size > 2)
 			return 0;
 		if (size == 2) {
