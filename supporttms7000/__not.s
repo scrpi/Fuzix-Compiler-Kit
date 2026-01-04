@@ -4,15 +4,14 @@
 	
 
 __notl:
-	or r5,r2
-	or r5,r3
+	or r2,r5
+	or r3,r5
 __not:
-	or r5,r4
-	clr r4
+	or r4,r5
 	jz true
-	clr r5
+	movd %0,r5
 	rets
-true:	; r5 is currently 0
+true:	; r4/r5 is currently 0
 	inc r5	; sets flags right too
 	rets
 __notc:
