@@ -17,7 +17,7 @@ __divequ:
 	mov r3,a
 	sta *r13
 	decd r13
-	movd r2,a
+	mov r2,a
 	sta *r13
 	rets
 

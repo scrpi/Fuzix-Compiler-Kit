@@ -6,51 +6,50 @@
 	.export __ccltequl
 	.code
 
-
+__ccltequl:
+	movd r15,r13
+	lda *r13
+	jmp cmprest
 __cclteql:
 	movd r15,r13
 	lda *r13
 	xor r2,a
 	jpz samesign
 	xor r2,a
-	; Get the sign back
-	jn true
-	jmp false
+	jn false
+	jmp true
 
-__ccltequl:
-	movd r15,r13
-	lda *r13
 samesign:
 	xor r2,a
-	cmp r2,a
-	jc false
-nbyte:
+cmprest:
+	cmp a,r2
+	jnc false		; carry set on equality
 	jnz true
 	add %1,r13
 	adc %0,r12
 	lda *r13
-	cmp r3,a
-	jc false
+	cmp a,r3
+	jnc false
 	jnz true
 	add %1,r13
 	adc %0,r12
 	lda *r13
-	cmp r4,a
-	jc false
+	cmp a,r4
+	jnc false
 	jnz true
 	add %1,r13
 	adc %0,r12
 	lda *r13
-	cmp r5,a
-	jc false
+	cmp a,r5
+ 	jnc false
 true:
 	mov %1,r5
-out:
-	clr r4
-	add %4,r14
-	adc %0,r15
-	or r3,r3	; get the flags right
-	rets
+	jmp out
 false:
 	clr r5
-	jmp out
+out:
+	add %4,r15
+	adc %0,r14
+	clr r4
+	or r5,r5	; flags
+	rets

@@ -9,49 +9,45 @@
 __ccgtul:
 	movd r15,r13
 	lda *r13
-	cmp r2,a
-	jc true
-	jmp nbyte
+	jmp cmprest
 __ccgtl:
 	movd r15,r13
 	lda *r13
 	xor r2,a
 	jpz samesign
 	xor r2,a
-	; Get the sign back
 	jpz true
 	jmp false
-
 samesign:
 	xor r2,a
-	cmp r2,a
-	jc true
-nbyte:
+cmprest:
+	cmp a,r2
+	jnc true		; carry set on equality
 	jnz false
 	add %1,r13
 	adc %0,r12
 	lda *r13
-	cmp r3,a
-	jc true
+	cmp a,r3
+	jnc true
 	jnz false
 	add %1,r13
 	adc %0,r12
 	lda *r13
-	cmp r4,a
-	jc true
+	cmp a,r4
+	jnc true
 	jnz false
 	add %1,r13
 	adc %0,r12
 	lda *r13
-	cmp r5,a
-	jc true
+	cmp a,r5
+	jnc true
 false:
 	clr r5
 out:
+	add %4,r15
+	adc %0,r14
 	clr r4
-	add %4,r14
-	adc %0,r15
-	or r3,r3	; get the flags right
+	or r5,r5	; flags
 	rets
 true:
 	mov %1,r5

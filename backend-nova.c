@@ -410,6 +410,8 @@ unsigned gen_exit(const char *tail, unsigned n)
 
 void gen_jump(const char *tail, unsigned n)
 {
+	if (unreachable)
+		return;
 	if (cpu >= 100)
 		printf("\tejmp L%d%s\n", n, tail);
 	else {
@@ -421,6 +423,8 @@ void gen_jump(const char *tail, unsigned n)
 
 void gen_jfalse(const char *tail, unsigned n)
 {
+	if (unreachable)
+		return;
 	/* TODO we need a self expanding jump with value hiding */
 	printf("\tjsr @__jf,0\n");
 	printf("\t.word L%d%s\n", n, tail);
@@ -428,6 +432,8 @@ void gen_jfalse(const char *tail, unsigned n)
 
 void gen_jtrue(const char *tail, unsigned n)
 {
+	if (unreachable)
+		return;
 	printf("\tjsr @__jt,0\n");
 	printf("\t.word L%d%s\n", n, tail);
 }

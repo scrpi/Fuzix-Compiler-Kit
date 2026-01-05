@@ -1310,6 +1310,8 @@ unsigned gen_exit(const char *tail, unsigned n)
 
 void gen_jump(const char *tail, unsigned n)
 {
+	if (unreachable)
+		return;
 	/* The assembler auto converts these if needed */
 	set16bit();
 	outputnc("bra L%d%s", n, tail);
@@ -1329,6 +1331,8 @@ static void setjflags(struct node *n, const char *us, const char *s)
 
 void gen_jfalse(const char *tail, unsigned n)
 {
+	if (unreachable)
+		return;
 	set16bit();
 	outputnc("j%c%c L%d%s", jflags[2], jflags[3], n, tail);
 	jflags = "neeq";
@@ -1336,6 +1340,8 @@ void gen_jfalse(const char *tail, unsigned n)
 
 void gen_jtrue(const char *tail, unsigned n)
 {
+	if (unreachable)
+		return;
 	set16bit();
 	outputnc("j%c%c L%d%s", jflags[0], jflags[1], n, tail);
 	jflags = "neeq";

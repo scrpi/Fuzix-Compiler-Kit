@@ -14,17 +14,23 @@ __minusl:
 	decd r13
 	lda *r13
 	sub a,r5
+	push st
 	mov a,r5
 	decd r13
 	lda *r13
+	pop st
 	sbb a,r4
+	push st
 	mov a,r4
 	decd r13
 	lda *r13
-	sub a,r3
+	pop st
+	sbb a,r3
+	push st
 	mov a,r3
 	decd r13
 	lda *r12
+	pop st
 	sbb a,r2
 	mov a,r2
 	movd r11,r14	; and adjust the stack

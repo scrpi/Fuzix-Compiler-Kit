@@ -174,18 +174,24 @@ unsigned gen_exit(const char *tail, unsigned n)
 
 void gen_jump(const char *tail, unsigned n)
 {
+	if (unreachable)
+		return;
 	printf("\tjr L%u%s\n", n, tail);
 	unreachable = 1;
 }
 
 void gen_jfalse(const char *tail, unsigned n)
 {
+	if (unreachable)
+		return;
 	printf("\tjr %s,L%u%s\n", ccflags + 2, n, tail);
 	ccflags = ccnormal;
 }
 
 void gen_jtrue(const char *tail, unsigned n)
 {
+	if (unreachable)
+		return;
 	printf("\tjr %c%c,L%u%s\n", ccflags[0], ccflags[1], n, tail);
 	ccflags = ccnormal;
 }

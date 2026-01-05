@@ -1466,6 +1466,8 @@ unsigned gen_exit(const char *tail, unsigned n)
 
 void gen_jump(const char *tail, unsigned n)
 {
+	if (unreachable)
+		return;
 	/* Want to use BRA if we have the option */
 	output("jmp L%d%s", n, tail);
 	unreachable = 1;
@@ -1473,11 +1475,15 @@ void gen_jump(const char *tail, unsigned n)
 
 void gen_jfalse(const char *tail, unsigned n)
 {
+	if (unreachable)
+		return;
 	output("jeq L%d%s", n, tail);
 }
 
 void gen_jtrue(const char *tail, unsigned n)
 {
+	if (unreachable)
+		return;
 	output("jne L%d%s", n, tail);
 }
 

@@ -117,12 +117,16 @@ unsigned gen_exit(const char *tail, unsigned n)
 
 void gen_jump(const char *tail, unsigned n)
 {
+	if (unreachable)
+		return;
 	printf("\t%s L%d%s\n", jmp_op, n, tail);
 	unreachable = 1;
 }
 
 void gen_jfalse(const char *tail, unsigned n)
 {
+	if (unreachable)
+		return;
 	if (cpu_is_09)
 		printf("\tbeq L%d%s\n", n, tail);
 	else
@@ -131,6 +135,8 @@ void gen_jfalse(const char *tail, unsigned n)
 
 void gen_jtrue(const char *tail, unsigned n)
 {
+	if (unreachable)
+		return;
 	if (cpu_is_09)
 		printf("\tbne L%d%s\n", n, tail);
 	else

@@ -13,11 +13,13 @@ __pluseq:
 
 	lda *r13
 	add a,r5
+	push st
 	mov r5,a
 	sta *r13
 	decd r13
 
 	lda *r13
+	pop st
 	adc a,r4
 	mov r4,a
 	sta *r13

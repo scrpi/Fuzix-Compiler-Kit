@@ -12,8 +12,8 @@ __remequ:
 	push r13
 	push r12
 	call @__div16x16	; do the division
-	pop r12
 	pop r13
+	pop r12
 	movd r13,r5
 	mov r5,a
 	sta *r13

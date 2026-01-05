@@ -190,9 +190,20 @@ __revstore4:
 ; to be a number of exact pages long and must allow for this annoying cpu
 ; limit)
 __frame:
+	clr	r10
+__frame16:
+	; Start by saving the return address passed in r12/r13 then adjust which is currently
+	; in r10/11
+	mov	r13,a
+	decd	r15
+	sta	*r15
+	mov	r12,a
+	decd	r15
+	sta	*r15
+	; Now adjust the frame
 	mov	r15,r13
 	sub	r11,r13
-	sbb	%0,r14	; adjust high first
+	sbb	r10,r14	; adjust high first
 	mov	r13,r15
 	rets
 

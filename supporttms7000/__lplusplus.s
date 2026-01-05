@@ -21,10 +21,12 @@ __lplusplus:
 	lda *r13
 	mov a,r3
 	add r5,a
+	push st
 	sta *r13
 	decd r13
 	lda *r13
 	mov a,r2
+	pop st
 	adc r4,a
 	sta *r13
 	movd r2,r4

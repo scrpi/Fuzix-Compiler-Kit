@@ -9,12 +9,14 @@ __cpluseq:
 	adc %0,r4
 	lda *r5
 	add r11,a
+	push st
 	sta *r5
 	mov a,b
 	decd r5
-	lda *r4
+	lda *r5
+	pop st
 	adc r10,a
-	sta *r4
+	sta *r5
 	mov a,r4
 	mov b,r5
 	rets

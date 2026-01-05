@@ -23,23 +23,29 @@ __lplusplusl:
 	lda *r13
 	mov a,b
 	add r5,a
+	push st
 	mov b,r5
 	sta *r13
 	decd r13
 	lda *r13
 	mov a,b
+	pop st
 	adc r4,a
+	push st
 	mov b,r4
 	sta *r13
 	decd r13
 	lda *r13
 	mov a,b
+	pop st
 	adc r3,a
+	push st
 	mov b,r3
 	sta *r13
 	decd r13
 	lda *r13
 	mov a,b
+	pop st
 	adc r2,a
 	mov b,r2
 	sta *r13

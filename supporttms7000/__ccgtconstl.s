@@ -40,24 +40,19 @@ __ccgtconstl:
 
 samesign:
 	xor r10,r2
-	cmp r10,r2
-	jc true
-	jnz false
-	jmp next
-
 __ccgtconstul:
-	cmp r10,r2
-	jc true
-	jnz false
-next:
-	cmp r11,r3
-	jc true
-	jnz false
-	cmp r12,r4
-	jc true
-	jnz false
-	cmp r13,r5
-	jc true
+	cmp r2,r10		; C if r2 > r10
+	jnc false
+	jnz true		; NZ if r2 < r10
+	cmp r3,r11
+	jnc false
+	jnz true
+	cmp r4,r12
+	jnc false
+	jnz true
+	cmp r5,r13
+	jnc false
+	jnz true
 false:
 	clr r5
 	clr r4
@@ -86,5 +81,5 @@ __cclteqconstbul:
 	clr r10
 __cclteqconstul:
 	call @__ccgtconstul
-	xor %1,r3
+	xor %1,r5
 	rets

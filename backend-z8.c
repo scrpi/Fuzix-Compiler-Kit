@@ -1932,6 +1932,8 @@ unsigned gen_exit(const char *tail, unsigned n)
 /* FIXME: teach assembler to adjust jr and make these use jr */
 void gen_jump(const char *tail, unsigned n)
 {
+	if (unreachable)
+		return;
 	/* Force anything deferred to complete before the jump */
 	flush_all(0);
 	printf("\tjr L%u%s\n", n, tail);
@@ -1941,12 +1943,16 @@ void gen_jump(const char *tail, unsigned n)
 /* TODO: Will need work when we implement flag flipping and other compare tricks */
 void gen_jfalse(const char *tail, unsigned n)
 {
+	if (unreachable)
+		return;
 	flush_all(1);	/* Must preserve flags */
 	printf("\tjr z,L%u%s\n", n, tail);
 }
 
 void gen_jtrue(const char *tail, unsigned n)
 {
+	if (unreachable)
+		return;
 	flush_all(1);	/* Must preserve flags */
 	printf("\tjr nz,L%u%s\n", n, tail);
 }

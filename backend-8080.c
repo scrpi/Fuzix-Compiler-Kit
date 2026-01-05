@@ -854,17 +854,23 @@ unsigned gen_exit(const char *tail, unsigned n)
 void gen_jump(const char *tail, unsigned n)
 {
 	/* Force anything deferred to complete before the jump */
+	if (unreachable)
+		return;
 	opcode("jmp L%u%s", n, tail);
 	unreachable = 1;
 }
 
 void gen_jfalse(const char *tail, unsigned n)
 {
+	if (unreachable)
+		return;
 	opcode("jz L%u%s", n, tail);
 }
 
 void gen_jtrue(const char *tail, unsigned n)
 {
+	if (unreachable)
+		return;
 	opcode("jnz L%u%s", n, tail);
 }
 
