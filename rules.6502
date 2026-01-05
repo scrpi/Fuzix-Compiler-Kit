@@ -3,11 +3,6 @@
 =
 %1:
 
-	jmp %1
-	jmp %2
-=
-	jmp %1
-
 	jsr %1
 ;:
 	rts
