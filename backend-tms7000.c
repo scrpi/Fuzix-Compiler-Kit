@@ -727,7 +727,7 @@ static void logic_r_const(unsigned r, unsigned long v, unsigned size, unsigned o
 			if (op == OP_OR)
 				load_r_constb(r, 0xFF);
 			else if (op == OP_XOR) {
-				printf("\tcom r%u\n", r);
+				printf("\tinv r%u\n", r);
 				r_modify(r, 1);
 			}
 			/* and nothing for and FF */
@@ -1713,7 +1713,7 @@ void gen_frame(unsigned size, unsigned aframe)
 		return;
 	} else  {
 		load_r_constw(10, size);
-		printf("\tcall __frame16\n");
+		printf("\tcall @__frame16\n");
 		/* TODO set r values ? */
 		r_modify(12,4);
 	}
