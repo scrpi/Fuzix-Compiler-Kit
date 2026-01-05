@@ -13,20 +13,27 @@ __mulequ:
 
 	; Get values
 	lda *r11
-	mov a,r4
+	mov a,r2
 	add %1,r11
 	adc %0,r11
 	lda *r11
-	mov a,r5
+	mov a,r3
 
 	; save ptr
 	push r11
 	push r10
 
-	; r0,r1 x r2,r3
-	call @__domul
+	; r2/r3 x r4/r5
 
-	; result in r4,r5, r10/r11/12 trashed
+	mpy r3,r5
+	movd b,r12		; r12/r13 working low
+	mpy r3,r4		; high1 v low 2
+	add b,r2
+	mpy r2,r5
+	add b,r12
+
+	movd r12,r5
+	; result in r4,r5, r10/r11/12/13 trashed
 	pop r10
 	pop r11
 	mov r5,a
