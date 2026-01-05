@@ -26,6 +26,7 @@
 	.export __pargr4_0
 	.export __pargr4_1
 	.export __frame
+	.export __frame16
 	.export __load2
 	.export __load4
 	.export __store2
