@@ -1,6 +1,8 @@
 	.export __pushac
 	.export __pushacl
 
+	.code
+
 ;	Push word or long uninlined
 
 __pushac:

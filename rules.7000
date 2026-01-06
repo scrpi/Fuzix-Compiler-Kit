@@ -1,5 +1,99 @@
-
 	jmp %1
 %1:
 =
 %1:
+
+
+;
+;	The traps
+;
+
+	call @__pushac
+=
+	trap	4
+
+	call @__gargr2
+=
+	trap	5
+
+	call @__nref_2
+=
+	trap	6
+
+	call @__pargr2
+=
+	trap	7
+
+	call @__pushln
+=
+	trap	8
+
+	call @__gargr1
+=
+	trap	9
+
+	call @__frame
+=
+	trap	10
+
+	call @__pushacl
+=
+	trap	11
+
+	call @__plusplus
+=
+	trap	12
+
+	call @__nref_1
+=
+	trap	13
+
+	call @__load2
+=
+	trap	14
+
+	call @__gargr4
+=
+	trap	15
+
+	call @__cceqconstb
+=
+	trap	16
+
+	call @__popw
+=
+	trap	17
+
+	call @__garg10r2
+=
+	trap	18
+
+	call @__cceqconst0
+=
+	trap	19
+
+	call @__nstore_2
+=
+	trap	20
+
+	call @__pargr1
+=
+	trap	21
+
+	call @__push0
+=
+	trap	22
+
+	call @__lstref0
+=
+	trap	23
+
+	add %1,r5
+	adc %0,r4
+	mov r11,r0
+	sta *r5
+	decd r5
+	mov r10,r0
+	sta *r5
+=
+	call @__stwork

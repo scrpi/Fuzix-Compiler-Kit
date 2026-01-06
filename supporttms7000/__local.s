@@ -38,6 +38,7 @@
 
 __gargr1:
 	clr	r12
+	mov	b,r13
 __gargrr1:
 	add	r15,r13
 	adc	r14,r12
@@ -47,6 +48,7 @@ __gargrr1:
 
 __gargr2:
 	clr	r12
+	mov	b,r13
 __gargrr2:
 	add	r15,r13
 	adc	r14,r12
@@ -70,6 +72,7 @@ __load2ac:		; Must leave regs exactly like this
 	rets
 __gargr4:
 	clr	r12
+	mov	b,r13
 __gargrr4:
 	add	r15,r13
 	adc	r14,r12
@@ -91,6 +94,7 @@ __load4:
 
 __garg10r1:
 	clr	r12
+	mov	b,r13
 __garg10rr1:
 	add	r15,r13
 	adc	r14,r12
@@ -100,6 +104,7 @@ __garg10rr1:
 
 __garg10r2:
 	clr	r12
+	mov	b,r13
 __garg10rr2:
 	add	r15,r13
 	adc	r14,r12
@@ -112,8 +117,10 @@ __garg10rr2:
 	rets
 
 ; Rewritten by optimizer as a store helper
+; TODO: not used on TMS7K yet
 __garg10r2str:
 	clr	r12
+	mov	b,r13
 __garg10rr2str:
 	add	r15,r13
 	adc	r14,r12
@@ -128,6 +135,7 @@ __garg10rr2str:
 __pargr1_0:
 	clr	r4
 __pargr1:
+	mov	b,r13
 	clr	r12
 __pargrr1:
 	add	r15,r13
@@ -140,6 +148,7 @@ __pargr2_0:
 	clr	r4
 	clr	r5
 __pargr2:
+	mov	b,r13
 	clr	r12
 __pargrr2:
 	add	r15,r13
@@ -165,6 +174,7 @@ pac:
 	clr	r3
 	clr	r4
 __pargr4:
+	mov	b,r13
 	clr	r12
 __pargrr4:
 	add	r15,r13
@@ -193,12 +203,11 @@ __revstore4:
 __frame:
 	clr	r10
 __frame16:
-	; Start by saving the return address passed in r12/r13 then adjust which is currently
-	; in r10/11
-	mov	r13,a
+	; Start by saving the return address passed in rb/a then adjust which is currently
+	; in r10/r11
 	decd	r15
 	sta	*r15
-	mov	r12,a
+	mov	b,a
 	decd	r15
 	sta	*r15
 	; Now adjust the frame
