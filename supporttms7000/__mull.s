@@ -1,5 +1,6 @@
 	.export __mullu
 	.export __mull
+	.export __mull_op
 
 	.code
 
@@ -12,7 +13,7 @@ __mull:
 	; result into r6-r9 (so save first)
 	call @__pop10
 	call @__pop12
-
+__mull_op:
 	push r6
 	push r7
 	push r8

@@ -228,7 +228,7 @@ struct cpu_table cpu_rules[] = {
 	{ "ddp116", "316", ".ddp", "libddp.a", "ddp116", defddp116, ldddp, "116", 0, NULL },
 	{ "ddp316", "316", ".ddp", "libddp.a", "ddp", defddp316, ldddp, "316", 0, NULL },
 	{ "ddp516", "316", ".ddp", "libddp.a", "ddp", defddp516, ldddp, "516", 0, NULL },
-	{ "tms7000", "7000", ".7000", "lib7000.a", "ddp", deftms7000, ldtms7000, "7000", 0, NULL },
+	{ "tms7000", "7000", ".7000", "libtms7000.a", "tms7000", deftms7000, ldtms7000, "7000", 0, NULL },
 	{ "hc08", "hc08", ".hc08", "libhc08.a", "hc08", defhc08, ldhc08, "8", 0, NULL },
 	{ NULL }
 };
@@ -260,6 +260,7 @@ int c_files;
 int standalone;
 char *cpu = "8080";
 int mapfile;
+int trace;
 
 #define OS_NONE		0
 #define OS_FUZIX	1
@@ -751,6 +752,9 @@ void link_phase(void)
 		add_argument("-R");
 		add_argument(relocs);
 	}
+	if (trace)
+		add_argument("-t");
+
 	/* <root>/8080/lib/ */
 	l = xstrdup(make_lib_dir("", ""), 0);
 	c = NULL;
@@ -944,6 +948,10 @@ void extended_opt(const char *p)
 {
 	if (strcmp(p, "dlib") == 0) {
 		crtname = "lib0.o";
+		return;
+	}
+	if (strcmp(p, "ldtrace") == 0) {
+		trace = 1;
 		return;
 	}
 	usage();

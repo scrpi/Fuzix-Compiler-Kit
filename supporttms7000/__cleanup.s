@@ -14,28 +14,28 @@
 
 ; Always one more so we fold in the last bit of the return pop adjustment
 __cleanup8:
-	mov	%9,r11
+	mov	%9,b
 	jmp	__cleanupb
 __cleanup7:
-	mov	%8,r11
+	mov	%8,b
 	jmp	__cleanupb
 __cleanup6:
-	mov	%7,r11
+	mov	%7,b
 	jmp	__cleanupb
 __cleanup5:
-	mov	%6,r11
+	mov	%6,b
 	jmp	__cleanupb
 __cleanup3:
-	mov	%4,r11
+	mov	%4,b
 	jmp	__cleanupb
 __cleanup2:
-	mov	%3,r11
+	mov	%3,b
 	jmp	__cleanupb
 __cleanup1:
-	mov	%2,r11
+	mov	%2,b
 	jmp	__cleanupb
 __cleanup4:			; 4 is common, 3 is not
-	mov	%5,r11
+	mov	%5,b
 __cleanupb:
 	clr	r10
 __cleanup:
@@ -45,7 +45,7 @@ __cleanup:
 	mov	a,r12
 	lda	*r15
 	mov	a,r13
-	add	r11,r15
+	add	b,r15
 	adc	r10,r14
 	br	*r13		; and back to the caller
 __cleanup0:

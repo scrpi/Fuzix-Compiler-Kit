@@ -218,8 +218,8 @@ bytecode etc.
 ### TMS7000
 
 A slightly modified Z8 target for the TMS7000 as the two are remarkably
-similar in terms of their compiler requirements. Working on an emulator
-integration to begin proper testing.
+similar in terms of their compiler requirements. This now passes most of the
+basic tests but still needs considerable work.
 
 ### Z8
 

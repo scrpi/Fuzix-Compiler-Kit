@@ -11,6 +11,7 @@
 	; Short form pushes for constant helpers
 	.export	__push0
 	.export	__push1
+	.export __pusha
 	.export __pushl0
 	.export __pushl1
 	.export __pushl0r
@@ -73,25 +74,25 @@ __pushlnwl:
 
 ; Push the accumulator word as a long
 __pushl0a:
-	mov	r5,r0
+	mov	r5,a
 	decd	r15
 	sta	*r15
-	mov	r4,r0
+	mov	r4,a
 	decd	r15
 	sta	*r15
 	jmp	__push0
 ; Push 1 as a long
 __pushl1:
-	mov	%1,r0
+	mov	%1,a
 	jmp	__pushl0r
 ; Push 0 as a long
 __pushl0:
-	clr	r0
+	clr	a
 ; Push r0 byte as a long
 __pushl0r:
 	decd	r15
 	sta	*r15
-	clr	r0
+	clr	a
 	decd	r15
 	sta	*r15
 	decd	r15
@@ -101,16 +102,17 @@ __pushl0r:
 	rets
 ; Push 1 as a word
 __push1:
-	mov	%1,r0
+	mov	%1,a
+__pusha:
 	decd	r15
 	sta	*r15
-	clr	r0
+	clr	a
 	decd	r15
 	sta	*r15
 	rets
 ; Push 0 as a word
 __push0:
-	clr	r0
+	clr	a
 	decd	r15
 	sta	*r15
 	decd	r15

@@ -14,6 +14,14 @@
  *	      and falls into the usual helper.
  *	TODO: optimise multi-byte shifts by register register move
  *	TODO: optimise __booll()
+ *	TODO: use the shorter forms and pass info to helpers via short byte count ops
+ *		- mov %n,a and %n,b are 2 byte, others 3
+ *		- maths b,a is 1 bye r?,a, r?,b are 2 byte as is %n,a or %n,b
+ *		- single ops (clr, inc, dec, inv etc are 1 byte for a and b)
+ *
+ *		So stuff like gargr should take arg in a or b
+ *		16bit load into A and B as two 8bit loads is same memory and 1 cycle faster
+ *
  */
 
 #include <stdio.h>
@@ -727,7 +735,7 @@ static void logic_r_const(unsigned r, unsigned long v, unsigned size, unsigned o
 			if (op == OP_OR)
 				load_r_constb(r, 0xFF);
 			else if (op == OP_XOR) {
-				printf("\tcom r%u\n", r);
+				printf("\tinv r%u\n", r);
 				r_modify(r, 1);
 			}
 			/* and nothing for and FF */
@@ -871,8 +879,8 @@ static void load_local_helper(unsigned v, unsigned size)
 {
 	/* Only works for R_AC case */
 	v += sp;
-	if (v < 254) {
-		load_r_const(R_INDEX + 1, v, 1);
+	if (v < 256) {
+		load_r_const(R_B, v, 1);
 		printf("\tcall @__gargr%u\n", size);
 		r_modify(12,2);
 	} else {
@@ -880,7 +888,8 @@ static void load_local_helper(unsigned v, unsigned size)
 		printf("\tcall @__gargrr%u\n", size);
 		r_modify(12,2);
 	}
-	r_modify(4 - size, size);
+	r_modify(0,2);
+	r_modify(6 - size, size);
 	r_modify(10, 2);
 	r12_valid = 1;
 	r12_sp = v - sp;
@@ -889,13 +898,14 @@ static void load_local_helper(unsigned v, unsigned size)
 static void load_work_helper(unsigned v, unsigned size)
 {
 	v += sp;
-	if (v < 254) {
-		load_r_const(R_INDEX + 1, v, 1);
+	if (v < 256) {
+		load_r_const(R_B, v, 1);
 		printf("\tcall @__garg10r%u\n", size);
 	} else {
 		load_r_const(R_INDEX, v, 2);
 		printf("\tcall @__garg10rr%u\n", size);
 	}
+	r_modify(0,2);
 	r_modify(12,2);
 	r_modify(10,2);
 	r12_valid = 1;
@@ -906,8 +916,8 @@ static void store_local_helper(struct node *r, unsigned v, unsigned size)
 {
 	/* Only works for R_AC case */
 	v += sp;
-	if (v < 254) {
-		load_r_const(R_INDEX + 1, v, 1);
+	if (v < 256) {
+		load_r_const(R_B, v, 1);
 		/* Extra helper paths optimize assign with 0 or 1L */
 		if (r && r->op == T_CONSTANT) {
 			if (r->value == 0)
@@ -919,10 +929,12 @@ static void store_local_helper(struct node *r, unsigned v, unsigned size)
 		}
 		else
 			printf("\tcall @__pargr%u\n", size);
+		r_modify(0,2);
 		r_modify(12,2);
 	} else {
 		load_r_const(R_INDEX, v, 2);
 		printf("\tcall @__pargrr%u\n", size);
+		r_modify(0,1);
 		r_modify(12,2);
 	}
 	/* pargr always leaves R12 pointing at the value still */
@@ -1218,6 +1230,7 @@ static void lshift_r(unsigned r, unsigned size, unsigned l)
 			load_r_r(r + 1, r + 2);
 			load_r_r(r + 2, r + 3);
 			load_r_const(r + 3, 0, 1);
+			l -= 8;
 		}
 	} else if (size == 2) {
 		if (l >= 8) {
@@ -1226,15 +1239,19 @@ static void lshift_r(unsigned r, unsigned size, unsigned l)
 			l -= 8;
 		}
 	}
-	if (size == 2 && l == 3 && optsize) {
-		printf("\tcall @__mul8\n");
-		r_modify(2, 2);
-		return ;
-	}
-	if (size == 2 && l == 2 && optsize) {
-		printf("\tcall @__mul4\n");
-		r_modify(2, 2);
-		return ;
+	if (l == 0)
+		return;
+	if (optsize) {
+		if (size == 4 && r == 2) {
+			printf("\tcall @__lshift%ul\n", l);
+			r_modify(2, 4);
+			return;
+		}
+		if (size == 2 && r == 4) {
+			printf("\tcall @__lshift%u\n", l);
+			r_modify(4, 2);
+			return;
+		}
 	}
 	if (l * size > 8) {
 		load_r_const(R_WORK, l, 1);
@@ -1380,16 +1397,14 @@ static unsigned logic_eq_direct_r(struct node *r, unsigned v, unsigned size, uns
 {
 	if (r->op == T_CONSTANT) {
 		/* Could spot 0000 and FFFF but prob no point */
-		load_r_r(R_INDEX, R_ACPTR);
-		load_r_r(R_INDEX + 1, R_ACPTR+1);
+		load_rr_rr(R_INDEX, R_ACPTR);
 		load_r_memr(R_AC, R_INDEX, size);
 		logic_r_const(R_AC, v, size, op);
 		store_r_memr(R_AC, R_INDEX, size);
 		return 1;
 	}
 	if (r->op == T_RREF) {
-		load_r_r(R_INDEX, 2);
-		load_r_r(R_INDEX + 1, 3);
+		load_rr_rr(R_INDEX, 2);
 		load_r_memr(R_AC, R_INDEX, size);
 		logic_r_r(R_AC, R_REG(r->value), size, op);
 		store_r_memr(R_AC, R_INDEX, size);
@@ -1704,7 +1719,10 @@ void gen_frame(unsigned size, unsigned aframe)
 
 	/* Return address to move to the C stack */
 	/* Big endian but upwards growing stack */
-	printf("\tpop r13\n\tpop r12\n");
+	/* Popped in this order to get the best results from instruction sizes
+	   and slightly speed up __frame */
+	printf("\tpop a\n\tpop b\n");
+	r_modify(0,2);
 
 	if (size < 256) {
 		load_r_constb(11, size);
@@ -1713,7 +1731,7 @@ void gen_frame(unsigned size, unsigned aframe)
 		return;
 	} else  {
 		load_r_constw(10, size);
-		printf("\tcall __frame16\n");
+		printf("\tcall @__frame16\n");
 		/* TODO set r values ? */
 		r_modify(12,4);
 	}
@@ -1723,10 +1741,11 @@ void gen_exitjp(unsigned size)
 {
 	size++;		/* To fold in part of return address recovery */
 	if (size > 255) {
-		load_r_const(R_WORK, size, 2);
+		load_r_const(R_B, size, 1);
+		load_r_const(R_WORK, size >> 8, 1);
 		printf("\tbr @__cleanup\n");
 	} else if (size > 8) {
-		load_r_const(R_WORK + 1, size, 1);
+		load_r_const(R_B, size, 1);
 		printf("\tbr @__cleanupb\n");
 	} else	/* Helpers are named correctly by size */
 		printf("\tbr @__cleanup%u\n", size - 1);
@@ -2134,15 +2153,15 @@ unsigned gen_direct(struct node *n)
 		return 1;
 	case T_RSTORE:
 		v = R_REG(n->value);
-		load_r_r(v + 1, R_ACCHAR);
-		if (size > 1)
-			load_r_r(v, R_ACINT);
+		if (size == 1)
+			load_r_r(v + 1, R_ACCHAR);
+		else
+			load_rr_rr(v, R_ACINT);
 		return 1;
 	case T_EQ:
 		/* We may be able to do better with thought */
 		if (r->op == T_CONSTANT) {
-			load_r_r(R_INDEX, R_ACPTR);
-			load_r_r(R_INDEX + 1, R_ACPTR + 1);
+			load_rr_rr(R_INDEX, R_ACPTR);
 			load_r_const(R_AC, v, size);
 			store_r_memr(R_AC, R_INDEX, size);
 			return 1;
@@ -2454,8 +2473,7 @@ unsigned gen_direct(struct node *n)
 			printf("; ++\n");
 			/* r4/5 is the pointer,  */
 			/* Move it to be safe from the load */
-			load_r_r(R_INDEX, R_ACPTR);
-			load_r_r(R_INDEX + 1, R_ACPTR + 1);
+			load_rr_rr(R_INDEX, R_ACPTR);
 			load_r_memr(R_AC, R_INDEX, size);
 			push_ac(size);
 			add_r_const(R_AC, v, size);
@@ -2484,8 +2502,7 @@ unsigned gen_direct(struct node *n)
 				return 1;
 			}
 			/* Copy the pointer over but keep R12/13 */
-			load_r_r(R_WORK, 4);
-			load_r_r(R_WORK + 1, 5);
+			load_rr_rr(R_WORK, 4);
 			/* Value into 4/5 */
 			load_r_memr(R_AC, R_WORK, size);
 			add_r_const(R_AC, v, size);
@@ -2516,8 +2533,7 @@ unsigned gen_direct(struct node *n)
 		}
 		if (!nr) {
 			/* r4/5 is the pointer,  */
-			load_r_r(R_INDEX, R_ACPTR);
-			load_r_r(R_INDEX + 1, R_ACPTR + 1);
+			load_rr_rr(R_INDEX, R_ACPTR);
 			load_r_memr(R_AC, R_INDEX, size);
 			push_ac(size);
 			add_r_const(R_AC, -v, size);
@@ -2545,8 +2561,7 @@ unsigned gen_direct(struct node *n)
 				return 1;
 			}
 			/* Copy the pointer over but keep R12/13 */
-			load_r_r(R_WORK, 4);
-			load_r_r(R_WORK + 1, 5);
+			load_rr_rr(R_WORK, 4);
 			/* Value into 4/5 */
 			load_r_memr(R_AC, R_WORK, size);
 			sub_r_const(R_AC, v, size);
@@ -2607,6 +2622,13 @@ static unsigned argstack_helper(struct node *n, unsigned sz)
 				r_modify(14, 2);
 				r_set(0, 0);
 				printf("\tcall @__push%u\n", v);
+				return 1;
+			}
+			if (v < 256) {
+				r_modify(14, 2);
+				load_r_constb(R_A, v);
+				printf("\tcall @__pusha\n");
+				r_set(0, 0);
 				return 1;
 			}
 		}
@@ -2831,8 +2853,7 @@ unsigned gen_shortcut(struct node *n)
 	if (n->op == T_REQ) {
 		/* *reg = r */
 		codegen_lr(r);	/* AC now holds the value */
-		load_r_r(R_INDEX, R_REG(n->value));
-		load_r_r(R_INDEX + 1, R_REG(n->value) + 1);
+		load_rr_rr(R_INDEX, R_REG(n->value));
 		add_r_const(R_INDEX, n->val2, 2);
 		store_r_memr(R_AC, R_INDEX, size);	/* Moves the pointer on as a side effect */
 		return 1;
