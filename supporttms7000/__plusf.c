@@ -28,7 +28,7 @@ uint32_t _plusf(uint32_t a2, uint32_t a1)
 
 	exp2 = EXP(a2);
 	mant2 = MANT(a2) << 4;
-	if (SIGN(a2))
+	if (SIGN(a2))			/* FIXME: use & 0x80000000 ?? */
 		mant2 = -mant2;
 	/* check for zero args */
 	/* FIXME: check -0 case */
