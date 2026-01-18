@@ -1963,6 +1963,8 @@ unsigned gen_direct(struct node *n)
 					return 1;
 				}
 			}
+#if 0
+/* TODO */
 			if (v < 16) {
 				if (s == 1)
 					load_x(0);
@@ -1971,6 +1973,7 @@ unsigned gen_direct(struct node *n)
 				invalidate_a();
 				return 1;
 			}
+#endif
 		}
 		return pri_help(n, "multmp");
 	case T_SLASH:
