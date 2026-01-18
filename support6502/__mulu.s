@@ -4,6 +4,7 @@
 	.export __mul
 	.export __mulu
 	.export __multmp
+	.export __multmpu
 	.export __l_mul
 
 __l_mul:
@@ -13,6 +14,7 @@ __mul:
 __mulu:
 	jsr	__poptmp
 __multmp:
+__multmpu:
 	; XA * tmp
 
 	sta	@tmp1
