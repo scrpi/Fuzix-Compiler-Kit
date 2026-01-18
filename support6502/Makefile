@@ -2,7 +2,7 @@ all: lib6502.a crt0.o
 
 OBJ =  __addysp.o __addyasp.o __subysp.o __asp.o __yasp.o __lxaysptmp.o \
        __lxa0sptmp.o __gloy.o __gloyl.o __lstxay.o \
-       __minuseqtmp.o __minus.o __divu.o __mulu.o __div.o \
+       __minuseqtmp.o __minus.o __minusminus.o __divu.o __mulu.o __div.o \
        __plusplus1.o __plusplus2.o __plusplus.o __plusplusy.o __plus.o \
        __pluseqy.o __pluseq.o \
        __poptmp.o __pushc.o __pushl.o __push.o __ytmp.o __ytmpc.o \
@@ -19,7 +19,7 @@ OBJ =  __addysp.o __addyasp.o __subysp.o __asp.o __yasp.o __lxaysptmp.o \
        __pop32.o __bandl.o __orl.o __xorl.o __lcmp.o __negatel.o \
        __pluseql.o __postincl.o __minuseql.o __postdecl.o \
        __andeql.o __oreql.o __xoreql.o \
-       __shll.o
+       __shll.o __shrl.o __sheqlop.o
 
 GEN =  __adcspy.o __adctmpy.o __sbcspy.o __sbctmpy.o __andspy.o __andtmpy.o __eorspy.o __eortmpy.o \
        __ldaspy.o __ldatmpy.o __oraspy.o __oratmpy.o __staspy.o __statmpy.o \
