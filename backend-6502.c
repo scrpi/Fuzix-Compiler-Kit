@@ -1088,6 +1088,7 @@ static int leftop_memc(struct node *n, const char *op)
 	else
 		count = r->value;
 
+	printf(";leftop memc nr %d\n", nr);
 	/* Being super clever doesn't help if we need the value anyway */
 	if (!nr && (n->op == T_PLUSPLUS || n->op == T_MINUSMINUS))
 		return 0;
@@ -1108,7 +1109,7 @@ static int leftop_memc(struct node *n, const char *op)
 				label("X%d", xlabel);
 			}
 		}
-		if (!nr) {
+		if (nr) {
 			output("lda _%s+%d", name, v);
 			if (sz == 2)
 				output("ldx _%s+%d", name, v + 1);
@@ -1123,7 +1124,7 @@ static int leftop_memc(struct node *n, const char *op)
 				label("X%d", xlabel);
 			}
 		}
-		if (nr == 1) {
+		if (nr) {
 			output("lda T%d+%d", (unsigned)l->val2, v);
 			if (sz == 2)
 				output("ldx T%d+%d", (unsigned)l->val2, v + 1);
