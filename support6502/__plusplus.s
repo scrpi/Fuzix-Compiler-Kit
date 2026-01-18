@@ -13,15 +13,19 @@ __plusplus:
 				; Y is set to 0 after this
 __plusplustmp:
 __plusplustmpu:
-	clc
-	adc	(@tmp),y
-	sta	(@tmp),y
-	iny
+	ldy	#0
 	sta	@tmp1
-	txa
-	adc	(@tmp),y
+	stx	@tmp1+1
+	clc
+	lda	(@tmp),y
+	adc	@tmp1
 	sta	(@tmp),y
+	pha
+	iny
+	lda	(@tmp),y
 	tax
-	lda	@tmp1
+	adc	@tmp1+1
+	sta	(@tmp),y
+	pla
 	rts
 

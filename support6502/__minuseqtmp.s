@@ -4,11 +4,11 @@
 ;
 ;	Based on code from Ullrich von Bassewitz for CC65
 ;
-	.export	__minuseq
-	.export __minusequ
+	.export	__minuseqtmp
+	.export __minuseqtmpu
 
-__minuseq:
-__minusequ:
+__minuseqtmp:
+__minuseqtmpu:
 	ldy	#0
 	eor	#0xFF
 	sec

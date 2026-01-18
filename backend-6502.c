@@ -2098,6 +2098,7 @@ unsigned gen_direct(struct node *n)
 		return pri_help(n, "plusplustmp");
 	case T_MINUSMINUS:
 		/* The right side here is always constant */
+#if 0		
 		if (s == 2) {
 			if (v == 1) {
 				gen_internal("minusminus1");
@@ -2112,6 +2113,7 @@ unsigned gen_direct(struct node *n)
 				return 1;
 			}
 		}
+#endif		
 		/* TODO: make at least byte handling smarter */
 		return pri_help(n, "minusminustmp");
 	case T_PLUSEQ:
@@ -2136,6 +2138,7 @@ unsigned gen_direct(struct node *n)
 		}
 		return pri_help(n, "pluseqtmp");
 	case T_MINUSEQ:
+#if 0	
 		if (s == 2 && r->op == T_CONSTANT) {
 			if (v == 1) {
 				gen_internal("minuseq1");
@@ -2150,6 +2153,7 @@ unsigned gen_direct(struct node *n)
 				return 1;
 			}
 		}
+#endif		
 		return pri_help(n, "minuseqtmp");
 	case T_ANDEQ:
 		return pri_help(n, "andeqtmp");
