@@ -319,6 +319,10 @@ The 6800 port was taken from an initial sketch to a working compiler by Zu2
 <http://www.zukeran.org/shin/d/> who also contributed other bug fixes,
 including getting the floating point side of the compiler working.
 
+The 6502 port is heavily influenced by cc65 and uses very similar approaches
+to tackle the limitations of the 6502 processor when running C code, as well
+as some of the library routines.
+
 A considerable amount of coverage testing and a large number of test cases
 for failures were provided by Yasuo Kuwahara.
 
