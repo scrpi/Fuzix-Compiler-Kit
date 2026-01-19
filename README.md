@@ -296,7 +296,7 @@ This is at its heart a very simple left hand walking code generator. The
 core backed allows targets to rewrite subtrees, to evaluate trees in other
 orders when useful and also provides an interface that allows the target
 to shortcut the stack whenever it can access the second item of data for
-an operation without disturbing the working balue.
+an operation without disturbing the working value.
 
 This should suit simpler processors like the 6502, 680x, 8080, 8085 etc
 but isn't a good model for register oriented ones. It's not clear there
