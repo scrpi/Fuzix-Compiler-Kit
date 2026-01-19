@@ -1109,7 +1109,7 @@ static int leftop_memc(struct node *n, const char *op)
 				label("X%d", xlabel);
 			}
 		}
-		if (nr) {
+		if (!nr) {
 			output("lda _%s+%d", name, v);
 			if (sz == 2)
 				output("ldx _%s+%d", name, v + 1);
@@ -1124,7 +1124,7 @@ static int leftop_memc(struct node *n, const char *op)
 				label("X%d", xlabel);
 			}
 		}
-		if (nr) {
+		if (!nr) {
 			output("lda T%d+%d", (unsigned)l->val2, v);
 			if (sz == 2)
 				output("ldx T%d+%d", (unsigned)l->val2, v + 1);
