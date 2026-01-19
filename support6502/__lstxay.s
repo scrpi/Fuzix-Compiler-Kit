@@ -1,9 +1,9 @@
-	.export __lstaxy
+	.export __lstxay
 	.code
 
 ; Compiler knows this increments Y
 
-__lstaxy:
+__lstxay:
 	pha
 	sta (@sp),y
 	txa

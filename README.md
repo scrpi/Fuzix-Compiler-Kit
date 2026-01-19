@@ -296,7 +296,7 @@ This is at its heart a very simple left hand walking code generator. The
 core backed allows targets to rewrite subtrees, to evaluate trees in other
 orders when useful and also provides an interface that allows the target
 to shortcut the stack whenever it can access the second item of data for
-an operation without disturbing the working balue.
+an operation without disturbing the working value.
 
 This should suit simpler processors like the 6502, 680x, 8080, 8085 etc
 but isn't a good model for register oriented ones. It's not clear there
@@ -318,6 +318,10 @@ The wtest code and some 6809 work were contributed by Warren Toomey
 The 6800 port was taken from an initial sketch to a working compiler by Zu2
 <http://www.zukeran.org/shin/d/> who also contributed other bug fixes,
 including getting the floating point side of the compiler working.
+
+The 6502 port is heavily influenced by cc65 and uses very similar approaches
+to tackle the limitations of the 6502 processor when running C code, as well
+as some of the library routines.
 
 A considerable amount of coverage testing and a large number of test cases
 for failures were provided by Yasuo Kuwahara.
