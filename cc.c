@@ -910,6 +910,15 @@ void add_file(char *p)
 	char *x = strrchr(p, '.');
 	if (x == NULL)
 		dunno(p);
+	/* Allow .spp to match .S for asm for preprocessor to allow for
+	   this to work on legacy case insensitive computers */
+	if (strcmp(x, ".spp") == 0) {
+		append_obj(&objlist, p, TYPE_S);
+		return;
+	}
+	/* .o is fine but don't allow .oink and the like as we used to in error */
+	if (x[2])
+		dunno(p);
 	switch (x[1]) {
 	case 'a':
 		append_obj(&objlist, p, TYPE_A);
