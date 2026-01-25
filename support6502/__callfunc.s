@@ -4,23 +4,27 @@
 	.export __callfunc
 
 __callfunc:
-;	This is messier than we'd like because rts increments the target
-;	to add to the fun you can only push A on the 6502 classic. Thus
-;	it's easier to take the hit of keeping a JMP byte somewhere and
-;	patching. That however breaks horribly on a 65C816 if you've got
-;	different code and data pages - GAK
-	sec
-	sbc	#1
-	bcs	l1
-	dex
-	; XA is now the address we want to push. Play pass the parcel so
-	; we can get them on the stack in the right order
-	; TODO: if we do a C02 lib version we can just phx pha rts at the
-	; end
-l1:
+;	Using RTI to do indirect transfer pulls the address from the stack
+;	without the decrementing the addresses needed for RTS, provided that
+;	a spare copy of the processor status byte is pushed. (In situations
+;	where the address can be decremented at compile/link time, RTS
+;	is still slightly more efficient).
+;
+;	The even simpler route is to a self-modifying JMP instruction, but it's not
+;	re-entrant, cannot be placed in ROM, and probably doesn't work with 65C816.
+
+;	Push return address onto stack, high byte first. 
+;	For 6502, use Y as part of the shuffle.
+;	For 65C02, this could be further optimized to PHX PHA 
+
 	tay
 	txa
 	pha
 	tya
 	pha
-	rts
+
+	; RTI works without decrementing address, 
+	; but must push a copy of the status register
+
+	php
+	rti
