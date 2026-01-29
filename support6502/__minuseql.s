@@ -27,7 +27,7 @@ __minuseql:
 	sta	@hireg
 	iny
 	lda	(@tmp),y
-	adc	@hireg+1
+	sbc	@hireg+1
 	sta	(@tmp),y
 	sta	@hireg+1
 	pla

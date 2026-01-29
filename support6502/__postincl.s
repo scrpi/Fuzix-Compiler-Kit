@@ -16,7 +16,6 @@ __postincl:
 	pha
 	adc	@tmp2
 	sta	(@tmp),y
-	pha
 	iny
 	stx	@tmp2
 	lda	(@tmp),y

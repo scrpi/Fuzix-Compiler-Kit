@@ -1,6 +1,6 @@
 all: lib6502.a crt0.o
 
-OBJ =  __addysp.o __addyasp.o __subysp.o __asp.o __yasp.o __lxaysptmp.o \
+OBJ =  __addysp.o __addyasp.o __subysp.o __asp.o __yasp.o __lxaysptmp.o __asptmp.o \
        __lxa0sptmp.o __gloy.o __gloyl.o __lstxay.o \
        __minuseqtmp.o __minus.o __minusminus.o __divu.o __mulu.o __div.o \
        __plusplus1.o __plusplus2.o __plusplus.o __plusplusy.o __plus.o \
