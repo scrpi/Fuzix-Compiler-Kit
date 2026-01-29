@@ -1158,7 +1158,7 @@ static unsigned try_via_x(struct node *n, const char *op, void (*pre)(struct nod
 				return 1;
 			} else if (v < 255) {
 				load_y(v);
-				output("jsr __%spy", op);
+				output("jsr __%sspy", op);
 				const_y_set(reg[R_Y].value + 1);
 				invalidate_x();
 				invalidate_a();
@@ -1490,12 +1490,10 @@ void gen_jtrue(const char *tail, unsigned n)
 
 void gen_switch(unsigned n, unsigned type)
 {
-	output("pha");
-	output("lda #<Sw%d", n);
-	output("sta @tmp");
-	output("lda #>Sw%d", n);
-	output("sta @tmp+1");
-	output("pla");
+	output("ldy #<Sw%d", n);
+	output("sty @tmp");
+	output("ldy #>Sw%d", n);
+	output("sty @tmp+1");
 	invalidate_regs();
 	printf("\tjmp __switch");
 	helper_type(type, 0);
