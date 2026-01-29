@@ -1158,7 +1158,7 @@ static unsigned try_via_x(struct node *n, const char *op, void (*pre)(struct nod
 				return 1;
 			} else if (v < 255) {
 				load_y(v);
-				output("jsr __%spy", op);
+				output("jsr __%sspy", op);
 				const_y_set(reg[R_Y].value + 1);
 				invalidate_x();
 				invalidate_a();
