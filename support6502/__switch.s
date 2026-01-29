@@ -31,13 +31,12 @@ l1:
 	dex
 	bne next
 	; No matches - take default
-	dey
-	dey
+	beq lx
 default:
 found:
 	iny			; skip match byte 2 (or count)
 	iny			; high byte first
-	lda (@tmp),y
+lx:	lda (@tmp),y
 	pha			; stack it
 	dey
 	lda (@tmp),y		; low byte
