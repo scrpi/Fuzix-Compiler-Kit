@@ -148,6 +148,7 @@ static void switch_statement(void)
 	switch_tag = next_tag++;
 	break_tag = next_tag++;
 	switch_count = 0;
+	switch_default = 0;
 
 	next_token();
 	header(H_SWITCH, switch_tag, break_tag);
