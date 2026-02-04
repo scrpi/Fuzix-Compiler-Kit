@@ -76,6 +76,38 @@ int main(int argc, char *argv[])
     }
     if (r != 0xFF)
         return 2;
+
+    // Nested switches and defaults
+    r = 0;
+    for(j=1; j<=6; j++) {
+        switch(j) {
+	    case 1:
+                r ^= 0x01;
+                break;
+            case 2:
+                r ^= 0x02;
+                break;
+            case 3:
+                r ^= 0x04;
+                break;
+            default:
+                switch(j) {
+                    case 4:
+                        r ^= 0x08;
+                        break;
+                    case 5:
+                        r ^= 0x10;
+                        break; 
+                    default:
+                        r ^= 0x20;
+                        break;
+                }
+                break;
+        }
+    }
+    if (r != 0x3F) 
+        return 3;
+
     return 0;
 }
 
