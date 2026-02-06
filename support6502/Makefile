@@ -21,7 +21,7 @@ OBJ =  __addysp.o __addyasp.o __subysp.o __asp.o __yasp.o __lxaysptmp.o __asptmp
        __pluseql.o __postincl.o __minuseql.o __postdecl.o \
        __andeql.o __oreql.o __xoreql.o \
        __shll.o __shrl.o __sheqlop.o \
-       __lmul.o
+       __lmul.o __ldiv.o
 
 GEN =  __adcspy.o __adctmpy.o __sbcspy.o __sbctmpy.o __andspy.o __andtmpy.o __eorspy.o __eortmpy.o \
        __ldaspy.o __ldatmpy.o __oraspy.o __oratmpy.o __staspy.o __statmpy.o \
