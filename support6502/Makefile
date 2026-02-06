@@ -3,9 +3,10 @@ all: lib6502.a crt0.o
 OBJ =  __addysp.o __addyasp.o __subysp.o __asp.o __yasp.o __lxaysptmp.o __asptmp.o \
        __lxa0sptmp.o __gloy.o __gloyl.o __lstxay.o \
        __minuseqtmp.o __minus.o __minusminus.o __divu.o __mulu.o __div.o \
+       __muluc.o \
        __plusplus1.o __plusplus2.o __plusplus.o __plusplusy.o __plus.o \
        __pluseqy.o __pluseq.o \
-       __poptmp.o __pushc.o __pushl.o __push.o __ytmp.o __ytmpc.o \
+       __poptmp.o __poptmpc.o __pushc.o __pushl.o __push.o __ytmp.o __ytmpc.o \
        __callfunc.o __switchc.o __switch.o __switchl.o \
        zeropage.o __eqop.o \
        __bool.o __boolc.o __not.o __notc.o __eqeqtmp.o __netmp.o \
@@ -20,7 +21,7 @@ OBJ =  __addysp.o __addyasp.o __subysp.o __asp.o __yasp.o __lxaysptmp.o __asptmp
        __pluseql.o __postincl.o __minuseql.o __postdecl.o \
        __andeql.o __oreql.o __xoreql.o \
        __shll.o __shrl.o __sheqlop.o \
-       __lmul.o
+       __lmul.o __ldiv.o
 
 GEN =  __adcspy.o __adctmpy.o __sbcspy.o __sbctmpy.o __andspy.o __andtmpy.o __eorspy.o __eortmpy.o \
        __ldaspy.o __ldatmpy.o __oraspy.o __oratmpy.o __staspy.o __statmpy.o \
