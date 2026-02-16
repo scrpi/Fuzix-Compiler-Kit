@@ -85,6 +85,7 @@ next:
 	rts
 
 fetch:
+	pha
 	ldy	#1
 	lda	(@sp),y
 	sta	@tmp4+1
@@ -103,6 +104,7 @@ fetch:
 	iny
 	lda	(@tmp4),y
 	sta	@tmp1+1
+	pla
 	ldy	#0
 	rts
 
@@ -217,19 +219,19 @@ signok2:
 
 __reml:
 	jsr	__pop32
-domodl:
+doreml:
 	sty	@tmp5
 	ldy	@hireg+1
 	bpl	signok3
 	;	negate hireg:xa
 	jsr	__negatel
-	;	remember division by negative
-	inc	@tmp5
 signok3:
 	ldy	@tmp1+1
 	bpl	signok4
 	;	negate but not relevant to final sign
 	jsr	negtmp1
+	;	remember division of negative
+	inc	@tmp5
 signok4:
 	jsr	div32x32
 	ldy	@tmp5
@@ -245,6 +247,6 @@ __diveql:
 
 __remeql:
 	jsr	fetch
-	jsr	domodl
+	jsr	doreml
 	jmp	store
 
