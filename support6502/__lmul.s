@@ -33,7 +33,7 @@ __mulequl:
 	iny
 	lda	(@tmp3),y
 	sta	@tmp1+1
-	jsr	__mul32
+	jsr	mult32
 	; hireg:xa is the result (also in tmp2 and we use that fact)
 	pla	
 	sta	@tmp3
