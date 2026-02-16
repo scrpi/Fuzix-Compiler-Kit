@@ -25,10 +25,10 @@ div32x32:
 	sta	@tmp2+1
 	sta	@tmp3
 	sta	@tmp3+1
-	ldy	#8		; Number of iterations
+	ldy	#32		; Number of iterations
 loop:	; Shift dividend left and set bit 0 assuming that
 	; R >= D
-	sec
+	clc
 	rol	@tmp
 	rol	@tmp+1
 	rol	@tmp1
@@ -36,7 +36,7 @@ loop:	; Shift dividend left and set bit 0 assuming that
 	; N(i) is now in carry
 	; R <<= 0; R(0) = N(i)_
 	; Capture into working register
-	asl	@tmp2
+	rol	@tmp2
 	rol	@tmp2+1
 	rol	@tmp3
 	rol	@tmp3+1
@@ -49,7 +49,7 @@ loop:	; Shift dividend left and set bit 0 assuming that
 	sbc	@tmp4+1
 	lda	@tmp3
 	sbc	@hireg
-	lda	@tmp4
+	lda	@tmp3+1
 	sbc	@hireg+1
 	;
 	;	We did R - D
