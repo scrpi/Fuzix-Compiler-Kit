@@ -3,12 +3,12 @@ all: lib6502.a crt0.o
 OBJ =  __addysp.o __addyasp.o __subysp.o __asp.o __yasp.o __lxaysptmp.o __asptmp.o \
        __lxa0sptmp.o __gloy.o __gloyl.o __lstxay.o \
        __minuseqtmp.o __minus.o __minusminus.o __divu.o __mulu.o __div.o \
-       __muluc.o \
+       __muluc.o __minuseq.o \
        __plusplus1.o __plusplus2.o __plusplus.o __plusplusy.o __plus.o \
-       __pluseqy.o __pluseq.o \
+       __pluseqy.o __pluseq.o __pluseqtmp.o \
        __poptmp.o __poptmpc.o __pushc.o __pushl.o __push.o __ytmp.o __ytmpc.o \
        __callfunc.o __switchc.o __switch.o __switchl.o \
-       zeropage.o __eqop.o \
+       zeropage.o __eqop.o __negate.o \
        __bool.o __boolc.o __not.o __notc.o __eqeqtmp.o __netmp.o \
        __eqeqtmpc.o __netmpc.o \
        __lttmp.o __lttmpu.o __gteqtmp.o  __gteqtmpu.o \
@@ -17,7 +17,7 @@ OBJ =  __addysp.o __addyasp.o __subysp.o __asp.o __yasp.o __lxaysptmp.o __asptmp
        __shleqc.o __shleq.o  __shrequc.o __shrequ.o \
        __cpl.o \
        __cast_l.o __booll.o __notl.o __derefl.o __assignl.o __cpll.o \
-       __pop32.o __bandl.o __orl.o __xorl.o __lcmp.o __negatel.o \
+       __pop32.o __bandl.o __orl.o __xorl.o __lcmp.o __negatel.o __minusl.o \
        __pluseql.o __postincl.o __minuseql.o __postdecl.o \
        __andeql.o __oreql.o __xoreql.o \
        __shll.o __shrl.o __sheqlop.o \
