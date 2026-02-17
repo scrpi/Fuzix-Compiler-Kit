@@ -1,8 +1,10 @@
 ;
 ;	Load hireg:xa from (XA)
 ;
+	.export __dereff
 	.export __derefl
 
+__dereff:
 __derefl:
 	sta	@tmp
 	stx	@tmp+1
