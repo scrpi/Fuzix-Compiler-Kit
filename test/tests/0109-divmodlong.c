@@ -72,5 +72,9 @@ int main(int argc, char *argv[])
     i %= 10;
     if (i != -8)
         return 19;
+    n = 4;
+    n *= 3;
+    if (n != 12)
+        return 20;
     return 0;
 }

@@ -15,46 +15,40 @@ __mulequl:
 	stx	@tmp2+1
 	ldy	#1
 	lda	(@sp),y
-	sta	@tmp3+1
-	pha
+	sta	@tmp5+1
 	dey
 	lda	(@sp),y
-	sta	@tmp3
-	pha
+	sta	@tmp5
 	; Y is now 0 and @tmp3 is the pointer we need to load @tmp1:@tmp
-	lda	(@tmp3),y
+	lda	(@tmp5),y
 	sta	@tmp
 	iny
-	lda	(@tmp3),y
-	sta	@tmp
+	lda	(@tmp5),y
+	sta	@tmp+1
 	iny
-	lda	(@tmp3),y
+	lda	(@tmp5),y
 	sta	@tmp1
 	iny
-	lda	(@tmp3),y
+	lda	(@tmp5),y
 	sta	@tmp1+1
-	jsr	__mul32
+	jsr	mult32
 	; hireg:xa is the result (also in tmp2 and we use that fact)
-	pla	
-	sta	@tmp3
-	pla
-	sta	@tmp3+1
-	; tmp3 is now the pointer again
+	; tmp5 is still the pointer
 	ldy	#3
 	lda	@hireg+1
-	sta	(@tmp3),y
+	sta	(@tmp5),y
 	dey
 	lda	@hireg
-	sta	(@tmp3),y
+	sta	(@tmp5),y
 	dey
 	lda	@tmp2+1
-	sta	(@tmp3),y
+	sta	(@tmp5),y
 	tax
 	dey
 	lda	@tmp2
-	sta	(@tmp3),y
+	sta	(@tmp5),y
 	; hireg:xa is also the result needed
-	rts
+	jmp	__incsp2
 
 __mull:
 __mulul:
@@ -105,7 +99,7 @@ next:	lsr	@tmp3+2
 	txa
 no_add:	dey
 	bpl	next
-	;	At this point the result is in hireg:tmp
+	;	At this point the result is in hireg:tmp2
 	lda	@tmp2
 	ldx	@tmp2+1
 	rts
