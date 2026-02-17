@@ -26,7 +26,8 @@ OBJ =  __addysp.o __addyasp.o __subysp.o __asp.o __yasp.o __lxaysptmp.o __asptmp
 GEN =  __adcspy.o __adctmpy.o __sbcspy.o __sbctmpy.o __andspy.o __andtmpy.o __eorspy.o __eortmpy.o \
        __ldaspy.o __ldatmpy.o __oraspy.o __oratmpy.o __staspy.o __statmpy.o \
        __adctmp.o __sbctmp.o __andtmp.o __oratmp.o __eortmp.o \
-       __adceqtmp.o __andeqtmp.o __oraeqtmp.o __eoreqtmp.o
+       __adceqtmp.o __andeqtmp.o __oraeqtmp.o __eoreqtmp.o \
+       __adceqtmpc.o __andeqtmpc.o __eoreqtmpc.o __oraeqtmpc.o
     
 makeops: makeops.c
 	$(CC) makeops.c -o makeops

@@ -133,6 +133,31 @@ void write_eqtmpop(const char *op, const char *pre)
     fclose(f);
 }
 
+void write_eqtmpopc(const char *op, const char *pre)
+{
+    char buf[64];
+    FILE *f;
+    snprintf(buf, 64, "__%seqtmpc.s", op);
+
+    f = fopen(buf, "w");
+    if (f == NULL) {
+        perror(buf);
+        exit(1);
+    }
+
+    fprintf(f, "\t.code\n\n");
+    fprintf(f, "\t.export __%seqtmpc\n\t.export __%seqtmpuc\n", op, op);
+    fprintf(f, "__%seqtmpc:\n", op);
+    fprintf(f, "__%seqtmpuc:\n", op);
+    fprintf(f, "\tldy #0\n");
+    if (pre)
+        fprintf(f, "\t%s\n", pre);
+    fprintf(f, "\t%s (@tmp),y\n", op);
+    fprintf(f, "\tsta (@tmp),y\n");
+    fprintf(f, "\trts\n");
+    fclose(f);
+}
+
 int main(int argc, char *argv[])
 {
     write_yop("adc", "clc");
@@ -155,6 +180,13 @@ int main(int argc, char *argv[])
     write_eqtmpop("and", NULL);
     write_eqtmpop("ora", NULL);
     write_eqtmpop("eor", NULL);
+
+    write_eqtmpopc("adc", "clc");
+    /* sbc is not commutive */
+/*    write_eqtmpopc("sbc", "sec"); */
+    write_eqtmpopc("and", NULL);
+    write_eqtmpopc("ora", NULL);
+    write_eqtmpopc("eor", NULL);
     
     return 0;
 }
