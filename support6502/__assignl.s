@@ -1,8 +1,10 @@
 ;
 ;	(TOS) = hireg:XA
 ;
+	.export __assignf
 	.export __assignl
 
+__assignf:
 __assignl:
 	jsr	__poptmp
 	; @tmp is now the pointer
