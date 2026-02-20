@@ -1237,6 +1237,67 @@ static unsigned is_simple(struct node *n)
 	return 0;
 }
 
+/* Integer Log 2 of a given value.
+ * If x is exact positive power of two, return log2(x), 
+ * If x is zero, negative, or not a power of two, return -1.
+ */
+static int intlog2(long x) {
+	int lg2;
+	/* x must be positive and have only one bit set */
+	if (x<=0)
+		return -1;
+	if ((x & (x-1)) != 0)
+		return -1;
+	/* There's only one bit set. Shift it right until gone */
+	for(lg2=0;x>>=1;)
+		lg2++;
+	return lg2;
+}
+
+/*
+ * Shift A left by n bits in as few instructions as possible
+ * (worst case 5 bytes)
+ */
+static void asl_a(unsigned n) {
+	if (n==0)
+		return;
+
+	if (n>=8) {
+		load_a(0);
+		return;
+	}
+
+	if (n<=5) 
+		repeated_op(n, "asl a"); /* Shift left up to 5 times */	
+	else if (n==6) { 
+		repeated_op(3, "ror a"); /* Rotate right 3 times */ 
+		output("and #0xc0");     /* and clear unwanted bits */
+	} else { /* (n==7) */
+		repeated_op(2, "ror a"); /* Rotate right 2 times */
+		output("and #0x80");     /* And clear unwanted bits */
+	}
+
+	invalidate_a();
+}
+
+/*
+ * Shift A right by n bits
+ */
+static void lsr_a(unsigned n) {	
+	if (n==0)
+		return;
+
+	if (n>=8) {
+		load_a(0);
+		return;
+	}
+
+	/* TODO: Consider rotate shortcuts as in asl_a */
+
+	repeated_op(n, "lsr a");
+	invalidate_a();
+}
+
 /* Chance to rewrite the tree from the top rather than none by node
    upwards. We will use this for 8bit ops at some point and for cconly
    propagation */
@@ -1256,6 +1317,7 @@ struct node *gen_rewrite_node(struct node *n)
 	struct node *r = n->right;
 	unsigned op = n->op;
 	unsigned nt = n->type;
+	int log2const;
 
 	/* TODO
 		- rewrite some reg ops
@@ -1350,6 +1412,46 @@ struct node *gen_rewrite_node(struct node *n)
 		swap_op(n, T_GT);
 	if (op == T_GTEQ)
 		swap_op(n, T_LTEQ);
+	
+	/* Arithmetic optimisations where right op is a constant */
+	if (r != NULL && r->op == T_CONSTANT) {
+
+		/* Multiplication ( * and *= ) of integral types 
+	   	   by constant powers of two can be re-written
+	   	   as left shifts. */
+		if (op == T_STAR || op == T_STAREQ) {
+			if (IS_INTARITH(nt)) {
+				/* TODO: Does not consider signed operations where the constant
+				   is negative, i.e. "x * -8" could become "-x << 3" */
+				log2const = intlog2(r->value);
+				if (log2const != -1) {
+					op = (op == T_STAR ? T_LTLT : T_SHLEQ);
+					n->op = op;
+					r->value = log2const;
+				}
+			}
+		}
+		
+		/* Division ( / and /= ) of integral types
+		by constant powers of two can be re-written as right shifts.
+		This doesn't make any distinction between signed and unsigned types
+		and any subtle issues around top bit propagation are deferred until 
+		code generation. */
+
+		if (op == T_SLASH || op == T_SLASHEQ) {
+			if (IS_INTARITH(nt)) {
+				/* TODO: Does not consider signed operations where the constant
+				   is negative, i.e. "x / -8" could become "-x >> 3" */
+				log2const = intlog2(r->value);
+				if (log2const != -1) {
+					op = (op==T_SLASH ? T_GTGT : T_SHREQ);
+					n->op = op;
+					r->value = log2const;
+				}
+			}
+		}
+	}
+
 	return n;
 }
 
@@ -1922,69 +2024,91 @@ unsigned gen_direct(struct node *n)
 	case T_STAR:
 		if (local_yop(n, "l_mul" ))
 			return 1;
-		if (s > 2)
-			return 0;
-		/* ? do we need to catch x 1 and x 0 - should always have been cleaned up but
-		   maybe not if byteop */
-		if (r->op == T_CONSTANT) {
-			if (v == 256) {
-				if (s == 2)
-					tax();
-				load_a(0);
-				return 1;
+
+		/* Multiplication by integer powers of two have already been re-written
+		   and inline code is generated as part of T_LTLT processing
+		   Special case for a few constant multiplies that are not powers of two
+		*/
+
+ 		if (r->op == T_CONSTANT) {
+			switch(n->type) {
+				case CCHAR:
+				case UCHAR:
+					/* Byte */
+					switch(v) {
+						/* Multiply by 2^n+1. Save original, shift (n) and add original */
+						case 9:  /* 2^3+1, 8 bytes */
+						case 5:  /* 2^2+1, 7 bytes */
+							/* If optimizing for size, don't generate direct */
+							if(optsize)
+								break;
+							/* Fall into .. */
+						case 3:  /* 2^1+1, 6 bytes */
+							output("sta @tmp");
+							asl_a(intlog2(v-1));
+							output("clc");
+							output("adc @tmp");
+							invalidate_a();
+							return 1;
+
+						default:
+							break;
+					}
+					break;
+
+				case CINT:
+				case UINT:
+					/* Word */
+					switch(v) {
+						case 3:
+							/* This is a bit of an experiment. After all
+							   it's not particularly common to *3 and at 
+							   17 bytes this is quite long. May remove.
+							   So only do this if we're optimising for 
+							   speed rather than size */
+							
+							if (!optsize)
+								break;
+
+							/* XA->@tmp */
+							output("sta @tmp");
+							output("stx @tmp+1");
+							/* @tmp <<= 1 */
+							output("asl @tmp");
+							output("rol @tmp+1");
+							/* XA += @tmp */
+							output("clc");
+							output("adc @tmp");
+							output("tay");
+							output("txa");
+							output("adc @tmp+1");
+							output("tax");
+							output("tya");
+							
+							invalidate_a();
+							invalidate_x();
+							return 1;
+
+						default:
+							break;
+					}
+					break;
+				
+				default:
+					// For ULONG, CLONG, ULONGLONG, CLONGLONG
+					// There are no obvious multiply optimisations
+					// Other than powers of two, dealt with in T_LTLT
+					break;
 			}
-			/* We can do a few very simple cases directly */
-			if (s == 1) {
-				if (v == 0) {
-					load_a(0);
-					return 1;
-				}
-				/* TODO: tidy up into a proper mul helper */
-				if (v == 1)
-					return 1;
-				if (v == 2) {
-					output("asl a");
-					const_a_set(reg[R_A].value << 1);
-					return 1;
-				}
-				if (v == 4) {
-					output("asl a");
-					output("asl a");
-					const_a_set(reg[R_A].value << 2);
-					return 1;
-				}
-				if (v == 8) {
-					output("asl a");
-					output("asl a");
-					output("asl a");
-					const_a_set(reg[R_A].value << 3);
-					return 1;
-				}
-			}
-#if 0
-/* TODO */
-			if (v < 16) {
-				if (s == 1)
-					load_x(0);
-				output("jsr __mulc%u", v);
-				invalidate_x();
-				invalidate_a();
-				return 1;
-			}
-#endif
 		}
 		return pri_help(n, "multmp");
 	case T_SLASH:
 		if (local_yop_s(n, "l_div"))
 			return 1;
-		if (r->op == T_CONSTANT && v == 256 && (n->type & UNSIGNED)) {
-			txa();
-			load_x(0);
-			return 1;
-		}
-		/* TODO - power of 2 const into >> */
 		return pri_help(n, "divtmp");
 	case T_PERCENT:
+		/* TODO Unlike T_SLASH and T_STAR, no T_PERCENT has been changed
+		   upstream to shifts. */
 		if (r->op == T_CONSTANT && v == 256 && (n->type & UNSIGNED)) {
 			load_x(0);
 			return 1;
@@ -2023,35 +2147,170 @@ unsigned gen_direct(struct node *n)
 		return pri_cchelp(n, s, "netmp");
 	/* TODO: qq optimisations for >= fieldwidth ? */
 	case T_LTLT:
-		if (s == 2 && r->op == T_CONSTANT && v == 8) {
-			tax();
-			load_a(0);
-			return 1;
-		}
-		/* Shifts: we can get 1 byte left shifts from the byteop convertor */
-		if (s == 1 && r->op == T_CONSTANT) {
-			if (v >= 8)
-				load_a(0);
-			else {
-				repeated_op(v, "asl a");
-				const_a_set(reg[R_A].value >> v);
+		/* Optimise constant left shifts */
+		if (r->op == T_CONSTANT) {
+
+			/* Do nothing if shift is zero */
+			if (v==0)
+				return 1;
+			
+			switch(s) {
+				case 1: 
+					/* Byte shift A */
+					if (v>=8) { /* Out of range */
+						load_a(0);
+						return 1;
+					}
+
+					asl_a(v);
+					return 1;
+
+				case 2:
+					/* Word shift XA */
+					if (v>=16) { /* Out of range */
+						load_x(0);
+						load_a(0);
+						return 1;
+					}
+					if (v==1) {
+						output("stx @tmp+1");
+						output("asl a");
+						output("rol @tmp+1");
+						output("ldx @tmp+1");
+						return 1;
+					}
+					if (!optsize && (v<=7)) {
+						// 4+3v bytes
+						output("stx @tmp+1");
+						repeated_op(v, "asl a\n\trol @tmp+1");
+						output("ldx @tmp+1");
+						return 1;
+					}
+					if (!optsize || (v<=10)) {
+						// 3+(v-8) bytes
+						asl_a(v-8);
+						tax();
+						load_a(0);
+						return 1;
+					}
+					break;
+
+				case 4:
+					/* Long shift */
+					if (v>=32) { /* Out of range */
+						load_x(0);
+						load_a(0);
+						output("sta @hireg");
+						output("sta @hireg+1");
+						return 1;
+					}
+					
+					/* 1, bit shifts are assumed fairly common */
+					/* 8, 16, 24 bit shifts are 1,2,3 byte shifts */
+					/* Anything else bloats pretty quickly */
+					switch (v) {
+						case 1:
+							if (optsize)
+								break;
+							/* 11 bytes */
+							output("stx @tmp+1");
+							output("asl a");
+							output("rol @tmp+1");
+							output("rol @hireg");
+							output("rol @hireg+1");
+							output("ldx @tmp+1");
+							invalidate_a();
+							invalidate_x();
+							return 1;
+
+						case 8:
+							/* @hireg -> @hireg+1 */
+							/* x-> @hireg */
+							/* a-> x */
+							/* 0-> a */
+							output("ldy @hireg");
+							output("sty @hireg+1");
+							output("stx @hireg");
+							tax();
+							load_a(0);
+							return 1;
+						
+						case 16:
+							/* x-> @hireg+1 */
+							/* a-> @hireg */
+							/* 0-> x */
+							/* 0-> a */
+							output("stx @hireg+1");
+							output("sta @hireg");
+							load_x(0);
+							load_a(0);
+							return 1;
+
+						case 24:
+							/* a-> @hireg+1 */
+							/* 0-> @hireg */
+							/* 0-> x */
+							/* 0-> a */
+							output("sta @hireg+1");
+							load_x(0);
+							load_a(0);
+							output("sta @hireg");
+							return 1;
+
+						default:
+							break;
+					}
+			
+				default:
+					break;
 			}
-			return 1;
-		}
+		}	
 		if (local_yop(n, "l_ltlt"))
 			return 1;
 		return pri_help(n, "lstmp");
 	case T_GTGT:
-		if (s == 2 && r->op == T_CONSTANT && v == 8) {
-			if (n->type & UNSIGNED) {
-				txa();
-				load_x(0);
+		/* Optimize constant right shifts */
+		if (r->op == T_CONSTANT) {
+
+			if (v==0)
 				return 1;
+			
+			switch(n->type) {
+				case UCHAR:
+				case CCHAR:
+					output("; Byte >> %ld", v);
+					if (v>8)
+						load_a(0);
+					else
+						lsr_a(v);
+					return 1;
+
+				case USHORT:
+				case CSHORT:
+					if (v>16) {
+						load_x(0);
+						load_a(0);
+						return 1;
+					}
+
+					output("; Word >> %ld", v);
+					if (v>=8) {
+						txa();
+						lsr_a(v-8);
+						load_x(0);
+						return 1;
+					}
+					
+					break;
+
+				default:
+					break;
 			}
 		}
 		if (local_yop_s(n, "l_gtgt"))
 			return 1;
 		return pri_help(n, "rstmp");
+
 	/* TODO: special case by 1,2,4, maybe inline byte cases ? */
 	/* We want to spot trees where the object on the left is directly
 	   addressible and fold them so we can generate inc _reg, bcc, inc _reg+1 etc */
