@@ -1281,20 +1281,32 @@ static void asl_a(unsigned n) {
 }
 
 /*
- * Shift A right by n bits
+ * Shift A right by n bits in as few instructions as possible
+ * (worst case 5 bytes)
+ * Left bits filled with *zero*
  */
 static void lsr_a(unsigned n) {	
 	if (n==0)
 		return;
-
+	output("; lsr_a(%d)", n);
 	if (n>=8) {
 		load_a(0);
 		return;
 	}
 
-	/* TODO: Consider rotate shortcuts as in asl_a */
+	if (n<=5) {
+		repeated_op(n, "lsr a");
+	} else if (n==6) {
+		output("asl a");
+		output("rol a");
+		output("rol a");
+		output("and #0x03");
+	} else { /* n==7 */
+		output("asl a");  // Bit 7 to C
+		output("lda #0"); // Clear the other bits
+		output("rol a");  // Move C to bit 0
+	}
 
-	repeated_op(n, "lsr a");
 	invalidate_a();
 }
 
@@ -2272,37 +2284,107 @@ unsigned gen_direct(struct node *n)
 		/* Optimize constant right shifts */
 		if (r->op == T_CONSTANT) {
 
+			/* Do nothing if shift is zero */
 			if (v==0)
 				return 1;
 			
 			switch(n->type) {
 				case UCHAR:
-				case CCHAR:
-					output("; Byte >> %ld", v);
-					if (v>8)
+					if (v>=8) {
 						load_a(0);
-					else
+					}
+					else {
 						lsr_a(v);
+					}
 					return 1;
 
 				case USHORT:
-				case CSHORT:
 					if (v>16) {
 						load_x(0);
 						load_a(0);
 						return 1;
 					}
-
-					output("; Word >> %ld", v);
-					if (v>=8) {
+					if (v==1) {
+						// lsr XA 6 bytes
+						output("tay");
+						output("txa");
+						output("lsr a");
+						output("tax");
+						output("tya");
+						output("ror a");
+						invalidate_x();
+						invalidate_a();
+						return 1;
+					}
+					if (v==8) {
 						txa();
-						lsr_a(v-8);
+						invalidate_a();
 						load_x(0);
 						return 1;
 					}
-					
 					break;
-
+				case ULONG:
+					/* Shift by 1, and multiples of 8 are worth expanding */
+					if (v>32) {
+						// 7 bytes
+						load_x(0);
+						load_a(0);
+						output("stx @hireg");
+						output("stx @hireg+1");
+						return 1;
+					}
+					if (v==1) {
+						// 10 bytes
+						output("lsr @hireg+1");
+						output("ror @hireg");
+						output("tay");
+						output("txa");
+						output("ror a");
+						output("tax");
+						output("tya");
+						output("ror a");
+						invalidate_a();
+						invalidate_x();
+						return 1;
+					}
+					if (v==8) {
+						if (optsize)
+							break;
+						// 11 bytes
+						output("txa");
+						output("ldx @hireg");
+						output("ldy @hireg+1");
+						output("sty @hireg");
+						output("ldy #0");
+						output("sty @hireg+1");
+						invalidate_x();
+						invalidate_a();
+						return 1;
+					}
+					if (v==16) {
+						if(optsize)
+							break;
+						// 10 bytes
+						output("lda @hireg");
+						output("ldx @hireg+1");
+						invalidate_a();
+						invalidate_x();
+						load_y(0);
+						output("sty @hireg");
+						output("sty @hireg+1");
+						return 1;
+					}
+					if (v==24) {
+						if (optsize)
+							break;
+						// 8 bytes
+						output("lda @hireg+1");
+						invalidate_a();
+						load_x(0);
+						output("stx @hireg+1");
+						output("stx @hireg");
+						return 1;
+					}
 				default:
 					break;
 			}
