@@ -2121,7 +2121,7 @@ unsigned gen_direct(struct node *n)
 		}
 #endif		
 		/* TODO: make at least byte handling smarter */
-		return pri_help(n, "minusminustmp");
+		return pri_help(n, "minusmtmp");
 	case T_PLUSEQ:
 		if (s == 2 && r->op == T_CONSTANT) {
 			if (v == 1) {

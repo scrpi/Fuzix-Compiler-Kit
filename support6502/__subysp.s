@@ -1,5 +1,6 @@
 ;
 ;	Adjust stack frame by Y bytes the other direction
+;	Must preserve Y
 ;
 	.export __subysp
 
