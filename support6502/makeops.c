@@ -150,6 +150,7 @@ void write_eqtmpopc(const char *op, const char *pre)
     fprintf(f, "__%seqtmpc:\n", op);
     fprintf(f, "__%seqtmpuc:\n", op);
     fprintf(f, "\tldy #0\n");
+    fprintf(f, "\tstx @tmp+1\n");
     if (pre)
         fprintf(f, "\t%s\n", pre);
     fprintf(f, "\t%s (@tmp),y\n", op);

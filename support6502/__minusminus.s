@@ -1,11 +1,11 @@
-	.export	__minusminustmp
-	.export __minusminustmpu
+	.export	__minusmtmp
+	.export __minusmtmpu
 	.export __minusminus
 
 __minusminus:
 	jsr	__poptmp	; TOS into @tmp, preserve XA, Y is now 0
-__minusminustmp:
-__minusminustmpu:
+__minusmtmp:
+__minusmtmpu:
 	ldy	#0
 
 	sta	@tmp1
