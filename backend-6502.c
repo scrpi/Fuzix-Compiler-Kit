@@ -1288,7 +1288,7 @@ static void asl_a(unsigned n) {
 static void lsr_a(unsigned n) {	
 	if (n==0)
 		return;
-	output("; lsr_a(%d)", n);
+
 	if (n>=8) {
 		load_a(0);
 		return;
@@ -1298,13 +1298,12 @@ static void lsr_a(unsigned n) {
 		repeated_op(n, "lsr a");
 	} else if (n==6) {
 		output("asl a");
-		output("rol a");
-		output("rol a");
+		repeated_op(2, "rol a");
 		output("and #0x03");
 	} else { /* n==7 */
 		output("asl a");  // Bit 7 to C
 		output("lda #0"); // Clear the other bits
-		output("rol a");  // Move C to bit 0
+		output("rol a");  // C to bit 0
 	}
 
 	invalidate_a();
@@ -1434,7 +1433,9 @@ struct node *gen_rewrite_node(struct node *n)
 		if (op == T_STAR || op == T_STAREQ) {
 			if (IS_INTARITH(nt)) {
 				/* TODO: Does not consider signed operations where the constant
-				   is negative, i.e. "x * -8" could become "-x << 3" */
+				   is negative.
+				   "x * -8" could become "(-x) << 3" if x is signed
+				   which should be worth trying. */
 				log2const = intlog2(r->value);
 				if (log2const != -1) {
 					op = (op == T_STAR ? T_LTLT : T_SHLEQ);
@@ -1453,7 +1454,10 @@ struct node *gen_rewrite_node(struct node *n)
 		if (op == T_SLASH || op == T_SLASHEQ) {
 			if (IS_INTARITH(nt)) {
 				/* TODO: Does not consider signed operations where the constant
-				   is negative, i.e. "x / -8" could become "-x >> 3" */
+				   is negative
+				   i.e. "x / -8" could become "(-x) >> 3" if x is signed
+				   as long as we are comfortable with sign bit propagation
+				   which isn't really the case today */
 				log2const = intlog2(r->value);
 				if (log2const != -1) {
 					op = (op==T_SLASH ? T_GTGT : T_SHREQ);
@@ -2290,6 +2294,8 @@ unsigned gen_direct(struct node *n)
 			
 			switch(n->type) {
 				case UCHAR:
+					/* TODO This code isn't currently reachable because / and >> operations
+					   are never analysed as being "byteable" */
 					if (v>=8) {
 						load_a(0);
 					}
@@ -2305,7 +2311,7 @@ unsigned gen_direct(struct node *n)
 						return 1;
 					}
 					if (v==1) {
-						// lsr XA 6 bytes
+						// lsr XA 6 bytes is always worth doing
 						output("tay");
 						output("txa");
 						output("lsr a");
@@ -2324,7 +2330,8 @@ unsigned gen_direct(struct node *n)
 					}
 					break;
 				case ULONG:
-					/* Shift by 1, and multiples of 8 are worth expanding */
+					/* Shift by 1 and multiples of 8 are worth expanding for speed
+					   But they are generally bigger than the support routine call */
 					if (v>32) {
 						// 7 bytes
 						load_x(0);
@@ -2334,6 +2341,8 @@ unsigned gen_direct(struct node *n)
 						return 1;
 					}
 					if (v==1) {
+						if (optsize)
+							break;
 						// 10 bytes
 						output("lsr @hireg+1");
 						output("ror @hireg");
@@ -2364,7 +2373,7 @@ unsigned gen_direct(struct node *n)
 					if (v==16) {
 						if(optsize)
 							break;
-						// 10 bytes
+						// 9-10 bytes
 						output("lda @hireg");
 						output("ldx @hireg+1");
 						invalidate_a();
