@@ -13,7 +13,7 @@ __minusl:
 	lda	(@sp),y
 	sec
 	sbc	@tmp
-	sta	@tmp
+	pha			; recovered in __incsp4
 	iny
 	stx	@tmp+1
 	lda	(@sp),y
@@ -27,5 +27,4 @@ __minusl:
 	lda	(@sp),y
 	sbc	@hireg+1
 	sta	@hireg+1
-	lda	@tmp
-	rts
+	jmp	__incsp4

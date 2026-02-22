@@ -4,6 +4,7 @@
 ;	Based on code by Ullrich von Bassetwitz for CC65
 ;
 	.export __pop32
+	.export __incsp4
 	.code
 
 __pop32:
@@ -20,7 +21,7 @@ __pop32:
 	dey
 	lda	(@sp),y
 	sta	@tmp
-__incsp2:
+__incsp4:
 	lda	#4
 	clc
 	adc	@sp

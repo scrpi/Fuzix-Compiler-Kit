@@ -489,6 +489,9 @@ static unsigned direct_z(const char *op)
 
 
 /* Construct a direct operation if possible for the primary op */
+/* Must not corrupt X unless explcitly asked to load X. Our byte operators
+   rely on this as a tiny optimization as the expect the pointer on stuff
+   like x++ to be in X and the low half of @tmp */
 static int do_pri8(struct node *n, const char *op, void (*pre)(struct node *__n))
 {
 	struct node *r = n->right;
@@ -858,6 +861,8 @@ static int pri8_help(struct node *n, char *helper)
 			return 1;
 		}
 	}
+	/* If we can't guarantee do_pri8 protects X then in future we'd
+	    need to check r size for 2 and if so pre_store16 here */
 	if (do_pri8(r, "lda", pre_store8)) {
 		/* Helper invalidates A itself */
 		helper_sb(n, helper);
@@ -2116,7 +2121,7 @@ unsigned gen_direct(struct node *n)
 		}
 #endif		
 		/* TODO: make at least byte handling smarter */
-		return pri_help(n, "minusminustmp");
+		return pri_help(n, "minusmtmp");
 	case T_PLUSEQ:
 		if (s == 2 && r->op == T_CONSTANT) {
 			if (v == 1) {

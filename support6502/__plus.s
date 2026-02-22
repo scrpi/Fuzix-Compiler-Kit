@@ -19,6 +19,7 @@
 
 __plus:
 	ldy	#0
+	clc
 	adc	(@sp),y
 	iny
 	sta	@tmp1		; tmp1 is for helpers so the compiler
