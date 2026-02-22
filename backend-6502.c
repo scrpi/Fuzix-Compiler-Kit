@@ -1452,17 +1452,18 @@ struct node *gen_rewrite_node(struct node *n)
 		
 		/* Division ( / and /= ) of integral types
 		by constant powers of two can be re-written as right shifts.
-		This doesn't make any distinction between signed and unsigned types
-		and any subtle issues around top bit propagation are deferred until 
-		code generation. */
+		Only apply this optimisation to unsigned types at the moment and
+		be conservative.
+		1.  Signed operations where the constant is negative
+		    i.e. "x / -8" could become "(-x) >> 3" if x is signed
+			as long as we are comfortable with sign bit propagation
+			which isn't really the case today 
+		2.  For signed operations, direction of rounding towards
+			zero must be preserved.
+		*/
 
 		if (op == T_SLASH || op == T_SLASHEQ) {
-			if (IS_INTARITH(nt)) {
-				/* TODO: Does not consider signed operations where the constant
-				   is negative
-				   i.e. "x / -8" could become "(-x) >> 3" if x is signed
-				   as long as we are comfortable with sign bit propagation
-				   which isn't really the case today */
+			if ((IS_INTARITH(nt)) && (nt & UNSIGNED)) {
 				log2const = intlog2(r->value);
 				if (log2const != -1) {
 					op = (op==T_SLASH ? T_GTGT : T_SHREQ);
