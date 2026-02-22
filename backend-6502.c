@@ -2061,11 +2061,10 @@ unsigned gen_direct(struct node *n)
 						/* Multiply by 2^n+1. Save original, shift (n) and add original */
 						case 9:  /* 2^3+1, 8 bytes */
 						case 5:  /* 2^2+1, 7 bytes */
-							/* If optimizing for size, don't generate direct */
-							if(optsize)
+							if (optsize || opt<3)
 								break;
-							/* Fall into .. */
-						case 3:  /* 2^1+1, 6 bytes */
+							/* Fall through if -O3  */
+						case 3:  /* 2^1+1, 6 bytes, always smaller and faster*/
 							output("sta @tmp");
 							asl_a(intlog2(v-1));
 							output("clc");
@@ -2083,14 +2082,15 @@ unsigned gen_direct(struct node *n)
 					/* Word */
 					switch(v) {
 						case 3:
-							/* This is a bit of an experiment. After all
-							   it's not particularly common to *3 and at 
-							   17 bytes this is quite long. May remove.
-							   So only do this if we're optimising for 
-							   speed rather than size */
-							
-							if (!optsize)
+							if (optsize || opt<3)
 								break;
+
+							/* This is faster than calling the support routine
+							   but at 17 bytes it's a bit of a bloat, so only
+							   generate this version if we're agressively optimising 
+							   for speed and "*3" is especially important to you. If
+							   maintainers want to get rid of this in future, that
+							   is fair enough. */
 
 							/* XA->@tmp */
 							output("sta @tmp");
@@ -2101,12 +2101,11 @@ unsigned gen_direct(struct node *n)
 							/* XA += @tmp */
 							output("clc");
 							output("adc @tmp");
-							output("tay");
+							output("pha");
 							output("txa");
 							output("adc @tmp+1");
 							output("tax");
-							output("tya");
-							
+							output("pla");
 							invalidate_a();
 							invalidate_x();
 							return 1;
