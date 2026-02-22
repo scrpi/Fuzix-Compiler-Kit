@@ -1261,6 +1261,9 @@ static int intlog2(long x) {
 
 /*
  * Shift A left by n bits in as few instructions as possible
+ * n 0..5 n bytes
+ * 6 5 bytes
+ * 7 4 bytes
  * (worst case 5 bytes)
  */
 static void asl_a(unsigned n) {
@@ -2183,6 +2186,7 @@ unsigned gen_direct(struct node *n)
 						return 1;
 					}
 
+					/* Always 5 bytes or fewer */
 					asl_a(v);
 					return 1;
 
@@ -2193,23 +2197,22 @@ unsigned gen_direct(struct node *n)
 						load_a(0);
 						return 1;
 					}
-					if (v==1) {
-						output("stx @tmp+1");
-						output("asl a");
-						output("rol @tmp+1");
-						output("ldx @tmp+1");
-						return 1;
-					}
-					if (!optsize && (v<=7)) {
-						// 4+3v bytes
+					if ((1<=v) && (v<=7)) {
+						/* 4+3v bytes
+						   v==1 is faster and same size
+						   v>=2 is faster but bigger */
+						if (optsize && v>=2)
+							break;
 						output("stx @tmp+1");
 						repeated_op(v, "asl a\n\trol @tmp+1");
 						output("ldx @tmp+1");
 						return 1;
 					}
-					if (!optsize || (v<=10)) {
-						// 3+(v-8) bytes
-						asl_a(v-8);
+					if (v>=8) {
+						if (optsize && (v>=11))
+							break;
+						/* We get 8 bits of shift by moving A->X */
+						asl_a(v-8); /* Max 5 bytes */
 						tax();
 						load_a(0);
 						return 1;
@@ -2249,6 +2252,9 @@ unsigned gen_direct(struct node *n)
 							/* x-> @hireg */
 							/* a-> x */
 							/* 0-> a */
+							if (optsize)
+								break;
+							/* 9 bytes */
 							output("ldy @hireg");
 							output("sty @hireg+1");
 							output("stx @hireg");
@@ -2261,6 +2267,9 @@ unsigned gen_direct(struct node *n)
 							/* a-> @hireg */
 							/* 0-> x */
 							/* 0-> a */
+							if(optsize)
+								break;
+							/* 7 bytes */
 							output("stx @hireg+1");
 							output("sta @hireg");
 							load_x(0);
@@ -2272,6 +2281,9 @@ unsigned gen_direct(struct node *n)
 							/* 0-> @hireg */
 							/* 0-> x */
 							/* 0-> a */
+							if (optsize) 
+								break;
+							/* 7 bytes */
 							output("sta @hireg+1");
 							load_x(0);
 							load_a(0);
@@ -2316,18 +2328,19 @@ unsigned gen_direct(struct node *n)
 						return 1;
 					}
 					if (v==1) {
-						// lsr XA 6 bytes is always worth doing
-						output("tay");
+						/* lsr XA 6 bytes is always worth doing inline */
+						output("pha");
 						output("txa");
 						output("lsr a");
 						output("tax");
-						output("tya");
+						output("pla");
 						output("ror a");
 						invalidate_x();
 						invalidate_a();
 						return 1;
 					}
 					if (v==8) {
+						/* X->A, X=0 always worth doing*/
 						txa();
 						invalidate_a();
 						load_x(0);
@@ -2338,7 +2351,7 @@ unsigned gen_direct(struct node *n)
 					/* Shift by 1 and multiples of 8 are worth expanding for speed
 					   But they are generally bigger than the support routine call */
 					if (v>32) {
-						// 7 bytes
+						/* 7 bytes */
 						load_x(0);
 						load_a(0);
 						output("stx @hireg");
@@ -2348,14 +2361,14 @@ unsigned gen_direct(struct node *n)
 					if (v==1) {
 						if (optsize)
 							break;
-						// 10 bytes
+						/* 10 bytes */
 						output("lsr @hireg+1");
 						output("ror @hireg");
-						output("tay");
+						output("pha");
 						output("txa");
 						output("ror a");
 						output("tax");
-						output("tya");
+						output("pla");
 						output("ror a");
 						invalidate_a();
 						invalidate_x();
@@ -2364,13 +2377,19 @@ unsigned gen_direct(struct node *n)
 					if (v==8) {
 						if (optsize)
 							break;
-						// 11 bytes
-						output("txa");
+						/* X -> A */
+						/* hireg -> x */
+						/* hireg+1 -> hireg */
+						/* 0 -> hireg+1 */
+						/* Avoid using Y register */
+						/* 14 bytes */
+						output("stx @tmp"); // Save for A later
 						output("ldx @hireg");
-						output("ldy @hireg+1");
-						output("sty @hireg");
-						output("ldy #0");
-						output("sty @hireg+1");
+						output("lda @hireg+1");
+						output("sta @hireg");
+						output("lda #0");
+						output("sta @hireg+1");
+						output("lda @tmp"); // Old X, Neww A
 						invalidate_x();
 						invalidate_a();
 						return 1;
@@ -2391,7 +2410,7 @@ unsigned gen_direct(struct node *n)
 					if (v==24) {
 						if (optsize)
 							break;
-						// 8 bytes
+						/* 7-8 bytes */
 						output("lda @hireg+1");
 						invalidate_a();
 						load_x(0);
