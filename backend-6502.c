@@ -414,6 +414,13 @@ static void txa(void)
 	output("txa");
 }
 
+static void tay(void)
+{
+	memcpy(reg + R_Y, reg + R_A, sizeof(struct regtrack));
+	output("tay");
+}
+
+
 /* Used as helpers when doing a single depth push op of A as happens. Not
    stack tracking so not safe if can recurse */
 static void saved_a(void)
@@ -1526,9 +1533,38 @@ void gen_case_data(unsigned tag, unsigned entry)
 	printf("\t.word Sw%d_%d - 1\n", tag, entry);
 }
 
+/*
+ *	Our floats for now are in C so we need to call them as
+ *	C functions not asm helpers
+ */
+
+/* True if the helper is to be called C style */
+static unsigned c_style(struct node *np)
+{
+	register struct node *n = np;
+	/* Assignment is done asm style */
+	if (n->op == T_EQ)
+		return 0;
+	/* Float ops otherwise are C style */
+	if (n->type == FLOAT)
+		return 1;
+	n = n->right;
+	if (n && n->type == FLOAT)
+		return 1;
+	return 0;
+}
+
 void gen_helpcall(struct node *n)
 {
 	invalidate_regs();
+	/* Check both N and right because we handle casts to/from float in
+	   C call format */
+	if (c_style(n)) {
+		gen_push(n->right);
+		/* Compensate for the fact the called function will remove
+		   this */
+		sp -= get_stack_size(n->right->type);
+	}
 	printf("\tjsr __");
 }
 
@@ -1538,11 +1574,17 @@ void gen_helptail(struct node *n)
 
 void gen_helpclean(struct node *n)
 {
-	/* Bool return is 0 or 1 therefore X is 0 */
-	if (n->flags & ISBOOL) {
-		reg[R_X].state = T_CONSTANT;
-		reg[R_X].value = 0;
+	/* 6502 C functions pop their own stack so the C v asm helper
+	   doesn't matter as it does on other processors but we must still
+	   correct sp */
+	if (c_style(n)) {
+		/* C style ops that are ISBOOL didn't set the bool flags */
+		if (n->flags & ISBOOL)
+			tay();
 	}
+	/* Bool return is 0 or 1 therefore X is 0 */
+	if (n->flags & ISBOOL)
+		const_x_set(0);
 }
 
 void gen_data_label(const char *name, unsigned align)
