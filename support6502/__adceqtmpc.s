@@ -5,6 +5,7 @@
 __adceqtmpc:
 __adceqtmpuc:
 	ldy #0
+	stx @tmp+1
 	clc
 	adc (@tmp),y
 	sta (@tmp),y
