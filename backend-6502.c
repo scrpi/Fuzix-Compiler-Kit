@@ -200,6 +200,12 @@ static void load_a(uint8_t n)
 			return;
 		if (reg[R_A].value == n - 1 && cpu != NMOS_6502) {
 			output("inc a");
+			reg[R_A].value = n;
+			return;
+		}
+		if (reg[R_A].value == n + 1 && cpu != NMOS_6502) {
+			output("dec a");
+			reg[R_A].value = n;
 			return;
 		}
 	}
