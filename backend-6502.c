@@ -2053,8 +2053,8 @@ unsigned gen_direct(struct node *n)
 	case T_EQEQ:
 		if (r->op == T_CONSTANT && v == 0) {
 			/* TODO: not via helper */
-			helper(n, "not");
 			n->flags |= ISBOOL;
+			helper(n, "not");
 			return 1;
 		}
 		return pri_cchelp(n, s, "eqeqtmp");
@@ -2069,8 +2069,8 @@ unsigned gen_direct(struct node *n)
 	case T_BANGEQ:
 		if (r->op == T_CONSTANT && v == 0) {
 			/* TODO: not via helper */
-			helper(n, "bool");
 			n->flags |= ISBOOL;
+			helper(n, "bool");
 			return 1;
 		}
 		return pri_cchelp(n, s, "netmp");
@@ -2616,16 +2616,17 @@ unsigned gen_node(struct node *n)
 		return gen_cast(n);
 	/* TODO: CCONLY */
 	case T_BANG:
+		n->flags |= ISBOOL;
 		if (r->flags & (ISBOOL|BYTEABLE)) {
 			output("eor #1");
 			invalidate_a();
 		} else
 			helper(n, "not");
-		n->flags |= ISBOOL;
 		return 1;
 	case T_BOOL:
 		if (r->flags & ISBOOL)
 			return 1;
+		n->flags |= ISBOOL;
 		if (n->flags & BYTEABLE) {
 			tax();	/* Set the Z flag */
 			output("beq X%u", ++xlabel);
@@ -2634,7 +2635,6 @@ unsigned gen_node(struct node *n)
 		} else {
 			helper(n, "bool");
 		}
-		n->flags |= ISBOOL;
 		return 1;
 	}
 	return 0;
