@@ -1549,7 +1549,7 @@ static unsigned c_style(struct node *np)
 {
 	register struct node *n = np;
 	/* Assignment is done asm style */
-	if (n->op == T_EQ)
+	if (n->op == T_EQ || n->op == T_DEREF)
 		return 0;
 	/* Float ops otherwise are C style */
 	if (n->type == FLOAT)
