@@ -12,4 +12,5 @@ __negate:
 	eor	#0xFF
 	adc	#0
 	tax
+	pla
 	rts
