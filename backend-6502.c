@@ -200,6 +200,12 @@ static void load_a(uint8_t n)
 			return;
 		if (reg[R_A].value == n - 1 && cpu != NMOS_6502) {
 			output("inc a");
+			reg[R_A].value = n;
+			return;
+		}
+		if (reg[R_A].value == n + 1 && cpu != NMOS_6502) {
+			output("dec a");
+			reg[R_A].value = n;
 			return;
 		}
 	}
@@ -692,13 +698,13 @@ static int do_pri16(struct node *n, const char *op, void (*pre)(struct node *__n
 	case T_LABEL:
 		pre(n);
 		output("%sa #<T%d+%d", op,  n->val2, v);
-		output("%sx #>T%d+%d", op,  n->val2, v >> 8);
+		output("%sx #>T%d+%d", op,  n->val2, v);
 		return 1;
 	case T_NAME:
 		pre(n);
 		name = namestr(n->snum);
 		output("%sa #<_%s+%d", op,  name, v);
-		output("%sx #>_%s+%d", op,  name, v >> 8);
+		output("%sx #>_%s+%d", op,  name, v);
 		return 1;
 	case T_LOCAL:
 	case T_LREF:
@@ -1665,7 +1671,7 @@ static unsigned c_style(struct node *np)
 {
 	register struct node *n = np;
 	/* Assignment is done asm style */
-	if (n->op == T_EQ)
+	if (n->op == T_EQ || n->op == T_DEREF)
 		return 0;
 	/* Float ops otherwise are C style */
 	if (n->type == FLOAT)
@@ -2190,8 +2196,8 @@ unsigned gen_direct(struct node *n)
 	case T_EQEQ:
 		if (r->op == T_CONSTANT && v == 0) {
 			/* TODO: not via helper */
-			helper(n, "not");
 			n->flags |= ISBOOL;
+			helper(n, "not");
 			return 1;
 		}
 		return pri_cchelp(n, s, "eqeqtmp");
@@ -2206,8 +2212,8 @@ unsigned gen_direct(struct node *n)
 	case T_BANGEQ:
 		if (r->op == T_CONSTANT && v == 0) {
 			/* TODO: not via helper */
-			helper(n, "bool");
 			n->flags |= ISBOOL;
+			helper(n, "bool");
 			return 1;
 		}
 		return pri_cchelp(n, s, "netmp");
@@ -2979,16 +2985,17 @@ unsigned gen_node(struct node *n)
 		return gen_cast(n);
 	/* TODO: CCONLY */
 	case T_BANG:
+		n->flags |= ISBOOL;
 		if (r->flags & (ISBOOL|BYTEABLE)) {
 			output("eor #1");
 			invalidate_a();
 		} else
 			helper(n, "not");
-		n->flags |= ISBOOL;
 		return 1;
 	case T_BOOL:
 		if (r->flags & ISBOOL)
 			return 1;
+		n->flags |= ISBOOL;
 		if (n->flags & BYTEABLE) {
 			tax();	/* Set the Z flag */
 			output("beq X%u", ++xlabel);
@@ -2997,7 +3004,6 @@ unsigned gen_node(struct node *n)
 		} else {
 			helper(n, "bool");
 		}
-		n->flags |= ISBOOL;
 		return 1;
 	}
 	return 0;

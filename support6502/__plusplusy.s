@@ -21,7 +21,7 @@ __plusplusy:
 	clc
 	adc	@tmp1
 	sta	(@tmp),y
-	dey
+	iny
 	txa
 	adc	#0
 	sta	(@tmp),y

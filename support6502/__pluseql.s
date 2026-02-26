@@ -7,7 +7,7 @@
 __pluseql:
 	jsr	__poptmp
 	; @tmp is now the pointer to the 32bit value
-	ldy	#0
+	; Y is 0
 	clc
 	adc	(@tmp),y
 	sta	(@tmp),y
