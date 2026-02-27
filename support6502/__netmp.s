@@ -3,8 +3,14 @@
 ;
 	.export __netmp
 	.export __netmpu
+	.export __l_netmp
+	.export __l_netmpu
 	.export __ccne
 
+__l_netmp:
+__l_netmpu:
+	jsr __ytmp
+	jmp __netmp
 __ccne:
 	jsr __poptmp
 __netmp:

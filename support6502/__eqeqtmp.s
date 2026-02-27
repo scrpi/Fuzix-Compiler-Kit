@@ -1,10 +1,16 @@
 ;
 ;	Compare XA with __tmp
 ;
+	.export __l_eqeqtmp
+	.export __l_eqeqtmpu
 	.export __eqeqtmp
 	.export __eqeqtmpu
 	.export __cceq
 
+__l_eqeqtmp:
+__l_eqeqtmpu:
+	jsr __ytmp
+	jmp __eqeqtmp
 __cceq:
 	jsr __poptmp
 __eqeqtmp:
