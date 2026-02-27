@@ -8,7 +8,7 @@
 
 __l_netmpc:
 __l_netmpuc:
-	jsr ytmp
+	jsr __ytmp
 __netmpc:
 __netmpuc:
 	ldx #0
