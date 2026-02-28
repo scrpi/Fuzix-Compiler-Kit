@@ -195,25 +195,49 @@ static void const_y_set(unsigned val)
 /* Get a value into A, adjust and track */
 static void load_a(uint8_t n)
 {
+	uint8_t curr_a;
+	output(";LOAD_A(%u), State=%04X, Val=%u", n, reg[R_A].state, reg[R_A].value);
 	if (reg[R_A].state == T_CONSTANT) {
-		if (reg[R_A].value == n)
+		curr_a = reg[R_A].value;
+		if (curr_a == n)
 			return;
-		if (reg[R_A].value == n - 1 && cpu != NMOS_6502) {
+		/* Left shift can be used for cases like 1->2, 2->4, 3->6
+		   and is only one byte.
+		 */
+		if ((curr_a << 1) == n) {
+			output(";%02X -> %02X USING <<", curr_a, n);
+			output("asl a");	
+			reg[R_A].value = n;
+			return;
+		}
+		/* Right shift can be used for cases like 1->0, 2->1, 3->1 
+		   and is only one byte.
+		   Note that lsr a always puts a 0 in the top bit
+		 */
+		if (((curr_a >> 1) & 0x7F) == n) {
+			output(";%02X -> %02X USING >>", curr_a, n);
+			output("lsr a");
+			reg[R_A].value = n;
+			return;
+		}
+		/* If processor supports inc a and dec a */
+		if (curr_a == n - 1 && cpu != NMOS_6502) {
 			output("inc a");
 			reg[R_A].value = n;
 			return;
 		}
-		if (reg[R_A].value == n + 1 && cpu != NMOS_6502) {
+		if (curr_a == n + 1 && cpu != NMOS_6502) {
 			output("dec a");
 			reg[R_A].value = n;
 			return;
 		}
 	}
-	/* No inca deca */
-	if (reg[R_X].state == T_CONSTANT && reg[R_X].value == n)
+	if (reg[R_X].state == T_CONSTANT && reg[R_X].value == n) {
+		output(";X contains %u\n", reg[R_X].value);
 		output("txa");
+	}
 	else if (reg[R_Y].state == T_CONSTANT && reg[R_Y].value == n) {
-		printf(";Y contains %u\n", reg[R_Y].value);
+		output(";Y contains %u\n", reg[R_Y].value);
 		output("tya");
 	} else
 		output("lda #%u", n);
