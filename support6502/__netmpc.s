@@ -3,7 +3,12 @@
 ;
 	.export __netmpc
 	.export __netmpuc
+	.export __l_netmpc
+	.export __l_netmpuc
 
+__l_netmpc:
+__l_netmpuc:
+	jsr __ytmp
 __netmpc:
 __netmpuc:
 	ldx #0
