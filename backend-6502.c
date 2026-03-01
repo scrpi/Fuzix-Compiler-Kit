@@ -1468,49 +1468,75 @@ struct node *gen_rewrite_node(struct node *n)
 	if (op == T_GTEQ)
 		swap_op(n, T_LTEQ);
 	
-	/* Arithmetic optimisations where right op is a constant */
-	if (r != NULL && r->op == T_CONSTANT) {
-
-		/* Multiplication ( * and *= ) of integral types 
-	   	   by constant powers of two can be re-written
-	   	   as left shifts. */
-		if (op == T_STAR || op == T_STAREQ) {
-			if (IS_INTARITH(nt)) {
-				/* TODO: Does not consider signed operations where the constant
-				   is negative.
-				   "x * -8" could become "(-x) << 3" if x is signed
-				   which should be worth trying. */
+	/* Some arithmetic optimisations (multiply, divide, remainder) 
+	 * where right op is a constant power of two can be re-written
+	 * using bit shifts.
+	 */
+	if (r != NULL && IS_INTARITH(nt) && r->op == T_CONSTANT) {
+		switch(op) {
+			/* Multiplication ( * and *= ) of integral types 
+	   	   	by constant powers of two can be re-written
+	   	  	 as left shifts. */
+			case T_STAR:
+			case T_STAREQ:
+				/* TODO: Does not yet consider signed operations where the constant
+					is a negative power of two. For example, 
+					"x * -8" could become "(-x) << 3" if x is signed
+				*/
 				log2const = intlog2(r->value);
 				if (log2const != -1) {
-					op = (op == T_STAR ? T_LTLT : T_SHLEQ);
-					n->op = op;
+					n->op = op = (op == T_STAR ? T_LTLT : T_SHLEQ);
 					r->value = log2const;
 				}
-			}
-		}
-		
-		/* Division ( / and /= ) of integral types
-		by constant powers of two can be re-written as right shifts.
-		Only apply this optimisation to unsigned types at the moment and
-		be conservative.
-		1.  Signed operations where the constant is negative
-		    i.e. "x / -8" could become "(-x) >> 3" if x is signed
-			as long as we are comfortable with sign bit propagation
-			which isn't really the case today 
-		2.  For signed operations, direction of rounding towards
-			zero must be preserved.
-		*/
+				break;
 
-		if (op == T_SLASH || op == T_SLASHEQ) {
-			if ((IS_INTARITH(nt)) && (nt & UNSIGNED)) {
-				log2const = intlog2(r->value);
-				if (log2const != -1) {
-					op = (op==T_SLASH ? T_GTGT : T_SHREQ);
-					n->op = op;
-					r->value = log2const;
+				/* Division ( / and /= ) of integral types
+					by constant powers of two can be re-written as right shifts.
+				*/
+			case T_SLASH:
+			case T_SLASHEQ:
+				/*	Only apply this optimisation to UNSIGNED types at the moment.
+					TODO for signed implementation
+					1.	Signed right shifts must maintain the sign bit which is a
+						PITA in 6502
+					2.  Signed operations where the constant is negative
+						i.e. "x / -8" could become "(-x) >> 3" 
+					3.  For signed operations, direction of rounding towards
+						zero must be preserved.
+				*/
+				if (nt & UNSIGNED) {
+					log2const = intlog2(r->value);
+					if (log2const != -1) {
+						n->op = op = (op==T_SLASH ? T_GTGT : T_SHREQ);
+						n->op = op;
+						r->value = log2const;
+					}
 				}
-			}
-		}
+				break;
+
+				/*
+					Remainder operator T_PERCENT and T_PERCENTEQ can be reduced to bit 
+					operations specific cases where the right operator is a power of two constant.
+					As with T_SLASH and T_SLASHEQ, be aware that signed remainders are tricky
+					and therefore not touched here.
+				*/
+			case T_PERCENT:
+			case T_PERCENTEQ:
+				if (nt & UNSIGNED) {
+					log2const = intlog2(r->value);
+					if (log2const != -1) {
+						/*
+							% 2^n becomes & 2^n-1
+						*/
+						n->op = op = (op==T_PERCENT ? T_AND : T_ANDEQ);
+						r->value = r->value-1;
+					}
+				}
+				break;
+			
+			default:
+				break;
+		}/*switch*/
 	}
 
 	return n;
