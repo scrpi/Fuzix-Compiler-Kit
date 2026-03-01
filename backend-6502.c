@@ -233,11 +233,11 @@ static void load_a(uint8_t n)
 		}
 	}
 	if (reg[R_X].state == T_CONSTANT && reg[R_X].value == n) {
-		output(";X contains %u\n", reg[R_X].value);
+		output(";X contains %u", reg[R_X].value);
 		output("txa");
 	}
 	else if (reg[R_Y].state == T_CONSTANT && reg[R_Y].value == n) {
-		output(";Y contains %u\n", reg[R_Y].value);
+		output(";Y contains %u", reg[R_Y].value);
 		output("tya");
 	} else
 		output("lda #%u", n);
