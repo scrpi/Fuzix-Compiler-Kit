@@ -196,26 +196,25 @@ static void const_y_set(unsigned val)
 static void load_a(uint8_t n)
 {
 	uint8_t curr_a;
-	output(";LOAD_A(%u), State=%04X, Val=%u", n, reg[R_A].state, reg[R_A].value);
 	if (reg[R_A].state == T_CONSTANT) {
 		curr_a = reg[R_A].value;
 		if (curr_a == n)
 			return;
 		/* Left shift can be used for cases like 1->2, 2->4, 3->6
-		   and is only one byte.
+		   and is only one byte. It's no faster than LDA #n but shorter.
 		 */
 		if ((curr_a << 1) == n) {
-			output(";%02X -> %02X USING <<", curr_a, n);
+			output(";A contains %u, left shift", curr_a);
 			output("asl a");	
 			reg[R_A].value = n;
 			return;
 		}
 		/* Right shift can be used for cases like 1->0, 2->1, 3->1 
-		   and is only one byte.
-		   Note that lsr a always puts a 0 in the top bit
+		   and is only one byte. No faster than LDA #n, but shorter.
+		   Note that lsr a always puts 0 in the most significant bit.
 		 */
 		if (((curr_a >> 1) & 0x7F) == n) {
-			output(";%02X -> %02X USING >>", curr_a, n);
+			output(";A contains %u, right shift", curr_a);
 			output("lsr a");
 			reg[R_A].value = n;
 			return;
