@@ -76,5 +76,8 @@ int main(int argc, char *argv[])
     n *= 3;
     if (n != 12)
         return 20;
+    n = 0x04030201;
+    if (n / 0x100 != 0x00040302)
+        return 21;
     return 0;
 }
