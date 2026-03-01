@@ -195,25 +195,48 @@ static void const_y_set(unsigned val)
 /* Get a value into A, adjust and track */
 static void load_a(uint8_t n)
 {
+	uint8_t curr_a;
 	if (reg[R_A].state == T_CONSTANT) {
-		if (reg[R_A].value == n)
+		curr_a = reg[R_A].value;
+		if (curr_a == n)
 			return;
-		if (reg[R_A].value == n - 1 && cpu != NMOS_6502) {
+		/* Left shift can be used for cases like 1->2, 2->4, 3->6
+		   and is only one byte. It's no faster than LDA #n but shorter.
+		 */
+		if ((curr_a << 1) == n) {
+			output(";A contains %u, left shift", curr_a);
+			output("asl a");	
+			reg[R_A].value = n;
+			return;
+		}
+		/* Right shift can be used for cases like 1->0, 2->1, 3->1 
+		   and is only one byte. No faster than LDA #n, but shorter.
+		   Note that lsr a always puts 0 in the most significant bit.
+		 */
+		if (((curr_a >> 1) & 0x7F) == n) {
+			output(";A contains %u, right shift", curr_a);
+			output("lsr a");
+			reg[R_A].value = n;
+			return;
+		}
+		/* If processor supports inc a and dec a */
+		if (curr_a == n - 1 && cpu != NMOS_6502) {
 			output("inc a");
 			reg[R_A].value = n;
 			return;
 		}
-		if (reg[R_A].value == n + 1 && cpu != NMOS_6502) {
+		if (curr_a == n + 1 && cpu != NMOS_6502) {
 			output("dec a");
 			reg[R_A].value = n;
 			return;
 		}
 	}
-	/* No inca deca */
-	if (reg[R_X].state == T_CONSTANT && reg[R_X].value == n)
+	if (reg[R_X].state == T_CONSTANT && reg[R_X].value == n) {
+		output(";X contains %u", reg[R_X].value);
 		output("txa");
+	}
 	else if (reg[R_Y].state == T_CONSTANT && reg[R_Y].value == n) {
-		printf(";Y contains %u\n", reg[R_Y].value);
+		output(";Y contains %u", reg[R_Y].value);
 		output("tya");
 	} else
 		output("lda #%u", n);
@@ -2177,6 +2200,16 @@ unsigned gen_direct(struct node *n)
 	case T_SLASH:
 		if (local_yop_s(n, "l_div"))
 			return 1;
+<<<<<<< ours
+=======
+		/* TODO: by 16 and by 24 unsigned */
+		if (s == 2 && r->op == T_CONSTANT && v == 256 && (n->type & UNSIGNED)) {
+			txa();
+			load_x(0);
+			return 1;
+		}
+		/* TODO - power of 2 const into >> */
+>>>>>>> theirs
 		return pri_help(n, "divtmp");
 	case T_PERCENT:
 		/* TODO Unlike T_SLASH and T_STAR, no T_PERCENT has been changed
