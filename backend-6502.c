@@ -2030,7 +2030,8 @@ unsigned gen_direct(struct node *n)
 	case T_SLASH:
 		if (local_yop_s(n, "l_div"))
 			return 1;
-		if (r->op == T_CONSTANT && v == 256 && (n->type & UNSIGNED)) {
+		/* TODO: by 16 and by 24 unsigned */
+		if (s == 2 && r->op == T_CONSTANT && v == 256 && (n->type & UNSIGNED)) {
 			txa();
 			load_x(0);
 			return 1;
