@@ -2200,16 +2200,6 @@ unsigned gen_direct(struct node *n)
 	case T_SLASH:
 		if (local_yop_s(n, "l_div"))
 			return 1;
-<<<<<<< ours
-=======
-		/* TODO: by 16 and by 24 unsigned */
-		if (s == 2 && r->op == T_CONSTANT && v == 256 && (n->type & UNSIGNED)) {
-			txa();
-			load_x(0);
-			return 1;
-		}
-		/* TODO - power of 2 const into >> */
->>>>>>> theirs
 		return pri_help(n, "divtmp");
 	case T_PERCENT:
 		/* TODO Unlike T_SLASH and T_STAR, no T_PERCENT has been changed
