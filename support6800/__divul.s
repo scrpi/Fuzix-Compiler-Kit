@@ -13,7 +13,7 @@ __divul:
 	ldaa 6,x
 	ldab 7,x
 	staa @hireg
-	staa @hireg+1
+	stab @hireg+1
 	ldaa 8,x
 	ldab 9,x
 	ldx	4,x		; return address
