@@ -1470,9 +1470,11 @@ struct node *gen_rewrite_node(struct node *n)
 	
 	/* Some arithmetic optimisations (multiply, divide, remainder) 
 	 * where right op is a constant power of two can be re-written
-	 * using bit shifts.
+	 * using bit operations.
+	 * 
+	 * Only apply these optimisations if at -O2 or higher
 	 */
-	if (r != NULL && IS_INTARITH(nt) && r->op == T_CONSTANT) {
+	if (opt>=2 && r != NULL && IS_INTARITH(nt) && r->op == T_CONSTANT) {
 		switch(op) {
 			/* Multiplication ( * and *= ) of integral types 
 	   	   	by constant powers of two can be re-written
@@ -1516,7 +1518,7 @@ struct node *gen_rewrite_node(struct node *n)
 
 				/*
 					Remainder operator T_PERCENT and T_PERCENTEQ can be reduced to bit 
-					operations specific cases where the right operator is a power of two constant.
+					operations when the right operatand is a power of two constant.
 					As with T_SLASH and T_SLASHEQ, be aware that signed remainders are tricky
 					and therefore not touched here.
 				*/
@@ -1536,7 +1538,7 @@ struct node *gen_rewrite_node(struct node *n)
 			
 			default:
 				break;
-		}/*switch*/
+		}
 	}
 
 	return n;
