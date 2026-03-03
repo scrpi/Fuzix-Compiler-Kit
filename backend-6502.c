@@ -2230,8 +2230,9 @@ unsigned gen_direct(struct node *n)
 			return 1;
 		return pri_help(n, "divtmp");
 	case T_PERCENT:
-		/* TODO Unlike T_SLASH and T_STAR, no T_PERCENT has been changed
-		   upstream to shifts. */
+		/* TODO since %256 has been optimised to & FF upstream,
+		   this may now be redundant 
+		*/
 		if (r->op == T_CONSTANT && v == 256 && (n->type & UNSIGNED)) {
 			load_x(0);
 			return 1;
