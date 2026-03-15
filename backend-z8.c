@@ -462,6 +462,9 @@ static void load_r_constb(unsigned r, unsigned char v)
 			return;
 		}
 	}
+	/* COM RLC RRC SRA SWAP are all the same length as LD rN,#n so
+	   not useful. In theory we could build a valuie using OR but that's
+	   a fringe case */
 	printf("\tld r%u,#%u\n", r, v);
 	r_set(r, v);
 }
