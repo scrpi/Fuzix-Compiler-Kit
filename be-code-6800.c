@@ -8,11 +8,6 @@
 
 unsigned label;		/* Used to hand out local labels of the form X%u */
 
-/*
- *	Fix up weirdness in the asm formats.
- */
-
-
 static uint8_t rol(register uint8_t r)
 {
 	uint8_t b0 = r & 0x80;
@@ -632,7 +627,6 @@ unsigned op8_on_node(struct node *r, const char *op, unsigned off)
 
 	switch(r->op) {
 	case T_LSTORE:
-		invalidate_mem();
 		store = 1;
 	case T_LREF:
 		off = make_local_ptr(v + off, 255);
@@ -640,7 +634,6 @@ unsigned op8_on_node(struct node *r, const char *op, unsigned off)
 		break;
 	case T_LBSTORE:
 	case T_NSTORE:
-		invalidate_mem();
 		store = 1;
 	case T_CONSTANT:
 	case T_LBREF:
@@ -652,8 +645,10 @@ unsigned op8_on_node(struct node *r, const char *op, unsigned off)
 	default:
 		return 0;
 	}
-	if (!store)
-		invalidate_b();
+	if (store)
+		invalidate_mem();
+	else
+		invalidate_work();
 	return 1;
 }
 
@@ -667,7 +662,6 @@ unsigned op16_on_node(register struct node *r, const char *op, const char *op2, 
 	switch(r->op) {
 	case T_LSTORE:
 		store = 1;
-		invalidate_mem();
 	case T_LREF:
 		off = make_local_ptr(v + off, 254);
 		op16_on_ptr(op, op2, off);
@@ -679,7 +673,6 @@ unsigned op16_on_node(register struct node *r, const char *op, const char *op2, 
 	case T_LBSTORE:
 	case T_NSTORE:
 		store = 1;
-		invalidate_mem();
 	case T_LBREF:
 	case T_NREF:
 		printf("\t%sb %s\n", op, addr_form(r, off + 1, 1));
@@ -693,7 +686,9 @@ unsigned op16_on_node(register struct node *r, const char *op, const char *op2, 
 	default:
 		return 0;
 	}
-	if (!store)
+	if (store)
+		invalidate_mem();
+	else
 		invalidate_work();
 	return 1;
 }
@@ -706,7 +701,6 @@ unsigned op16d_on_node(register struct node *r, const char *op, const char *op2,
 	switch(r->op) {
 	case T_LSTORE:
 		store = 1;
-		invalidate_mem();
 	case T_LREF:
 		off = make_local_ptr(v + off, 254);
 		op16d_on_ptr(op, op2, off);
@@ -714,7 +708,6 @@ unsigned op16d_on_node(register struct node *r, const char *op, const char *op2,
 	case T_LBSTORE:
 	case T_NSTORE:
 		store = 1;
-		invalidate_mem();
 	case T_CONSTANT:
 	case T_LBREF:
 	case T_LABEL:
@@ -725,7 +718,9 @@ unsigned op16d_on_node(register struct node *r, const char *op, const char *op2,
 	default:
 		return 0;
 	}
-	if (!store)
+	if (store)
+		invalidate_mem();
+	else
 		invalidate_work();
 	return 1;
 }

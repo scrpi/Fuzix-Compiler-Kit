@@ -15,7 +15,74 @@ unsigned label;		/* Used to hand out local labels in the form X%u */
  *	and we can index off stack. 6809 is easy mode.
  */
 
+static uint8_t rol(register uint8_t r)
+{
+	uint8_t b0 = r & 0x80;
+	r <<= 1;
+	if (b0)
+		r |= 0x01;
+	return r;
+}
+
+static uint8_t ror(register uint8_t r)
+{
+	uint8_t b0 = r & 0x01;
+	r >>= 1;
+	if (b0)
+		r |= 0x80;
+	return r;
+}
+
+static unsigned make_with_op(char r, register uint8_t ev, register uint8_t tv)
+{
+	/* INC and DEC */
+	if (((ev + 1) & 0xFF) == tv) {
+		printf("\tinc%c\n", r);
+		return 1;
+	}
+	if (((ev - 1) & 0xFF) == tv) {
+		printf("\tdec%c\n", r);
+		return 1;
+	}
+	/* COM */
+	if ((ev ^ 0xFF) == tv) {
+		printf("\tcom%c\n", r);
+		return 1;
+	}
+	/* LSR */
+	if ((ev >> 1) == tv) {
+		printf("\tlsr%c\n", r);
+		return 1;
+	}
+	/* ASL/LSL */
+	if ((ev << 1) == tv) {
+		printf("\tasl%c\n", r);
+		return 1;
+	}
+	/* ASR ? */
+	if ((ev & tv & 0x80) && (ev >> 1) == (tv & 0x7F)) {
+		printf("\tasr%c\n", r);
+		return 1;
+	}
+	/* NEG */
+	if (((256 - ev) & 0xFF) == tv) {
+		printf("\tneg%c\n", r);
+		return 1;
+	}
+	if (ror(ev) == tv) {
+		printf("\tror%c\n", r);
+		return 1;
+	}
+	if (rol(ev) == tv) {
+		printf("\trol%c\n", r);
+		return 1;
+	}
+	return 0;
+}
+
 /* 16bit constant load */
+/* We could try and optimise this on a byte basis but it's hardly worth
+   it trying to spot bizarre combos of neg and sex and stuff. TODO */
 void load_d_const(uint16_t n)
 {
 	unsigned hi,lo;
@@ -42,15 +109,17 @@ void load_d_const(uint16_t n)
 
 }
 
+/* Unlike 6800 style processors TFR is slower and as long as a constant
+   load so don't use it */
 void load_a_const(uint8_t n)
 {
 	if (a_valid && n == a_val)
 		return;
 	if (n == 0)
 		puts("\tclra");
-	else if (b_valid && n == b_val)
-		puts("\ttfr b,a");
-	else
+	else if (n == 0xFF && b_valid && (b_val & 0x80))
+		puts("\tsex");
+	else if (!a_valid || !make_with_op('a', a_val, n))
 		printf("\tlda #%u\n", n & 0xFF);
 	a_valid = 1;
 	a_val = n;
@@ -63,9 +132,7 @@ void load_b_const(uint8_t n)
 		return;
 	if (n == 0)
 		puts("\tclrb");
-	else if (a_valid && n == a_val)
-		puts("\ttfr a,b");
-	else
+	else if (!b_valid || !make_with_op('b', b_val, n))
 		printf("\tldb #%u\n", n & 0xFF);
 	b_valid = 1;
 	b_val = n;
@@ -302,11 +369,13 @@ unsigned can_load_d_nox(struct node *n, unsigned off)
 unsigned op8_on_node(struct node *r, const char *op, unsigned off)
 {
 	unsigned v = r->value;
+	unsigned store = 0;
 
 	invalidate_work();
 
 	switch(r->op) {
 	case T_LSTORE:
+		store = 1;
 	case T_LREF:
 		printf("\t%sb %u,s\n", op, off + v + sp);
 		break;
@@ -315,11 +384,12 @@ unsigned op8_on_node(struct node *r, const char *op, unsigned off)
 			return 0;
 		printf("\t%sb [%u,s]\n", op, off + v + sp);
 		break;
-	case T_CONSTANT:
 	case T_LBSTORE:
+	case T_NSTORE:
+		store = 1;
+	case T_CONSTANT:
 	case T_LBREF:
 	case T_LABEL:
-	case T_NSTORE:
 	case T_NREF:
 	case T_NAME:
 		printf("\t%sb %s\n", op, addr_form(r, off, 1));
@@ -327,6 +397,10 @@ unsigned op8_on_node(struct node *r, const char *op, unsigned off)
 	default:
 		return 0;
 	}
+	if (store)
+		invalidate_mem();
+	else
+		invalidate_work();
 	return 1;
 }
 
@@ -334,11 +408,11 @@ unsigned op8_on_node(struct node *r, const char *op, unsigned off)
 unsigned op16_on_node(struct node *r, const char *op, const char *op2, unsigned off)
 {
 	unsigned v = r->value;
-
-	invalidate_work();
+	unsigned store = 0;
 
 	switch(r->op) {
 	case T_LSTORE:
+		store = 1;
 	case T_LREF:
 		/* Big endian */
 		off += v + sp;
@@ -350,9 +424,10 @@ unsigned op16_on_node(struct node *r, const char *op, const char *op2, unsigned 
 		printf("\t%sb #<%u\n", op2, (v + off) & 0xFFFF);
 		break;
 	case T_LBSTORE:
+	case T_NSTORE:
+		store = 1;
 	case T_LBREF:
 	case T_LABEL:
-	case T_NSTORE:
 	case T_NREF:
 	case T_NAME:
 		printf("\t%sa %s\n", op, addr_form(r, off, 1));
@@ -361,16 +436,21 @@ unsigned op16_on_node(struct node *r, const char *op, const char *op2, unsigned 
 	default:
 		return 0;
 	}
+	if (store)
+		invalidate_mem();
+	else
+		invalidate_work();
 	return 1;
 }
 
 unsigned op16d_on_node(struct node *r, const char *op, const char *op2, unsigned off)
 {
 	unsigned v = r->value;
+	unsigned store = 0;
 
-	invalidate_work();
 	switch(r->op) {
 	case T_LSTORE:
+		store = 1;
 	case T_LREF:
 		/* Big endian */
 		printf("\t%sd %u,s\n", op, off + v + sp);
@@ -381,11 +461,12 @@ unsigned op16d_on_node(struct node *r, const char *op, const char *op2, unsigned
 			return 0;
 		printf("\t%sd [%u,s]\n", op, off + v + sp);
 		break;
-	case T_CONSTANT:
 	case T_LBSTORE:
+	case T_NSTORE:
+		store = 1;
+	case T_CONSTANT:
 	case T_LBREF:
 	case T_LABEL:
-	case T_NSTORE:
 	case T_NREF:
 	case T_NAME:
 		printf("\t%sd %s\n", op, addr_form(r, off, 2));
@@ -393,6 +474,10 @@ unsigned op16d_on_node(struct node *r, const char *op, const char *op2, unsigned
 	default:
 		return 0;
 	}
+	if (store)
+		invalidate_mem();
+	else
+		invalidate_work();
 	return 1;
 }
 
@@ -401,14 +486,16 @@ unsigned op16y_on_node(struct node *r, const char *op, unsigned off)
 	unsigned v = r->value;
 	switch(r->op) {
 	case T_LSTORE:
+		invalidate_mem();
 	case T_LREF:
 		printf("\t%sy %u,s\n", op, v + off + sp);
 		break;
-	case T_CONSTANT:
 	case T_LBSTORE:
+	case T_NSTORE:
+		invalidate_mem();
+	case T_CONSTANT:
 	case T_LBREF:
 	case T_LABEL:
-	case T_NSTORE:
 	case T_NREF:
 	case T_NAME:
 		printf("\t%sy %s\n", op, addr_form(r, off, 2));
