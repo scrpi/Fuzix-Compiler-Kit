@@ -12,6 +12,72 @@ unsigned label;		/* Used to hand out local labels of the form X%u */
  *	Fix up weirdness in the asm formats.
  */
 
+
+static uint8_t rol(register uint8_t r)
+{
+	uint8_t b0 = r & 0x80;
+	r <<= 1;
+	if (b0)
+		r |= 0x01;
+	return r;
+}
+
+static uint8_t ror(register uint8_t r)
+{
+	uint8_t b0 = r & 0x01;
+	r >>= 1;
+	if (b0)
+		r |= 0x80;
+	return r;
+}
+
+static unsigned make_with_op(char r, register uint8_t ev, register uint8_t tv)
+{
+	/* INC and DEC */
+	if (((ev + 1) & 0xFF) == tv) {
+		printf("\tinc%c\n", r);
+		return 1;
+	}
+	if (((ev - 1) & 0xFF) == tv) {
+		printf("\tdec%c\n", r);
+		return 1;
+	}
+	/* COM */
+	if ((ev ^ 0xFF) == tv) {
+		printf("\tcom%c\n", r);
+		return 1;
+	}
+	/* LSR */
+	if ((ev >> 1) == tv) {
+		printf("\tlsr%c\n", r);
+		return 1;
+	}
+	/* ASL/LSL */
+	if ((ev << 1) == tv) {
+		printf("\tasl%c\n", r);
+		return 1;
+	}
+	/* ASR ? */
+	if ((ev & tv & 0x80) && (ev >> 1) == (tv & 0x7F)) {
+		printf("\tasr%c\n", r);
+		return 1;
+	}
+	/* NEG */
+	if (((256 - ev) & 0xFF) == tv) {
+		printf("\tneg%c\n", r);
+		return 1;
+	}
+	if (ror(ev) == tv) {
+		printf("\tror%c\n", r);
+		return 1;
+	}
+	if (rol(ev) == tv) {
+		printf("\trol%c\n", r);
+		return 1;
+	}
+	return 0;
+}
+
 /* 16bit constant load */
 void load_d_const(uint16_t n)
 {
@@ -41,7 +107,7 @@ void load_d_const(uint16_t n)
 				puts("\tclra");
 			else if (b_valid && hi == b_val)
 				puts("\ttba");
-			else
+			else if (a_valid == 0 || make_with_op('a', a_val, hi) == 0)
 				printf("\tldaa #%d\n", hi);
 		}
 		if (b_valid == 0 || lo != b_val) {
@@ -49,7 +115,7 @@ void load_d_const(uint16_t n)
 				puts("\tclrb");
 			else if (lo == hi)
 				puts("\ttab");
-			else
+			else if (b_valid == 0 || make_with_op('b', b_val, lo) == 0)
 				printf("\tldab #%d\n", lo);
 		}
 	}
@@ -69,7 +135,7 @@ void load_a_const(register uint8_t n)
 		puts("\tclra");
 	else if (b_valid && n == b_val)
 		puts("\ttba");
-	else
+	else if (!a_valid || !make_with_op('a', a_val, n))
 		printf("\tldaa #%u\n", n & 0xFF);
 	a_valid = 1;
 	a_val = n;
@@ -78,13 +144,15 @@ void load_a_const(register uint8_t n)
 
 void load_b_const(register uint8_t n)
 {
+	printf(";load_b_const valid %u value %u want %u\n",
+		b_valid, b_val, n);
 	if (b_valid && n == b_val)
 		return;
 	if (n == 0)
 		puts("\tclrb");
 	else if (a_valid && n == a_val)
 		puts("\ttab");
-	else
+	else if (!b_valid || !make_with_op('b', b_val, n))
 		printf("\tldab #%u\n", n & 0xFF);
 	b_valid = 1;
 	b_val = n;
@@ -560,20 +628,23 @@ unsigned can_load_d_nox(struct node *n, unsigned off)
 unsigned op8_on_node(struct node *r, const char *op, unsigned off)
 {
 	unsigned v = r->value;
-
-	invalidate_work();
+	unsigned store = 0;
 
 	switch(r->op) {
 	case T_LSTORE:
+		invalidate_mem();
+		store = 1;
 	case T_LREF:
 		off = make_local_ptr(v + off, 255);
 		op8_on_ptr(op, off);
 		break;
-	case T_CONSTANT:
 	case T_LBSTORE:
+	case T_NSTORE:
+		invalidate_mem();
+		store = 1;
+	case T_CONSTANT:
 	case T_LBREF:
 	case T_LABEL:
-	case T_NSTORE:
 	case T_NREF:
 	case T_NAME:
 		printf("\t%sb %s\n", op, addr_form(r, off, 1));
@@ -581,6 +652,8 @@ unsigned op8_on_node(struct node *r, const char *op, unsigned off)
 	default:
 		return 0;
 	}
+	if (!store)
+		invalidate_b();
 	return 1;
 }
 
@@ -588,11 +661,13 @@ unsigned op8_on_node(struct node *r, const char *op, unsigned off)
 unsigned op16_on_node(register struct node *r, const char *op, const char *op2, unsigned off)
 {
 	register unsigned v = r->value;
+	unsigned store = 0;
 
-	invalidate_work();
-
+	/* stores are special - they invalidate memory not memory */
 	switch(r->op) {
 	case T_LSTORE:
+		store = 1;
+		invalidate_mem();
 	case T_LREF:
 		off = make_local_ptr(v + off, 254);
 		op16_on_ptr(op, op2, off);
@@ -602,8 +677,10 @@ unsigned op16_on_node(register struct node *r, const char *op, const char *op2, 
 		printf("\t%sa #>%u\n", op2, (v + off) & 0xFFFF);
 		break;
 	case T_LBSTORE:
-	case T_LBREF:
 	case T_NSTORE:
+		store = 1;
+		invalidate_mem();
+	case T_LBREF:
 	case T_NREF:
 		printf("\t%sb %s\n", op, addr_form(r, off + 1, 1));
 		printf("\t%sa %s\n", op2, addr_form(r, off, 1));
@@ -616,25 +693,31 @@ unsigned op16_on_node(register struct node *r, const char *op, const char *op2, 
 	default:
 		return 0;
 	}
+	if (!store)
+		invalidate_work();
 	return 1;
 }
 
 unsigned op16d_on_node(register struct node *r, const char *op, const char *op2, unsigned off)
 {
 	unsigned v = r->value;
+	unsigned store = 0;
 
-	invalidate_work();
 	switch(r->op) {
 	case T_LSTORE:
+		store = 1;
+		invalidate_mem();
 	case T_LREF:
 		off = make_local_ptr(v + off, 254);
 		op16d_on_ptr(op, op2, off);
 		break;
-	case T_CONSTANT:
 	case T_LBSTORE:
+	case T_NSTORE:
+		store = 1;
+		invalidate_mem();
+	case T_CONSTANT:
 	case T_LBREF:
 	case T_LABEL:
-	case T_NSTORE:
 	case T_NREF:
 	case T_NAME:
 		printf("\t%sd %s\n", op, addr_form(r, off, 2));
@@ -642,6 +725,8 @@ unsigned op16d_on_node(register struct node *r, const char *op, const char *op2,
 	default:
 		return 0;
 	}
+	if (!store)
+		invalidate_work();
 	return 1;
 }
 
@@ -650,15 +735,17 @@ unsigned op16y_on_node(register struct node *r, const char *op, unsigned off)
 	unsigned v = r->value;
 	switch(r->op) {
 	case T_LSTORE:
+		invalidate_mem();
 	case T_LREF:
 		off = make_local_ptr(v + off, 254);
 		printf("\t%sy %u,x\n", op, off);
 		break;
-	case T_CONSTANT:
 	case T_LBSTORE:
+	case T_NSTORE:
+		invalidate_mem();
+	case T_CONSTANT:
 	case T_LBREF:
 	case T_LABEL:
-	case T_NSTORE:
 	case T_NREF:
 	case T_NAME:
 		printf("\t%sy %s\n", op, addr_form(r, off, 2));
@@ -759,6 +846,7 @@ unsigned write_tos_op(struct node *n, register const char *op)
 		op16_on_tos(op);
 	else
 		op8_on_tos(op);
+	/* TODO: we can do better here */
 	invalidate_work();
 	return 1;
 }
@@ -772,6 +860,7 @@ unsigned write_tos_opd(struct node *n, const char *op, const char *unused)
 		op16d_on_tos(op);
 	else
 		op8_on_tos(op);
+	/* TODO: We can do better here */
 	invalidate_work();
 	return 1;
 }
@@ -780,6 +869,7 @@ static void uniop8_on_tos(const char *op)
 {
 	unsigned off = make_tos_ptr(1);
 	invalidate_work();
+	/* TODO: We can do better here */
 	printf("\t%s %u,x\n\tins\n", op, off);
 }
 
@@ -787,6 +877,7 @@ static void uniop16_on_tos(register const char *op)
 {
 	register unsigned off = make_tos_ptr(2);
 	invalidate_work();
+	/* TODO: We can do better here */
 	printf("\t%s %u,x\n\t%s %u,x\n\tins\n\tins\n", op, off + 1, op, off);
 }
 
