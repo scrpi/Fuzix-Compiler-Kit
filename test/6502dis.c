@@ -90,7 +90,7 @@ void load_symbols(const char *p)
 
     if (fp == NULL)
         return;
-    fprintf(stderr, "[Loading symbols]\n");
+//    fprintf(stderr, "[Loading symbols]\n");
     while(fgets(buf, 127, fp)) {
         line++;
         /* Use the ld6502 format */
