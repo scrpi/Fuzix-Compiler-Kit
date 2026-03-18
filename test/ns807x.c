@@ -41,7 +41,7 @@ struct ns8070 {
 #define INT_B	2
     uint8_t input;
 
-    int trace;			/* TODO */
+    int trace;
 };
 
 
