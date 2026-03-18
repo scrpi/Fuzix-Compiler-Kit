@@ -3107,7 +3107,7 @@ unsigned gen_node(struct node *n)
 
 	switch (n->op) {
 	case T_NREF:
-		load_r_name(12, n, size - 1);
+		load_r_name(12, n, v + size - 1);
 		if (optsize) {
 			printf("\tcall @__nref_%d\n", size);
 			/* Until we track r12 objects other than local */
