@@ -469,6 +469,7 @@ libinst:
 	cp support8070/crt0.o $(CCROOT)/lib/8070/
 	cp support8070/include/*.h $(CCROOT)/lib/8070/include/
 	cp support8070/lib8070.a $(CCROOT)/lib/8070/lib8070.a
+	ar cq $(CCROOT)/lib/8070/libc.a
 	cp support8080/crt0.o $(CCROOT)/lib/8080/
 	cp support8085/crt0.o $(CCROOT)/lib/8085/
 	cp support8080/include/*.h $(CCROOT)/lib/8080/include/
