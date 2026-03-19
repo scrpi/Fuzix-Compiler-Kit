@@ -1,9 +1,91 @@
 #!/bin/sh
 # Run each test and compare
 # against known good output
+OPT=""
+
+case "x"$1 in
+	x6303)
+		CPU=6803
+		LINK=ld6800
+		LINKOPT="-C256 -Z0"
+		EMU="emu6800 6303"
+		break
+		;;
+	x6502)
+		CPU=6502
+		LINK=ld6502
+		LINKOPT="-C512 -Z0"
+		EMU=emu6502
+		break
+		;;
+	x6800)
+		CPU=6800
+		LINK=ld6800
+		LINKOPT="-C256 -Z0"
+		EMU="emu6800 6800"
+		break
+		;;
+	x6803)
+		CPU=6803
+		LINK=ld6800
+		LINKOPT="-C256 -Z0"
+		EMU="emu6800 6803"
+		break
+		;;
+	x6809)
+		CPU=6809
+		LINK=ld6809
+		LINKOPT=-C256
+		EMU=emu6809
+		break
+		;;
+	x8070)
+		CPU=8070
+		LINK=ld8070
+		LINKOPT="-C1 -Z0xFF00"
+		EMU=emu807x
+		break
+		;;
+	x8080)
+		CPU=8080
+		LINK=ld8080
+		LINKOPT="-C256"
+		EMU=emu85
+		break
+		;;
+	x8085)
+		CPU=8085
+		LINK=ld8080
+		LINKOPT="-C256"
+		EMU=emu85
+		break
+		;;
+	xtms7000)
+		CPU=tms7000
+		LINK=ld7000
+		LINKOPT="-C0x200"
+		EMU=emu7k
+		break
+		;;
+	xz80)
+		CPU=z80
+		LINK=ldz80
+		LINKOPT="-C0"
+		EMU=emuz80
+		break
+		;;
+	*)
+		echo "Unknown processor"
+		exit 1
+		;;
+esac
+
+if [ x"$2" != x ]; then
+	OPT=$2
+fi
 
 # Make cprintf.o
-fcc -m6809 -O -c cprintf.c
+fcc -m$CPU $OPT -c cprintf.c
 
 # Try to use each input source file
 for i in input*c
@@ -20,15 +102,15 @@ do if [ ! -f "out.$i" -a ! -f "err.$i" ]
 	  # with our compiler
 	  b=$(basename $i .c)
           echo -n $i
-	  fcc -m6809 -O -c $b.c
+	  fcc -m$CPU $OPT -c $b.c
 
 	  # Link the output, run it
 	  # and get the output in trial.$i
-	  ld6809 -b -C256 \
-		../testcrt0_6809.o cprintf.o \
+	  $LINK -b $LINKOPT -m $b.map \
+		../testcrt0_$CPU.o cprintf.o \
 		$b.o -o $b \
-		/opt/fcc/lib/6809/lib6809.a
-          ../emu6809 $b $b.map > trial.$i
+		/opt/fcc/lib/$CPU/lib$CPU.a
+          ../$EMU $b $b.map > trial.$i
 	  rm -f $b.o $b $b.map
 
   	  # Compare this agains the correct output
