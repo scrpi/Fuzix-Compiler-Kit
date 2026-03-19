@@ -4,6 +4,7 @@
 
 	.code
 
+	; B * TOS
 __mul:
 __mulu:
 	; Bit shift multiply
@@ -12,7 +13,7 @@ __mulu:
 	stx	(-s)
 
 	clr	y
-	ldb	6(s)
+	lda	6(s)
 	ldx	16		; counter
 	; Now do 16 iterations
 nextbit:

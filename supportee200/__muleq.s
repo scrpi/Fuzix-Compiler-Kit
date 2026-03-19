@@ -10,19 +10,27 @@ __muleq:
 __mulequ:
 	lda	2(s)
 	lda	(a)
-	sta	(s+)
+	stx	(-s)
+	sta	(-s)
 	jsr	__mul
 	; Removed the word we pushed. Result is in B
+	ldx	(s+)
 	lda	2(s)
 	stb	(a)
+	inr	s
+	inr	s
 	rsr
 
 __muleqc:
 __mulequc:
 	lda	2(s)
 	ldab	(a)
-	sta	(s+)
+	stx	(-s)
+	sta	(-s)
 	jsr	__mul
+	ldx	(s+)
 	lda	2(s)
 	stb	(a)
+	inr	s
+	inr	s
 	rsr

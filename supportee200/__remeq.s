@@ -7,9 +7,11 @@
 __remeq:
 	lda	2(s)
 	lda	(a)
-	sta	(s+)
+	stx	(-s)
+	sta	(-s)
 	jsr	__rem
 	; Removed the word we pushed. Result is in B
+	ldx	(s+)
 	lda	2(s)
 	stb	(a)
 	inr	s
@@ -19,10 +21,17 @@ __remeq:
 __remeqc:
 	lda	2(s)
 	ldab	(a)
-	sta	(s+)
+	clrb	ah
+	orib	al,al
+	bp	ispve
+	dcrb	ah
+ispve:
+	stx	(-s)
+	sta	(-s)
 	jsr	__rem
+	ldx	(s+)
 	lda	2(s)
-	stb	(a)
+	stbb	(a)
 	inr	s
 	inr	s
 	rsr

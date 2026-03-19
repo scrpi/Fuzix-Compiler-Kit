@@ -7,9 +7,11 @@
 __remequ:
 	lda	2(s)
 	lda	(a)
-	sta	(s+)
+	stx	(-s)
+	sta	(-s)
 	jsr	__remu
 	; Removed the word we pushed. Result is in B
+	ldx	(s+)
 	lda	2(s)
 	stb	(a)
 	inr	s
@@ -19,10 +21,13 @@ __remequ:
 __remequc:
 	lda	2(s)
 	ldab	(a)
-	sta	(s+)
+	clr	ah
+	stx	(-s)
+	sta	(-s)
 	jsr	__remu
+	ldx	(s+)
 	lda	2(s)
-	stb	(a)
+	stbb	(a)
 	inr	s
 	inr	s
 	rsr
