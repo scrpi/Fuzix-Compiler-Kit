@@ -17,21 +17,11 @@ _printint:
 	ldaa 2,x
 	staa $fefc
 	stab $fefc+1
-	ldx 0,x
-	ins
-	ins
-	ins
-	ins
-	jmp 0,x
+	rts
 
 	.export _printchar
 _printchar:
 	tsx
 	ldab 3,x
 	stab $FEFE
-	ldx 0,x
-	ins
-	ins
-	ins
-	ins
-	jmp 0,x
+	rts
