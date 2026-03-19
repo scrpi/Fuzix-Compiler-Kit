@@ -1545,7 +1545,7 @@ void mem_write8(uint16_t addr, uint8_t val)
 {
 	if (addr == 0xFFFF) {
 		if (val)
-			printf("%d\n", val);
+			fprintf(stderr, "%d\n", val);
 		exit(!!val);
 	}
 	if (addr < sizeof(mem))
