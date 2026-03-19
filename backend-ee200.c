@@ -670,7 +670,7 @@ unsigned can_load_reg(struct node *n, unsigned s)
 	return 1;
 }
 
-unsigned condop(struct node *n, const char * o, const char *ou)
+unsigned condop(struct node *n, const char *o, const char *ou)
 {
 	struct node *r = n->right;
 	unsigned s = get_size(r->type);
@@ -680,7 +680,7 @@ unsigned condop(struct node *n, const char * o, const char *ou)
 		o = ou;
 	if (op_into_a(r, s, "sabb", "sab") == 0)
 		return 0;
-	printf("\tjsr __%s\n", ou);
+	printf("\tjsr __%s\n", o);
 	n->flags |= ISBOOL;
 	return 1;
 }
@@ -1194,7 +1194,7 @@ unsigned gen_cast(struct node *n)
 	if (!(rt & UNSIGNED))
 		return 0;
 	if (rs == 1)
-		printf("\tclrb ah\n");
+		printf("\tclrb bh\n");
 	if (ls == 4) {
 		printf("\tcla\n");
 		printf("\tsta (__hireg)\n");
