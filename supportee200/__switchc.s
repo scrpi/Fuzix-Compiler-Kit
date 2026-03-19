@@ -5,21 +5,17 @@
 
 __switchc:
 	lda	(x+)	; count
-	xfr	al,ah
-
-	bz	found
+	bz	found	; No entries then next word is the vector
+	xfr	al,ah	; use al for working, use ah for counter
 swent:
-	ldab	(x+)
-	subb	bl,al
-	bz	found
+	ldab	(x+)	; value
+	subb	bl,al	; compare, preserving B
+	bz	found	; success
+	inx		; skip over address
 	inx
-	inx
-	dcr	y
+	dcr	ah	; count down through loop
 	bnz	swent
 found:
-	ldx	(x+)
-	jmp	(x)
-
-
-
-	
+	ldx	(x)	; grab jump address
+	jmp	(x)	; go
+	; ?? TODO can we jmp ((x))
