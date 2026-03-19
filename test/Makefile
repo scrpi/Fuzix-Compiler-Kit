@@ -1,9 +1,9 @@
 all: emu6502 emu65c816 emu6800 emu85 emuz8 emuz80 byte1802 emu6809 \
      emu7k ee200 nova emu807x \
-     testcrt0_8080.o testcrtz80.o testcrt0_6502.o testcrt0_65c816.o \
-     testcrt0_6303.o testcrt0_6803.o testcrt0_6809.o testcrt0_z8.o \
-     testcrt0_byte1802.o testcrt0_ee200.o testcrt0_nova.o testcrt0_nova3.o \
-     testcrt0_6800.o testcrt0_8070.o testcrt0_tms7000.o
+     testcrt0_8080.o testcrt0_8085.o testcrt0_z80.o testcrt0_6502.o \
+     testcrt0_65c816.o testcrt0_6303.o testcrt0_6803.o testcrt0_6809.o \
+     testcrt0_z8.o testcrt0_byte1802.o testcrt0_ee200.o testcrt0_nova.o \
+     testcrt0_nova3.o testcrt0_6800.o testcrt0_8070.o testcrt0_tms7000.o
 
 emu85: emu85.o intel_8085_emulator.o
 	$(CC) emu85.o intel_8085_emulator.o -o emu85
@@ -80,11 +80,14 @@ z80dis.o: z80dis.h
 testcrt0_8080.o: testcrt0_8080.s
 	fcc -m8080 -c testcrt0_8080.s
 
+testcrt0_8085.o: testcrt0_8080.s
+	fcc -m8085 -c testcrt0_8085.s
+
 testcrt0_byte1802.o: testcrt0_byte1802.S ../support1802/1802ops.h
 	fcc -m1802 -c testcrt0_byte1802.S
 
-testcrtz80.o: testcrtz80.s
-	fcc -mz80 -c testcrtz80.s
+testcrt0_z80.o: testcrt0_z80.s
+	fcc -mz80 -c testcrt0_z80.s
 
 testcrt0_6502.o: testcrt0_6502.s
 	fcc -m6502 -c testcrt0_6502.s
