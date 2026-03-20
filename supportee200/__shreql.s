@@ -11,16 +11,16 @@ __shreql:
 	xfr	y,a
 	sta	(-s)
 	ldx	6(s)
-	lda	15
+	lda	31
 	nab
 	bz	nowork
-	xay
+	xfr	b,y
 	lda	(x)
 	ldb	2(x)
 next:
 	sra
 	rrr	b
-	dcx
+	dcr	y
 	bnz	next
 	sta	(x)
 	stb	2(x)
