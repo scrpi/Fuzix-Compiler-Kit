@@ -479,7 +479,7 @@ unsigned gen_push(struct node *n)
 	unsigned size = get_stack_size(n->type);
 	printf("\tstb (-s)\n");
 	if (size == 4) {
-		printf("\tlda __hireg\n");
+		printf("\tlda (__hireg)\n");
 		printf("\tsta (-s)\n");
 	}
 	/* Our push will put the object on the stack, so account for it */
@@ -1252,15 +1252,15 @@ unsigned gen_node(struct node *n)
 			unsigned vh = n->value >> 16;
 			if (vh == 0)
 				printf("\tclr b\n");
-			else {
+			else
 				printf("\tldb %u\n", vh);
-				printf("\tstb (__hireg)\n");
-			}
+			printf("\tstb (__hireg)\n");
+			v &= 0xFFFF;
 			if (vh != v) {
 				if (v == 0)
 					printf("\tclr b\n");
 				else
-					printf("\tldb %u\n", v & 0xFFFF);
+					printf("\tldb %u\n", v);
 			}
 			return 1;
 		}
