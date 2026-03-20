@@ -2516,12 +2516,12 @@ unsigned gen_node(struct node *n)
 			set_a_node(n);
 			return 1;
 		} else if (size == 2) {
-/* Not clear this is a win overall	if (nr && pri16(n, "st"))
-				return 1; */
+			/* Need to decide if this is worth it TODO */
+			if (nr && pri16(n, "st"))
+				return 1;
 			/* Stack and restore A if we need XA intact (rare) */
-			if (do_pri16(n, "st", nr ? pre_none : pre_pha)) {
-				if (!nr)
-					output("pla");
+			if (do_pri16(n, "st", pre_pha)) {
+				output("pla");
 				set_xa_node(n);
 				return 1;
 			}
