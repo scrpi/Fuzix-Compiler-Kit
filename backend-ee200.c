@@ -1047,11 +1047,17 @@ unsigned gen_shortcut(struct node *n)
 	case T_EQ:
 		if (can_load_reg(l, 2)) {
 			codegen_lr(r);
+			/* Will be X or S so A is free */
 			off = load_register(l, 2, &reg);
 			if (s == 1)
-				printf("stbb %u(%c)\n", off , reg);
-			else
-				printf("stb %u(%c)\n", off, reg);
+				printf("\tstbb %u(%c)\n", off , reg);
+			else if (s == 2)
+				printf("\tstb %u(%c)\n", off, reg);
+			else {
+				printf("\tstb %u(%c)\n", off + 2, reg);
+				printf("\tlda (__hireg)\n");
+				printf("\tsta %u(%c)\n", off, reg);
+			}
 			return 1;
 		}
 		break;
