@@ -7,29 +7,39 @@
 ;	TOS  < hireg:B
 __cclteql:
 	; Long math we want to do hireg first
-	stx (s+)
+	stx (-s)
 	lda (__hireg)
 	ldx 4(s)		; high word
 	sub a,x
 	bz cclteq2
 	ble false
-true:	ldb 1
-	ldx (-s)
+true:	ldx (s+)
+ 	inr s
+	inr s
+	inr s
+	inr s
+	ldb 1
 	rsr
 false:
+	ldx (s+)
+ 	inr s
+	inr s
+	inr s
+	inr s
 	clr b
-	ldx (-s)
 	rsr
 
 __ccltequl:
-	stx (s+)
+	stx (-s)
 	lda (__hireg)
 	ldx 4(s)
 	sub a,x
-	bl false
-	bnl true
+	bz cclteq2
+	bnl false
+	bra true
 cclteq2:
 	lda 6(s)
 	sub b,a
-	bl false
+	bz true
+	bnl false
 	bra true
