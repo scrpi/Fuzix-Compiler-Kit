@@ -1,9 +1,12 @@
 #!/bin/sh
 # Run each test and compare
 # against known good output
+OPT=""
+
+. ./cpuparam.sh
 
 # Make cprintf.o
-fcc -m6809 -O -c cprintf.c
+fcc -m$CPU $OPT -c cprintf.c
 
 # Try to use each input source file
 for i in input*c
@@ -20,15 +23,15 @@ do if [ ! -f "out.$i" -a ! -f "err.$i" ]
 	  # with our compiler
 	  b=$(basename $i .c)
           echo -n $i
-	  fcc -m6809 -O -c $b.c
+	  fcc -m$CPU $OPT -c $b.c
 
 	  # Link the output, run it
 	  # and get the output in trial.$i
-	  ld6809 -b -C256 \
-		../testcrt0_6809.o cprintf.o \
+	  $LINK -b $LINKOPT -m $b.map \
+		../testcrt0_$CPU.o cprintf.o \
 		$b.o -o $b \
-		/opt/fcc/lib/6809/lib6809.a
-          ../emu6809 $b $b.map > trial.$i
+		/opt/fcc/lib/$LIB/lib$LIB.a
+          ../$EMU $b $b.map > trial.$i
 	  rm -f $b.o $b $b.map
 
   	  # Compare this agains the correct output

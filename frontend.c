@@ -1151,6 +1151,8 @@ static unsigned tokenize_string(void)
 	/* This is slightly odd because we do the string catenation here too */
 	do {
 		while ((c = get()) != '"') {
+			if (c == 0)
+				break;
 			if (c != '\\') {
 				outbyte_quoted(c);
 			} else {

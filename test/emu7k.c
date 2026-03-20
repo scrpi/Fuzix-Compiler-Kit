@@ -34,6 +34,14 @@ void mem_write8(uint16_t addr, uint8_t val)
         }
         exit(0);
     }
+    if (addr == 0x1FE)
+        putchar(val);
+    if (addr == 0x1FD) {
+        int x = ram[0x1FC] + (val << 8);
+        if (x >= 0x8000)
+            x -= 0x10000;
+        printf("%d\n", x);
+    }
 }
 
 int main(int argc, char *argv[])

@@ -79,8 +79,9 @@ noaddh:			; shift arg left (x 2)
 
 __muleqxl:
 __muleqxul:
-	; x is the ptr
-	sta @tmp
+	; a is the ptr x is the value
+	stx @tmp
+	tax
 	dey
 	dey
 	dey
@@ -95,7 +96,8 @@ __muleqxul:
 	; This cleaned up our stack frame for us. Result is in hireg:a
 	plx
 	pha
-	lda 2,x
-	sta @hireg
+	lda @hireg
+	sta 2,x
 	pla
+	sta 0,x
 	rts

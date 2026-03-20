@@ -61,15 +61,15 @@ int main(int argc, char *argv[])
         return 15;
 
     if (test_ule(33, 11) == 1)
-        return 11;
+        return 16;
     if (test_ule(0xFFFF0000UL, 0xFFUL) == 1)
-        return 12;
+        return 17;
     if (test_ule(0x0000FFFFUL, 0xFF00FF00UL) == 0)
-        return 13;
+        return 18;
     if (test_ule(0xFF, 0xFF0000) == 0)
-        return 14;
+        return 19;
     if (test_ule(0xFFEEDDCC, 0xFFEEDDCC) == 0)
-        return 15;
+        return 20;
 
     return 0;
 }

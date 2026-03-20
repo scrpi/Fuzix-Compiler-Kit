@@ -3,25 +3,24 @@
 
 	.code
 
+;	Table is in X value is in B
 __switch:
-	xfr	y,a
+	xfr	y,a	; Save old Y
 	sta	(-s)
 	lda	(x+)	; count
-	bz	found
-	xay
+	bz	found	; No entries then next word is the vector
+	xay		; count into Y
 swent:
-	lda	(x+)
-	sub	b,a
-	bz	found
+	lda	(x+)	; value
+	sub	b,a	; compare, preserving B
+	bz	found	; success
+	inx		; skip over address
 	inx
-	inx
-	dcr	y
+	dcr	y	; count down through loop
 	bnz	swent
 found:
-	ldx	(x+)
-	lda	(s+)
+	lda	(s+)	; restore Y
 	xay
-	jmp	(x)
-
-
-	
+	ldx	(x)	; grab jump address
+	jmp	(x)	; go
+	; ?? TODO can we jmp ((x))

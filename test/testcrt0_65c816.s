@@ -19,3 +19,24 @@ start:
 	sta	$FEFF
 	; Write to FEFF terminates
 
+	.export _printint
+
+_printint:
+	lda	0,y
+	sta	$FEFC
+	iny
+	iny
+	rts
+
+	.export	_printchar
+
+_printchar:
+	lda	0,y
+	sep	#0x20
+	.a8
+	sta	$FEFE
+	rep	#0x20
+	.a16
+	iny
+	iny
+	rts

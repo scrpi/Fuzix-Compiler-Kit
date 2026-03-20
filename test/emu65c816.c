@@ -27,18 +27,21 @@ uint8_t read65c816(uint32_t addr, uint8_t mode)
 
 void write65c816(uint32_t addr, uint8_t val)
 {
+    int x;
     if (addr & 0xFFFF0000) {
         fprintf(stderr, "Read access outside of low 64K\n");
         exit(1);
     }
     switch(addr) {
     case 0xFEFD:
-        if (val < 32 || val > 127)
-            printf("\\x%02X", val);
-        else
-            putchar(val);
-        fflush(stdout);
-        return;
+        x = (val << 8) | ram[0xFEFC];
+        if (x >= 0x8000)
+            x -= 0x10000;
+        printf("%d\n", x);
+        break;
+    case 0xFEFE:
+        putchar(val);
+        break;
     case 0xFEFF:
         if (val)
             fprintf(stderr, "***FAIL %d\n", val);

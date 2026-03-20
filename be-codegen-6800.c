@@ -1720,6 +1720,8 @@ unsigned gen_node(struct node *n)
 					printf("\tjsr __local_b\n\t.byte %u\n", v);
 				else
 					printf("\tjsr __local_d\n\t.word %u\n", v);
+				invalidate_work();
+				set_d_node(n);
 				return 1;
 			}
 		}
