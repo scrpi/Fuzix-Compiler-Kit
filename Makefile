@@ -498,6 +498,7 @@ libinst:
 	cp supporttms7000/crt0.o $(CCROOT)/lib/tms7000/
 	cp supporttms7000/include/*.h $(CCROOT)/lib/tms7000/include/
 	cp supporttms7000/libtms7000.a $(CCROOT)/lib/tms7000/libtms7000.a
+	ar cq $(CCROOT)/lib/tms7000/libc.a
 	cp support8080/crt0.o $(CCROOT)/lib/8080/
 	cp supportz80/crt0.o $(CCROOT)/lib/z80/
 	cp supportz80/include/*.h $(CCROOT)/lib/z80/include/
