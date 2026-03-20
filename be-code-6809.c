@@ -81,8 +81,12 @@ static unsigned make_with_op(char r, register uint8_t ev, register uint8_t tv)
 }
 
 /* 16bit constant load */
-/* We could try and optimise this on a byte basis but it's hardly worth
-   it trying to spot bizarre combos of neg and sex and stuff. TODO */
+
+/* TODO:
+	spot case where one half is right and other can be optimized
+	spot case where right half can be SEXed into left
+	spot case we can use tba
+ */
 void load_d_const(uint16_t n)
 {
 	unsigned hi,lo;
