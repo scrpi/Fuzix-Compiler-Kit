@@ -19,30 +19,31 @@ __mullu:
 	stx	(-s)
 
 	lda	(__hireg)
-	xay
-	xfr	b,z
 
-	; Y:Z is one half
+	; AB is one half
 
-	lda	8(s)
-	ldb	10(s)
-
-	; A:B the other
+	; YZ is the working sum
 
 	ldx	32	; counter
-
+	clr	y
+	clr	z	; total
 nextbit:
 	slr	z
 	rlr	y
 	slr	b
 	rlr	a
 	bnl	noadd
-	; Y:Z += A:B
+	; A:B += other arg
+	sta	(-s)	; save value we are working with to make space
+	lda	10(s)	; high
 	add	a,y
-	add	b,z
+	lda	12(s)	; low
+	add	a,z
 	; Deal with carry by hand
-	bnl	noadd
+	bnl	nocarry
 	inr	y
+nocarry:
+	lda	(s+)	; get working value back
 noadd:
 	dcx
 	bnz	nextbit
