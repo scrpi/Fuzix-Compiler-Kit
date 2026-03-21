@@ -13,7 +13,7 @@ __minuseql:
 	lda	2(x)
 	sab
 	stb	2(x)
-	bl	ripple
+	bnl	ripple
 	lda	(x)
 eq2:
 	ldb	(__hireg)
