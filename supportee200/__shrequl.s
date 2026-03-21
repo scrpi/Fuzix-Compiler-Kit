@@ -10,11 +10,11 @@ __shrequl:
 	stx	(-s)
 	xfr	y,a
 	sta	(-s)
-	ldx	4(s)
-	lda	15
+	ldx	6(s)
+	lda	31
 	nab
 	bz	nowork
-	xay
+	xfr	b,y
 	lda	(x)
 	ldb	2(x)
 	; First shift by hand
