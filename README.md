@@ -126,9 +126,8 @@ code will run only on the 6303, and 68HC11 code only on the 68HC11.
 
 ### 6502
 
-Early development code for a 6502/65C02 backend. The main work at this point
-has been adding compiler support for reducing operations down to byte size
-where possible.
+Passes the basic test sets but has not yet been used in anger. Early beta
+level
 
 ### 65C816
 
@@ -138,12 +137,13 @@ uses Y as the C stack pointer and uses the CPU stack for temporary values
 during expression evaluation and the all actual call/return addresses. Split
 code/data is supported but not multiple data or code banks in one application
 (that is pointers are 16bit). Going beyond that gets very ugly very fast as on
-8086. Still needs float support finishing.
+8086. Still needs float support finishing and some bugs chasing down.
 
 ### 6800
 
 The 6800 backend passes the full tests. For size reasons the 6800 ABI
-is not the same as the 6803/6303.
+is not the same as the 6803/6303. Used to build the full Fuzix 6800 so
+should be fairly solid at this point.
 
 ### 68HC08
 
@@ -152,10 +152,12 @@ machine.
 
 ### 8070
 
-Minimal support for the INS807x series of processors. Passes the basic tests
-except for floating point. Needs register tracking and some smarts about
-picking p2 or p3 adding to get code the quality up. Code density is still
-reasonable thanks to the 16bit operations and stack relative load and store.
+Minimal support for the INS807x series of processors. Passes the test suites
+but does not always make good use of the CPU features as it's hard to figure
+out an effective way to use p3.
+Needs register tracking and some smarts about picking p2 or p3 adding to get
+code the quality up. Code density is still reasonable thanks to the 16bit
+operations and stack relative load and store.
 
 ### 8080/8085
 
