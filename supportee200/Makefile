@@ -8,7 +8,7 @@ OBJ =  dp.o __bool.o __mul.o div16x16.o __divu.o __div.o \
        __switch.o __switchc.o __switchl.o \
        __booll.o __cpll.o __negatel.o \
        __bandl.o __orl.o __xorl.o \
-       __cceql.o __ccnel.o __ccltl.o __ccgteql.o __ccgtl.o __cclteql.o \
+       __ccl.o __cceql.o \
        __plusl.o __minusl.o __pluseql.o __minuseql.o \
        __plusplusl.o __minusminusl.o \
        __andeql.o __oreql.o __xoreql.o \

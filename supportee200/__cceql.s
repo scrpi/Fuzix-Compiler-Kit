@@ -1,5 +1,6 @@
 	.setcpu 4
 	.export __cceql
+	.export __ccnel
 
 	.code
 __cceql:
@@ -12,6 +13,7 @@ __cceql:
 	ldb (__hireg)
 	sab
 	bnz false
+true:
  	inr s
 	inr s
 	inr s
@@ -25,3 +27,15 @@ false:
 	inr s
 	clr b
 	rsr
+
+__ccnel:
+	; 2,s is the high 4,s the low to comare with hireg:b
+	; A is free
+	lda 4(s)
+	sab
+	bnz true
+	lda 2(s)
+	ldb (__hireg)
+	sab
+	bnz true
+	bra false
