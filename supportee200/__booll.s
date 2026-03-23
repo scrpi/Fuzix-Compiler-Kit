@@ -10,7 +10,6 @@ __booll:
 	cla
 	sta	(__hireg)
 	ldb	1
-	; ? does ldb set flags ?
 ret0:
 	rsr
 
@@ -21,6 +20,5 @@ __notl:
 	clr	b
 	rsr
 ret1:
-	; was 0 now 1
-	inr	b
+	ldb	1
 	rsr
