@@ -1279,7 +1279,7 @@ static unsigned is_simple(struct node *n)
 }
 
 /* Integer Log 2 of a given value.
- * If x is exact positive power of two, return log2(x), 
+ * If x is exact positive power of two, return log2(x). 
  * If x is zero, negative, or not a power of two, return -1.
  */
 static int intlog2(long x) {
@@ -1473,17 +1473,24 @@ struct node *gen_rewrite_node(struct node *n)
 	 * using bit operations.
 	 * 
 	 * Only apply these optimisations if at -O2 or higher
+	 * 
+	 * These rewrites are "almost" processor independent, in that for most microprocessors
+	 * with 2's complement arithmetic, the same rewrites might apply. However, converting 
+	 * signed division and remainder isn't a good match for 6502's LSR instuctions
+	 * so signed division and remainder isn't changed here. At least for now.
 	 */
 	if (opt>=2 && r != NULL && IS_INTARITH(nt) && r->op == T_CONSTANT) {
 		switch(op) {
 			/* Multiplication ( * and *= ) of integral types 
-	   	   	by constant powers of two can be re-written
-	   	  	 as left shifts. */
+	   	   	   by constant powers of two can be re-written
+	   	  	   as left shifts. */
 			case T_STAR:
 			case T_STAREQ:
-				/* TODO: Does not yet consider signed operations where the constant
-					is a negative power of two. For example, 
-					"x * -8" could become "(-x) << 3" if x is signed
+				/* TODO: Does not (yet) consider signed operations where the constant
+				   is a negative power of two. For example, 
+				   "x * -8" could become "(-x) << 3" if x is signed
+				   That's not yet done because it it's not a direct replacement 
+				   of one node with another.
 				*/
 				log2const = intlog2(r->value);
 				if (log2const != -1) {
@@ -1491,9 +1498,9 @@ struct node *gen_rewrite_node(struct node *n)
 					r->value = log2const;
 				}
 				break;
-
 				/* Division ( / and /= ) of integral types
-					by constant powers of two can be re-written as right shifts.
+				   by constant powers of two can be re-written as right shifts,
+				   But cautions with respect to 6502 and signed right shifts.
 				*/
 			case T_SLASH:
 			case T_SLASHEQ:
@@ -1520,7 +1527,7 @@ struct node *gen_rewrite_node(struct node *n)
 					Remainder operator T_PERCENT and T_PERCENTEQ can be reduced to bit 
 					operations when the right operatand is a power of two constant.
 					As with T_SLASH and T_SLASHEQ, be aware that signed remainders are tricky
-					and therefore not touched here.
+					on 6502 and therefore ignored for the moment. Maybe another time.
 				*/
 			case T_PERCENT:
 			case T_PERCENTEQ:
@@ -1528,7 +1535,7 @@ struct node *gen_rewrite_node(struct node *n)
 					log2const = intlog2(r->value);
 					if (log2const != -1) {
 						/*
-							% 2^n becomes & 2^n-1
+							"% (2^n)" becomes "& (2^n-1)""
 						*/
 						n->op = op = (op==T_PERCENT ? T_AND : T_ANDEQ);
 						r->value = r->value-1;
@@ -2152,6 +2159,8 @@ unsigned gen_direct(struct node *n)
 		/* Multiplication by integer powers of two have already been re-written
 		   and inline code is generated as part of T_LTLT processing
 		   Special case for a few constant multiplies that are not powers of two
+		   Debatable if these are really worth doing. They are
+		   faster but sometimes quite a lot bigger.
 		*/
 
  		if (r->op == T_CONSTANT) {
@@ -2192,7 +2201,7 @@ unsigned gen_direct(struct node *n)
 							   generate this version if we're agressively optimising 
 							   for speed and "*3" is especially important to you. If
 							   maintainers want to get rid of this in future, that
-							   is fair enough. */
+							   is fair enough. I would not object. */
 
 							/* XA->@tmp */
 							output("sta @tmp");
@@ -2216,7 +2225,7 @@ unsigned gen_direct(struct node *n)
 							break;
 					}
 					break;
-				
+
 				default:
 					// For ULONG, CLONG, ULONGLONG, CLONGLONG
 					// There are no obvious multiply optimisations
@@ -2230,13 +2239,6 @@ unsigned gen_direct(struct node *n)
 			return 1;
 		return pri_help(n, "divtmp");
 	case T_PERCENT:
-		/* TODO since %256 has been optimised to & FF upstream,
-		   this may now be redundant 
-		*/
-		if (r->op == T_CONSTANT && v == 256 && (n->type & UNSIGNED)) {
-			load_x(0);
-			return 1;
-		}
 		if (local_yop_s(n, "l_rem"))
 			return 1;
 		return pri_help(n, "remtmp");
