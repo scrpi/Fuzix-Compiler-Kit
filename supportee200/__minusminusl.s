@@ -14,7 +14,7 @@ __postdecl:
 	sta	(-s)
 	sab
 	stb	2(x)
-	bl	ripple
+	bnl	ripple
 	lda	(x)
 	sta	(-s)
 eq2:

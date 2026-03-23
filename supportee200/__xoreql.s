@@ -14,7 +14,7 @@ __xoreql:
 	ore	a,b
 	stb	(__hireg)
 	stb	(x)
-	lda	2(x)
+	ldb	2(x)
 	ldx	(s+)
 	inr	s
 	inr	s
