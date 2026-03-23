@@ -40,7 +40,7 @@
 struct symbol {
     struct symbol *next;
     uint16_t addr;
-    char type[4];
+    char type;
     char name[];
 };
 
@@ -54,22 +54,31 @@ void insert_symbol(const char *name, uint16_t addr, const char *type)
         exit(1);
     }
     s->addr = addr;
-    memcpy(s->type, type, 3);
-    s->type[3] = 0;
+    s->type = *type;
     strcpy(s->name, name);
     s->next = symhash[addr & 255];
     symhash[addr & 255] = s;
 }
 
+/* Hand back the symbol for something, only use ABS values as a last resort
+   and assume ZP symbols are the ones for low values */
 struct symbol *find_symbol(uint16_t addr)
 {
     struct symbol *s = symhash[addr & 255];
+    struct symbol *fb = NULL;	/* fallback */
+    struct symbol *fb2 = NULL;	/* if seen but not ZP */
     while(s) {
-        if (s->addr == addr)
-            return s;
+        if (s->addr == addr) {
+            if (addr < 0x0100 && s->type == 'Z')
+                return s;
+            if (s->type == 'A')
+                fb2 =  s;
+            else
+                fb = s;
+        }
         s = s->next;
     }
-    return NULL;
+    return fb ? fb : fb2;
 }
 
 void load_symbols(const char *p)
@@ -81,12 +90,13 @@ void load_symbols(const char *p)
 
     if (fp == NULL)
         return;
-    fprintf(stderr, "[Loading symbols]\n");
+//    fprintf(stderr, "[Loading symbols]\n");
     while(fgets(buf, 127, fp)) {
         line++;
-        n = strtok(buf, " ");
-        ap = strtok(NULL, " ");
-        t = strtok(NULL, " \n");
+        /* Use the ld6502 format */
+        ap = strtok(buf, " ");	/* Address */
+        t = strtok(NULL, " ");	/* Type */
+        n = strtok(NULL, " \n"); /* Symbol */
         if (n == NULL || ap == NULL || t == NULL) {
             fprintf(stderr, "line %d: malformed symbol entry.\n", line);
         } else {
@@ -386,6 +396,9 @@ static void disassemble(char *output, uint16_t current_addr, uint8_t *buffer) {
         }
     }
 
+    if (cs)
+        output += sprintf(output, "%s:: ", cs->name);
+
     // For opcode not found, terminate early
     if (!found) {
         sprintf(output, ".byte $%02X ; invalid", opcode);
@@ -457,8 +470,6 @@ static void disassemble(char *output, uint16_t current_addr, uint8_t *buffer) {
             break;
     }
 
-    if (cs)
-        sprintf(output + strlen(output), ";[%s] ", cs->name);
 
     switch (opcodes[entry].addressing) {
         case RELAT:

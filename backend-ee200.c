@@ -479,7 +479,7 @@ unsigned gen_push(struct node *n)
 	unsigned size = get_stack_size(n->type);
 	printf("\tstb (-s)\n");
 	if (size == 4) {
-		printf("\tlda __hireg\n");
+		printf("\tlda (__hireg)\n");
 		printf("\tsta (-s)\n");
 	}
 	/* Our push will put the object on the stack, so account for it */
@@ -670,7 +670,7 @@ unsigned can_load_reg(struct node *n, unsigned s)
 	return 1;
 }
 
-unsigned condop(struct node *n, const char * o, const char *ou)
+unsigned condop(struct node *n, const char *o, const char *ou)
 {
 	struct node *r = n->right;
 	unsigned s = get_size(r->type);
@@ -680,7 +680,7 @@ unsigned condop(struct node *n, const char * o, const char *ou)
 		o = ou;
 	if (op_into_a(r, s, "sabb", "sab") == 0)
 		return 0;
-	printf("\tjsr __%s\n", ou);
+	printf("\tjsr __%s\n", o);
 	n->flags |= ISBOOL;
 	return 1;
 }
@@ -1047,11 +1047,17 @@ unsigned gen_shortcut(struct node *n)
 	case T_EQ:
 		if (can_load_reg(l, 2)) {
 			codegen_lr(r);
+			/* Will be X or S so A is free */
 			off = load_register(l, 2, &reg);
 			if (s == 1)
-				printf("stbb %u(%c)\n", off , reg);
-			else
-				printf("stb %u(%c)\n", off, reg);
+				printf("\tstbb %u(%c)\n", off , reg);
+			else if (s == 2)
+				printf("\tstb %u(%c)\n", off, reg);
+			else {
+				printf("\tstb %u(%c)\n", off + 2, reg);
+				printf("\tlda (__hireg)\n");
+				printf("\tsta %u(%c)\n", off, reg);
+			}
 			return 1;
 		}
 		break;
@@ -1194,7 +1200,7 @@ unsigned gen_cast(struct node *n)
 	if (!(rt & UNSIGNED))
 		return 0;
 	if (rs == 1)
-		printf("\tclrb ah\n");
+		printf("\tclrb bh\n");
 	if (ls == 4) {
 		printf("\tcla\n");
 		printf("\tsta (__hireg)\n");
@@ -1252,15 +1258,15 @@ unsigned gen_node(struct node *n)
 			unsigned vh = n->value >> 16;
 			if (vh == 0)
 				printf("\tclr b\n");
-			else {
+			else
 				printf("\tldb %u\n", vh);
-				printf("\tstb (__hireg)\n");
-			}
+			printf("\tstb (__hireg)\n");
+			v &= 0xFFFF;
 			if (vh != v) {
 				if (v == 0)
 					printf("\tclr b\n");
 				else
-					printf("\tldb %u\n", v & 0xFFFF);
+					printf("\tldb %u\n", v);
 			}
 			return 1;
 		}

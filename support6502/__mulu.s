@@ -6,6 +6,8 @@
 	.export __multmp
 	.export __multmpu
 	.export __l_mul
+	.export __muleq
+	.export __mulequ
 
 __l_mul:
 	jsr	__ytmp
@@ -45,3 +47,9 @@ noadd:	dey
 	bne	nextbit
 	ldx	@tmp2+1
 	rts
+
+__muleq:
+__mulequ:
+	jsr	__eqget		; @tmp is the value
+	jsr	__multmpu
+	jmp	__eqput

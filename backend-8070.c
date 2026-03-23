@@ -1179,10 +1179,15 @@ static unsigned make_ptr_ref(struct node *n, unsigned off)
 	case T_LOCAL:
 		ref_op = T_LREF;
 		v += sp;
+		/* We'd like to do something like this but we need our
+		   callers to be smarter to do this. Need to look at *= and
+		   friends again later TODO */
+#if 0
 		if (v < 128 - sz) {
 			snprintf(ref_buf, sizeof(ref_buf), "%u+%%u,p1", v);
 			return 1;
 		}
+#endif		
 		xch_ea_p2();
 		load_ea_ptr(1);
 		printf("\tadd ea,=%u\n", v);
@@ -2148,7 +2153,7 @@ unsigned gen_shortcut(struct node *n)
 			return 0;
 		if (r->op != T_CONSTANT)
 			return 0;
-		if (s == 2 && r->value & 0x8000)
+		if (s == 2 && (r->value & 0x8000))
 			return 0;
 		/* Can be done via mpy ea, t */
 		make_ptr_ref(l, 0);

@@ -35,16 +35,16 @@ sign_good:
 __rem:
 	stx	(-s)
 	clr	x
-	ori	a,a
+	ori	b,b
 	bp	plusmod
 	ivr	b
 	inr	b
-	inx
 plusmod:
 	lda	4(s)
 	bp	plusmod2
 	iva	
 	ina
+	inx
 plusmod2:
 	jsr	__div16x16
 	bra	signfix

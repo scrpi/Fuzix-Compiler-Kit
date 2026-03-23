@@ -2087,10 +2087,22 @@ static unsigned gen_fast_udiv(unsigned r, unsigned s, unsigned long n)
 		load_r_constb(r + 1, 0);
 		return 1;
 	}
+	/* Do 16 and 24 bit shifts on longs */
+	if (n == 65536 && s == 4) {
+		load_rr_rr(r, r + 2);
+		load_r_constw(r + 2, 0);
+		return 1;
+	}
+	if (n == 1048576 && s == 4) {
+		load_r_r(r, r + 3);
+		load_r_constb(r + 1, 0);
+		load_r_constw(r + 2, 0);
+		return 1;
+	}
 	if (n & (n - 1))
 		return 0;
 	rshift_r(r, s, ilog2(n), 0);
-	return 0;
+	return 1;
 }
 
 static unsigned gen_fast_remainder(unsigned r, unsigned s, unsigned long n)
@@ -3095,7 +3107,7 @@ unsigned gen_node(struct node *n)
 
 	switch (n->op) {
 	case T_NREF:
-		load_r_name(12, n, size - 1);
+		load_r_name(12, n, v + size - 1);
 		if (optsize) {
 			printf("\tcall @__nref_%d\n", size);
 			/* Until we track r12 objects other than local */

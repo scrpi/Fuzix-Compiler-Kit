@@ -27,14 +27,28 @@ uint8_t read6502_debug(uint16_t addr)
 
 void write6502(uint16_t addr, uint8_t val)
 {
+    static uint8_t low;
+    int x;
     switch(addr) {
+    case 0:
+    case 1:
+        ram[addr] = val;
+        if (log_6502)
+            fprintf(stderr, "SP = %X\n", (ram[1] << 8) | ram[0]);
+        break;
+    case 0xFEFC:
+        low = val;
+        break;
     case 0xFEFD:
-        if (val < 32 || val > 127)
-            printf("\\x%02X", val);
-        else
-            putchar(val);
+        x = (val << 8) | low;
+        if (x >= 0x8000)
+            x -= 0x10000;
+        printf("%d\n", x);
+        break;
+    case 0xFEFE:
+        putchar(val);
         fflush(stdout);
-        return;
+        break;
     case 0xFEFF:
         if (val)
             fprintf(stderr, "***FAIL %d\n", val);

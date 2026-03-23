@@ -1,0 +1,17 @@
+#!/bin/sh
+
+if [ "$#" -ne 1 ]
+then echo "Usage: $0 c_file"; exit 1
+fi
+
+# Make cprintf.o
+fcc -m8070 -O -c cprintf.c
+
+b=$(basename $1 .c)
+echo "$1:"
+fcc -m8070 -O -c $b.c
+
+ld8070 -b -C1 -Z0xFF00 -m $b.map -o $b ../testcrt0_8070.o cprintf.o $b.o /opt/fcc/lib/8070/lib8070.a  /opt/fcc/lib/8070/libc.a
+../emu807x -d $b $b.map 2>$b.log
+#rm -f $b.o $b $b.map 
+fcc -m8070 -O -S $b.c

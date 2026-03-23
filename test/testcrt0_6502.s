@@ -11,3 +11,23 @@ start:	ldx	#0xFF
 	sta	$FEFF
 	; Write to FEFF terminates
 
+	.export _printint
+
+_printint:
+	ldy	#0
+	lda	(@sp),y
+	sta	$FEFC
+	iny
+	lda	(@sp),y
+	sta	$FEFD
+	iny
+	jmp	__addysp
+
+	.export	_printchar
+
+_printchar:
+	ldy	#0
+	lda	(@sp),y
+	sta	$FEFE
+	ldy	#2
+	jmp	__addysp

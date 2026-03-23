@@ -12,8 +12,16 @@ __cceql:
 	ldb (__hireg)
 	sab
 	bnz false
+ 	inr s
+	inr s
+	inr s
+	inr s
 	ldb 1
 	rsr
 false:
+ 	inr s
+	inr s
+	inr s
+	inr s
 	clr b
 	rsr

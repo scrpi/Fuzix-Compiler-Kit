@@ -5,6 +5,8 @@
 	.export __muluc
 	.export __multmpc
 	.export __multmpuc
+	.export __muleqc
+	.export __mulequc
 
 __mulc:
 __muluc:
@@ -30,3 +32,14 @@ next:
 	tax
 	lda	@tmp
 	rts
+
+__muleqc:
+__mulequc:
+	jsr	__eqgetc	; @tmp is the value (we pull an extra byte
+				; who cares)
+	jsr	__multmpu
+	jsr	__poptmp	; @tmp is back to the pointer, Y is 0
+	sta	(@tmp),y
+	rts
+
+

@@ -1136,8 +1136,10 @@ static int leftop_memc(struct node *n, const char *op)
 
 	v = l->value;
 
-	if (*op == 'd')	/* DEC 0->255 is carry*/
-		cc = "cs";
+	/* DEC is hard as it doesn't affect carry for wrap detection so
+	   only do byte sized the fast way */
+	if (*op == 'd' && sz > 1)
+		return 0;
 
 	switch(l->op) {
 	case T_NAME:
@@ -1191,13 +1193,17 @@ static unsigned try_via_x(struct node *n, const char *op, void (*pre)(struct nod
 		unsigned v = r->value;
 		if (rop == T_LREF) {
 			v += sp;
+#if 0
+			/* This turns out not worth doing */
 			if (v == 0) {
 				output("jsr __%ssp0", op);
 				set_reg(R_Y, 1);
 				invalidate_x();
 				invalidate_a();
 				return 1;
-			} else if (v < 255) {
+			} else
+#endif
+			if (v < 255) {
 				load_y(v);
 				output("jsr __%sspy", op);
 				const_y_set(reg[R_Y].value + 1);
@@ -2909,8 +2915,9 @@ unsigned gen_node(struct node *n)
 			set_a_node(n);
 			return 1;
 		} else if (size == 2) {
-/* Not clear this is a win overall	if (nr && pri16(n, "st"))
-				return 1; */
+			/* Need to decide if this is worth it TODO */
+			if (nr && pri16(n, "st"))
+				return 1;
 			/* Stack and restore A if we need XA intact (rare) */
 			if (do_pri16(n, "st", pre_pha)) {
 				output("pla");

@@ -7,9 +7,11 @@
 __diveq:
 	lda	2(s)
 	lda	(a)
-	sta	(s+)
+	stx	(-s)
+	sta	(-s)
 	jsr	__div
 	; Removed the word we pushed. Result is in B
+	ldx	(s+)
 	lda	2(s)
 	stb	(a)
 	inr	s
@@ -19,8 +21,15 @@ __diveq:
 __diveqc:
 	lda	2(s)
 	ldab	(a)
-	sta	(s+)
+	clrb	ah
+	orib	al,al
+	bp	ispve
+	dcrb	ah
+ispve:
+	stx	(-s)
+	sta	(-s)
 	jsr	__div
+	ldx	(s+)
 	lda	2(s)
 	stb	(a)
 	inr	s

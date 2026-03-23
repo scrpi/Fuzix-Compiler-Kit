@@ -1,6 +1,5 @@
 	.code ; (at 0x0100)
 
-	.setcpu	6803
 start:
 	clr	@zero
 	ldd	#1
@@ -24,4 +23,5 @@ _printchar:
 	tsx
 	ldab 3,x
 	stab $FEFE
+	ldx 0,x
 	rts

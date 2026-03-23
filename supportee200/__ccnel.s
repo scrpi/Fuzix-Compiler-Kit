@@ -13,7 +13,16 @@ __ccnel:
 	sab
 	bnz true
 	; already 0 and Z
+ 	inr s
+	inr s
+	inr s
+	inr s
+	clr b		; force Z
 	rsr
 true:
+ 	inr s
+	inr s
+	inr s
+	inr s
 	ldb 1
 	rsr
