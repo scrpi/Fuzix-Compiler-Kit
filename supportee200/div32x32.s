@@ -120,9 +120,9 @@ done:
 		xfr	y,a
 
 		ldx	(s+)
-		xfr	x,y
-		ldx	(s+)
 		xfr	x,z
+		ldx	(s+)
+		xfr	x,y
 		ldx	(s+)
 		; Registers restored result now in A / B
 		rsr
