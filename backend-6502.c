@@ -405,9 +405,9 @@ static unsigned a_contains(struct node *n)
 /* Memory writes occured, invalidate according to what we know. Passing
    NULL indicates unknown memory changes */
 
-#if 0
 static void invalidate_node(struct node *n)
 {
+/*	printf(";invalidate node\n"); */
 	/* For now don't deal with the complex cases of whether we might
 	   invalidate another object */
 	if (reg[R_A].state != T_CONSTANT)
@@ -415,7 +415,6 @@ static void invalidate_node(struct node *n)
 	if (reg[R_X].state != T_CONSTANT)
 		reg[R_X].state = INVALID;
 }
-#endif
 
 static void invalidate_mem(void)
 {
@@ -433,12 +432,14 @@ static void set_reg(unsigned r, unsigned v)
 
 static void tax(void)
 {
+	invalidate_node(NULL);
 	memcpy(reg + R_X, reg + R_A, sizeof(struct regtrack));
 	output("tax");
 }
 
 static void txa(void)
 {
+	invalidate_node(NULL);
 	memcpy(reg + R_A, reg + R_X, sizeof(struct regtrack));
 	output("txa");
 }
@@ -2915,9 +2916,12 @@ unsigned gen_node(struct node *n)
 			set_a_node(n);
 			return 1;
 		} else if (size == 2) {
+#if 0		
 			/* Need to decide if this is worth it TODO */
+			/* printf(";lstxay nr = %u\n", nr); */
 			if (nr && pri16(n, "st"))
 				return 1;
+#endif
 			/* Stack and restore A if we need XA intact (rare) */
 			if (do_pri16(n, "st", pre_pha)) {
 				output("pla");
