@@ -1,5 +1,5 @@
 ;
-;	Do a 32bit divide unsigned
+;	Do a 32bit divide signed
 ;
 	.setcpu	4
 	.export __divl
@@ -7,17 +7,20 @@
 	.code
 
 __divl:
-	stb	(-s)
+	stx	(-s)	; save return info
+	xfr	y,x
+	stx	(-s)	; save Y to free it up for private use
+	stb	(-s)	; stack the value
 	ldb	(__hireg)
 	stb	(-s)
 	lda	1
-	jsr	signfix	; X is sign info and saved by the jsr
+	jsr	signfix	; Y is sign info and saved by the jsr
 	jsr	div32x32
 	; Result is in the TOS value
-	lda	6(s)
-	ldb	8(s)
+	lda	10(s)
+	ldb	12(s)
 dosign:
-	ori	x,x
+	ori	y,y
 	bz	noneg
 	ivr	a
 	ivr	b	; negate result
@@ -27,11 +30,18 @@ dosign:
 norip:
 noneg:
 	sta	(__hireg)
-	lda	8	; clean up frame
+	lda	4	; clean up value we pushed
 	add	a,s
+	ldx	(s+)	; get back Y
+	xfr	x,y
+	ldx	(s+)	; get back return info
+	add	a,s	; clean up caller argument (a is still 4)
 	rsr
 
 __reml:
+	stx	(-s)	; save return info
+	xfr	y,x
+	stx	(-s)	; save Y to use for working sign info
 	stb	(-s)
 	ldb	(__hireg)
 	stb	(-s)
@@ -42,10 +52,10 @@ __reml:
 
 ; Fix signs for divide, turn both positive and count signs
 signfix:
-	clr	x
+	clr	y
 	lda	2(s)	; value just pushed
 	bp	nosh1
-	dcx
+	dcr	y
 ; Comm part of the fixup. For rem we don't care about the sign of the
 ; second value for sign fixup
 sfcommon:
@@ -58,22 +68,22 @@ sfcommon:
 norip2:	sta	2(s)
 	stb	4(s)
 nosh1:
-	lda	8(s)
+	lda	12(s)
 	bp	nosh2
-	ldb	10(s)
+	ldb	14(s)
 	ivr	b
 	iva
 	inr	b
 	bnz	norip3
 	ina
-norip3:	sta	8(s)
-	stb	10(s)
-	inx
+norip3:	sta	12(s)
+	stb	14(s)
+	inr	y
 nosh2:
 	rsr
 ; Version for remainder
 signfix2:
-	clr	x
+	clr	y
 	lda	2(s)
 	bp	nosh1
 	bra	sfcommon
