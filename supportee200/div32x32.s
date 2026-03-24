@@ -5,18 +5,20 @@
 ;
 ;	tmp2/tmp3 end up holding the remainder
 ;
-;	On entry the stack frame referenced by S looks like this
+;	Beforer we are called the stack frame referenced by S looks like this
 ;
-;	6-9	32bit dividend (C compiler TOS)
-;	4,5	A return address
+;	10-11	32bit dividend (C compiler TOS)
+;	8,9	A return address
+;	4-7	caller private
 ;	0-3	32bit divisor
 ;
 ;	In the main loop it becomes
 ;
 ;
-;	18-19	Dividend (low)
-;	16-17	Dividend (high)
-;	14-15	Saved return link
+;	22-23	Dividend (low)
+;	20-21	Dividend (high)
+;	18-19	Saved return link
+;	14-17	caller private
 ;	12-13	Divisior (low)
 ;	10-11	Divisor (high)
 ;	8-9	Return
@@ -62,12 +64,12 @@ loop:		stb	(-s)
 		; Shift the dividend left and set bit 0 assuming that
 		; R >= D
 		sl
-		ldb	18(s)		; low dividend
+		ldb	22(s)		; low dividend
 		rlr	b
-		stb	18(s)
-		ldb	16(s)		; high dividend
+		stb	22(s)
+		ldb	20(s)		; high dividend
 		rlr	b
-		stb	16(s)
+		stb	20(s)
 
 		; N(i) is now in carry
 		; R <<= 1; R(0) = N(i)
@@ -102,9 +104,9 @@ noripple:
 		; High half in Y is still the old value
 		; We guessed the wrong way for Q(i). Clear Q(i) which is
 		; in the lowest bit and we know is set so using dec is safe
-		ldab	19(s)		; Low byte low dividend
+		ldab	23(s)		; Low byte low dividend
 		dcab
-		stab	19(s)
+		stab	23(s)
 		bra	done
 dosub:		; Low half is in Z, high half is in B
 		xfr	b,y		; Move high half into place
