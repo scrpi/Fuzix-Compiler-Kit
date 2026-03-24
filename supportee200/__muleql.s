@@ -8,7 +8,7 @@
 
 __muleql:
 	stx	(-s)
-	ldx	2(s)
+	ldx	4(s)
 	; Copy the variable onto the stack
 	lda	2(x)
 	sta	(-s)
@@ -18,10 +18,12 @@ __muleql:
 	jsr	__mull
 	; Result in hireg:B, stack adjusted by called func
 	; X was trashed
-	ldx	2(s)
+	ldx	4(s)
 	lda	(__hireg)
 	sta	(x)
 	stb	2(x)
 	ldx	(s+)
+	inr	s
+	inr	s
 	rsr
 
