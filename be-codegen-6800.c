@@ -395,12 +395,13 @@ static void negate_d(void)
 {
 	unsigned v;
 	puts("\tnega\n\tnegb\n\tsbca #0\n");
-	if (d_valid) {
+	if (a_valid && b_valid) {
 		v = (a_val << 8) + b_val;
 		v = WORD(-v);
 		modify_a(v >> 8);
 		modify_b(v);
-	}
+	} else
+		invalidate_work();
 }
 
 /*
