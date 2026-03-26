@@ -548,12 +548,12 @@ static int do_pri8(struct node *n, const char *op, void (*pre)(struct node *__n)
 	switch(n->op) {
 	case T_LABEL:
 		pre(n);
-		output("%s #<T%d+%d", op,  n->val2, v);
+		output("%s #<T%u+%u", op,  n->val2, v);
 		return 1;
 	case T_NAME:
 		pre(n);
 		name = namestr(n->snum);
-		output("%s #<_%s+%d", op,  name, v);
+		output("%s #<_%s+%u", op,  name, v);
 		return 1;
 	case T_CONSTANT:
 		/* These had the right squashed into them */
@@ -578,7 +578,7 @@ static int do_pri8(struct node *n, const char *op, void (*pre)(struct node *__n)
 		else if (strcmp(op, "ldx") == 0)
 			load_x(v);
 		else
-			output("%s #%d", op, r->value & 0xFF);
+			output("%s #%u", op, r->value & 0xFF);
 		return 1;
 	case T_LREF:
 	case T_LSTORE:
@@ -602,16 +602,16 @@ static int do_pri8(struct node *n, const char *op, void (*pre)(struct node *__n)
 	case T_NSTORE:
 		pre(n);
 		name = namestr(r->snum);
-		output("%s _%s+%d", op,  name, (unsigned)r->value);
+		output("%s _%s+%u", op,  name, (unsigned)r->value);
 		return 1;
 	case T_LBSTORE:
 	case T_LBREF:
 		pre(n);
-		output("%s T%d+%d", op,  r->val2, (unsigned)r->value);
+		output("%s T%u+%u", op,  r->val2, (unsigned)r->value);
 		return 1;
 	/* If we add registers
 	case T_RREF:
-		output("%s __reg%d", op, r->val2);
+		output("%s __reg%u", op, r->val2);
 		return 1;*/
 	}
 	return 0;
@@ -637,12 +637,12 @@ static int do_pri8hi(struct node *n, const char *op, void (*pre)(struct node *__
 	switch(n->op) {
 	case T_LABEL:
 		pre(n);
-		output("%s #>T%d+%d", op,  n->val2, v);
+		output("%s #>T%u+%", op,  n->val2, v);
 		return 1;
 	case T_NAME:
 		pre(n);
 		name = namestr(n->snum);
-		output("%s #_%s+%d", op,  name, v);
+		output("%s #_%s+%u", op,  name, v);
 		return 1;
 	case T_CONSTANT:
 		/* These had the right squashed into them */
@@ -668,7 +668,7 @@ static int do_pri8hi(struct node *n, const char *op, void (*pre)(struct node *__
 		else if (strcmp(op, "ldx") == 0)
 			load_x(v);
 		else
-			output("%s #%d", op, v);
+			output("%s #%u", op, v);
 		return 1;
 	case T_LREF:
 	case T_LSTORE:
@@ -685,16 +685,16 @@ static int do_pri8hi(struct node *n, const char *op, void (*pre)(struct node *__
 	case T_NSTORE:
 		pre(n);
 		name = namestr(r->snum);
-		output("%s _%s+%d", op,  name, v + 1);
+		output("%s _%s+%u", op,  name, v + 1);
 		return 1;
 	case T_LBSTORE:
 	case T_LBREF:
 		pre(n);
-		output("%s T%d+%d", op,  r->val2, v + 1);
+		output("%s T%u+%u", op,  r->val2, v + 1);
 		return 1;
 	/* If we add registers
 	case T_RREF:
-		output("%s __reg%d+1", op, r->val2);
+		output("%s __reg%u+1", op, r->val2);
 		return 1;*/
 	}
 	return 0;
@@ -721,14 +721,14 @@ static int do_pri16(struct node *n, const char *op, void (*pre)(struct node *__n
 	switch(n->op) {
 	case T_LABEL:
 		pre(n);
-		output("%sa #<T%d+%d", op,  n->val2, v);
-		output("%sx #>T%d+%d", op,  n->val2, v);
+		output("%sa #<T%u+%u", op,  n->val2, v);
+		output("%sx #>T%u+%u", op,  n->val2, v);
 		return 1;
 	case T_NAME:
 		pre(n);
 		name = namestr(n->snum);
-		output("%sa #<_%s+%d", op,  name, v);
-		output("%sx #>_%s+%d", op,  name, v);
+		output("%sa #<_%s+%u", op,  name, v);
+		output("%sx #>_%s+%u", op,  name, v);
 		return 1;
 	case T_LOCAL:
 	case T_LREF:
@@ -806,20 +806,20 @@ static int do_pri16(struct node *n, const char *op, void (*pre)(struct node *__n
 	case T_NREF:
 		name = namestr(r->snum);
 		pre(n);
-		output("%sa _%s+%d", op,  name, (unsigned)r->value);
-		output("%sx _%s+%d", op,  name, ((unsigned)r->value) + 1);
+		output("%sa _%s+%u", op,  name, (unsigned)r->value);
+		output("%sx _%s+%u", op,  name, ((unsigned)r->value) + 1);
 		return 1;
 	case T_LBSTORE:
 	case T_LBREF:
 		pre(n);
-		output("%sa T%d+%d", op,  r->val2, (unsigned)r->value);
-		output("%sx T%d+%d", op,  r->val2, ((unsigned)r->value) + 1);
+		output("%sa T%u+%u", op,  r->val2, (unsigned)r->value);
+		output("%sx T%u+%u", op,  r->val2, ((unsigned)r->value) + 1);
 		return 1;
 	/* If we add registers
 	case T_RREF:
 		pre(n);
-		output("%sa __reg%dd", op, r->val2);
-		output("%sx __reg%d + 1", op,  r->val2);
+		output("%sa __reg%u", op, r->val2);
+		output("%sx __reg%u + 1", op,  r->val2);
 		return 1;*/
 	}
 	return 0;
@@ -1130,7 +1130,7 @@ static int leftop_memc(struct node *n, const char *op)
 	else
 		count = r->value;
 
-	printf(";leftop memc nr %d\n", nr);
+	printf(";leftop memc nr %u\n", nr);
 	/* Being super clever doesn't help if we need the value anyway */
 	if (!nr && (n->op == T_PLUSPLUS || n->op == T_MINUSMINUS))
 		return 0;
@@ -1146,32 +1146,32 @@ static int leftop_memc(struct node *n, const char *op)
 	case T_NAME:
 		name = namestr(l->snum);
 		while(count--) {
-			output("%s _%s+%d", op, name, v);
+			output("%s _%s+%u", op, name, v);
 			if (sz == 2) {
-				output("b%s X%d", cc, ++xlabel);
-				output("%s _%s+%d", op, name, v + 1);
-				label("X%d", xlabel);
+				output("b%s X%u", cc, ++xlabel);
+				output("%s _%s+%u", op, name, v + 1);
+				label("X%u", xlabel);
 			}
 		}
 		if (!nr) {
-			output("lda _%s+%d", name, v);
+			output("lda _%s+%u", name, v);
 			if (sz == 2)
-				output("ldx _%s+%d", name, v + 1);
+				output("ldx _%s+%u", name, v + 1);
 		}
 		return 1;
 	case T_LABEL:
 		while(count--) {
-			output("%s T%d+%d", op, (unsigned)l->val2, v);
+			output("%s T%u+%u", op, (unsigned)l->val2, v);
 			if (sz == 2) {
-				output("b%s X%d", cc, ++xlabel);
-				output("%s T%d+%d", op, (unsigned)l->val2, v + 1);
-				label("X%d", xlabel);
+				output("b%s X%u", cc, ++xlabel);
+				output("%s T%u+%u", op, (unsigned)l->val2, v + 1);
+				label("X%u", xlabel);
 			}
 		}
 		if (!nr) {
-			output("lda T%d+%d", (unsigned)l->val2, v);
+			output("lda T%u+%u", (unsigned)l->val2, v);
 			if (sz == 2)
-				output("ldx T%d+%d", (unsigned)l->val2, v + 1);
+				output("ldx T%u+%u", (unsigned)l->val2, v + 1);
 		}
 		return 1;
 	case T_ARGUMENT:
@@ -1648,7 +1648,7 @@ void gen_epilogue(unsigned size, unsigned argsize)
 void gen_label(const char *tail, unsigned n)
 {
 	unreachable = 0;
-	label("L%d%s", n, tail);
+	label("L%u%s", n, tail);
 	invalidate_regs();
 }
 
@@ -1664,7 +1664,7 @@ unsigned gen_exit(const char *tail, unsigned n)
 		return 1;
 	} else {
 #endif	   
-		output("jmp L%d%s", n, tail);
+		output("jmp L%u%s", n, tail);
 		unreachable = 1;
 		return 0;
 /*	} */
@@ -1675,7 +1675,7 @@ void gen_jump(const char *tail, unsigned n)
 	if (unreachable)
 		return;
 	/* Want to use BRA if we have the option */
-	output("jmp L%d%s", n, tail);
+	output("jmp L%u%s", n, tail);
 	unreachable = 1;
 }
 
@@ -1683,21 +1683,21 @@ void gen_jfalse(const char *tail, unsigned n)
 {
 	if (unreachable)
 		return;
-	output("jeq L%d%s", n, tail);
+	output("jeq L%u%s", n, tail);
 }
 
 void gen_jtrue(const char *tail, unsigned n)
 {
 	if (unreachable)
 		return;
-	output("jne L%d%s", n, tail);
+	output("jne L%u%s", n, tail);
 }
 
 void gen_switch(unsigned n, unsigned type)
 {
-	output("ldy #<Sw%d", n);
+	output("ldy #<Sw%u", n);
 	output("sty @tmp");
-	output("ldy #>Sw%d", n);
+	output("ldy #>Sw%u", n);
 	output("sty @tmp+1");
 	invalidate_regs();
 	printf("\tjmp __switch");
@@ -1707,23 +1707,23 @@ void gen_switch(unsigned n, unsigned type)
 
 void gen_switchdata(unsigned n, unsigned size)
 {
-	label("Sw%d", n);
+	label("Sw%u", n);
 	if (size > 255)
 		error("sw");
-	output("\t.byte %d", size);
+	output("\t.byte %u", size);
 }
 
 void gen_case_label(unsigned tag, unsigned entry)
 {
 	unreachable = 0;
-	label("Sw%d_%d", tag, entry);
+	label("Sw%u_%u", tag, entry);
 	invalidate_regs();
 }
 
 void gen_case_data(unsigned tag, unsigned entry)
 {
 	/* Subtract one because of the way rts works */
-	printf("\t.word Sw%d_%d - 1\n", tag, entry);
+	printf("\t.word Sw%u_%u - 1\n", tag, entry);
 }
 
 /*
@@ -1787,23 +1787,23 @@ void gen_data_label(const char *name, unsigned align)
 
 void gen_space(unsigned value)
 {
-	output(".ds %d", value);
+	output(".ds %u", value);
 }
 
 void gen_text_data(struct node *n)
 {
-	output(".word T%d", n->val2);
+	output(".word T%u", n->val2);
 }
 
 void gen_literal(unsigned n)
 {
 	if (n)
-		label("T%d", n);
+		label("T%u", n);
 }
 
 void gen_name(struct node *n)
 {
-	output(".word _%s+%d", namestr(n->snum), WORD(n->value));
+	output(".word _%s+%u", namestr(n->snum), WORD(n->value));
 }
 
 void gen_value(unsigned type, unsigned long value)
@@ -1819,14 +1819,14 @@ void gen_value(unsigned type, unsigned long value)
 		break;
 	case CSHORT:
 	case USHORT:
-		output(".word %d", (unsigned) value & 0xFFFF);
+		output(".word %u", (unsigned) value & 0xFFFF);
 		break;
 	case CLONG:
 	case ULONG:
 	case FLOAT:
 		/* We are little endian */
-		output(".word %d", (unsigned) (value & 0xFFFF));
-		output(".word %d", (unsigned) ((value >> 16) & 0xFFFF));
+		output(".word %u", (unsigned) (value & 0xFFFF));
+		output(".word %u", (unsigned) ((value >> 16) & 0xFFFF));
 		break;
 	default:
 		error("unsuported type");
@@ -2013,7 +2013,7 @@ unsigned gen_direct(struct node *n)
 			if ((v & 0xFF) == 0x00)
 				load_a(0);
 			else if ((v & 0xFF) != 0xFF) {
-				output("and #%d", v & 0xFF);
+				output("and #%u", v & 0xFF);
 				const_a_set(reg[R_A].value & v);
 			}
 			return 1;
@@ -2036,7 +2036,7 @@ unsigned gen_direct(struct node *n)
 			if ((v & 0xFF) == 0xFF)
 				load_a(0xFF);
 			else if ((v & 0xFF) != 0x00) {
-				output("ora #%d", v & 0xFF);
+				output("ora #%u", v & 0xFF);
 				const_a_set(reg[R_A].value | v);
 			}
 			return 1;
@@ -2055,7 +2055,7 @@ unsigned gen_direct(struct node *n)
 					return try_via_x(n, "eor", pre_none);
 			}
 			if ((v & 0xFF) != 0x00) {
-				output("eor #%d", ((unsigned)r->value) & 0xFF);
+				output("eor #%u", ((unsigned)r->value) & 0xFF);
 				const_a_set(reg[R_A].value ^ r->value);
 			}
 			return 1;
@@ -2088,10 +2088,10 @@ unsigned gen_direct(struct node *n)
 		if (s == 2 && r->op == T_CONSTANT) {
 			if (r->value <= 0xFF) {
 				output("clc");
-				output("adc #%d",v & 0xFF);
-				output("bcc X%d", ++xlabel);
+				output("adc #%u",v & 0xFF);
+				output("bcc X%u", ++xlabel);
 				output("inx");
-				label("X%d", xlabel);
+				label("X%u", xlabel);
 				const_a_set(reg[R_A].value + (v & 0xFF));
 				/* TODO: set up X properly if known */
 				invalidate_x();
@@ -2135,10 +2135,10 @@ unsigned gen_direct(struct node *n)
 		if (s == 2 && r->op == T_CONSTANT) {
 			if (r->value <= 0xFF) {
 				output("sec");
-				output("sbc #%d", v & 0xFF);
-				output("bcs X%d", ++xlabel);
+				output("sbc #%u", v & 0xFF);
+				output("bcs X%u", ++xlabel);
 				output("dex");
-				label("X%d", xlabel);
+				label("X%u", xlabel);
 				const_a_set(reg[R_A].value - (v & 0xFF));
 				/* TODO: we should probably set this up */
 				invalidate_x();
@@ -2750,9 +2750,9 @@ static void char_to_int(void)
 {
 	load_x(0);
 	output("ora #0");
-	output("bpl X%d", ++xlabel);
+	output("bpl X%u", ++xlabel);
 	output("dex");
-	label("X%d", xlabel);
+	label("X%u", xlabel);
 	invalidate_x();
 }
 
@@ -2933,7 +2933,7 @@ unsigned gen_node(struct node *n)
 		return 0;
 	case T_CALLNAME:
 		invalidate_regs();
-		output("jsr _%s+%d", namestr(n->snum), n->value);
+		output("jsr _%s+%u", namestr(n->snum), n->value);
 		return 1;
 	case T_EQ:
 		/* store XA in top of stack addr  .. ugly */
