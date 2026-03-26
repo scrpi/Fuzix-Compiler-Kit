@@ -147,13 +147,13 @@ void gen_epilogue(unsigned size, unsigned argsize)
 
 void gen_label(const char *tail, unsigned n)
 {
-	printf("L%d%s:\n", n, tail);
+	printf("L%u%s:\n", n, tail);
 	unreachable = 0;
 }
 
 unsigned gen_exit(const char *tail, unsigned n)
 {
-	printf("\tjmp L%d%s\n", n, tail);
+	printf("\tjmp L%u%s\n", n, tail);
 	unreachable = 1;
 	return 0;
 }
@@ -162,7 +162,7 @@ void gen_jump(const char *tail, unsigned n)
 {
 	if (unreachable)
 		return;
-	printf("\tjmp L%d%s\n", n, tail);
+	printf("\tjmp L%u%s\n", n, tail);
 	unreachable = 1;
 }
 
@@ -170,14 +170,14 @@ void gen_jfalse(const char *tail, unsigned n)
 {
 	if (unreachable)
 		return;
-	printf("\tjz L%d%s\n", n, tail);
+	printf("\tjz L%u%s\n", n, tail);
 }
 
 void gen_jtrue(const char *tail, unsigned n)
 {
 	if (unreachable)
 		return;
-	printf("\tjnz L%d%s\n", n, tail);
+	printf("\tjnz L%u%s\n", n, tail);
 }
 
 void gen_switch(unsigned n, unsigned type)
@@ -191,19 +191,19 @@ void gen_switch(unsigned n, unsigned type)
 
 void gen_switchdata(unsigned n, unsigned size)
 {
-	printf("Sw%d:\n", n);
-	printf("\t.word %d\n", size);
+	printf("Sw%u:\n", n);
+	printf("\t.word %u\n", size);
 }
 
 void gen_case_label(unsigned tag, unsigned entry)
 {
-	printf("Sw%d_%d:\n", tag, entry);
+	printf("Sw%u_%u:\n", tag, entry);
 	unreachable = 0;
 }
 
 void gen_case_data(unsigned tag, unsigned entry)
 {
-	printf("\t.word Sw%d_%d\n", tag, entry);
+	printf("\t.word Sw%u_%u\n", tag, entry);
 }
 
 
@@ -214,23 +214,23 @@ void gen_data_label(const char *name, unsigned align)
 
 void gen_space(unsigned value)
 {
-	printf("\t.ds %d\n", value);
+	printf("\t.ds %u\n", value);
 }
 
 void gen_text_data(struct node *n)
 {
-	printf("\t.word T%d\n", n->val2);
+	printf("\t.word T%u\n", n->val2);
 }
 
 void gen_literal(unsigned n)
 {
 	if (n)
-		printf("T%d:\n", n);
+		printf("T%u:\n", n);
 }
 
 void gen_name(struct node *n)
 {
-	printf("\t.word _%s+%d\n", namestr(n->snum), WORD(n->value));
+	printf("\t.word _%s+%u\n", namestr(n->snum), WORD(n->value));
 }
 
 void gen_value(unsigned type, unsigned long value)
@@ -246,14 +246,14 @@ void gen_value(unsigned type, unsigned long value)
 		break;
 	case CSHORT:
 	case USHORT:
-		printf("\t.word %d\n", (unsigned) value & 0xFFFF);
+		printf("\t.word %u\n", (unsigned) value & 0xFFFF);
 		break;
 	case CLONG:
 	case ULONG:
 	case FLOAT:
 		/* We are big endian */
-		printf("\t.word %d\n", (unsigned) ((value >> 16) & 0xFFFF));
-		printf("\t.word %d\n", (unsigned) (value & 0xFFFF));
+		printf("\t.word %u\n", (unsigned) ((value >> 16) & 0xFFFF));
+		printf("\t.word %u\n", (unsigned) (value & 0xFFFF));
 		break;
 	default:
 		error("unsuported type");
@@ -509,7 +509,7 @@ struct node *gen_rewrite_node(struct node *n)
 	}
 	/* Commutive operations. We can swap the sides over on these */
 	if (op == T_AND || op == T_OR || op == T_HAT || op == T_STAR || op == T_PLUS) {
-/*		printf(";left %d right %d\n", is_simple(l), is_simple(r)); */
+/*		printf(";left %u right %u\n", is_simple(l), is_simple(r)); */
 		if (is_simple(l) > is_simple(r)) {
 			n->right = l;
 			n->left = r;
