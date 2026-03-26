@@ -8,13 +8,14 @@
 
 __diveql:
 	stx	(-s)
-	ldx	2(s)		; get the pointer
+	ldx	4(s)		; get the pointer
 	; Push the data from the pointer
 	lda	2(x)
 	sta	(-s)
 	lda	(x)
 	sta	(-s)
 	jsr	__divl
+	ldx	4(s)
 	; Result is in hireg:b
 	lda	(__hireg)
 	sta	(x)
@@ -22,17 +23,20 @@ __diveql:
 	; The call cleaned up the 4 bytes we pushed as an
 	; argument. Just get X back
 	ldx	(s+)
+	inr	s
+	inr	s
 	rsr
 
 __remeql:
 	stx	(-s)
-	ldx	2(s)		; get the pointer
+	ldx	4(s)		; get the pointer
 	; Push the data from the pointer
 	lda	2(x)
 	sta	(-s)
 	lda	(x)
 	sta	(-s)
 	jsr	__reml
+	ldx	4(s)
 	; Result is in hireg:b
 	lda	(__hireg)
 	sta	(x)
@@ -40,4 +44,6 @@ __remeql:
 	; The call cleaned up the 4 bytes we pushed as an
 	; argument. Just get X back
 	ldx	(s+)
+	inr	s
+	inr	s
 	rsr
