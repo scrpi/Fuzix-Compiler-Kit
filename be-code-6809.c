@@ -15,24 +15,6 @@ unsigned label;		/* Used to hand out local labels in the form X%u */
  *	and we can index off stack. 6809 is easy mode.
  */
 
-static uint8_t rol(register uint8_t r)
-{
-	uint8_t b0 = r & 0x80;
-	r <<= 1;
-	if (b0)
-		r |= 0x01;
-	return r;
-}
-
-static uint8_t ror(register uint8_t r)
-{
-	uint8_t b0 = r & 0x01;
-	r >>= 1;
-	if (b0)
-		r |= 0x80;
-	return r;
-}
-
 static unsigned make_with_op(char r, register uint8_t ev, register uint8_t tv)
 {
 	/* INC and DEC */
@@ -55,7 +37,7 @@ static unsigned make_with_op(char r, register uint8_t ev, register uint8_t tv)
 		return 1;
 	}
 	/* ASL/LSL */
-	if ((ev << 1) == tv) {
+	if (((ev << 1) & 0xFF) == tv) {
 		printf("\tasl%c\n", r);
 		return 1;
 	}
@@ -67,14 +49,6 @@ static unsigned make_with_op(char r, register uint8_t ev, register uint8_t tv)
 	/* NEG */
 	if (((256 - ev) & 0xFF) == tv) {
 		printf("\tneg%c\n", r);
-		return 1;
-	}
-	if (ror(ev) == tv) {
-		printf("\tror%c\n", r);
-		return 1;
-	}
-	if (rol(ev) == tv) {
-		printf("\trol%c\n", r);
 		return 1;
 	}
 	return 0;
