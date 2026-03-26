@@ -27,7 +27,6 @@
  *	- some single word ops can also operate on memory
  *
  *	Things to do are numerous
- *	- Float
  *	- Multiply and divide optimised forms via shifting
  *	- Rewrite some ops to use indirection like 6809 has
  *	- Tracking B and what A and X point to
@@ -36,7 +35,16 @@
  *	- Use X instead of A whenever X happens to hold the right stuff
  *	  (and vice versa)
  *	- CPU6 support
+ *	- Direct support for LREF LSTORE and some more long ops, and
+ *	  for -O2 case consider inlining stuff like plusl
+ *
+ *	Note that we ignore the restore/link mechanism completely. Routines
+ *	that use X save their return address and restore it before doing an
+ *	RSR. This allows us to do easy stack pointer adjustment in helpers by
+ *	simply assuming that calling a function trashes X (as RSR will go to
+ *	the right address but restore the wrong value of X).
  */
+
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>

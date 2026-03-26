@@ -191,8 +191,9 @@ word machine optimisations and behaviour improvements.
 
 ### EE200
 
-Electrodata EE200 / Warrex CPU4 backend. Early work only with a view to
-deprecating the existing cc65 based project.
+Electrodata EE200 / Warrex CPU4 backend.  Passes the test suite but the code
+generation is not great and it does not yet know how to use the Centurion
+CPU6 extensions.
 
 ### Nova
 
