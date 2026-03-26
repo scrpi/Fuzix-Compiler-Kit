@@ -15,8 +15,10 @@ OBJ =  dp.o __bool.o __mul.o div16x16.o __divu.o __div.o \
        __mull.o __muleql.o \
        div32x32.o __divul.o __divl.o __diveql.o __divequl.o \
        __shll.o __shrl.o __shrul.o __shleql.o __shreql.o __shrequl.o \
-       __castc_.o __cast_l.o
-    
+       __castc_.o __cast_l.o \
+      __boolf.o __cast2f.o __castf.o __cceqf.o __ccgteqf.o __ccgtf.o __cclteqf.o \
+      __ccltf.o __ccnef.o __divf.o __minusf.o __mulf.o __plusf.o __eqopf.o
+
 .s.o:
 	fcc -mee200 -c $<
 .c.o:
