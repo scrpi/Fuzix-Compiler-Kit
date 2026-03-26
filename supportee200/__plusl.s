@@ -5,10 +5,10 @@
 
 __plusl:
 	; top of stack plus hireg:b
-	lda	6(s)	; 2 is saved X (junk), 4 is high 6 is low
+	lda	4(s)	; 2 is high 4 is low
 	aab
-	lda	4(s)	; high half
 	stb	4(s)	; use as a save for the low word
+	lda	2(s)	; high half
 	bnl	nocarry
 	ina
 nocarry:
@@ -20,4 +20,3 @@ nocarry:
 	lda	4
 	add	a,s
 	rsr
-
