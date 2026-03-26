@@ -206,18 +206,6 @@ void gen_case_data(unsigned tag, unsigned entry)
 	printf("\t.word Sw%d_%d\n", tag, entry);
 }
 
-void gen_helpcall(struct node *n)
-{
-	printf("\tjsr __");
-}
-
-void gen_helptail(struct node *n)
-{
-}
-
-void gen_helpclean(struct node *n)
-{
-}
 
 void gen_data_label(const char *name, unsigned align)
 {
@@ -306,7 +294,6 @@ static unsigned get_size(unsigned t)
 		return 8;
 	if (t == VOID)
 		return 0;
-	error("gs");
 	return 0;
 }
 
@@ -316,6 +303,64 @@ static unsigned get_stack_size(unsigned t)
 	if (n == 1)
 		return 2;
 	return n;
+}
+
+static void gen_cleanup(unsigned v)
+{
+	if (v == 1)
+		printf("\tinr s\n");
+	else {
+		printf("\tlda %u\n", v);
+		printf("\tadd a,s\n");
+	}
+	sp -= v;
+}
+
+/* True if the helper is to be called C style */
+static unsigned c_style(struct node *np)
+{
+	register struct node *n = np;
+	/* Assignment is done asm style */
+	if (n->op == T_EQ)
+		return 0;
+	/* Float ops otherwise are C style */
+	if (n->type == FLOAT)
+		return 1;
+	n = n->right;
+	if (n && n->type == FLOAT)
+		return 1;
+	return 0;
+}
+
+void gen_helpcall(struct node *n)
+{
+	if (c_style(n))
+		gen_push(n->right);
+	printf("\tjsr __");
+}
+
+void gen_helptail(struct node *n)
+{
+}
+
+void gen_helpclean(struct node *n)
+{
+	unsigned s;
+
+	if (c_style(n)) {
+		s = 0;
+		if (n->left) {
+			s += get_size(n->left->type);
+			/* gen_node already accounted for removing this thinking
+			   the helper did the work, adjust it back as we didn't */
+			sp += s;
+		}
+		s += get_size(n->right->type);
+		gen_cleanup(s);
+		/* C style ops that are ISBOOL didn't set the bool flags */
+		if (n->flags & ISBOOL)
+			printf("\tori b,b\n");
+	}
 }
 
 #define T_NREF		(T_USER)		/* Load of C global/static */
@@ -708,14 +753,7 @@ unsigned gen_direct(struct node *n)
 	   type of the function return so don't use that for the cleanup value
 	   in n->right */
 	case T_CLEANUP:
-		v = r->value;
-		if (v == 1)
-			printf("\tinr s\n");
-		else {
-			printf("\tlda %u\n", v);
-			printf("\tadd a,s\n");
-		}
-		sp -= v;
+		gen_cleanup(r->value);
 		return 1;
 	case T_EQ:
 		return op_into_a(r, s, "stab (b)", "sta (b)");
