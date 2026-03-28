@@ -1543,11 +1543,23 @@ uint8_t mem_read8_debug(uint16_t addr)
 
 void mem_write8(uint16_t addr, uint8_t val)
 {
+	int i;
+	static uint8_t hi;
 	if (addr == 0xFFFF) {
 		if (val)
 			fprintf(stderr, "%d\n", val);
 		exit(!!val);
 	}
+	if (addr == 0xFFFE)
+		putchar(val);
+	if (addr == 0xFFFD) {
+		i = (hi << 8) | val;
+		if (i >= 0x8000)
+			i -= 0x10000;
+		printf("%d\n", i);
+	}
+	if (addr == 0xFFFC)
+		hi = val;
 	if (addr < sizeof(mem))
 		mem[addr] = val;
 }
