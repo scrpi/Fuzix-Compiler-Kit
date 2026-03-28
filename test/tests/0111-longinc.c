@@ -22,5 +22,23 @@ int main(int argc, char *argv[])
         return 9;
     if (a != 0)
         return 10;
-    return 0;
+    a = 0x10000;
+    if (--a != 0x0000FFFF)
+        return 11;
+    if (++a != 0x00010000)
+        return 12;
+    a = 0xFFFF;
+    if (a++ != 0xFFFF)
+        return 13;
+    if (a-- != 0x10000)
+        return 14;
+    if (a != 0xFFFF)
+        return 15;
+    a = a + 1;
+    if (a != 0x10000)
+        return 16;
+    a = a - 1;
+    if (a != 0xFFFF)
+        return 17;
+   return 0;
 }
