@@ -248,6 +248,11 @@ static void adjust_ea(unsigned n)
 	e_value += BYTE(n >> 8);
 	if (t & 0x0100)
 		e_value++;
+	/* Review - can we do this safely and combine with an
+	   awareness of moving the EA pointer around without reload ?
+	   ea_node.value += n;
+	   */
+	ea_valid = 0;	/* For now just mark it not a valid node value */
 }
 
 static void set_t(unsigned n)
@@ -1806,8 +1811,10 @@ unsigned gen_direct(struct node *n)
 		if (can_make_src_ref(r) == 0)
 			return 0;
 		printf(";eqplus direct\n");
-		if (WORD(n->value))
+		if (WORD(n->value)) {
 			printf("\tadd ea,=%u\n", WORD(n->value));
+			adjust_ea(WORD(n->value));
+		}
 		if (ref_needs_p2(r)) {
 			printf(";eqplus direct need p2\n");
 			puts("\tpush ea");
@@ -2339,10 +2346,22 @@ unsigned gen_node(struct node *n)
 		/* val2 offset of variable, val offset of ptr */
 		/* We cannot alas do a straight ptr of ptr load, but must
 		   go via EA. No problem here as we will trash EA anyway */
-		printf("\tld ea,%u,p1\n", v + sp);
-		invalidate_ea();
-		load_ptr_ea(2);
-		make_ref_p2(n->val2);
+		v += sp;
+		if (v + sz < 128) {
+			printf("\tld ea,%u,p1\n", v);
+			invalidate_ea();
+			load_ptr_ea(2);
+			make_ref_p2(n->val2);
+		} else {
+			/* Don't need to keep EA */
+			load_ea_ptr(1);
+			printf("\tadd ea,=%u\n", v);
+			invalidate_ea();
+			load_ptr_ea(2);
+			make_ref_p2(0);
+			op16("ld", 2, O_LOAD, 1);
+			xch_ea_p2();
+		}
 		op16("ld", sz, O_LOAD, nr);
 		/* TODO node track */
 		invalidate_ea();
@@ -2387,8 +2406,10 @@ unsigned gen_node(struct node *n)
 			return 1;
 		v += sp;
 		load_ea_ptr(1);
-		if (v)
+		if (v) {
 			printf("\tadd ea,=%d\n", v);
+			adjust_ea(v);
+		}
 		set_ea_node(n);
 		return 1;
 	case T_CAST:
