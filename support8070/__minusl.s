@@ -10,10 +10,9 @@ __minusl:
 	st ea,0,p1	; stash back
 	ld a,s
 	bp skip		; carry clear (no borrow)
-	ld ea,:__hireg
-	sub ea,=1
+	ld ea,6,p1	; high half
 subexit:
-	sub ea,6,p1	; high half
+	sub ea,:__hireg	; high half
 	st ea,:__hireg
 	pop ea		; result
 	pop p2		; return
@@ -22,5 +21,6 @@ subexit:
 	push p2
 	ret		; and return
 skip:
-	ld ea,:__hireg
+	ld ea,6,p1
+	sub ea,=1	; carry
 	bra subexit
