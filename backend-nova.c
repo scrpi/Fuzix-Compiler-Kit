@@ -2049,11 +2049,12 @@ unsigned gen_node(struct node *n)
 			popa(0);
 			popa(2);
 			load_hireg(3);
+			/* 2:0 - 3:1 */
 			printf("\tsubz 1,0,szc\n");
-			printf("\tsub 2,3,skp\n");
-			printf("\tadc 2,3\n");
+			printf("\tsub 3,2,skp\n");
+			printf("\tadc 3,2\n");
 			printf("\tmov 0,1\n");
-			store_hireg(3);
+			store_hireg(2);
 			gen_mffp();
 		} else {
 			popa(0);
