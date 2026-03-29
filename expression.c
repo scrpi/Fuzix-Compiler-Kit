@@ -636,6 +636,7 @@ static struct node *hier1a(void)
 	struct node *a1, *a2;
 	unsigned lt;
 	unsigned a1t, a2t;
+	unsigned t;
 
 	l = hier1b();
 	if (!match(T_QUESTION))
@@ -660,12 +661,15 @@ static struct node *hier1a(void)
 	a1t = type_canonical(a1->type);
 	a2t = type_canonical(a2->type);
 
+	t = a1t;
+	if (IS_ARITH(a1t) && IS_ARITH(a2t) && a1t < a2t)
+		t = a2t;
+
 	/* Check the two sides of colon are compatible */
 	if (a1t == a2t || type_pointermatch(a1, a2) || (IS_ARITH(a1t) && IS_ARITH(a2t))) {
 		/* Takes the type of the : arguments not the ? */
-		a2 = typed_tree(T_QUESTION, a1t, bool_tree(l, NEEDCC), tree(T_COLON, a1, typeconv(a2, a1t, 1)));
-	}
-	else
+		a2 = typed_tree(T_QUESTION, a1t, bool_tree(l, NEEDCC), tree(T_COLON, typeconv(a1, t, 1), typeconv(a2, t, 1)));
+	} else
 		badtype();
 	return a2;
 }
