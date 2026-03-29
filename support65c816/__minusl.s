@@ -6,15 +6,13 @@
 
 __minusl:
 	; TOS - hireg:a
-	plx
 	sta @tmp
+	lda 0,y
 	sec
-	pla		; low word
 	sbc @tmp
-	sta @tmp
-	pla
+	tax
+	lda 2,y
 	sbc @hireg
 	sta @hireg
-	lda @tmp
-	phx
-	rts
+	txa
+	jmp __fnexit4

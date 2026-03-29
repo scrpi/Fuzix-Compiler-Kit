@@ -5,15 +5,11 @@
 	.export __plusl
 
 __plusl:
-	plx
-	sta @tmp
 	clc
-	pla
-	adc @tmp
-	sta @tmp
-	pla
-	adc @hireg
+	adc 0,y
+	tax
+	lda @hireg
+	adc 2,y
 	sta @hireg
-	lda @tmp
-	phx
+	txa
 	rts
