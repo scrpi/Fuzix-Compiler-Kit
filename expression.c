@@ -668,7 +668,7 @@ static struct node *hier1a(void)
 	/* Check the two sides of colon are compatible */
 	if (a1t == a2t || type_pointermatch(a1, a2) || (IS_ARITH(a1t) && IS_ARITH(a2t))) {
 		/* Takes the type of the : arguments not the ? */
-		a2 = typed_tree(T_QUESTION, a1t, bool_tree(l, NEEDCC), tree(T_COLON, typeconv(a1, t, 1), typeconv(a2, t, 1)));
+		a2 = typed_tree(T_QUESTION, t, bool_tree(l, NEEDCC), tree(T_COLON, typeconv(a1, t, 1), typeconv(a2, t, 1)));
 	} else
 		badtype();
 	return a2;
