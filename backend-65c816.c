@@ -1706,15 +1706,11 @@ unsigned gen_direct(struct node *n)
 			if (r->op == T_CONSTANT && r->value < 65536) {
 				if (r->value == 0)
 					return 1;
-				if (r->value == 1)
-					outputcc("inc a");
-				else {
-					outputnc("clc");
-					output("adc #%d", r->value);
-					output("bcc X%d", ++xlabel);
-					output("inc @hireg");
-					label("X%d", xlabel);
-				}
+				outputnc("clc");
+				output("adc #%d", r->value);
+				output("bcc X%d", ++xlabel);
+				output("inc @hireg");
+				label("X%d", xlabel);
 				invalidate_a();
 				return 1;
 			}
@@ -1765,15 +1761,11 @@ unsigned gen_direct(struct node *n)
 			if (r->op == T_CONSTANT && r->value < 65536) {
 				if (r->value == 0)
 					return 1;
-				if (r->value == 1)
-					outputcc("dec a");
-				else {
-					outputnc("sec");
-					output("sbc #%d", r->value);
-					output("bcs X%d", ++xlabel);
-					output("dec @hireg");
-					label("X%d", xlabel);
-				}
+				outputnc("sec");
+				output("sbc #%d", r->value);
+				output("bcs X%d", ++xlabel);
+				output("dec @hireg");
+				label("X%d", xlabel);
 				invalidate_a();
 				return 1;
 			}
