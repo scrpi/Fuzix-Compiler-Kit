@@ -1696,7 +1696,7 @@ static unsigned gen_gtlt_op(struct node *n, unsigned z, unsigned gt, unsigned is
 	if (!can_make_src_ref(r))
 		return 0;
 
-	make_ref(r, 0);
+	make_ref(r, 1);
 
 
 	if (is_byte)
@@ -1739,7 +1739,7 @@ static unsigned gen_eq_op(struct node *n, unsigned eq, unsigned is_byte)
 		s = 1;
 	if (s > 2)
 		return 0;
-	if (!make_ref(r, 0))
+	if (!make_ref(r, 1))
 		return 0;
 	op16("sub", s, O_MODIFY, r->value);
 	invalidate_ea();
