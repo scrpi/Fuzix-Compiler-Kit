@@ -41,6 +41,7 @@ f__derefuc:
 f__assignc:
 	popa	2
 	sta	3,__tmp,0
+	psha	1
 	lda	3,N255,0
 	and	3,1		; mask input
 	movr	2,2,snc		; as before figure the addr, set up carry
@@ -50,6 +51,7 @@ f__assignc:
 	and	3,0		; mask off
 	add	0,1		; add to new byte
 	sta	1,0,2		; put back
+	popa	1
 	mffp	3
 	jmp	@__tmp,0
 

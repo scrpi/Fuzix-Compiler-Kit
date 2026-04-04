@@ -39,6 +39,7 @@ f__derefuc:
 	jmp	@__tmp,0
 
 f__assignc:
+	sta	1,__tmp2,0	; save old value
 	lda	2,__sp,0
 	lda	2,0,2
 	dsz	__sp,0
@@ -52,6 +53,7 @@ f__assignc:
 	and	3,0		; mask off
 	add	0,1		; add to new byte
 	sta	1,0,2		; put back
+	lda	1,__tmp2,0	; recover correct result
 	lda	3,__fp,0
 	jmp	@__tmp,0
 
