@@ -2367,14 +2367,23 @@ unsigned gen_node(struct node *n)
 		invalidate_ea();
 		return 1;
 	case T_LEQ:
-		printf(";LEQ\n");
+		v += sp;
 		/* TODO: review for volatile byteable */
 		/* Must go via EA which is messier because of course
 		   we have a value in EA right now */
 		load_t_ea();
-		printf("\tld ea,%u,p1\n", v + sp);
-		invalidate_ea();
-		load_ptr_ea(2);
+		if (v + sz < 128) {
+			printf("\tld ea,%u,p1\n", v);
+			invalidate_ea();
+			load_ptr_ea(2);
+		} else {
+			load_ea_ptr(1);
+			printf("\tadd ea,=%u\n", v);
+			load_ptr_ea(2);	/* P2 is now our pointer addr */
+			make_ref_p2(0);
+			op16("ld", 2, O_LOAD, 1); /* EA is our pointer */
+			load_ptr_ea(2);	/* P2 is our pointer */
+		}
 		load_ea_t();
 		flush_writeback();
 		make_ref_p2(n->val2);
