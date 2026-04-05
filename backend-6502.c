@@ -539,22 +539,20 @@ static unsigned can_bytecast(register struct node *n)
 /* Construct a direct operation if possible for the primary op */
 /* Must not corrupt X unless explcitly asked to load X. Our byte operators
    rely on this as a tiny optimization as the expect the pointer on stuff
-   like x++ to be in X and the low half of @tmp */
-static int do_pri8(struct node *n, const char *op, void (*pre)(struct node *__n))
+   like x++ to be in X and the low half of @tmp
+
+   r is the right hand side of the main node n usually, but may change when
+   we call this recursively when elimninating casts or other nodes we
+   can throw away */
+static int do_pri8(struct node *n, struct node *r, const char *op, void (*pre)(struct node *__n))
 {
-	struct node *r = n->right;
 	unsigned v = n->value;
 	const char *name;
 
 	/* We can fold in some simple casting */
-#if 0
-	if (can_bytecast(n)) {
-		/* Just do the right hand side */
-		n = n->right;
-		v = n->value;
-		r = n->right;
-	}
-#endif
+	if (can_bytecast(n))
+		return do_pri8(n, r->right, op, pre);
+
 	switch(n->op) {
 	case T_LABEL:
 		pre(n);
@@ -725,22 +723,24 @@ static int do_pri8hi(struct node *n, const char *op, void (*pre)(struct node *__
 }
 
 /* 16bit/ We are rather limited here because we only have a few ops with x */
-static int do_pri16(struct node *n, const char *op, void (*pre)(struct node *__n))
+/* As with do_pri8 r is usually the right node of n but will be shifted
+   recursively if we have casts */
+static int do_pri16(struct node *n, struct node *r, const char *op, void (*pre)(struct node *__n))
 {
-	struct node *r = n->right;
 	const char *name;
 	unsigned v = n->value;
 
 	/* We can fold in some simple casting */
+#if 0
 	if (n->type == T_CAST) {
 		if ((!PTR(n->type) && n->type != CINT && n->type != UINT) || r->type != UCHAR)
 			return 0;
-		/* Just do the right hand side */
-		n = n->right;
-		v = n->value;
-		r = n->right;
 		load_x(0);
+		/* Just do the right hand side */
+		/* Should this be pri8 ?? */
+		return do_pri16(n, r->right, op, pre);
 	}
+#endif
 
 	switch(n->op) {
 	case T_LABEL:
@@ -878,12 +878,12 @@ static void pre_pha(struct node *n)
 
 static int pri8(struct node *n, const char *op)
 {
-	return do_pri8(n, op, pre_none);
+	return do_pri8(n, n->right, op, pre_none);
 }
 
 static int pri16(struct node *n, const char *op)
 {
-	return do_pri16(n, op, pre_none);
+	return do_pri16(n, n->right, op, pre_none);
 }
 
 static unsigned fast_castable(struct node *n)
@@ -916,14 +916,14 @@ static int pri8_help(struct node *n, char *helper)
 	struct node *r = n->right;
 	/* Special case for cast first */
 	if (fast_castable(r)) {
-		if (do_pri8(r->right, "lda", pre_store8)) {
+		if (do_pri8(n, r->right, "lda", pre_store8)) {
 			helper_sb(n, helper);
 			return 1;
 		}
 	}
 	/* If we can't guarantee do_pri8 protects X then in future we'd
 	    need to check r size for 2 and if so pre_store16 here */
-	if (do_pri8(n, "lda", pre_store8)) {
+	if (do_pri8(n, n->right, "lda", pre_store8)) {
 		/* Helper invalidates A itself */
 		helper_sb(n, helper);
 		return 1;
@@ -957,29 +957,29 @@ static int pri16_help(struct node *n, char *helper)
 	struct node *r = n->right;
 	unsigned v = r->value;
 	unsigned s = get_size(r->type);
-#if 0
+
 	/* Special case for cast first */
 	if (fast_castable(r)) {
 		if (get_size(r->right->type) == 2) {
-			if (do_pri16(r->right, "ld", pre_fastcast)) {
+			if (do_pri16(n, r->right, "ld", pre_fastcast)) {
 				helper_s(n, helper);
 				return 1;
 			}
 		} else {
-			if (do_pri8(r->right, "lda", pre_fastcastx0)) {
+			if (do_pri8(n, r->right, "lda", pre_fastcastx0)) {
 				helper_s(n, helper);
 				return 1;
 			}
 		}
 	}
-#endif
+
 	if (s == 1) {
-		if (do_pri8(n, "ld", pre_store16clx)) {
+		if (do_pri8(n, n->right, "ld", pre_store16clx)) {
 			helper_s(n, helper);
 			return 1;
 		}
 	} else if (s == 2) {
-		if (do_pri16(n, "ld", pre_store16)) {
+		if (do_pri16(n, n->right, "ld", pre_store16)) {
 			/* Helper invalidates XA itself */
 			helper_s(n, helper);
 			return 1;
@@ -1248,7 +1248,7 @@ static unsigned try_via_x(struct node *n, const char *op, void (*pre)(struct nod
 		}
 	}
 	/* Name and lbref are probably not worth it as have to go via tmp */
-	if (do_pri8(n, op, pre) == 0)
+	if (do_pri8(n, n->right, op, pre) == 0)
 		return 0;
 	output("pha");
 	txa();
@@ -1991,7 +1991,7 @@ unsigned gen_direct(struct node *n)
 		}
 		if (local_yop(n, "l_eq" ))
 			return 1;
-		if (s == 1 && do_pri8(n, "lda", pre_stash)) {
+		if (s == 1 && do_pri8(n, n->right, "lda", pre_stash)) {
 			invalidate_a();
 			if (cpu != NMOS_6502)
 				output("sta (@tmp)");
@@ -2000,7 +2000,7 @@ unsigned gen_direct(struct node *n)
 				output("sta (@tmp),y");
 			}
 			return 1;
-		} else if (s == 2 && do_pri16(n, "ld", pre_stash)) {
+		} else if (s == 2 && do_pri16(n, r, "ld", pre_stash)) {
 			invalidate_x();
 			invalidate_a();
 			if (cpu != NMOS_6502)
@@ -2104,7 +2104,7 @@ unsigned gen_direct(struct node *n)
 			const_a_set(reg[R_A].value - 1);
 			return 1;
 		}
-		if (s == 1 && do_pri8(n, "adc", pre_clc)) {
+		if (s == 1 && do_pri8(n, n->right, "adc", pre_clc)) {
 			if (r->op == T_CONSTANT)
 				const_a_set(reg[R_A].value + r->value);
 			else
@@ -2151,7 +2151,7 @@ unsigned gen_direct(struct node *n)
 			const_a_set(reg[R_A].value + 1);
 			return 1;
 		}
-		if (s == 1 && do_pri8(n, "sbc", pre_sec)) {
+		if (s == 1 && do_pri8(n, n->right, "sbc", pre_sec)) {
 			if (r->op == T_CONSTANT)
 				const_a_set(reg[R_A].value - r->value);
 			else
@@ -2950,7 +2950,7 @@ unsigned gen_node(struct node *n)
 				return 1;
 #endif
 			/* Stack and restore A if we need XA intact (rare) */
-			if (do_pri16(n, "st", pre_pha)) {
+			if (do_pri16(n, r, "st", pre_pha)) {
 				output("pla");
 				set_xa_node(n);
 				return 1;
