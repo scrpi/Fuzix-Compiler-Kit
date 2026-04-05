@@ -73,3 +73,34 @@
 	jsr __pushl
 =
 	jsr __pushly0l
+
+#
+#	Deref versions for common case. These ought to be implemented
+#	in the compiler itself by folding the subtree perhaps ?
+#	Push form needs to peephole but the rest should not
+#
+	jsr __gloytmp
+	ldx #0
+	lda (@tmp,x)
+=
+	jsr __gloytmpd1
+
+	jsr __gloytmpd1
+	jsr __push
+=
+	jsr  __pushyd1
+
+	jsr __gloytmp
+	ldy #1
+	lda (@tmp),y
+	tax
+	dey
+	lda (@tmp),y
+=
+	jsr __gloytmpd2
+
+	jsr __gloytmpd2
+	jsr __push
+=
+	jsr __pushyd2
+
