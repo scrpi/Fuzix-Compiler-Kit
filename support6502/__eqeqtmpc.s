@@ -5,10 +5,14 @@
 	.export __eqeqtmpuc
 	.export __l_eqeqtmpc
 	.export __l_eqeqtmpuc
+	.export __cceqc
 
 __l_eqeqtmpc:
 __l_eqeqtmpuc:
 	jsr	__ytmp
+	jmp	__eqeqtmpc
+__cceqc:
+	jsr	__poptmpc
 __eqeqtmpc:
 __eqeqtmpuc:
 	ldx #0

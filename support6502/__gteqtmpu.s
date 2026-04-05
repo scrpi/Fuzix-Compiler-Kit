@@ -1,6 +1,7 @@
 ;
 ;	xa >= @tmp unsigned
 ;
+	.export __ccltequ
 	.export	__gteqtmpu
 	.export	__l_gteqtmpu
 
@@ -8,6 +9,9 @@
 
 __l_gteqtmpu:
 	jsr	__ytmp
+	jmp	__gteqtmpu
+__ccltequ:
+	jsr	__poptmp
 __gteqtmpu:
 	cmp	@tmp
 	txa
