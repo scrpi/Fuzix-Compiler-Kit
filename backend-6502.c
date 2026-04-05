@@ -56,6 +56,10 @@
  *	For -Os we should defintiely have "get local and stuff it in @tmp
  *	as a helper", and probably also clear Y. That would optimize a lot of
  *	pointer use cases.
+ *
+ *	LDEREF helper for tight use of *local and *arg.
+ *
+ *	Track what is in @tmp.
  */
 
 #include <stdio.h>
@@ -129,6 +133,8 @@ static void label(const char *p, ...)
 #define R_A	0
 #define R_X	1
 #define R_Y	2
+#define R_TMPL	3
+#define R_TMPH	4
 
 #define INVALID	0
 
@@ -139,7 +145,7 @@ struct regtrack {
 	unsigned offset;
 };
 
-static struct regtrack reg[3];
+static struct regtrack reg[5];
 static struct regtrack rsaved;
 
 static void invalidate_regs(void)
@@ -147,6 +153,8 @@ static void invalidate_regs(void)
 	reg[R_A].state = INVALID;
 	reg[R_X].state = INVALID;
 	reg[R_Y].state = INVALID;
+	reg[R_TMPL].state = INVALID;
+	reg[R_TMPH].state = INVALID;
 	printf(";invalidate regs\n");
 }
 
@@ -167,6 +175,17 @@ static void invalidate_y(void)
 	reg[R_Y].state = INVALID;
 }
 #endif
+
+static void invalidate_tmp(void)
+{
+	reg[R_TMPL].state = INVALID;
+	reg[R_TMPH].state = INVALID;
+}
+
+static void invalidate_tmpl(void)
+{
+	reg[R_TMPL].state = INVALID;
+}
 
 static void const_a_set(unsigned val)
 {
@@ -299,6 +318,21 @@ static void load_y(uint8_t n)
 }
 
 /*
+ *	Map store ops to load forms so we can compare them sensibly
+ */
+
+static unsigned map_op(unsigned op)
+{
+	if (op == T_NSTORE)
+		return T_NREF;
+	if (op == T_LBSTORE)
+		return  T_LBREF;
+	if (op == T_LSTORE)
+		return T_LREF;
+	return op;
+}
+
+/*
  *	For now just try and eliminate the reloads. We shuld be able to
  *	eliminate some surplus stores with thought if we are careful
  *	how we defer them.
@@ -308,20 +342,10 @@ static void load_y(uint8_t n)
  */
 static void set_xa_node(struct node *n)
 {
-	unsigned op = n->op;
+	unsigned op = map_op(n->op);
 	unsigned value = n->value;
 
-	/* Turn store forms into ref forms */
 	switch(op) {
-	case T_NSTORE:
-		op = T_NREF;
-		break;
-	case T_LBSTORE:
-		op = T_LBREF;
-		break;
-	case T_LSTORE:
-		op = T_LREF;
-		break;
 	case T_NAME:
 	case T_CONSTANT:
 	case T_NREF:
@@ -360,19 +384,10 @@ static unsigned xa_contains(struct node *n)
 
 static void set_a_node(struct node *n)
 {
-	unsigned op = n->op;
+	unsigned op = map_op(n->op);
 	unsigned value = n->value;
 
 	switch(op) {
-	case T_NSTORE:
-		op = T_NREF;
-		break;
-	case T_LBSTORE:
-		op = T_LBREF;
-		break;
-	case T_LSTORE:
-		op = T_LREF;
-		break;
 	case T_NAME:
 	case T_CONSTANT:
 	case T_NREF:
@@ -402,6 +417,83 @@ static unsigned a_contains(struct node *n)
 	return 1;
 }
 
+#if 0
+static void set_tmp_node(struct node *n)
+{
+	unsigned op = map_op(n->op);
+	unsigned value = n->value;
+
+	switch(op) {
+	case T_NAME:
+	case T_CONSTANT:
+	case T_NREF:
+	case T_LBREF:
+	case T_LREF:
+	case T_LOCAL:
+	case T_ARGUMENT:
+		break;
+	default:
+		invalidate_tmp();
+		return;
+	}
+	reg[R_TMPL].state = op;
+	reg[R_TMPL].value = value;
+	reg[R_TMPL].snum = n->snum;
+	reg[R_TMPH].state = op;
+	reg[R_TMPH].value = value >> 8;
+	reg[R_TMPH].snum = n->snum;
+}
+#endif
+
+/*
+ *	TODO
+ *
+ *	Eventually we need to be smart about this. If @tmp contains the
+ *	right object but a different offset that is lower then we can adjust
+ *	y to access (@tmp),y correctly within a 255 byte range.
+ *
+ *	It might also make a lot of sense for structs to have a
+ *	"struct deref" folded op for deref(plus(thing, constant)) where we
+ *	keep @tmp pointing at the object base and use Y when possible to
+ *	do offsetting.
+ */
+#if 0
+static unsigned tmp_contains(struct node *n)
+{
+	if (n->op == T_NREF && (n->flags & SIDEEFFECT))		/* Volatiles */
+		return 0;
+	if (reg[R_TMPL].state != n->op || reg[R_TMPH].state != n->op)
+		return 0;
+	if (reg[R_TMPL].value != (n->value & 0xFF) || reg[R_TMPH].value != (n->value >> 8))
+		return 0;
+	if (reg[R_TMPL].snum != n->snum || reg[R_TMPL].snum != n->snum)
+		return 0;
+	/* Looks good */
+	return 1;
+}
+#endif
+
+static unsigned reg_match(unsigned r1, unsigned r2)
+{
+	register struct regtrack *reg1 = reg + r1;
+	register struct regtrack *reg2 = reg + r2;
+	if (reg1->state == INVALID || reg2->state == INVALID)
+		return 0;
+	if (reg1->state != reg2->state ||
+		reg1->value != reg2->value ||
+		reg1->snum != reg2->snum)
+		return 0;
+	return 1;
+}
+
+static unsigned tmp_contains_xa(void)
+{
+	if (reg_match(R_A, R_TMPL) == 0 ||
+		reg_match(R_X, R_TMPH) == 0)
+		return 0;
+	return 1;
+}
+
 /* Memory writes occured, invalidate according to what we know. Passing
    NULL indicates unknown memory changes */
 
@@ -414,6 +506,10 @@ static void invalidate_node(struct node *n)
 		reg[R_A].state = INVALID;
 	if (reg[R_X].state != T_CONSTANT)
 		reg[R_X].state = INVALID;
+	if (reg[R_TMPL].state != T_CONSTANT)
+		reg[R_TMPL].state = INVALID;
+	if (reg[R_TMPH].state != T_CONSTANT)
+		reg[R_TMPH].state = INVALID;
 }
 
 static void invalidate_mem(void)
@@ -422,6 +518,10 @@ static void invalidate_mem(void)
 		reg[R_A].state = INVALID;
 	if (reg[R_X].state != T_CONSTANT)
 		reg[R_X].state = INVALID;
+	if (reg[R_TMPL].state != T_CONSTANT)
+		reg[R_TMPL].state = INVALID;
+	if (reg[R_TMPH].state != T_CONSTANT)
+		reg[R_TMPH].state = INVALID;
 }
 
 static void set_reg(unsigned r, unsigned v)
@@ -430,6 +530,7 @@ static void set_reg(unsigned r, unsigned v)
 	reg[r].value = (uint8_t)v;
 }
 
+/* TODO: worth checking these for cases they already are the same ? */
 static void tax(void)
 {
 	invalidate_node(NULL);
@@ -450,6 +551,23 @@ static void tay(void)
 	output("tay");
 }
 
+static void store_xa_tmp(void)
+{
+	if (tmp_contains_xa()) {
+		printf("; avoided reload of @tmp\n"); 
+		return;
+	}
+	memcpy(reg + R_TMPL, reg + R_A, sizeof(struct regtrack));
+	memcpy(reg + R_TMPH, reg + R_X, sizeof(struct regtrack));
+	output("sta @tmp");
+	output("stx @tmp+1");
+}
+
+static void store_a_tmp(void)
+{
+	memcpy(reg + R_TMPL, reg + R_A, sizeof(struct regtrack));
+	output("sta @tmp");
+}
 
 /* Used as helpers when doing a single depth push op of A as happens. Not
    stack tracking so not safe if can recurse */
@@ -855,19 +973,17 @@ static void pre_none(struct node *n)
 
 static void pre_store8(struct node *n)
 {
-	output("sta @tmp");
+	store_a_tmp();
 }
 
 static void pre_store16(struct node *n)
 {
-	output("sta @tmp");
-	output("stx @tmp+1");
+	store_xa_tmp();
 }
 
 static void pre_store16clx(struct node *n)
 {
-	output("sta @tmp");
-	output("stx @tmp+1");
+	store_xa_tmp();
 	load_x(0);
 }
 
@@ -933,7 +1049,7 @@ static int pri8_help(struct node *n, char *helper)
 
 static void pre_fastcast(struct node *n)
 {
-	output("sta @tmp");
+	store_a_tmp();
 	/* The M740 is a fairly complete subset of the 65C02 but lacks STZ */
 	if (cpu == CMOS_M740)
 		output("stm #0");
@@ -948,8 +1064,7 @@ static void pre_fastcast(struct node *n)
 static void pre_fastcastx0(struct node *n)
 {
 	load_x(0);
-	output("sta @tmp");
-	output("stx @tmp+1");
+	store_xa_tmp();
 }
 
 static int pri16_help(struct node *n, char *helper)
@@ -1126,8 +1241,7 @@ static void pre_sec(struct node *n)
 
 static void pre_stash(struct node *n)
 {
-	output("sta @tmp");
-	output("stx @tmp+1");
+	store_xa_tmp();
 }
 
 /*
@@ -1973,8 +2087,7 @@ unsigned gen_direct(struct node *n)
 		if (s > 2)
 			return 0;
 		if (r->op == T_CONSTANT) {
-			output("sta @tmp");
-			output("stx @tmp+1");
+			store_xa_tmp();
 			load_a(BYTE(v));
 			if (s == 1 && cpu != NMOS_6502) {
 				output("sta (@tmp)");
@@ -2209,10 +2322,11 @@ unsigned gen_direct(struct node *n)
 								break;
 							/* Fall through if -O3  */
 						case 3:  /* 2^1+1, 6 bytes, always smaller and faster*/
-							output("sta @tmp");
+							store_a_tmp();
 							asl_a(intlog2(v-1));
 							output("clc");
 							output("adc @tmp");
+							invalidate_tmpl();
 							invalidate_a();
 							return 1;
 
@@ -2237,11 +2351,11 @@ unsigned gen_direct(struct node *n)
 							   is fair enough. I would not object. */
 
 							/* XA->@tmp */
-							output("sta @tmp");
-							output("stx @tmp+1");
+							store_xa_tmp();
 							/* @tmp <<= 1 */
 							output("asl @tmp");
 							output("rol @tmp+1");
+							invalidate_tmp();
 							/* XA += @tmp */
 							output("clc");
 							output("adc @tmp");
@@ -2252,6 +2366,7 @@ unsigned gen_direct(struct node *n)
 							output("pla");
 							invalidate_a();
 							invalidate_x();
+							invalidate_tmp();
 							return 1;
 
 						default:
@@ -2342,6 +2457,7 @@ unsigned gen_direct(struct node *n)
 						output("stx @tmp+1");
 						repeated_op(v, "asl a\n\trol @tmp+1");
 						output("ldx @tmp+1");
+						invalidate_tmp();
 						return 1;
 					}
 					if (v>=8) {
@@ -2373,6 +2489,7 @@ unsigned gen_direct(struct node *n)
 							if (optsize)
 								break;
 							/* 11 bytes */
+							invalidate_tmp();
 							output("stx @tmp+1");
 							output("asl a");
 							output("rol @tmp+1");
@@ -2528,6 +2645,7 @@ unsigned gen_direct(struct node *n)
 						output("lda @tmp"); // Old X, Neww A
 						invalidate_x();
 						invalidate_a();
+						invalidate_tmpl();
 						return 1;
 					}
 					if (v==16) {
@@ -2585,8 +2703,7 @@ unsigned gen_direct(struct node *n)
 		if (s <= 2) {
 			/* XA is the pointer */
 			/* Might want a tighter helper for -Os TODO */
-			output("sta @tmp");
-			output("stx @tmp+1");
+			store_xa_tmp();
 			load_y(0);
 			output("clc");
 			output("lda (@tmp),y");
@@ -3004,8 +3121,7 @@ unsigned gen_node(struct node *n)
 		   one where we can update the contents info TODO */
 		if (size > 2)
 			return 0;
-		output("sta @tmp");
-		output("stx @tmp+1");
+		store_xa_tmp();
 		if (size == 1) {
 			if (cpu != NMOS_6502)
 				output("lda (@tmp)");
