@@ -23,6 +23,7 @@
 #define ANY		0xFF
 
 #define PTRTO		1			/* Use with care for comparisons */
+#define PTRMASK		7			/* Pointer bits */
 
 /* For non simple types the information index */
 #define INFO(x)		(((x) >> 3) & 0x3FF)
