@@ -3060,17 +3060,19 @@ unsigned gen_node(struct node *n)
 			set_a_node(n);
 			return 1;
 		} else if (size == 2) {
-#if 0
-			/* Need to decide if this is worth it TODO */
-			/* printf(";lstxay nr = %u\n", nr); */
-			if (nr && pri16(n, "st"))
-				return 1;
-#endif
-			/* Stack and restore A if we need XA intact (rare) */
-			if (do_pri16(n, r, "st", pre_pha)) {
-				output("pla");
-				set_xa_node(n);
-				return 1;
+			/* Only LSTORE destroys A */
+			/* It seems marginal whether using this path for
+			   LSTORE nr = 1 is worth it */
+			if (n->op != T_LSTORE) {
+				if (pri16(n, "st"))
+					return 1;
+			} else {
+				/* Stack and restore A */
+				if (do_pri16(n, r, "st", pre_pha)) {
+					output("pla");
+					set_xa_node(n);
+					return 1;
+				}
 			}
 		}
 		/* FIXME: need to do 4byte forms **/
@@ -3083,14 +3085,16 @@ unsigned gen_node(struct node *n)
 		/* store XA in top of stack addr  .. ugly */
 		if (size > 2)
 			return 0;
+		if (size == 2 && optsize) {
+			gen_internal("poptmpstxa");
+			const_y_set(1);
+			invalidate_mem();
+			return 1;
+		}
 		/* Maybe make this whole lot a pair of helpers ? */
 		gen_internal("poptmp");
-		if (cpu != NMOS_6502)
-			output("sta (@tmp)");
-		else {
-			set_reg(R_Y, 0);
-			output("sta (@tmp),y");
-		}
+		const_y_set(0);	/* Will always be set to 0 by helper */
+		output("sta (@tmp),y");
 		if (size == 2) {
 			load_y(1);
 			if (!nr) {
@@ -3119,7 +3123,7 @@ unsigned gen_node(struct node *n)
 		/* We could optimize the tracing a bit here. A deref
 		   of memory where we know XA is a name, local etc is
 		   one where we can update the contents info TODO */
-		if (size > 2)
+		if (size > 2 || optsize)
 			return 0;
 		store_xa_tmp();
 		if (size == 1) {
