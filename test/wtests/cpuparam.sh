@@ -16,6 +16,14 @@ case "x"$1 in
 		EMU=emu6502
 		break
 		;;
+	x65c02)
+		CPU=65c02
+		LINK=ld6502
+		LIB=6502
+		LINKOPT="-C512 -Z0"
+		EMU=emu65c816
+		break
+		;;
 	x65c816)
 		CPU=65c816
 		LINK=ld6502
