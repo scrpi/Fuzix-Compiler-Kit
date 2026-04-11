@@ -131,6 +131,7 @@ struct cpu_table {
 const char *def6502[] = { "__6502__", NULL };
 const char *def65c02[] = { "__6502__", "__65c02__", NULL };
 const char *def65c816[] = { "__65c816__", NULL };
+const char *feat816[] = { "bank0", NULL };
 const char *def6303[] = { "__6803__", "__6303__", NULL };
 const char *def6800[] = { "__6800__", "__6800__", NULL };
 const char *def6803[] = { "__6803__", NULL };
@@ -191,7 +192,8 @@ const char *cpucode;
 struct cpu_table cpu_rules[] = {
 	{ "6502", "6502", ".6502", "lib6502.a", "6502", def6502, ld6502, "0", 0, NULL },
 	{ "65c02", "6502", ".6502", "lib65c02.a", "65c02", def65c02, ld6502, "1" , 0, NULL},
-	{ "65c816", "6502", ".65c816", "lib65c816.a", "65c816", def65c816, ld6502, "0" , 0, NULL},
+	/* This is going to need a way to change the lib paths too TODO */
+	{ "65c816", "6502", ".65c816", "lib65c816.a", "65c816", def65c816, ld6502, "0" , 0, feat816},
 	{ "6303", "6800", ".6800", "lib6303.a", "6303", def6303, ld6800, "6303" , 1, NULL},
 	{ "6800", "6800", ".6800", "lib6800.a", "6800", def6800, ld6800, "6800" , 0, NULL},
 	{ "6803", "6800", ".6800", "lib6803.a", "6803", def6803, ld6800, "6803" , 1, NULL},

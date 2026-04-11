@@ -73,6 +73,14 @@
  *	  ldx blah, lda n,x and avoid shuffling registers. Make sure
  *	  to also cover DEREFPLUS
  *
+ *	TODO: BANK0 mode
+ *	- redo an argpush for BANK0 to spot when we can PEA stuff
+ *	- is it better to round frame sizes
+ *	- do we want to clean up in caller ?
+ *		(PLA PLA is ok, complex ones STA n,S (overwrite highest arg to clean); ADD all but
+ *		highest then TAS and PLA to get the arg back ?
+ *	- how to redo optimisations relying on STX ,Y and LDX ,Y
+ *	- port support library
  */
 
 #include <stdio.h>
@@ -98,6 +106,7 @@ static unsigned argbase;	/* Track shift between arguments and stack */
 static unsigned livesize = 2;	/* 16bit mode generating for */
 static unsigned cursize = 2;	/* 16bit mode currently set */
 static unsigned ccvalid;	/* CC state */
+static char sp_reg = 'y';	/* SP register to use */
 
 #define CC_NONE		0	/* CC meaningless */
 #define CC_VALID	1	/* CC valid for 0 / not zero on A */
@@ -122,6 +131,8 @@ static unsigned ccvalid;	/* CC state */
 #define T_LEQ		(T_USER+13)	/* *local + offset = n*/
 #define T_EQPLUS	(T_USER+14)	/*  ac[offset] =  */
 
+
+#define BANK0		(cpufeat & 1)	/* Running with data in bank 0, so can use native stack */
 
 /*
  *	65C816 specifics. We need to track some register values to produce
@@ -597,7 +608,7 @@ static int do_pri(struct node *n, const char *op, void (*pre)(struct node *__n),
 			/* TODO: use zp hacks stack tracking */
 		}
 		setsize(s);
-		outputnc("%s %d,y", op, r->value + sp);
+		outputnc("%s %d,%c", op, r->value + sp, sp_reg);
 		set16bit();
 		return 1;
 	case T_NREF:
@@ -691,9 +702,9 @@ static int do_pri_cc(struct node *n, const char *op, void (*pre)(struct node *__
 		}
 		setsize(s);
 		if (s == 2)
-			outputcc("%s %d,y", op, r->value + sp);
+			outputcc("%s %d,%c", op, r->value + sp, sp_reg);
 		else
-			outputnc("%s %d,y", op, r->value + sp);
+			outputnc("%s %d,%c", op, r->value + sp, sp_reg);
 		set16bit();
 		return 1;
 	case T_NREF:
@@ -897,10 +908,13 @@ static int leftop_memc(struct node *n, const char *op)
 	case T_ARGUMENT:
 		v += argbase + frame_len;
 	case T_LOCAL:
-		/* We can do ,x but not ,y */
+		/* We can do ,x but not ,y or ,s */
 		v += sp;
 		invalidate_x();
-		output("tyx");
+		if (BANK0)
+			output("tsx");
+		else
+			output("tyx");
 		setsize(sz);
 		if (!nr && preload) {
 			outputcc("lda %d,x", v);
@@ -1097,19 +1111,22 @@ struct node *gen_rewrite_node(struct node *n)
 			}
 		}
 	}
-	if ((op == T_DEREF || op == T_DEREFPLUS) && r->op == T_LREF) {
-		/* At this point r->value is the offset for the local */
-		/* n->value is the offset for the ptr load */
-		r->val2 = n->value;		/* Save the offset so it is squashed in */
-		squash_right(n, T_LDEREF);	/* n->value becomes the local ref */
-		return n;
-	}
-	if ((op == T_EQ || op == T_EQPLUS) && l->op == T_LREF) {
-		/* At this point r->value is the offset for the local */
-		/* n->value is the offset for the ptr load */
-		l->val2 = n->value;		/* Save the offset so it is squashed in */
-		squash_left(n, T_LEQ);	/* n->value becomes the local ref */
-		return n;
+	if (!BANK0) {
+		if ((op == T_DEREF || op == T_DEREFPLUS) && r->op == T_LREF) {
+			/* At this point r->value is the offset for the local */
+			/* n->value is the offset for the ptr load */
+			r->val2 = n->value;		/* Save the offset so it is squashed in */
+			squash_right(n, T_LDEREF);	/* n->value becomes the local ref */
+			return n;
+		}
+		/* This doesn't actually help us when we are usign ,S modes */
+		if ((op == T_EQ || op == T_EQPLUS) && l->op == T_LREF) {
+			/* At this point r->value is the offset for the local */
+			/* n->value is the offset for the ptr load */
+			l->val2 = n->value;		/* Save the offset so it is squashed in */
+			squash_left(n, T_LEQ);	/* n->value becomes the local ref */
+			return n;
+		}
 	}
 
 	/* Rewrite references into a load operation */
@@ -1226,13 +1243,27 @@ void gen_frame(unsigned size, unsigned argsize)
 	frame_len = size;
 	arg_len = argsize;
 
+	/* TODO BANK0 do we align odd frame sizes as we have no DES */
 	if (size == 0)
 		return;
 
 	sp = 0;
 	/* Maybe shortcut some common values ? */
 
-	if (size) {
+	if (BANK0) {
+		if (size > 12 || (size & 1)) {
+			/* Do it the hard way */
+			output("tsa");
+			output("sec");
+			output("sbc #%u\n", size);
+			output("tas");
+		} else {
+			while(size > 1) {
+				output("pha");
+				size -= 2;
+			}
+		}
+	} else {
 		if (size <= 6)
 			repeated_op(size, "dey");
 		else {
@@ -1240,6 +1271,23 @@ void gen_frame(unsigned size, unsigned argsize)
 			outputnc("clc");
 			output("adc #%d", -size);
 			output("tay");
+		}
+	}
+}
+
+static void gen_cleanup(unsigned size)
+{
+	if (size > 16 || (size % 1)) {
+		output("tax");
+		output("tsa");
+		output("clc");
+		output("adc #%u", size);
+		output("tas");
+		outputcc("txa");
+	} else {
+		while(size >= 2) {
+			output("plx");
+			size -= 2;
 		}
 	}
 }
@@ -1255,30 +1303,36 @@ void gen_epilogue(unsigned size, unsigned argsize)
 	if (unreachable)
 		return;
 	/* Called function cleans up arguments on 65c816 - except vararg */
-	if (!(func_flags & F_VARARG))
+	/* On BANK0 cases we always clean up args in the call */
+	if (!BANK0 && !(func_flags & F_VARARG))
 		size += argsize;
 	if (func_flags & F_VOIDRET)
 		cost -= 2;
 	assume16bit();
-	/* Use the helper for small cases */
-	if (optsize && size > 3 && size < 12) {
-		outputnc("jmp __fnexit%d", size);
-		unreachable = 1;
-		return;
-	}
-	/* Ugly as we need to preserve A */
-	if (size) {
-		if (size <= cost)
-			repeated_op(size, "iny");
-		else {
-			if (!(func_flags & F_VOIDRET))
-				outputnc("pha");
-			output("tya");
-			outputnc("clc");
-			output("adc #%d", size);
-			output("tay");
-			if (!(func_flags & F_VOIDRET))
-				outputcc("pla");
+	if (BANK0)
+		/* TODO sort out stack padding */
+		gen_cleanup(size);
+	else {
+		/* Use the helper for small cases */
+		if (optsize && size > 3 && size < 12) {
+			outputnc("jmp __fnexit%d", size);
+			unreachable = 1;
+			return;
+		}
+		/* Ugly as we need to preserve A */
+		if (size) {
+			if (size <= cost)
+				repeated_op(size, "iny");
+			else {
+				if (!(func_flags & F_VOIDRET))
+					outputnc("pha");
+				output("tya");
+				outputnc("clc");
+				output("adc #%d", size);
+				output("tay");
+				if (!(func_flags & F_VOIDRET))
+					outputcc("pla");
+			}
 		}
 	}
 	outputnc("rts");
@@ -1454,6 +1508,8 @@ void gen_start(void)
 	outputnc(".a16");
 	outputnc(".i16");
 	outputnc(".code");
+	if (BANK0)
+		sp_reg = 's';
 }
 
 void gen_end(void)
@@ -1478,9 +1534,10 @@ void gen_tree(struct node *n)
 unsigned gen_push(struct node *n)
 {
 	unsigned s = get_stack_size(n->type);
-/* Doesn't affect data stack    sp += s; */
-	/* These don't invalidate registers and set Y to 0, so handle them
-	   directly */
+
+	if (BANK0)
+		sp += s;
+	/* Doesn't affect data stack if using a separate Y stack */
 	switch (s) {
 	case 1:
 	case 2:
@@ -1553,7 +1610,9 @@ unsigned gen_direct(struct node *n)
 		   type of the function return so don't use that for the cleanup value
 		   in n->right */
 	case T_CLEANUP:
-		if (n->val2) {
+		if (BANK0)
+			gen_cleanup(r->value);
+		else if (n->val2) {
 			if (!(func_flags & F_VOIDRET))
 				move_a_x();
 			output("tya");
@@ -1571,9 +1630,9 @@ unsigned gen_direct(struct node *n)
 		/* Avoid lstore going via @hireg if not needed */
 		if (s == 4 && r->op == T_CONSTANT && nr) {
 			load_a(r->value >> 16);
-			outputnc("sta %u,y\n", n->value + sp + 2);
+			outputnc("sta %u,%c\n", n->value + sp + 2, sp_reg);
 			load_a(r->value);
-			outputnc("sta %u,y\n", n->value + sp);
+			outputnc("sta %u,%c\n", n->value + sp, sp_reg);
 			return 1;	
 		}
 		return 0;
@@ -2495,9 +2554,12 @@ unsigned gen_shortcut(struct node *n)
 	/* We should never meet an ARGCOMMA as they are handled by
 	   gen_fcall */
 	if (n->op == T_ARGCOMMA) {
-		fprintf(stderr, "argcomma?\n");
+		if (BANK0)
+			return 0;
+		else
+			fprintf(stderr, "argcomma?\n");
 	}
-	if (n->op == T_FUNCCALL) {
+	if (!BANK0 && n->op == T_FUNCCALL) {
 		/* Generate and stack all the arguments */
 		gen_fcall(l);
 		/* Generate the address of the function */
@@ -2511,7 +2573,7 @@ unsigned gen_shortcut(struct node *n)
 		invalidate_regs();
 		return 1;
 	}
-	if (n->op == T_CALLNAME) {
+	if (!BANK0 && n->op == T_CALLNAME) {
 		gen_fcall(l);
 		invalidate_regs();
 		invalidate_mem();
@@ -2522,9 +2584,9 @@ unsigned gen_shortcut(struct node *n)
 	 *      For some internal functions it is easier to handle them
 	 *      as if we C like function calls with values on the data
 	 *      stack not the CPU one. We could even do fp in C this way
-	 *      if we needed to.
+	 *      if we needed to. Only used on non BANK0 case.
 	 */
-	if ((p = longfn(n)) != NULL) {
+	if (!BANK0 && (p = longfn(n)) != NULL) {
 		if (l)
 			argstack(l);
 		if (c_call(n)) {
@@ -2811,17 +2873,17 @@ unsigned gen_node(struct node *n)
 			}
 			setsize(size);
 			if (size == 2)
-				outputcc("lda %d,y", v);
+				outputcc("lda %d,%c", v, sp_reg);
 			else
-				outputnc("lda %d,y", v);
+				outputnc("lda %d,%c", v, sp_reg);
 			set16bit();
 			set_a_node(n);
 			return 1;
 		}
 		if (size == 4) {
-			outputnc("lda %d,y", v + 2);
+			outputnc("lda %d,%c", v + 2, sp_reg);
 			outputnc("sta @hireg");
-			outputnc("lda %d,y", v);
+			outputnc("lda %d,%c", v, sp_reg);
 			return 1;
 		}
 		return 0;
@@ -2858,7 +2920,7 @@ unsigned gen_node(struct node *n)
 		}
 		return 0;
 	case T_LSTORE:
-		/* Can't stz n,y so no stz check */
+		/* Can't stz n,y or n,s so no stz check */
 		if (size <= 2 && pri(n, "sta")) {
 			invalidate_mem();
 			set_a_node(n);
@@ -2867,9 +2929,9 @@ unsigned gen_node(struct node *n)
 		if (size == 4) {
 			if (!nr)
 				outputnc("pha");
-			outputnc("sta %d,y", n->value + sp);
+			outputnc("sta %d,%c", n->value + sp, sp_reg);
 			output("lda @hireg");
-			outputnc("sta %d,y", n->value + sp + 2);
+			outputnc("sta %d,%c", n->value + sp + 2, sp_reg);
 			if (!nr)
 				outputnc("pla");
 			invalidate_a();
@@ -2972,6 +3034,7 @@ unsigned gen_node(struct node *n)
 		invalidate_regs();
 		return 1;
 	case T_LEQ:
+		/* Not used in BANK0 case */;
 		/* val2: offset of variable, value: offset on pointer */
 		v += sp;
 		if (size <= 2) {
@@ -3011,6 +3074,7 @@ unsigned gen_node(struct node *n)
 		}
 		return 1;
 	case T_LDEREF:
+		/* Not used in BANK0 case */
 		/* val2: offset of variable, value: offset on pointer */
 		v += sp;
 		if (size <= 2) {
