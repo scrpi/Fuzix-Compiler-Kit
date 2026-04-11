@@ -1070,7 +1070,7 @@ struct node *gen_rewrite_node(struct node *n)
 			n->value = 0;	/* So we can treat deref/derefplus together */
 		if (r->op == T_PLUS) {
 			off = n->value + r->right->value;
-			if (r->right->op == T_CONSTANT && off < 254) {
+			if (r->right->op == T_CONSTANT) {
 				n->op = T_DEREFPLUS;
 				free_node(r->right);
 				n->right = r->left;
@@ -1086,7 +1086,7 @@ struct node *gen_rewrite_node(struct node *n)
 			n->value = 0;	/* So we can treat deref/derefplus together */
 		if (l->op == T_PLUS) {
 			off = n->value + l->right->value;
-			if (l->right->op == T_CONSTANT && off < 254) {
+			if (l->right->op == T_CONSTANT) {
 				n->op = T_EQPLUS;
 				free_node(l->right);
 				n->left = l->left;
@@ -1583,7 +1583,7 @@ unsigned gen_direct(struct node *n)
 			invalidate_mem();
 			move_a_x();
 			setsize(s);
-			output("stz %u,x", n->val2);
+			output("stz %u,x", n->value);
 			set16bit();
 			return 1;
 		}
@@ -1592,7 +1592,7 @@ unsigned gen_direct(struct node *n)
 			invalidate_a();
 			invalidate_mem();
 			setsize(s);
-			outputnc("sta %u,x", n->val2);
+			outputnc("sta %u,x", n->value);
 			set16bit();
 			return 1;
 		}
