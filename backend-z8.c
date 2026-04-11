@@ -2690,8 +2690,8 @@ unsigned gen_direct(struct node *n)
 			load_r_r(R_INDEX + 1, R_ACPTR + 1);
 			load_r_memr(R_AC, R_INDEX, size);
 			push_ac(size);
-			add_r_const(0, -v, size);
-			revstore_r_memr(0, 2, size);
+			add_r_const(R_AC, -v, size);
+			revstore_r_memr(R_AC, R_INDEX, size);
 			pop_ac(size);
 			return 1;
 		}
@@ -2708,7 +2708,7 @@ unsigned gen_direct(struct node *n)
 		}
 		/* FIXME: will need an "and not register" check */
 		if (r->op == T_CONSTANT) {
-			if ((n->flags & NORETURN)  && size <= 2) {
+			if (nr && size <= 2) {
 				load_r_memr(0, R_ACPTR, size);
 				sub_r_const(0, v, size);
 				revstore_r_memr(0, R_ACPTR, size);
