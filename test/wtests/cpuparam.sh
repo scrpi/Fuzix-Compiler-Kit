@@ -120,6 +120,14 @@ case "x"$1 in
 		EMU=emuz80
 		break
 		;;
+	xz8)
+		CPU=z8
+		LINK=ldz8
+		LIB=z8
+		LINKOPT="-C0 -Z48"
+		EMU=emuz8
+		break
+		;;
 	*)
 		echo "Unknown processor"
 		exit 1

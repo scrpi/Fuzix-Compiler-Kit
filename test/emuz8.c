@@ -33,13 +33,19 @@ uint8_t z8_read_code_debug(struct z8 *cpu, uint16_t addr)
 
 void z8_write_data(struct z8 *cpu, uint16_t addr, uint8_t val)
 {
+    int x;
+
 //    fprintf(stderr, "W%04X<-%02X\n", addr, val);
     switch(addr) {
+    case 0xFFFD:
+        x = (ram[0xFFFC] << 8) + val;
+        if (x > 0x8000)
+            x -= 0x10000;
+        printf("%d\n", x);
+        fflush(stdout);
+        return;        
     case 0xFFFE:
-        if (val < 32 || val > 127)
-            printf("\\x%02X", val);
-        else
-            putchar(val);
+        putchar(val);
         fflush(stdout);
         return;
     case 0xFFFF:
