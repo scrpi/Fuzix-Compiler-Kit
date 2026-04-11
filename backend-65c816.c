@@ -1809,12 +1809,10 @@ unsigned gen_direct(struct node *n)
 			/* Condition codes are valid so no work neede */
 			if (r->op == T_CONSTANT && s <= 2) {
 				if (r->value == 0) {
-					if (ccvalid)
-						return 1;
-					invalidate_x();
-					/* Force a tax to set the flags as it's
-					   cheaper than a compare */
-					move_a_x_ccvalid();
+					if (!ccvalid)
+						/* Force a tax to set the flags as it's
+						   cheaper than a compare */
+						move_a_x_ccvalid();
 					jflags = "eqne";
 					return 1;
 				}
