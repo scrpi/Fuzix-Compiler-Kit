@@ -12,5 +12,6 @@ __not:
 	lda #1
 	cpx #0
 	beq done
-	txa
-done:	rts
+	dec a
+done:	tax
+	rts
