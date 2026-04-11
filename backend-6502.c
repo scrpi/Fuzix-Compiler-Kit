@@ -2048,6 +2048,7 @@ unsigned gen_direct(struct node *n)
 	unsigned s = get_size(n->type);
 	struct node *r = n->right;
 	unsigned nr = n->flags & NORETURN;
+	unsigned is_byte = (n->flags & (BYTETAIL | BYTEOP)) == (BYTETAIL | BYTEOP);
 	unsigned v;
 
 	if (r)
@@ -2397,6 +2398,10 @@ unsigned gen_direct(struct node *n)
 	 */
 	case T_EQEQ:
 		if (r->op == T_CONSTANT && v == 0) {
+			if (is_byte) {
+				output("tax");	/* For now TODO */
+				/* And fall through until we have CCONLY support */
+			}
 			/* TODO: not via helper */
 			n->flags |= ISBOOL;
 			helper(n, "not");
@@ -2414,6 +2419,10 @@ unsigned gen_direct(struct node *n)
 		return pri_cchelp(n, s, "gttmp");
 	case T_BANGEQ:
 		if (r->op == T_CONSTANT && v == 0) {
+			if (is_byte) {
+				output("tax");	/* For now TODO */
+				/* And fall through until we have CCONLY support */
+			}
 			/* TODO: not via helper */
 			n->flags |= ISBOOL;
 			helper(n, "bool");
@@ -3208,7 +3217,7 @@ unsigned gen_node(struct node *n)
 		if (r->flags & ISBOOL)
 			return 1;
 		n->flags |= ISBOOL;
-		if (n->flags & BYTEABLE) {
+		if (size == 1 || (n->flags & BYTEABLE)) {
 			tax();	/* Set the Z flag */
 			output("beq X%u", ++xlabel);
 			load_a(1);
