@@ -2401,6 +2401,10 @@ const char *longfn(register struct node *n)
 			return "rem";
 		case T_STAR:
 			return "mul";
+		case T_PLUS:
+			return "plus";
+		case T_MINUS:
+			return "minus";
 		case T_LT:
 			n->flags |= ISBOOL;
 			return "cclt";
