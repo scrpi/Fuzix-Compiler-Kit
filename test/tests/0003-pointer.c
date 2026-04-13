@@ -42,6 +42,6 @@ int main(int argc, char *argv[])
     if (--bp != buf)
         return 9;
     if (bp-- != buf)
-        return 9;
+        return 10;
     return 0;
 }
