@@ -1412,6 +1412,8 @@ unsigned gen_direct(struct node *n)
 			n->flags |= ISBOOL;
 			return 1;
 		}
+		/* For 16bit we should make use of ld de,-nnnn add hl,de
+		   ld hl,0 jr z,false inc l or similar */
 		return gen_compc("cmpeq", n, r, 0);
 	case T_GTEQ:
 		/* We can do some nice tricks with these for 8bit */
