@@ -137,7 +137,7 @@ uses Y as the C stack pointer and uses the CPU stack for temporary values
 during expression evaluation and the all actual call/return addresses. Split
 code/data is supported but not multiple data or code banks in one application
 (that is pointers are 16bit). Going beyond that gets very ugly very fast as on
-8086. Still needs float support finishing and some bugs chasing down.
+65C816.
 
 ### 6800
 
