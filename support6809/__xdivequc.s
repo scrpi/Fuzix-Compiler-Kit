@@ -1,11 +1,5 @@
 ;
-;	D = ,X / D signed
-;
-;	The rules for signed divide are
-;	Dividend and remainder have the same sign
-;	Quotient is negative if signs disagree
-;
-;	So we do the maths in unsigned then fix up
+;	D = ,X / D unsigned
 ;
 	.export __xdivequc
 	.export __xremequc
@@ -15,12 +9,11 @@ __xremequc:
 	clra
 	ldx ,x
 	exg d,x
+	exg a,b			; ldx ,x ended and exg ended up in A not B
 	clra
 	exg d,x
 	lbsr div16x16		; do the unsigned divide
-store:
-	ldx ,s++
-	stb ,x
+	stb [,s++]
 	rts
 	
 __xdivequc:
@@ -28,9 +21,11 @@ __xdivequc:
 	ldx ,x			; Data value
 	clra
 	exg d,x
+	exg a,b			; ldx ,x ended and exg ended up in A not B
 	clra
 	exg d,x
 	lbsr div16x16		; do the maths
 				; X = quotient, D = remainder
-	tfr x,d
-	bra store
+	exg d,x
+	stb [,s++]
+	rts
