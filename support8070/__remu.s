@@ -123,6 +123,9 @@ __remequc:
 	push p2
 	push ea
 	ld ea,t
+	xch a,e
+	ld a,=0
+	xch a,e
 	jsr __remu
 	pop p2
 	st a,0,p2
@@ -152,6 +155,9 @@ __divequc:
 	push p2
 	push ea
 	ld ea,t
+	xch a,e
+	ld a,=0
+	xch a,e
 	jsr __divu
 	pop p2
 	st a,0,p2

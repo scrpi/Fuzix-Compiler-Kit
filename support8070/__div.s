@@ -128,11 +128,12 @@ __diveqc:
 	pop p2
 	push p3
 	ld t,ea
-	ld ea,=0
 	ld a,0,p2
+	jsr __castc_
 	push p2
 	push ea
 	ld ea,t
+	jsr __castc_
 	jsr __div
 	pop p2
 	st a,0,p2
@@ -158,11 +159,12 @@ __remeqc:
 	pop p2
 	push p3
 	ld t,ea
-	ld ea,=0
 	ld a,0,p2
+	jsr __castc_
 	push p2
 	push ea
 	ld ea,t
+	jsr __castc_
 	jsr __rem
 	pop p2
 	st a,0,p2
