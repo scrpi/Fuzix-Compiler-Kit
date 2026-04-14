@@ -63,6 +63,9 @@ int main(int argc, char *argv[])
 {
     unsigned n;
     signed i;
+    unsigned char u;
+    signed char c;
+
     if (mul(0xFF,0xFF) != 65025U)
         return 1;
     if (mul(0xFF,0) != 0)
@@ -142,5 +145,27 @@ int main(int argc, char *argv[])
     i = 1;
     if (i / 2)
         return 34;
+
+    u = 32;
+    u /= 4;
+    if (u != 8)
+        return 35;
+    u %= 12;
+    if (u != 8)
+        return 36;
+    c = -32;
+    c /= 4;
+    if (c != -8)
+        return 37;
+    c %= 10;
+    if (c != -8)
+        return 38;
+    /* Signed divide round towards zero check */
+    c = -1;
+    if (c / 2)
+        return 39;
+    c = 1;
+    if (c / 2)
+        return 40;
     return 0;
 }
