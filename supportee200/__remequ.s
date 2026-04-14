@@ -24,6 +24,7 @@ __remequc:
 	clr	ah
 	stx	(-s)
 	sta	(-s)
+	clr	bh
 	jsr	__remu
 	ldx	(s+)
 	lda	2(s)

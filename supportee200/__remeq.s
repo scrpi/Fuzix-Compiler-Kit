@@ -22,10 +22,15 @@ __remeqc:
 	lda	2(s)
 	ldab	(a)
 	clrb	ah
+	clrb	bh
 	orib	al,al
 	bp	ispve
 	dcrb	ah
 ispve:
+	orib	bl,bl
+	bp	ispve2
+	dcrb	bh
+ispve2:
 	stx	(-s)
 	sta	(-s)
 	jsr	__rem

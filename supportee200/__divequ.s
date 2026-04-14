@@ -22,6 +22,7 @@ __divequc:
 	lda	2(s)
 	ldab	(a)
 	clr	ah
+	clr	bh
 	stx	(-s)
 	sta	(-s)
 	jsr	__divu

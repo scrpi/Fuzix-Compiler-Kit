@@ -22,16 +22,21 @@ __diveqc:
 	lda	2(s)
 	ldab	(a)
 	clrb	ah
+	clr	bh
 	orib	al,al
 	bp	ispve
 	dcrb	ah
 ispve:
+	orib	bl,bl
+	bp	ispve2
+	dcrb	bh
+ispve2:
 	stx	(-s)
 	sta	(-s)
 	jsr	__div
 	ldx	(s+)
 	lda	2(s)
-	stb	(a)
+	stbb	(a)
 	inr	s
 	inr	s
 	rsr
