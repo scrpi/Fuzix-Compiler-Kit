@@ -7,7 +7,7 @@
 
 ;
 ;	Get (TOS) into @tmp. Preserve XA
-;	Retuns with Y = 2 (so in theory you can access the upper for a long)
+;	Retuns with Y = 1
 ;
 __eqget:
 	pha
@@ -26,11 +26,12 @@ __eqget:
 	pla
 	rts
 ;
-;	Get (TOS) into @tmp. Preserve XA
+;	Get (TOS) into @tmp. Preserve XA Y = 0 on return
 ;
 __eqgetc:
 	pha
 	ldy	#0
+	sty	@tmp+1		; so high is precleared
 	lda	(@sp),y
 	sta	@tmp2
 	iny
@@ -43,7 +44,7 @@ __eqgetc:
 	rts
 
 ;
-;	Put XA into (TOS), pop TOS, preserve XA
+;	Put XA into (TOS), pop TOS, preserve XA, Y = 1 on return
 ;
 __eqput:
 	jsr	__poptmp

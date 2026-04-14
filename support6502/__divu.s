@@ -7,6 +7,8 @@
 	.export __remequ
 	.export __l_divu
 	.export __l_remu
+	.export __divequc
+	.export __remequc
 
 ;
 ;	 XA/local
@@ -93,3 +95,25 @@ __remequ:
 	jmp	__eqput			; pop TOS into @tmp,
 					; write (XA) back into TOS
 					; return result in XA
+
+;
+;	(TOS) / A
+;
+__divequc:
+	ldx	#0			; clear upper
+	jsr	__eqgetc		; clears upper of fetched value
+	jsr	__divtmpu
+	jsr	__poptmp
+	sta	(@tmp),y
+	rts	
+
+;
+;	(TOS) / A
+;
+__remequc:
+	ldx	#0
+	jsr	__eqgetc
+	jsr	__remtmpu
+	jsr	__poptmp
+	sta	(@tmp),y
+	rts	

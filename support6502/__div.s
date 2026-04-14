@@ -4,6 +4,8 @@
 	.export __remtmp
 	.export __diveq
 	.export __remeq
+	.export __diveqc
+	.export __remeqc
 	.export __l_div
 	.export __l_rem
 
@@ -111,3 +113,44 @@ __remeq:
 	jmp	__eqput			; pop TOS into @tmp,
 					; write (XA) back into TOS
 					; return result in XA
+
+;
+;	These are slow but almost never used
+;
+
+;
+;	(TOS) / XA
+;
+__diveqc:
+	jsr	sex
+	jsr	__eqgetcs		; @tmp is the value
+	jsr	__divtmp
+	jmp	__eqput			; pop TOS into @tmp,
+					; write (XA) back into TOS
+					; return result in XA
+;
+;	(TOS) % XA
+;
+__remeqc:
+	jsr	sex
+	jsr	__eqgetcs		; @tmp is the value
+	jsr	__remtmp
+	jmp	__eqput			; pop TOS into @tmp,
+					; write (XA) back into TOS
+					; return result in XA
+
+sex:
+	ldx	#0
+	cmp	#0x80
+	bcc	noneg
+	dex
+noneg:	rts
+
+__eqgetcs:
+	jsr	__eqgetc
+	pha
+	lda	@tmp			; @tmp+1 is currenty zero
+	bpl	nosex
+	dec	@tmp+1			; upper to $FF
+nosex:	pla
+	rts
