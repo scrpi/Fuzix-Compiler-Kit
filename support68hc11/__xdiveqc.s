@@ -60,7 +60,7 @@ __xdiveqc:
 				; X = quotient, D = remainder
 	xgdx
 	cpy #1
-	bne store		; low bit set -> negate
+	beq store		; low bit set -> negate
 	negb
 	bra store
 	
