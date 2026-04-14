@@ -24,6 +24,15 @@ static void print_int(int xx, int base, int sign) {
     printchar(buf[i]);
 }
 
+/* Stack directions are fun */
+#if defined(__tms7000__)
+#define argbase() (&fmt - 1)
+#define getarg() (*argp--)
+#else
+#define argbase() (&fmt + 1)
+#define getarg() (*argp++)
+#endif
+
 // Print to the console. only understands %d, %x, %p, %s.
 void cprintf(char *fmt, ...) {
   int i, c, locking;
@@ -34,7 +43,7 @@ void cprintf(char *fmt, ...) {
     // panic("null fmt");
     return;
 
-  argp = (unsigned int *) (void *) (&fmt + 1);
+  argp = (unsigned int *) (void *) argbase();
 
   for (i = 0; (c = fmt[i] & 0xff) != 0; i++) {
     if (c != '%') {
@@ -49,17 +58,17 @@ void cprintf(char *fmt, ...) {
       printchar((char) (*argp & 0xff)); argp++;
       break;
     case 'd':
-      print_int(*argp++, 10, 1);
+      print_int(getarg(), 10, 1);
       break;
     case 'o':
-      print_int(*argp++, 8, 1);
+      print_int(getarg(), 8, 1);
       break;
     case 'x':
     case 'p':
-      print_int(*argp++, 16, 0);
+      print_int(getarg(), 16, 0);
       break;
     case 's':
-      if ((s = (char *) *argp++) == 0)
+      if ((s = (char *) getarg()) == 0)
 	s = "(null)";
       for(; *s; s++)
         printchar(*s);
