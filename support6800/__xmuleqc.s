@@ -1,18 +1,20 @@
 ;
 ;	,X *= D
 ;
-	.export __xmulequc
 	.export __xmuleqc
+	.export __xmulequc
 
 __xmuleqc:
 __xmulequc:
-	;	Only the low bytes of the input matter
-	pshs x		; Save the address
-	lda ,x		; Get the ,X value
-	pshs a,cc	; Stack it and a spare random byte
-	pshs x		; onto the stack
-	jsr __mul	; Do the multiply, D gets result
-	puls x		; Remove arg from stack
-	puls x		; Get the address
-	stb ,x		; Save result
+	stx @tmp4
+	stab @tmp+1
+	clra
+	ldab ,x
+	pshb		; onto the stack
+	psha
+	; A is still clear
+	ldab @tmp+1
+	jsr __mul	; Do the multiply, D gets result, _mul removes the arg
+	ldx @tmp4
+	stab ,x		; Save result
 	rts
