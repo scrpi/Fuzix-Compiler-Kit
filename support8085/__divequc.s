@@ -12,6 +12,8 @@ __divequc:
 	; Now we are doing (HL) / E
 	push	h
 	mov	l,m
+	mvi	h,0
+	mvi	d,0
 	; We are now doing HL / DE and the address we want is TOS
 	call __divdeu
 	; Return is in HL
