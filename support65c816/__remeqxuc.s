@@ -8,8 +8,10 @@
 __remeqxuc:
 	stx @tmp
 	tax
+	lda #0
 	sep #0x20
 	lda 0,x
+	stz @tmp+1
 	rep #0x20
 	phx
 	ldx @tmp

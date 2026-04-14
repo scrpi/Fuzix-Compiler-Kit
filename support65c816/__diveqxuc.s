@@ -8,9 +8,13 @@
 __diveqxuc:
 	stx @tmp
 	tax
+	lda #0
 	sep #$20
+	.a8
 	lda 0,x
+	stz @tmp+1
 	rep #$20
+	.a16
 	phx
 	ldx @tmp
 	jsr __divxu
