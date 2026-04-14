@@ -10,14 +10,14 @@ __muleqxcu:
 __muleqxc:
 	stx @tmp
 	tax
-	rep #0x20
-	lda 0,x
 	sep #0x20
+	lda 0,x
+	rep #0x20
 	phx
 	ldx @tmp
 	jsr __mulx
 	plx
-	rep #0x20
-	sta 0,x
 	sep #0x20
+	sta 0,x
+	rep #0x20
 	rts

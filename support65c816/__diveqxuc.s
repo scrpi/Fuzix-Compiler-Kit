@@ -8,14 +8,14 @@
 __diveqxuc:
 	stx @tmp
 	tax
-	rep #$20
-	lda 0,x
 	sep #$20
+	lda 0,x
+	rep #$20
 	phx
 	ldx @tmp
 	jsr __divxu
 	plx
-	rep #$20
-	sta 0,x
 	sep #$20
+	sta 0,x
+	rep #$20
 	rts
