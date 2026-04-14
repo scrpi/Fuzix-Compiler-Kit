@@ -106,9 +106,8 @@ __diveqc:
 	pop r15
 	push r13
 	push r12
-	clr r0
 	lde r1,@rr14
-	clr r2
+	call sex
 	push r15
 	push r14
 	call __dodivs	; do the division
@@ -141,11 +140,21 @@ __remeqc:
 	pop r15
 	push r13
 	push r12
-	clr r0
 	lde r1,@rr14
-	clr r2
+	call sex
 	push r15
 	push r14
 	call __dorems	; do the division
 	jr storec
 
+sex:
+	; Sign extend r1 and r3 into r0 and r2 respectively
+	clr r0
+	clr r2
+	or r1,r1
+	jr pl, pos1
+	ld r0,#255
+pos1:	or r3,r3
+	jr pl, pos2
+	ld r2,#255
+pos2:	ret

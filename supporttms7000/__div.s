@@ -97,10 +97,9 @@ store:
 
 __diveqc:
 	call @__pop12
-	clr r2
 	lda *r13
 	mov a,r3
-	clr r4
+	call @sex
 	push r12
 	push r13
 	call @__dodivs	; do the division
@@ -127,12 +126,21 @@ __remeq:
 
 __remeqc:
 	call @__pop12
-	clr r2
 	lda *r13
 	mov a,r3
-	clr r4
+	call @sex
 	push r12
 	push r13
 	call @__dorems	; do the division
 	jmp storec
 
+sex:	; Sign extend r3 and r5 into r2 and r4
+	clr r2
+	clr r4
+	or r3,r3
+	jpz pos1
+	dec r2
+pos1:	or r5,r5
+	jpz pos2
+	dec r4
+pos2:	rets
