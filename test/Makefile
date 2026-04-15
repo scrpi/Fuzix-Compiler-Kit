@@ -1,10 +1,10 @@
 all: emu6502 emu65c816 emu6800 emu85 emuz8 emuz80 byte1802 emu6809 \
-     emu7k ee200 nova emu807x \
+     emu7k ee200 nova emu807x emusm83\
      testcrt0_8080.o testcrt0_8085.o testcrt0_z80.o testcrt0_6502.o \
      testcrt0_65c816.o testcrt0_6303.o testcrt0_6803.o testcrt0_6809.o \
      testcrt0_68hc11.o testcrt0_z8.o testcrt0_byte1802.o testcrt0_ee200.o \
      testcrt0_nova.o testcrt0_nova3.o testcrt0_6800.o testcrt0_8070.o \
-     testcrt0_tms7000.o testcrt0_65c02.o
+     testcrt0_tms7000.o testcrt0_65c02.o testcrt0_sm83.o
 
 emu85: emu85.o intel_8085_emulator.o
 	$(CC) emu85.o intel_8085_emulator.o -o emu85
@@ -16,6 +16,10 @@ emu6800.o: emu6800.c 6800.h
 emu807x.o: emu807x.c ns807x.h
 
 ns807x.o: ns807x.h
+
+sm83.o: sm83.h
+
+emusm83.o: sm83.h
 
 intel_8085_emulator.o: intel_8085_emulator.c intel_8085_emulator.h
 
@@ -76,6 +80,9 @@ emu7k: tms7k.o emu7k.o
 emu807x: emu807x.o ns807x.o
 	$(CC) $(CFLAGS) -o emu807x emu807x.o ns807x.o
 
+emusm83: emusm83.o sm83.o
+	$(CC) $(CFLAGS) -o emusm83 emusm83.o sm83.o
+
 z80dis.o: z80dis.h
 
 testcrt0_8080.o: testcrt0_8080.s
@@ -125,6 +132,9 @@ testcrt0_nova.o: testcrt0_nova3.s
 
 testcrt0_nova3.o: testcrt0_nova3.s
 	fcc -mnova3 -c testcrt0_nova3.s
+
+testcrt0_sm83.o: testcrt0_sm83.s
+	fcc -mgb -c testcrt0_sm83.s
 
 testcrt0_tms7000.o: testcrt0_tms7000.s
 	fcc -mtms7000 -c testcrt0_tms7000.s

@@ -644,9 +644,9 @@ void gen_tree(struct node *n)
 static void hl_from_sp(unsigned off)
 {
 	if (off < 128)
-		outputne("ldhl sp,%u", off);
+		outputne("ld hl, sp+%u", off);
 	else {
-		outputne("ld hl,%u", off);
+		outputne("ld hl, %u", off);
 		output("add hl,sp");
 	}
 }
@@ -684,7 +684,7 @@ unsigned gen_lref(unsigned v, unsigned size, unsigned to_de)
 		return 1;
 	}
 	/*
-	 *	Shortest forms use ldhl sp,#n for range up to 127
+	 *	Shortest forms use ld hl, sp+n for range up to 127
 	 */
 	if (size <= 2) {
 		if (to_de && size > 1)
