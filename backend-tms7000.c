@@ -1327,7 +1327,7 @@ static unsigned load_direct(unsigned r, struct node *n, unsigned mm)
 		return 0;
 	switch(n->op) {
 	case T_LOCAL:
-		load_r_local(r, v);
+		load_r_local(r, v + sp);
 		return r;
 	case T_NAME:
 		load_r_name(r, n, v);
@@ -1346,7 +1346,7 @@ static unsigned load_direct(unsigned r, struct node *n, unsigned mm)
 			load_r_memr(r + 1, R_SPL, 1);
 			return r;
 		}
-		load_r_local(R_INDEX, v + size - 1);
+		load_r_local(R_INDEX, v + sp + size - 1);
 		revload_r_memr(r, R_INDEX, size);
 		return r;
 	case T_NREF:
