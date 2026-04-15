@@ -1492,7 +1492,7 @@ struct node *gen_rewrite_node(struct node *n)
 	/* Structure field references from locals. These end up big on the TMS7000 so use
 	   a helper for the lot */
 	/* BUG */
-	if ((optsize | 0) && op == T_DEREF && r->op == T_PLUS && r->right->op == T_CONSTANT) {
+	if ((optsize && 0) && op == T_DEREF && r->op == T_PLUS && r->right->op == T_CONSTANT) {
 		/* For now just do lrefs of offsets within 256 bytes */
 		if (r->left->op == T_LREF && r->left->value < 256) {
 			printf("; rewrite deref plus lref const\n");
@@ -1515,7 +1515,7 @@ struct node *gen_rewrite_node(struct node *n)
 	}
 	/* BUG */
 	/* Structure field assign - same idea */
-	if ((optsize | 0) && op == T_EQ && l->op == T_PLUS && l->right->op == T_CONSTANT) {
+	if ((optsize && 0) && op == T_EQ && l->op == T_PLUS && l->right->op == T_CONSTANT) {
 		/* Same restrictions */
 		if (l->left->op == T_LSTORE && l->left->value < 256) {
 			n->op = T_LSTSTORE;
@@ -3299,9 +3299,9 @@ unsigned gen_node(struct node *n)
 		/* FIXME: will need a "not register" check .. otherwise
 		   use the R_WORK version above */
 		if (size == 2) {
-			/* Pop into r0,r1 which are free as accum is 16bit */
-			pop_rr(0);
-			add_r_r(R_AC, 0, 2);
+			/* Pop into r2,r3 which are free as accum is 16bit */
+			pop_rr(2);
+			add_r_r(R_AC, 2, 2);
 			return 1;
 		}
 		/* size 1 */
