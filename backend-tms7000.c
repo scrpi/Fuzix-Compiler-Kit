@@ -669,18 +669,16 @@ static void rshift_r(unsigned r, unsigned size, unsigned l, unsigned uns)
 		return;
 	if (uns) {
 		/* These can only occur for 32bit shift */
-		if (l == 24) {
+		if (l >= 24) {
 			load_r_r(r + 3, r);
 			load_r_constw(r, 0);
 			load_r_constb(r + 2, 0);
-			return;
-		}
-		if (l == 16) {
+			l -= 24;
+		} else if (l >= 16) {
 			load_rr_rr(r + 2, r);
 			load_r_constw(r, 0);
-			return;
-		}
-		if (l == 8) {
+			l -= 16;
+		} else if (l >= 8) {
 			if (size == 2) {
 				load_r_r(r + 1, r);
 				load_r_constb(r, 0);
@@ -690,9 +688,12 @@ static void rshift_r(unsigned r, unsigned size, unsigned l, unsigned uns)
 				load_r_r(r + 3, r + 2);
 				load_r_constb(r, 0);
 			}
-			return;
+			l -= 8;
 		}
 	}
+	if (l == 0)
+		return;
+
 	if (l > 1) {
 		load_r_constb(R_INDEX, l);
 		x = label();
