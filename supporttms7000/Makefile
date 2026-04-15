@@ -21,7 +21,7 @@ OBJ =	__cast.o __nref.o __nrefl.o __nref10.o __lstref.o __cleanup.o \
       __cpluseq.o __cminuseq.o __cpluseql.o __cminuseql.o \
       __argpush.o __pnref.o __lshift.o __lshiftl.o __mul.o __mull.o __muleql.o \
       __cclt.o __ccgt.o __ccgteq.o __cclteq.o \
-      __opt_stwork.o
+      __opt_stwork.o traps.o
 
 .s.o:
 	fcc -mtms7000 -c $<

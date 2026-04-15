@@ -116,7 +116,7 @@ __remeq:
 	lda *r13
 	mov a,r2
 	add %1,r13
-	adc %1,r12
+	adc %0,r12
 	lda *r13
 	mov a,r3
 	push r12
