@@ -1452,8 +1452,10 @@ static unsigned load_direct(unsigned r, struct node *n, unsigned mm)
 	if (size > 2)
 		return 0;
 	switch(n->op) {
+	case T_ARGUMENT:
+		v += frame_len + argbase;
 	case T_LOCAL:
-		load_r_local(r, v);
+		load_r_local(r, v + sp);
 		return r;
 	case T_NAME:
 		load_r_name(r, n, v);
@@ -1467,7 +1469,7 @@ static unsigned load_direct(unsigned r, struct node *n, unsigned mm)
 			load_work_helper(v, size);
 			return r;
 		}
-		load_r_local(R_INDEX, v);
+		load_r_local(R_INDEX, v + sp);
 		if (size == 1)
 			r++;
 		load_r_memr(r, R_INDEX, size);

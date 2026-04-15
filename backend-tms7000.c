@@ -1327,6 +1327,8 @@ static unsigned load_direct(unsigned r, struct node *n, unsigned mm)
 	if (size > 2)
 		return 0;
 	switch(n->op) {
+	case T_ARGUMENT:
+		v += frame_len + argbase;
 	case T_LOCAL:
 		load_r_local(r, v + sp);
 		return r;
