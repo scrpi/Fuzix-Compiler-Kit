@@ -20,3 +20,4 @@ $LINK -b $LINKOPT -o $b \
 ../$EMU -d $b $b.map 2> $b.log
 #rm -f $b.o $b $b.map 
 fcc -m$CPU $OPT -S $b.c
+fcc -m$CPU $OPT -S cprintf.c
