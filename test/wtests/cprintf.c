@@ -25,7 +25,7 @@ static void print_int(int xx, int base, int sign) {
 }
 
 /* Stack directions are fun */
-#if defined(__tms7000__)
+#if STACK_GROWS_UP
 #define argbase() (&fmt - 1)
 #define getarg() (*argp--)
 #else
