@@ -7,10 +7,11 @@
 __ccgtequ:
 	ld	d,h
 	ld	e,l
-	ld	hl,sp+3
+	ld	hl,sp+2
 	call	__cmpgtequ
 	jp	__popint
 __cmpgtequ:
+	inc	hl
 	ldd	a,(hl)
 	cp	d
 	jr	c, true

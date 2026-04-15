@@ -7,10 +7,11 @@
 __cclt:
 	ld	d,h
 	ld	e,l
-	ld	hl,sp+3
+	ld	hl,sp+2
 	call	__cmplt
 	jp	__popint
 __cmplt:
+	inc	hl
 	ldd	a,(hl)
 	xor	d
 	cp	128

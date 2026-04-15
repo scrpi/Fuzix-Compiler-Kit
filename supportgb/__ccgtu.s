@@ -7,11 +7,12 @@
 __ccgtu:
 	ld	d,h
 	ld	e,l
-	ld	hl,sp+3
+	ld	hl,sp+2
 	call	__cmpgtu
 	jp	__popint
 
 __cmpgtu:
+	inc	hl
 	ldd	a,(hl)
 	cp	d
 	jr	c, false

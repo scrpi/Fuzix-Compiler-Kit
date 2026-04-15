@@ -7,10 +7,11 @@
 __ccltu:
 	ld	d,h
 	ld	e,l
-	ld	hl,sp+3
+	ld	hl,sp+2
 	call	__cmplt
 	jp	__popint
 __cmpltu:
+	inc	hl
 	ldd	a,(hl)
 	cp	d
 	jr	c, true

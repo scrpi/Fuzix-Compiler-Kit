@@ -494,9 +494,10 @@ static void alu_add_sp(unsigned r, uint8_t ob)
     int16_t v = (int8_t)ob;
     reg[REG_F] = 0;
     /* Do the low byte with flags */
-    reg[r] = alu_adc(reg[r], v & 0xFF);
+    reg[r] = alu_adc(reg[REG_SP], v & 0xFF);
     /* Now do high byte */
     r--;
+    reg[r] = reg[REG_SPH];
     if (reg[REG_F] & F_C)
         reg[r]++;
     reg[r] += v >> 8;
@@ -578,6 +579,9 @@ static void page3(void)
     case 3:
         /* Real mix on 8080 but only DI EI and CB on SM83 */
         switch(ir) {
+        case 0xC3:
+            do_jp(1);
+            break;
         case 0xF3:
             ime = 0;
             break;
@@ -951,20 +955,15 @@ static const char *dis_page1(void)
 }
 
 static const char *alun_r[8]= {
-    "add a,R",
-    "adc a,R",
-    "sub a,R",
-    "sbc a,R",
-    "and a,R",
-    "or a,R",
-    "xor a,R",
-    "cp a,R"
+    "add a,Z",
+    "adc a,Z",
+    "sub a,Z",
+    "sbc a,Z",
+    "and a,Z",
+    "or a,Z",
+    "xor a,Z",
+    "cp a,Z"
 };
-
-static const char *dis_page2(void)
-{
-    return alun_r[y];
-}
 
 static const char *alun_i[8]= {
     "add a,N",
@@ -1029,6 +1028,8 @@ static const char *dis_page3(void)
     case 3:
         /* Real mix on 8080 but only DI EI and CB on SM83 */
         switch(ir) {
+        case 0xC3:
+            return "jp NN";
         case 0xF3:
             return "di";
         case 0xFB:
@@ -1105,6 +1106,7 @@ static void disasm_opcode(void)
     p = y >> 1;
     q = y & 1;
 
+//    fprintf(stderr,"*IR %02X %o Y %u Z %u\n", ir, ir, y, z);
     if (cb)
         map = dis_pagecb();
     else switch(x) {
@@ -1115,7 +1117,7 @@ static void disasm_opcode(void)
         map = dis_page1();
         break;
     case 2:
-        map = dis_page2();
+        map = alun_r[y];
         break;
     case 3:
         map = dis_page3();

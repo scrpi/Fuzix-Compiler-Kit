@@ -7,11 +7,12 @@
 __ccltequ:
 	ld	d,h
 	ld	e,l
-	ld	hl,sp+3
+	ld	hl,sp+2
 	call	__cmpltequ
 	; Should think if return in DE is saner ?
 	jp	__popint
 __cmpltequ:
+	inc	hl
 	ldd	a,(hl)
 	cp	d
 	jr	c, true

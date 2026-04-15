@@ -7,10 +7,11 @@
 __ccgteq:
 	ld	d,h
 	ld	e,l
-	ld	hl,sp+3
+	ld	hl,sp+2
 	call	__cmpgteq
 	jp	__popint
 __cmpgteq:
+	inc	hl
 	ldd	a,(hl)
 	xor	d
 	cp	128
