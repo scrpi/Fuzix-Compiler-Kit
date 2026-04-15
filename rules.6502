@@ -19,7 +19,7 @@
 	sta @tmp
 	stx @tmp+1
 =
-	jsr __lxa0tmp
+	jsr __lxa0sptmp
 
 	lda (@sp),y
 	tax
