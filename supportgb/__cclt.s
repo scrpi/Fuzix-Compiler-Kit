@@ -1,0 +1,41 @@
+;
+;	(TOS) < HL
+;
+	.export __cclt
+	.export __cmplt
+
+__cclt:
+	ld	d,h
+	ld	e,l
+	ld	hl,sp+3
+	call	__cmplt
+	jp	__popint
+__cmplt:
+	ldd	a,(hl)
+	xor	d
+	cp	128
+	jr	c,sign_same
+	xor	d
+	; -ve is true +ve is false
+	rlca
+	jr	c,true
+	jr	false
+
+sign_same:
+	; upper value is still in HL and DE
+	cp	d		
+	jr	c,true
+	jr	nz,false
+	; Now compare the low half
+	ld	a,(hl)
+	cp	e
+	jr	c, true
+false:	xor	a
+	ld	h,a
+	ld	l,a
+	ret
+true:
+	ld	hl,0
+	inc	l
+	ret
+	
