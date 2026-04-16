@@ -6,7 +6,8 @@ OBJ = workspace.o \
       __cclt.o __ccgteq.o __ccgt.o __cclteq.o __cceq.o __ccne.o \
       __cmpgteq0.o __cmplt0.o \
       __cmpeqcon.o __cmpnecon.o __cmpltcon.o __cmpgteqcon.o \
-      __cmpgteqconu.o __cmpltconu.o
+      __cmpgteqconu.o __cmpltconu.o \
+      __postinc.o __postdec.o __postincc.o __postdecc.o
 
 .s.o:
 	fcc -mgb -c $<
