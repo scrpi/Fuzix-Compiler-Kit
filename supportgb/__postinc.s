@@ -8,7 +8,7 @@ __postinc:
 	ld	d,h
 	ld	e,l
 	ld	hl,sp+2
-	ld	a,(hl)
+	ldi	a,(hl)
 	ld	h,(hl)
 	ld	l,a
 	ld	a,e		; oh for another register
