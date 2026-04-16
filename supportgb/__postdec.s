@@ -28,9 +28,10 @@ __postdec:
 	ld	l,e
 	ld	h,d
 	pop	bc
-	pop	hl
+	pop	de
 	inc	sp
 	inc	sp
-	jp	(hl)
+	push	de
+	ret
 
 	

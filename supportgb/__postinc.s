@@ -21,9 +21,10 @@ __postinc:
 	ld	(hl),a
 	ld	h,d
 	ld	l,e
-	pop	hl
+	pop	de
 	inc	sp
 	inc	sp
-	jp	(hl)
+	push	de
+	ret
 
 	
