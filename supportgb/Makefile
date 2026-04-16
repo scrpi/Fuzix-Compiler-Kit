@@ -10,7 +10,8 @@ OBJ = workspace.o \
       __minus.o \
       __postinc.o __postdec.o __postincc.o __postdecc.o \
       __minuseq2opcon.o __pluseq2opcon.o \
-      __div2opcon.o
+      __div2opcon.o \
+      __band2op.o __bor2op.o __bxor2op.o
 
 .s.o:
 	fcc -mgb -c $<
