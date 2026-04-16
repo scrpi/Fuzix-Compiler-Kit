@@ -3,8 +3,10 @@
 	.i16
 
 	.export __minusl
+	.export __minusul
 
 __minusl:
+__minusul:
 	; TOS - hireg:a
 	sta @tmp
 	lda 0,y
