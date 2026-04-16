@@ -1,17 +1,20 @@
 ;
-;	(HL) |= DE
+;	(DE) &= (HL)
 ;	Return result
 ;
 	.export __xoreq2op
 
 __xoreq2op:
-	ld	a,(hl)
-	xor	e
-	ld	e,a
-	ldi	(hl),a
-	ld	a,(hl)
-	xor	d
-	ld	(hl),a
+	ld	a,(de)
+	xor	(hl)
+	ld	(de),a
+	inc	hl
+	inc	de
+	push	af
+	ld	a,(de)
+	xor	(hl)
+	ld	(de),a
 	ld	h,a
-	ld	l,e
+	pop	af
+	ld	l,a
 	ret

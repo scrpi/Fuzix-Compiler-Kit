@@ -1,17 +1,20 @@
 ;
-;	(HL) &= DE
+;	(DE) &= (HL)
 ;	Return result
 ;
 	.export __andeq2op
 
 __andeq2op:
-	ld	a,(hl)
-	and	e
-	ld	e,a
-	ldi	(hl),a
-	ld	a,(hl)
-	and	d
-	ld	(hl),a
+	ld	a,(de)
+	and	(hl)
+	ld	(de),a
+	inc	hl
+	inc	de
+	push	af
+	ld	a,(de)
+	and	(hl)
+	ld	(de),a
 	ld	h,a
-	ld	l,e
+	pop	af
+	ld	l,a
 	ret
