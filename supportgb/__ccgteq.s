@@ -2,15 +2,15 @@
 ;	(TOS) < HL
 ;
 	.export __ccgteq
-	.export __cmpgteq
+	.export __cmplt
 
 __ccgteq:
 	ld	d,h
 	ld	e,l
 	ld	hl,sp+2
-	call	__cmpgteq
+	call	__cmplt
 	jp	__popint
-__cmpgteq:
+__cmplt:
 	inc	hl
 	ldd	a,(hl)
 	xor	d
@@ -25,7 +25,7 @@ __cmpgteq:
 sign_same:
 	; upper value is still in HL and DE
 	cp	d
-	jr	z,low		
+	jr	z,low
 	jr	c,false
 true:
 	ld	hl,0
@@ -40,4 +40,3 @@ false:	xor	a
 	ld	h,a
 	ld	l,a
 	ret
-	

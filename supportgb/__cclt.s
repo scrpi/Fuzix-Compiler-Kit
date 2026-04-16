@@ -2,15 +2,15 @@
 ;	(TOS) < HL
 ;
 	.export __cclt
-	.export __cmplt
+	.export __cmpgteq
 
 __cclt:
 	ld	d,h
 	ld	e,l
 	ld	hl,sp+2
-	call	__cmplt
+	call	__cmpgteq
 	jp	__popint
-__cmplt:
+__cmpgteq:
 	inc	hl
 	ldd	a,(hl)
 	xor	d
@@ -21,10 +21,9 @@ __cmplt:
 	rlca
 	jr	c,true
 	jr	false
-
 sign_same:
 	; upper value is still in HL and DE
-	cp	d		
+	cp	d
 	jr	c,true
 	jr	nz,false
 	; Now compare the low half
@@ -39,4 +38,3 @@ true:
 	ld	hl,0
 	inc	l
 	ret
-	

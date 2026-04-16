@@ -7,6 +7,7 @@
 ;
 __castc_:
 	ld	h,0
+	ld	l,a
 	bit	7,l
 	ret	z
 	dec	h
