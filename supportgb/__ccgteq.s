@@ -2,15 +2,15 @@
 ;	(TOS) < HL
 ;
 	.export __ccgteq
-	.export __cmplt
+	.export __cmplteq
 
 __ccgteq:
 	ld	d,h
 	ld	e,l
 	ld	hl,sp+2
-	call	__cmplt
+	call	__cmplteq
 	jp	__popint
-__cmplt:
+__cmplteq:
 	inc	hl
 	ldd	a,(hl)
 	xor	d

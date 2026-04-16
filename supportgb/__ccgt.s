@@ -1,40 +1,43 @@
 ;
 ;	(TOS) < HL
 ;
-	.export __cclt
-	.export __cmpgt
+	.export __ccgt
+	.export __cmplt
 
-__cclt:
+__ccgt:
 	ld	d,h
 	ld	e,l
 	ld	hl,sp+2
-	call	__cmpgt
+	call	__cmplt
 	jp	__popint
-__cmpgt:
+__cmplt:
 	inc	hl
 	ldd	a,(hl)
 	xor	d
 	cp	128
 	jr	c,sign_same
 	xor	d
-	; -ve is true +ve is false
+	; +ve is true -ve is false
 	rlca
-	jr	c,true
-	jr	false
+	jr	c,false
+	jr	true
+
 sign_same:
 	; upper value is still in HL and DE
 	cp	d
-	jr	c,true
-	jr	nz,false
-	; Now compare the low half
-	ld	a,(hl)
-	cp	e
-	jr	c, true
-false:	xor	a
-	ld	h,a
-	ld	l,a
-	ret
+	jr	z,low
+	jr	c,false
 true:
 	ld	hl,0
 	inc	l
+	ret
+	; Now compare the low half
+low:
+	ld	a,(hl)
+	cp	e
+	jr	z, false
+	jr	nc, true
+false:	xor	a
+	ld	h,a
+	ld	l,a
 	ret

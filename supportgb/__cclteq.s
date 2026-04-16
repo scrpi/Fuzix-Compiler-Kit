@@ -1,16 +1,16 @@
 ;
 ;	(TOS) < HL
 ;
-	.export __cclt
-	.export __cmpgt
+	.export __cclteq
+	.export __cmpgteq
 
-__cclt:
+__cclteq:
 	ld	d,h
 	ld	e,l
 	ld	hl,sp+2
-	call	__cmpgt
+	call	__cmpgteq
 	jp	__popint
-__cmpgt:
+__cmpgteq:
 	inc	hl
 	ldd	a,(hl)
 	xor	d
@@ -30,6 +30,7 @@ sign_same:
 	ld	a,(hl)
 	cp	e
 	jr	c, true
+	jr	z, true
 false:	xor	a
 	ld	h,a
 	ld	l,a
