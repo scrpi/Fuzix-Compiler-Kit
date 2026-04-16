@@ -13,9 +13,14 @@ false:
 	xor	a
 	ld	h,a
 	ld	l,a
+out:
+	pop	de
+	inc	sp
+	inc	sp
+	push	de
 	ret
 true:
 	ld	hl,0
 	inc	l
-	ret
+	jr	out
 

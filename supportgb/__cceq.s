@@ -12,9 +12,14 @@ __cceq:
 true:
 	ld	hl,0
 	inc	l
+out:
+	pop	de
+	inc	sp
+	inc	sp
+	push	de
 	ret
 false:
 	; At this point A is 0 and Z
 	ld	l,a
 	ld	h,a
-	ret
+	jr	out

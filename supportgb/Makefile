@@ -9,7 +9,8 @@ OBJ = workspace.o \
       __cmpgteqconu.o __cmpltconu.o \
       __minus.o \
       __postinc.o __postdec.o __postincc.o __postdecc.o \
-      __minuseq2opcon.o __pluseq2opcon.o
+      __minuseq2opcon.o __pluseq2opcon.o \
+      __div2opcon.o
 
 .s.o:
 	fcc -mgb -c $<
