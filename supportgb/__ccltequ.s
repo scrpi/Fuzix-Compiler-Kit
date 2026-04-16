@@ -2,16 +2,18 @@
 ;	(TOS) <= HL
 ;
 	.export __ccltequ
-	.export __cmpltequ
+	.export __cmpgtequ
 
 __ccltequ:
 	ld	d,h
 	ld	e,l
 	ld	hl,sp+2
-	call	__cmpltequ
+	; now (HL) <= DE
+	call	__cmpgtequ
 	; Should think if return in DE is saner ?
 	jp	__popint
-__cmpltequ:
+__cmpgtequ:
+	; DE >= (HL)
 	inc	hl
 	ldd	a,(hl)
 	cp	d
@@ -20,12 +22,12 @@ __cmpltequ:
 	ld	a,(hl)
 	cp	e
 	jr	c, true
-	jr	z, true
-false:	xor	a
-	ld	h,a
-	ld	l,a
-	ret
+	jr	nz, false
 true:
 	ld	hl,0
 	inc	l
+	ret
+false:	xor	a
+	ld	h,a
+	ld	l,a
 	ret

@@ -35,7 +35,7 @@ true:
 low:
 	ld	a,(hl)
 	cp	e
-	jr	c, true
+	jr	nc, true
 false:	xor	a
 	ld	h,a
 	ld	l,a

@@ -5,7 +5,7 @@ OBJ = workspace.o \
       __ccgtu.o __ccgtequ.o __ccltu.o __ccltequ.o \
       __cclt.o __ccgteq.o \
       __cmpgteq0.o __cmplt0.o \
-      __cmpeqcon.o __cmpnecon.o \
+      __cmpeqcon.o __cmpnecon.o __cmpltcon.o __cmpgteqcon.o \
       __cmpgteqconu.o __cmpltconu.o
 
 .s.o:

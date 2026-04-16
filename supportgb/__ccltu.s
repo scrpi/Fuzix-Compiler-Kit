@@ -2,15 +2,17 @@
 ;	(TOS) < HL
 ;
 	.export __ccltu
-	.export __cmpltu
+	.export __cmpgtu
 
 __ccltu:
 	ld	d,h
 	ld	e,l
 	ld	hl,sp+2
-	call	__cmplt
+	; now (HL) < DE
+	call	__cmpgtu
 	jp	__popint
-__cmpltu:
+__cmpgtu:
+	; DE > (HL)
 	inc	hl
 	ldd	a,(hl)
 	cp	d
@@ -27,7 +29,3 @@ true:
 	ld	hl,0
 	inc	l
 	ret
-
-	
-
-	

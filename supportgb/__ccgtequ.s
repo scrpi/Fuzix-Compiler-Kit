@@ -2,15 +2,17 @@
 ;	(TOS) >= HL
 ;
 	.export __ccgtequ
-	.export __cmpgtequ
+	.export __cmpltequ
 
 __ccgtequ:
 	ld	d,h
 	ld	e,l
 	ld	hl,sp+2
-	call	__cmpgtequ
+	;	now (HL) >= DE
+	call	__cmpltequ
 	jp	__popint
-__cmpgtequ:
+__cmpltequ:
+	; DE <= (HL)
 	inc	hl
 	ldd	a,(hl)
 	cp	d
@@ -18,12 +20,12 @@ __cmpgtequ:
 	jr	nz, false
 	ld	a,(hl)
 	cp	e
-	jr	c, false
-true:	ld	hl,0
-	inc	l		; clear Z
-	ret
+	jr	c, true
 false:
-	xor	a		; set Z
+	ld	hl,0
+	inc	l
+	ret
+true:	xor	a
 	ld	h,a
 	ld	l,a
 	ret

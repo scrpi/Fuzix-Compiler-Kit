@@ -450,10 +450,10 @@ void gen_jfalse(const char *tail, unsigned n)
 		return;
 	switch(ccvalid) {
 	case CC_VALID:
-		outputne("jr nz, L%u%s", n, tail);
+		outputne("jr z, L%u%s", n, tail);
 		break;
 	case CC_INVERSE:
-		outputne("jr z, L%u%s", n, tail);
+		outputne("jr nz, L%u%s", n, tail);
 		break;
 	default:
 		error("jfu");
@@ -466,10 +466,10 @@ void gen_jtrue(const char *tail, unsigned n)
 		return;
 	switch(ccvalid) {
 	case CC_VALID:
-		outputne("jr z, L%u%s", n, tail);
+		outputne("jr nz, L%u%s", n, tail);
 		break;
 	case CC_INVERSE:
-		outputne("jr nz, L%u%s", n, tail);
+		outputne("jr z, L%u%s", n, tail);
 		break;
 	default:
 		error("jtu");

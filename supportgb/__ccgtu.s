@@ -2,16 +2,16 @@
 ;	(TOS) > HL
 ;
 	.export __ccgtu
-	.export	__cmpgtu
+	.export	__cmpltu
 
 __ccgtu:
 	ld	d,h
 	ld	e,l
 	ld	hl,sp+2
-	call	__cmpgtu
+	call	__cmpltu
 	jp	__popint
-
-__cmpgtu:
+__cmpltu:
+	;	DE < (HL)
 	inc	hl
 	ldd	a,(hl)
 	cp	d
@@ -21,15 +21,11 @@ __cmpgtu:
 	cp	e
 	jr	c, false
 	jr	z, false
-true:	xor	a
+true:	ld	hl,0
+	inc	l		; clear Z
+	ret
+false:
+	xor	a		; set Z
 	ld	h,a
 	ld	l,a
 	ret
-false:
-	ld	hl,0
-	inc	l
-	ret
-
-	
-
-	
