@@ -11,7 +11,7 @@ __postdec:
 	push	bc
 	ld	b,h
 	ld	c,l
-	ld	hl,sp+2
+	ld	hl,sp+4
 	ldi	a,(hl)
 	ld	h,(hl)
 	ld	l,a

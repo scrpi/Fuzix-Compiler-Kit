@@ -43,7 +43,8 @@ loop:
 	jr	nc, dosub
 	pop	bc	; get the old value back
 	pop	af	; counter
-	dec	a	; C will be clear in all cases we loop
+	dec	a	; C is not changed
+	or	a	; clear carry
 	jr	nz, loop
 	jr	out
 dosub:
