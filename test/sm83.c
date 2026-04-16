@@ -69,7 +69,7 @@ static uint16_t next16(void)
 
 static uint8_t *pairptr(unsigned n)
 {
-    return reg + 2 * n;		/* BC DE HL AF */
+    return reg + 2 * n;		/* BC DE HL */
 }
 
 static uint8_t *pairptr2(unsigned n)
@@ -82,10 +82,27 @@ static uint8_t *pairptr2(unsigned n)
 static uint16_t getpair(unsigned n)
 {
     uint16_t v;
-    uint8_t *p = pairptr(n);
+    uint8_t *p;
+    /* AF is slightly odd */
+    if (n == RR_AF)
+        return (reg[REG_A] << 8) | reg[REG_F];
+    p = pairptr(n);
     v = *p++ << 8;
     v |= *p;
     return v;
+}
+
+static void setpair(unsigned n, unsigned v)
+{
+    uint8_t *p;
+    if (n == RR_AF) {
+        reg[REG_A] = v >> 8;
+        reg[REG_F] = v;
+        return;
+    }
+    p = pairptr(n);
+    *p++ = v >> 8;
+    *p = v;
 }
 
 static uint16_t getpair2(unsigned n)
@@ -251,6 +268,7 @@ static unsigned test_cc(uint8_t cc)
 static void alu8_op(unsigned op, uint8_t v)
 {
     /* Do operation between A and the value v. Adjust flags; */
+    reg[REG_F] &= ~F_Z;
     switch(op) {
     case 0:	/* ADD */
         reg[REG_F] &= ~F_C;
@@ -279,14 +297,14 @@ static void alu8_op(unsigned op, uint8_t v)
         if (reg[REG_A] == 0)
             reg[REG_F] |= F_Z;
         break;
-    case 5:	/* OR */
-        reg[REG_A] |= v;
+    case 5:	/* XOR */
+        reg[REG_A] ^= v;
         reg[REG_F] = 0;
         if (reg[REG_A] == 0)
             reg[REG_F] |= F_Z;
         break;
-    case 6:	/* XOR */
-        reg[REG_A] ^= v;
+    case 6:	/* OR */
+        reg[REG_A] |= v;
         reg[REG_F] = 0;
         if (reg[REG_A] == 0)
             reg[REG_F] |= F_Z;
@@ -533,9 +551,7 @@ static void page3(void)
     case 1:
         if (q == 0) {
             uint16_t n = pop16();
-            uint8_t *rp = pairptr(p);
-            *rp++ = n >> 8;
-            *rp = n;
+            setpair(p, n);
             break;
         } else {
             switch(p) {
@@ -960,8 +976,8 @@ static const char *alun_r[8]= {
     "sub a,Z",
     "sbc a,Z",
     "and a,Z",
-    "or a,Z",
     "xor a,Z",
+    "or a,Z",
     "cp a,Z"
 };
 
@@ -971,8 +987,8 @@ static const char *alun_i[8]= {
     "sub a,N",
     "sbc a,N",
     "and a,N",
-    "or a,N",
     "xor a,N",
+    "or a,N",
     "cp a,N"
 };
 
