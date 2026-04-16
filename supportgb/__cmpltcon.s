@@ -14,6 +14,7 @@ __cmpltcon:
 	jr	false
 
 sign_same:
+	xor	d
 	cp	d
 	jr	c,true
 	jr	nz,false

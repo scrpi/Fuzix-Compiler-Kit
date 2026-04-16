@@ -23,6 +23,7 @@ __cmplteq:
 	jr	true
 
 sign_same:
+	xor	d
 	; upper value is still in HL and DE
 	cp	d
 	jr	z,low

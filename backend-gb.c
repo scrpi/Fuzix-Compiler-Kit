@@ -1305,12 +1305,12 @@ unsigned gen_direct(struct node *n)
 			}
 			/* Short cut register case */
 			if (r->op == T_RREF) {
-				outputcc("add hl,bc");
+				output("add hl,bc");
 				return 1;
 			}
 			if (s > 2 || load_de_with(r) == 0)
 				return 0;
-			outputcc("add hl,de");
+			output("add hl,de");
 			return 1;
 		}
 		return 0;
@@ -1337,7 +1337,8 @@ unsigned gen_direct(struct node *n)
 				return 1;
 			}
 			outputne("ld de,%u", 65536 - v);
-			outputcc("add hl,de");
+			output("add hl,de");
+			/* Doesn't set Z alas */
 			return 1;
 		}
 		return 0;
@@ -1851,12 +1852,23 @@ unsigned gen_shortcut(struct node *n)
 	}
 	if (n->op == T_BANG) {
 		codegen_lr(r);
-		if (r->flags & ISBOOL)
-			return 1;
-		s = get_size(r->type);
-		if (s <= 2 && (n->flags & CCONLY)) {
+		if (r->flags & ISBOOL) {
+			printf(";BOOL - invert cc from %d\n", ccvalid);
 			if (ccvalid == CC_INVERSE)
 				ccvalid = CC_VALID;
+			else if (ccvalid == CC_VALID)
+				ccvalid = CC_INVERSE;
+			else
+				error("bangcc");
+			return 1;
+		}
+		s = get_size(r->type);
+		if (s <= 2 && (n->flags & CCONLY)) {
+			printf(";BOOL - process cc from %d\n", ccvalid);
+			if (ccvalid == CC_INVERSE)
+				ccvalid = CC_VALID;
+			else if (ccvalid == CC_VALID)
+				ccvalid = CC_INVERSE;
 			else if (ccvalid == CC_UNDEF) {
 				if (s == 2 && !(n->flags & BYTEOP)) {
 					outputne("ld a,h");
@@ -2091,7 +2103,7 @@ unsigned gen_shortcut(struct node *n)
 					outputcc("add a,c");
 				} else {
 					output("ld hl,%u", WORD(-v));
-					outputcc("add hl,bc");
+					output("add hl,bc");
 				}
 				loadbc(s);
 				return 1;
@@ -2489,7 +2501,7 @@ unsigned gen_node(struct node *n)
 			return 1;
 		} else if (size <= 2) {
 			outputne("pop de");
-			outputcc("add hl,de");
+			output("add hl,de");
 			return 1;
 		}
 		break;

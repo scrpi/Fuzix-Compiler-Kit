@@ -22,6 +22,7 @@ __cmpgteq:
 	jr	c,true
 	jr	false
 sign_same:
+	xor	d
 	; upper value is still in HL and DE
 	cp	d
 	jr	c,true

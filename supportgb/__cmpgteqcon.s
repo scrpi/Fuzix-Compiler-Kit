@@ -14,6 +14,7 @@ __cmpgteqcon:
 	jr	true
 
 sign_same:
+	xor	d
 	cp	d
 	jr	c,false
 	jr	nz,true
