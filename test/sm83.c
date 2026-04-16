@@ -234,13 +234,13 @@ static void do_loadpair(unsigned rr)
     *p = next();
 }
 
-static void do_addpair(unsigned rr, uint16_t n)
+static void do_addpair(unsigned rr)
 {
     uint8_t *p = pairptr2(rr);
 
     reg[REG_F] &= F_Z;
-    p[1] = alu_adc(p[1], n & 0xFF);
-    *p = alu_adc(*p, n >> 8);
+    reg[REG_L] = alu_adc(reg[REG_L], p[1]);
+    reg[REG_H] = alu_adc(reg[REG_H], *p);
 }
 
 static unsigned test_cc(uint8_t cc)
@@ -353,7 +353,7 @@ static void page0(void)
             /* load 16 rp */
         else
             /* add 16 rp */
-            do_addpair(p, next16());
+            do_addpair(p);
         break;
     case 2:
         switch(ir) {
@@ -903,7 +903,7 @@ static const char *dis_page0(void)
         if (q == 0)
             return "ld R2, NN";
         else
-            return "add R2, NN";
+            return "add hl, R2";
         break;
     case 2:
         switch(ir) {
