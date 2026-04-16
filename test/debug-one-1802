@@ -1,0 +1,6 @@
+
+b=$(basename $1 .c)
+echo  $b":"
+fcc -m1802 -X -c tests/$b.c
+ld1802 -b -C0 testcrt0_byte1802.o tests/$b.o -o tests/$b -m tests/$b.map
+./byte1802 -d tests/$b tests/$b.map 2> $b.log
