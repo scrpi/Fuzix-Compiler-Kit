@@ -765,7 +765,7 @@ static int do_pri8hi(struct node *n, const char *op, void (*pre)(struct node *__
 	unsigned v = n->value;
 
 	/* We can fold in some simple casting */
-	if (n->type == T_CAST && cast_fold_safe(r->op)) {
+	if (n->type == T_CAST) {
 		if ((!PTR(n->type) && n->type != CINT && n->type != UINT) || r->type != UCHAR)
 			return 0;
 		/* We need to do it on 0 */
@@ -1581,7 +1581,7 @@ struct node *gen_rewrite_node(struct node *n)
 		}
 	}
 	/* Eliminate casts for sign, pointer conversion or same */
-	if (op == T_CAST) {
+	if (op == T_CAST && cast_fold_safe(r->op)) {
 		if (nt == r->type || (nt ^ r->type) == UNSIGNED ||
 		 (PTR(nt) && PTR(r->type))) {
 			free_node(n);
