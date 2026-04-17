@@ -753,10 +753,10 @@ static unsigned can_point_hl_at(struct node *n)
 	switch(n->op) {
 	case T_NREF:
 	case T_NSTORE:
-	case T_NAME:
+/*	case T_NAME: */
 	case T_LBREF:
 	case T_LBSTORE:
-	case T_LABEL:
+/*	case T_LABEL: */
 	case T_ARGUMENT:
 	case T_LOCAL:
 	case T_LREF:
@@ -772,12 +772,12 @@ static unsigned point_hl_at(struct node *n)
 	switch(n->op) {
 	case T_NREF:
 	case T_NSTORE:
-	case T_NAME:
+/*	case T_NAME: */
 		output("ld hl,_%s+%u", namestr(n->snum), v);
 		break;
 	case T_LBREF:
 	case T_LBSTORE:
-	case T_LABEL:
+/*	case T_LABEL: */
 		output("ld hl,T%u+%u", n->val2, v);
 		break;
 	case T_ARGUMENT:
@@ -902,14 +902,12 @@ static unsigned load_de_with(struct node *n)
 	return load_r_with("de", n);
 }
 
-#if 0
 static unsigned load_hl_with(struct node *n)
 {
 	if (n->op == T_LREF)
 		return gen_lref(n->value + sp, 2, 0);
 	return load_r_with("hl", n);
 }
-#endif
 
 /* TODO: needs a 'save HL' indicator */
 static unsigned load_a_with(struct node *n, unsigned keep_hl)
@@ -984,7 +982,7 @@ static unsigned gen_twoop(const char *op, struct node *n, struct node *r, unsign
 	char opc[16];
 	if (s > 2)
 		return 0;
-	if (r->op == T_CONSTANT) {
+	if (r->op == T_CONSTANT || r->op == T_NAME || r->op == T_LABEL) {
 		strcpy(opc, op);
 		strcat(opc, "con");
 		op = opc;
@@ -992,6 +990,10 @@ static unsigned gen_twoop(const char *op, struct node *n, struct node *r, unsign
 	if (s == 2) {
 		if (r->op == T_CONSTANT)
 			output("ld de,%u", WORD(r->value));
+		else if (r->op == T_NAME)
+			output("ld de,_%s+%u", namestr(r->snum), WORD(r->value));
+		else if (r->op == T_LABEL)
+			output("ld de,T%u+%u", r->val2, WORD(r->value));
 		else if (can_point_hl_at(r)) {
 			output("ld d,h");
 			output("ld e,l");
@@ -1002,6 +1004,10 @@ static unsigned gen_twoop(const char *op, struct node *n, struct node *r, unsign
 	} else if (s == 1) {
 		if (r->op == T_CONSTANT)
 			output("ld e,%u", WORD(r->value));
+		else if (r->op == T_NAME)
+			output("ld e,<_%s+%u", namestr(r->snum), WORD(r->value));
+		else if (r->op == T_LABEL)
+			output("ld e,<T%u+%u", r->val2, WORD(r->value));
 		else if (point_hl_at(r) == 0)
 			return 0;
 		/* For now byte ops are done A,(HL) which works nicely */
@@ -2452,7 +2458,7 @@ unsigned gen_node(struct node *n)
 		if (size == 2) {
 			output("ldi a,(hl)");
 			output("ld h,(hl)");
-			output("ld h,a");
+			output("ld l,a");
 			return 1;
 		}
 		break;
@@ -2463,9 +2469,7 @@ unsigned gen_node(struct node *n)
 		if (nr)
 			return 1;
 		/* Used for const strings and local static */
-		point_hl_at(n);
-//		opcode(OP_LXI, 0, R_HL, "lxi h,T%u+%u", n->val2, v);
-		return 1;
+		return load_hl_with(n);
 	case T_CONSTANT:
 		if (nr)
 			return 1;
@@ -2484,10 +2488,7 @@ unsigned gen_node(struct node *n)
 	case T_NAME:
 		if (nr)
 			return 1;
-//		opcode(OP_LXI, 0, R_HL, "lxi h, _%s+%u", namestr(n->snum), v);
-		point_hl_at(n);
-		return 1;
-	/* FIXME: LBNAME ?? */
+		return load_hl_with(n);
 	case T_ARGUMENT:
 		v += frame_len + argbase;
 	case T_LOCAL:
