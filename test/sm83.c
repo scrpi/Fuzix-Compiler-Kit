@@ -186,7 +186,7 @@ static uint8_t alu_sbc(uint8_t a, uint8_t b)
     unsigned c = 0;
     if (reg[REG_F] & F_C) {
         c = 1;
-        r++;
+        r--;
     }
     reg[REG_F] &= F_Z;
     reg[REG_F] |= F_S;
@@ -1151,7 +1151,8 @@ static void disasm_opcode(void)
 void sm83_execute(void)
 {
     dis_pc = pc;
-    if (trace)
+    /* If prefix_cb is set we already disassembled the full op */
+    if (trace && !prefix_cb)
         disasm_opcode();
     execute_op();
 }
