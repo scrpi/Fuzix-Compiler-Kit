@@ -25,6 +25,8 @@ f__shru:
 	lda	2,__sp,0
 	lda	1,0,2
 	dsz	__sp,0
+	mov#	0,0,snr		; check if we have 0 shifts to do
+	jmp	done,1
 shrulp:
 	movzr	1,1
 	inc	0,0,szr
