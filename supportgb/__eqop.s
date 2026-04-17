@@ -4,6 +4,8 @@
 	.export __eqprep
 	.export __eqpopout
 	.export __eqpopouthl
+	.export __eqpopouthlbc
+	.export __eqpopoutdebc
 	.export __eqprepc
 	.export __eqpopoutc
 
@@ -49,6 +51,26 @@ __eqpopout:
 __eqpopoutc:
 	pop	hl
 	ld	(hl),a
+	ld	l,e
+	pop	de
+	inc	sp
+	inc	sp
+	push	de
+	ret
+
+__eqpopouthlbc:
+	ld	e,l
+	ld	d,h
+__eqpopoutdebc:
+	pop	hl
+	ld	(hl),e
+	inc	hl
+	ld	(hl),d
+	inc	hl
+	ld	(hl),c
+	inc	hl
+	ld	(hl),b
+	ld	h,d
 	ld	l,e
 	pop	de
 	inc	sp
