@@ -215,11 +215,11 @@ static unsigned is_simple(struct node *n)
 }
 
 /*
- *	Turn it 8bit
+ *	Turn it 8bit - need to enable it everywhere else first
  */
 struct node *gen_rewrite(struct node *n)
 {
-	byte_label_tree(n, BTF_RELABEL);
+//	byte_label_tree(n, BTF_RELABEL);
 	return n;
 }
 
@@ -2283,6 +2283,8 @@ static unsigned gen_cast(struct node *n)
 			outputne("ld a,l");
 		return 1;
 	}
+	if (ls == rs)
+		return 1;
 	/* Don't do the harder ones */
 	if (!(rt & UNSIGNED) || ls > 2)
 		return 0;
