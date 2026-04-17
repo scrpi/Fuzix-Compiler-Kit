@@ -826,7 +826,7 @@ static void store_via_hl(unsigned r, unsigned s)
 		else error("shlr1");
 	} else if (s == 2) {
 		if (r == 'd') {
-			outputne("ld (hl),d");
+			outputne("ld (hl),e");
 			outputne("inc hl");
 			outputne("ld (hl),d");
 		} else error("shlr2");
