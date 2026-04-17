@@ -126,8 +126,8 @@ code will run only on the 6303, and 68HC11 code only on the 68HC11.
 
 ### 6502
 
-Passes the basic test sets but has not yet been used in anger. Early beta
-level
+Passes all the test suite. Will need further testing on more real code.
+Should be considered an early beta.
 
 ### 65C816
 
@@ -221,8 +221,8 @@ bytecode etc.
 ### TMS7000
 
 A slightly modified Z8 target for the TMS7000 as the two are remarkably
-similar in terms of their compiler requirements. This now passes most of the
-basic tests but still needs considerable work.
+similar in terms of their compiler requirements. This now passes all of
+the tests but could do with a lot more optimisation work.
 
 ### Z8
 
