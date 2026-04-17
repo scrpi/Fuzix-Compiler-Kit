@@ -688,7 +688,7 @@ static void do_rot(void)
             reg[REG_F] = F_C;
         m <<= 1;
         if (m == 0)
-            reg[REG_F] = F_Z;
+            reg[REG_F] |= F_Z;
         break;
     case 5:	/* SRA */
         reg[REG_F] = 0;
@@ -698,13 +698,13 @@ static void do_rot(void)
         if (m & 0x40)
             m |= 0x80;
         if (m == 0)
-            reg[REG_F] = F_Z;
+            reg[REG_F] |= F_Z;
         break;
     case 6:	/* SWAP */
         reg[REG_F] = 0;
         m = ((m >> 4) & 0x0F) | ((m & 0x0F) << 4);
         if (m == 0)
-            reg[REG_F] = F_Z;
+            reg[REG_F] |= F_Z;
         break;
     case 7:	/* SRL */
         reg[REG_F] = 0;
@@ -712,7 +712,7 @@ static void do_rot(void)
             reg[REG_F] = F_C;
         m >>= 1;
         if (m == 0)
-            reg[REG_F] = F_Z;
+            reg[REG_F] |= F_Z;
         break;
     }
     setreg(z, m);
