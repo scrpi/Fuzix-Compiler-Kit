@@ -209,7 +209,7 @@ struct cpu_table cpu_rules[] = {
 	/* Other Z80 variants TODO */
 	/* Similar issues. We may end up making this a bunch of CPU specifics
 	   anyway because of endianness, alignment etc */
-	{ "thread", "thread", ".thread", "libthread.a", "thread", defthread, ldbyte, "0", 0, NULL },
+	{ "thread", "thread", ".thread", "libthread.a", "thread", defthread, ldbyte, "1802", 0, NULL },
 	{ "z8", "z8", ".z8", "libz8.a", "z8", defz8, ld8080, "8" , 0, NULL},
 	{ "super8", "super8", ".super8", "libsuper8.a", "super8", defsuper8, ld8080, "8" , 0, NULL},
 	{ "1802", "1802", ".1802", "lib1802.a", "1802", def1802, ld8080, "2" , 0, NULL},
