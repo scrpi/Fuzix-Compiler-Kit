@@ -10,13 +10,15 @@ __rsxu:
 	and	#15
 	beq	done
 	cmp	#8
-	bcc	loop
+	bcc	go
 	sbc	#7	; We branch to loop end
 	tax
 	lda	@tmp
 	swa
 	and	#0xFF
 	bra	next
+go:
+	lda	@tmp
 loop:
 	lsr	a
 next:
