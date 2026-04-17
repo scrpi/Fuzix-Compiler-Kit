@@ -23,7 +23,7 @@ OBJ = workspace.o \
       __cpl.o __cmp32.o \
       __assignl.o __cast_l.o __derefl.o __cpll.o \
       __minuseql.o __pluseql.o __postincl.o __postdecl.o \
-      __bandl.o __orl.o __xorl.o
+      __bandl.o __orl.o __xorl.o __andeql.o __oreql.o __xoreql.o
 
 .s.o:
 	fcc -mgb -c $<
