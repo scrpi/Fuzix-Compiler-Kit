@@ -27,7 +27,7 @@ pve1:
 	jr	nz, ismod
 	inc	c
 ismod:
-	inc	de
+	dec	de
 	ld	a,d
 	cpl
 	ld	d,a
@@ -88,16 +88,15 @@ out:
 	pop	bc
 	ret
 
-;	(DE) / HL
+;	DE / (HL)
 __div2op:
+	ldi	a,(hl)
+	ld	h,(hl)
+	ld	l,a
 	push	de	; no XCHG on SM83
 	push	hl
 	pop	de
 	pop	hl
-	; (HL) / DE
-	ldi	a,(hl)
-	ld	h,(hl)
-	ld	l,a
 __div2opcon:
 	; HL / DE
 	push	bc
@@ -108,16 +107,16 @@ __div2opcon:
 	ret	z
 	jp	__negate
 	
-;	(DE) / HL
+;	DE % (HL)
 __rem2op:
+	ldi	a,(hl)
+	ld	h,(hl)
+	ld	l,a
 	push	de	; no XCHG on SM83
 	push	hl
 	pop	de
 	pop	hl
-	; (HL) / DE
-	ldi	a,(hl)
-	ld	h,(hl)
-	ld	l,a
+	; HL % DE
 __rem2opcon:
 	push	bc
 	ld	c,128
@@ -129,31 +128,29 @@ __rem2opcon:
 	ret	z
 	jp	__negate
 
-;	(DE) / HL
+;	DE / (HL)
 __div2opu:
+	ldi	a,(hl)
+	ld	h,(hl)
+	ld	l,a
 	push	de	; no XCHG on SM83
 	push	hl
 	pop	de
 	pop	hl
-	; (HL) / DE
-	ldi	a,(hl)
-	ld	h,(hl)
-	ld	l,a
 __div2opconu:
 	; HL / DE
 	call	__divhlde
 	ret
 
-;	(DE) % HL
+;	DE % (HL)
 __rem2opu:
+	ldi	a,(hl)
+	ld	h,(hl)
+	ld	l,a
 	push	de	; no XCHG on SM83
 	push	hl
 	pop	de
 	pop	hl
-	; (HL) % DE
-	ldi	a,(hl)
-	ld	h,(hl)
-	ld	l,a
 __rem2opconu:
 	; HL % DE
 	call __divhlde

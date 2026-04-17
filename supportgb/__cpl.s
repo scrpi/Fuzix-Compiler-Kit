@@ -2,7 +2,7 @@
 		.export __cpl
 
 __negate:
-		dec	h
+		dec	hl
 __cpl:
 		ld	a,h
 		cpl

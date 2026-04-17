@@ -33,7 +33,6 @@ __remequ:
 	ld	l,a
 	call	__divhlde
 	; result is in DE
-	pop	hl
 	jp	__eqpopout
 
 __diveq:
@@ -55,29 +54,33 @@ __remeq:
 	jp	__eqpopouthl
 
 __divequc:
-	call	__eqprep
-	; HL is now the pointer
+	call	__eqprepc
+	; HL is now the pointer, A the divisor
 	push	hl
 	ld	l,(hl)
 	ld	h,0
+	ld	e,a
+	ld	d,0
 	call	__divhlde
 	; result is in HL
 	ld	a,l
 	jp	__eqpopoutc
 
 __remequc:
-	call	__eqprep
+	call	__eqprepc
 	; HL is now the pointer
 	push	hl
 	ld	l,(hl)
 	ld	h,0
+	ld	e,a
+	ld	d,0
 	call	__divhlde
 	; result is in DE
 	ld	a,e
 	jp	__eqpopoutc
 
 __diveqc:
-	call	__eqprep
+	call	__eqprepc
 	push	hl
 	ld	l,(hl)
 	ld	h,0
@@ -85,12 +88,18 @@ __diveqc:
 	jr	z,nosex
 	dec	h
 nosex:
+	ld	e,a
+	ld	d,0
+	bit	7,e
+	jr	z,nosexb
+	dec	d
+nosexb:
 	call	__div2opcon
 	ld	a,l
 	jp	__eqpopoutc
 
 __remeqc:
-	call	__eqprep
+	call	__eqprepc
 	push	hl
 	ld	l,(hl)
 	ld	h,0
@@ -98,6 +107,12 @@ __remeqc:
 	jr	z,nosex2
 	dec	h
 nosex2:
+	ld	e,a
+	ld	d,0
+	bit	7,e
+	jr	z,nosex2b
+	dec	d
+nosex2b:
 	call	__rem2opcon
 	ld	a,l
 	jp	__eqpopoutc
