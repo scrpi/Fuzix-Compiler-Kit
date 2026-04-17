@@ -21,8 +21,8 @@ do_shll:
 	dec	hl
 	ld	d,(hl)
 	dec	hl
-	ld	h,(hl)
-	ld	l,d
+	ld	l,(hl)
+	ld	h,d
 	; BCHL << A
 	and	31
 	ret	z
@@ -52,6 +52,9 @@ __shleql:
 	call	__eqprep
 	; now HL is pointer E is shift
 	push	hl
+	inc	hl
+	inc	hl
+	inc	hl
 	ld	a,e
 	call	do_shll
 	jp	__eqpopouthlbc

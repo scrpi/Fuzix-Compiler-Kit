@@ -27,6 +27,7 @@ __andeql:
 	ld	h,d
 
 	pop	de
-	add	sp,4
+	inc	sp
+	inc	sp
 	push	de
 	ret

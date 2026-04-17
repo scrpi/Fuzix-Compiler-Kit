@@ -25,8 +25,8 @@ pve:
 	dec	hl
 	ld	d,(hl)
 	dec	hl
-	ld	h,(hl)
-	ld	l,d
+	ld	l,(hl)
+	ld	h,d
 	; BCHL >> A
 	and	31
 	ret	z
@@ -38,7 +38,7 @@ pve:
 	and	7
 	ret	z
 loop8:
-	srl	h
+	srl	l
 	dec	a
 	jr	nz,loop8
 	ret
@@ -87,8 +87,8 @@ do_shrl:
 	dec	hl
 	ld	d,(hl)
 	dec	hl
-	ld	h,(hl)
-	ld	l,d
+	ld	l,(hl)
+	ld	h,d
 	; BCHL >> A
 
 	and	31
@@ -100,16 +100,15 @@ loop:
 	rr	l
 	dec	a
 	jr	nz,loop
-
-	pop	de
-	add	sp,4
-	push	de
 	ret
 
 __shrequl:
 	call	__eqprep
 	; now HL is pointer E is shift
 	push	hl
+	inc	hl
+	inc	hl
+	inc	hl
 	ld	a,e
 	call	do_shrul
 	jp	__eqpopouthlbc
@@ -118,6 +117,9 @@ __shreql:
 	call	__eqprep
 	; now HL is pointer E is shift
 	push	hl
+	inc	hl
+	inc	hl
+	inc	hl
 	ld	a,e
 	call	do_shrl
 	jp	__eqpopouthlbc

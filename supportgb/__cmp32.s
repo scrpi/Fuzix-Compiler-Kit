@@ -24,7 +24,7 @@ __cmp32:
 	xor	(hl)
 	bit	7,a
 	; If the signs match then do an unsigned compare
-	jr	nz, __cmp32u
+	jr	z, __cmp32u
 	bit	7,b
 	scf
 	ret	nz

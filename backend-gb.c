@@ -540,8 +540,10 @@ void gen_helpclean(struct node *n)
 		gen_cleanup(s);
 		/* C style ops that are ISBOOL didn't set the bool flags */
 		/* Need to think about keeping bool stuff 8bit here */
-		if (n->flags & ISBOOL)
-			printf("\txor a\n\tcp l\n");
+		if (n->flags & ISBOOL) {
+			output("xor a");
+			outputcc("cp l");
+		}
 	}
 	if (n->flags & ISBOOL)
 		ccvalid = CC_VALID;
@@ -1278,10 +1280,16 @@ unsigned gen_direct(struct node *n)
 	case T_EQ:
 		/* The address is in HL at this point */
 		if (r->op == T_CONSTANT && nr) {
-			outputne("ld (hl),%u", v & 0xFF);
+			outputne("ld (hl),%u", BYTE(v));
 			if (s == 2) {
 				outputne("inc hl");
-				outputne("ld (hl),%u", v >> 8);
+				outputne("ld (hl),%u", BYTE(v >> 8));
+			}
+			if (s == 4) {
+				outputne("inc hl");
+				outputne("ld (hl),%u", BYTE(r->value >> 16));
+				outputne("inc hl");
+				outputne("ld (hl),%u", BYTE(r->value >> 24));
 			}
 			return 1;
 		}
@@ -2475,8 +2483,7 @@ unsigned gen_node(struct node *n)
 			return 1;
 		switch(size) {
 		case 4:
-			output("ld hl,%u", ((n->value >> 16) & 0xFFFF));
-//TODO			opcode(OP_SHLD, R_HL, R_MEM, "shld __hireg");
+			output("ld bc,%u", WORD(n->value >> 16));
 		case 2:
 			output("ld hl,%u", WORD(v));
 			return 1;

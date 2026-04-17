@@ -5,7 +5,7 @@ __negatel:
 		ld	a,h
 		or	l		; will it wrap ?
 		dec	hl		; doesn't touch Z
-		jr	z,__cpll
+		jr	nz,__cpll
 		dec	bc		; ripple carry
 __cpll:
 		ld	a,b
