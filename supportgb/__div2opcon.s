@@ -6,9 +6,35 @@
 
 	.export __div2opcon
 	.export __rem2opcon
-	.export __div2uopcon
-	.export __rem2uopcon
+	.export __div2opconu
+	.export __rem2opconu
+	.export __div2op
+	.export __rem2op
+	.export __div2opu
+	.export __rem2opu
 
+dodiv2opcon:
+	;	HL / DE signed. Track state in C
+	;	Caller does any final negation
+	bit	7,h
+	jr	z,pve1
+	inc	c
+	call	__negate
+pve1:
+	bit	7,d
+	jr	z, __divhlde
+	bit	7,c
+	jr	nz, ismod
+	inc	c
+ismod:
+	inc	de
+	ld	a,d
+	cpl
+	ld	d,a
+	ld	a,e
+	cpl	
+	ld	e,a
+	;	HL/DE unsigned
 __divhlde:
 	push	bc
 ;
@@ -62,17 +88,74 @@ out:
 	pop	bc
 	ret
 
+;	(DE) / HL
+__div2op:
+	push	de	; no XCHG on SM83
+	push	hl
+	pop	de
+	pop	hl
+	; (HL) / DE
+	ldi	a,(hl)
+	ld	h,(hl)
+	ld	l,a
 __div2opcon:
+	push	bc
+	ld	c,0
+	call	dodiv2opcon
+	bit	0,c
+	pop	bc
+	ret	z
+	jp	__negate
+	
+;	(DE) / HL
+__rem2op:
+	push	de	; no XCHG on SM83
+	push	hl
+	pop	de
+	pop	hl
+	; (HL) / DE
+	ldi	a,(hl)
+	ld	h,(hl)
+	ld	l,a
 __rem2opcon:
-	; TODO
+	push	bc
+	ld	c,128
+	call	dodiv2opcon
+	ld	l,e
+	ld	h,d
+	bit	0,c
+	pop	bc
+	ret	z
+	jp	__negate
 
-__div2uopcon:
+;	(DE) / HL
+__div2opu:
+	push	de	; no XCHG on SM83
+	push	hl
+	pop	de
+	pop	hl
+	; (HL) / DE
+	ldi	a,(hl)
+	ld	h,(hl)
+	ld	l,a
+__div2opconu:
 	; HL / DE
 	call	__divhlde
 	ret
 
-__rem2uopcon:
-	call	__divhlde
-	ld	l,e
-	ld	h,d
+;	(DE) % HL
+__rem2opu:
+	push	de	; no XCHG on SM83
+	push	hl
+	pop	de
+	pop	hl
+	; (HL) % DE
+	ldi	a,(hl)
+	ld	h,(hl)
+	ld	l,a
+__rem2opconu:
+	; HL % DE
+	call __divhlde
+	ld l,e
+	ld h,d
 	ret

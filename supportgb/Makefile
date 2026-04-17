@@ -18,7 +18,8 @@ OBJ = workspace.o \
       __andeq2op.o __oreq2op.o __xoreq2op.o \
       __andeq2opcon.o __oreq2opcon.o __xoreq2opcon.o \
       __shl2op.o __shl2opcon.o __shr2op.o __shr2opcon.o \
-      __cpl.o
+      __cpl.o \
+      __assignl.o __cast_l.o __derefl.o
 
 .s.o:
 	fcc -mgb -c $<
