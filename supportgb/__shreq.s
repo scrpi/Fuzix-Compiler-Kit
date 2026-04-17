@@ -1,5 +1,5 @@
 ;
-;	(TOS) << HL
+;	(TOS) >> HL
 ;
 	.export __shreq
 

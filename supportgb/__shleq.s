@@ -1,15 +1,15 @@
 ;
-;	(TOS) >> HL
+;	(TOS) << HL
 ;
-	.export __shrequ
+	.export __shleq
 
-__shrequ:
+__shleq:
 	call	__eqprep
 	push	hl
 	ldi	a,(hl)
 	ld	h,(hl)
 	ld	l,a
 	; HL is pointer, DE is shift amount
-	call	__shr2opconu
+	call	__shl2opcon
 	jp	__eqpopouthl
 

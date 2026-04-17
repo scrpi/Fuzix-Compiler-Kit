@@ -1,13 +1,14 @@
 ;
-;	HL >> E signed
+;	HL << E
 ;
-__shr2opcon:
+	.export __shl2opcon
+
+__shl2opcon:
 	ld	a,e
 	and	15
 	ret	z
 loop:
-	sra	h
-	rr	l
+	add	hl,hl
 	dec	a
 	jr	nz, loop
 	ret
