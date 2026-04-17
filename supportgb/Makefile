@@ -13,6 +13,7 @@ OBJ = workspace.o \
       __div2opcon.o \
       __band2op.o __bor2op.o __bxor2op.o \
       __andeq2op.o __oreq2op.o __xoreq2op.o \
+      __shl2op.o __shl2opcon.o __shr2op.o __shr2opcon.o \
       __cpl.o
 
 .s.o:
