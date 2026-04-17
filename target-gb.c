@@ -89,6 +89,7 @@ static unsigned bc_free;
   other pointer type because we have ldax b bot lhlx with b */
 unsigned target_register(unsigned type, unsigned storage)
 {
+#if 0
 	if (!bc_free || type >= CLONG)
 		return 0;
 	if (PTR(type) == 0 || (PTR(type) == 1 && type < CSHORT)) {
@@ -100,6 +101,10 @@ unsigned target_register(unsigned type, unsigned storage)
 			arg_flags |= F_REG(1);
 		return 1;
 	}
+#endif
+	/* We use BC for the upper parts of a 32bit value. We could do with a
+	   "no longs used in function" for this and 6809/HC11 but for now we
+	   have	to just punt */
 	return 0;
 }
 

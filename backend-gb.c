@@ -6,6 +6,8 @@
  *	TODO: Can we do better logic for stuff we move into DE so we load into DE
  *	      in the first place ?
  *	TODO: import volatile handling into this, Z80 and 8080
+ *
+ *	For now we use BC:HL for 32bit values.
  */
 #include <stdio.h>
 #include <stdint.h>
@@ -547,7 +549,11 @@ void gen_helpclean(struct node *n)
 
 void gen_switch(unsigned n, unsigned type)
 {
-	outputne("ld de,Sw%u", n);
+	if (type > UCHAR) {
+		outputne("ld e,l");
+		outputne("ld d,h");
+	}
+	outputne("ld hl,Sw%u", n);
 	printf("\tjp __switch");
 	helper_type(type, 0);
 	putchar('\n');
@@ -2240,7 +2246,8 @@ unsigned gen_push(struct node *n)
 		outputne("push hl");
 		return 1;
 	case 4:
-		outputne("call __pushl");
+		outputne("push bc");
+		outputne("push hl");
 		return 1;
 	default:
 		return 0;
