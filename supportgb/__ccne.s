@@ -17,10 +17,10 @@ __ccne:
 __cmpne:
 	ldi	a,(hl)
 	cp	e
-	jr	nz,false
+	jr	nz,true
 	ld	a,(hl)
 	cp	d
-	jr	z, true
+	jr	nz, true
 false:
 	xor	a
 	ld	h,a

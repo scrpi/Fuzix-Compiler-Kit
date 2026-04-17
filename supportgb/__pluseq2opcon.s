@@ -8,9 +8,10 @@ __pluseq2opcon:
 	ld	a,(hl)
 	add	e
 	ldi	(hl),a
-	ld	l,a
+	ld	e,a
 	ld	a,(hl)
 	adc	d
 	ld	(hl),a
 	ld	h,a
+	ld	l,e
 	ret

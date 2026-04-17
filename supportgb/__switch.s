@@ -20,6 +20,7 @@ next:
 	jr	z, match
 miss:	inc	hl
 	inc	hl
+	inc	hl
 	dec	c
 	jr	nz, next
 default:

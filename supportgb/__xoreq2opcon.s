@@ -1,17 +1,17 @@
 ;
-;	(DE) ^ HL
+;	(HL) ^ DE
 ;
 	.export __xoreq2opcon
 
 __xoreq2opcon:
-	ld 	a,(de)
-	xor	h
-	ld	(de),a
+	ld 	a,(hl)
+	xor	e
+	ldi	(hl),a
+	ld	e,a
+	ld	a,(hl)
+	xor	d
+	ld	(hl),a
 	ld	h,a
-	inc	de
-	ld	a,(de)
-	xor	l
-	ld	(de),a
-	ld	l,a
+	ld	l,e
 	ret
 

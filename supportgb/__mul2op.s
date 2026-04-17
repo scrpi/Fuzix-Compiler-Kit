@@ -4,6 +4,8 @@
 	.export __mul2op
 	.export	__mul2opcon
 	.export __mulde
+	.export __muleq
+	.export __muleqc
 
 ;	DE * (HL)
 __mul2op:
@@ -47,4 +49,22 @@ noadd2:	sla	l
 
 	pop	bc
 	ret
+
+__muleq:
+	call	__eqprep
+	push	hl
+	call	__mul2op
+	ld	e,l
+	ld	d,h
+	jp	__eqpopout
+
+__muleqc:
+	call	__eqprep
+	push	hl
+	ld	l,(hl)
+	ld	h,0
+	call	__mulde
+	ld	a,l
+	jp	__eqpopoutc
+
 

@@ -99,6 +99,7 @@ __div2op:
 	ld	h,(hl)
 	ld	l,a
 __div2opcon:
+	; HL / DE
 	push	bc
 	ld	c,0
 	call	dodiv2opcon

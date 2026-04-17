@@ -1,17 +1,17 @@
 ;
-;	(DE) & HL
+;	(HL) & DE
 ;
 	.export __andeq2opcon
 
 __andeq2opcon:
-	ld 	a,(de)
-	and	h
-	ld	(de),a
+	ld 	a,(hl)
+	and	e
+	ldi	(hl),a
+	ld	e,a
+	ld	a,(hl)
+	and	d
+	ld	(hl),a
 	ld	h,a
-	inc	de
-	ld	a,(de)
-	and	l
-	ld	(de),a
-	ld	l,a
+	ld	l,e
 	ret
 

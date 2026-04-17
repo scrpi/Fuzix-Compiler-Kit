@@ -8,9 +8,10 @@ __minuseq2opcon:
 	ld	a,(hl)
 	sub	e
 	ldi	(hl),a
-	ld	l,a
+	ld	e,a
 	ld	a,(hl)
 	sbc	d
 	ld	(hl),a
 	ld	h,a
+	ld	l,e
 	ret

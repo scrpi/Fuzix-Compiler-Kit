@@ -1,17 +1,17 @@
 ;
-;	(DE) & HL
+;	(HL) & DE
 ;
 	.export __oreq2opcon
 
 __oreq2opcon:
-	ld 	a,(de)
-	or	h
-	ld	(de),a
+	ld 	a,(hl)
+	or	e
+	ldi	(hl),a
+	ld	e,a
+	ld	a,(hl)
+	or	d
+	ld	(hl),a
 	ld	h,a
-	inc	de
-	ld	a,(de)
-	or	l
-	ld	(de),a
-	ld	l,a
+	ld	l,e
 	ret
 
