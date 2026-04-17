@@ -3,6 +3,7 @@
 ;
 	.export __eqprep
 	.export __eqpopout
+	.export __eqpopouthl
 	.export __eqpopoutc
 
 __eqprep:
@@ -18,6 +19,9 @@ __eqprep:
 ;	End code for some eq ops. Jumped to - pops the variable
 ;	address, writes DE into it and returns it as HL having done
 ;	a stack clean
+__eqpopouthl:
+	ld	e,l
+	ld	d,h
 __eqpopout:
 	pop	hl
 	ld	(hl),e

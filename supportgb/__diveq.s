@@ -8,6 +8,10 @@
 	.export __remequ
 	.export __diveq
 	.export __remeq
+	.export __divequc
+	.export __remequc
+	.export __diveqc
+	.export __remeqc
 
 __divequ:
 	call	__eqprep
@@ -18,9 +22,7 @@ __divequ:
 	ld	l,a
 	call	__divhlde
 	; result is in HL
-	ld	e,l
-	ld	d,h
-	jp	__eqpopout
+	jp	__eqpopouthl
 
 __remequ:
 	call	__eqprep
@@ -41,9 +43,7 @@ __diveq:
 	ld	h,(hl)
 	ld	l,a
 	call	__div2opcon
-	ld	e,l
-	ld	h,d
-	jp	__eqpopout
+	jp	__eqpopouthl
 
 __remeq:
 	call	__eqprep
@@ -52,6 +52,52 @@ __remeq:
 	ld	h,(hl)
 	ld	l,a
 	call	__rem2opcon
-	ld	e,l
-	ld	h,d
-	jp	__eqpopout
+	jp	__eqpopouthl
+
+__divequc:
+	call	__eqprep
+	; HL is now the pointer
+	push	hl
+	ld	l,(hl)
+	ld	h,0
+	call	__divhlde
+	; result is in HL
+	ld	a,l
+	jp	__eqpopoutc
+
+__remequc:
+	call	__eqprep
+	; HL is now the pointer
+	push	hl
+	ld	l,(hl)
+	ld	h,0
+	call	__divhlde
+	; result is in DE
+	ld	a,e
+	jp	__eqpopoutc
+
+__diveqc:
+	call	__eqprep
+	push	hl
+	ld	l,(hl)
+	ld	h,0
+	bit	7,l
+	jr	z,nosex
+	dec	h
+nosex:
+	call	__div2opcon
+	ld	a,l
+	jp	__eqpopoutc
+
+__remeqc:
+	call	__eqprep
+	push	hl
+	ld	l,(hl)
+	ld	h,0
+	bit	7,l
+	jr	z,nosex2
+	dec	h
+nosex2:
+	call	__rem2opcon
+	ld	a,l
+	jp	__eqpopoutc

@@ -54,9 +54,7 @@ __muleq:
 	call	__eqprep
 	push	hl
 	call	__mul2op
-	ld	e,l
-	ld	d,h
-	jp	__eqpopout
+	jp	__eqpopouthl
 
 __muleqc:
 	call	__eqprep
