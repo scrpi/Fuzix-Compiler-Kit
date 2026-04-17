@@ -90,6 +90,24 @@ static void init_name_cache(void)
 	nhead = names;
 }
 
+/* This is excessively paranoid but lets fix the bug and then think about
+   how to clean the logic up across the backends so that we don't mash
+   signs but we can squash other same size conversions. In particular
+   pointer/integer is fine regardless */
+   
+unsigned cast_fold_safe(register unsigned op)
+{
+	/* Division forms are sign dependent */
+	if (op == T_SLASH || op == T_SLASHEQ || op == T_PERCENT ||
+		op == T_PERCENTEQ)
+		return 0;
+	/* Right shift ditto */
+	if (op == T_GTGT || op == T_SHREQ)
+		return 0;
+	/* Comparisons are special as they take the type from the child
+	   nodes and always produce a boolean int */
+	return 1;
+}
 /*
  *	Expression tree nodes
  */
