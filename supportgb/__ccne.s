@@ -1,26 +1,34 @@
-	; TOS != HL
 	.export __ccne
+	.export __cmpne
 
+;	TOS != HL
 __ccne:
-	ld	hl,sp+3
-	ldd	a,(hl)
-	cp	h
-	jr	nz,false
-	ld	a,(hl)
-	cp	l
-	jr	z, true
-false:
-	xor	a
-	ld	h,a
-	ld	l,a
-out:
+	ld	e,l
+	ld	d,h
+	ld	hl,sp+2
+	call	__cmpne
 	pop	de
 	inc	sp
 	inc	sp
 	push	de
 	ret
+
+;	(HL) != DE
+__cmpne:
+	ldi	a,(hl)
+	cp	e
+	jr	nz,false
+	ld	a,(hl)
+	cp	d
+	jr	z, true
+false:
+	xor	a
+	ld	h,a
+	ld	l,a
+	ret
 true:
 	ld	hl,0
 	inc	l
-	jr	out
+	ret
+
 

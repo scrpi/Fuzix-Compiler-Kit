@@ -4,8 +4,10 @@
 	.export __bool
 	.export __not
 	.export __cmpeq0
+	.export __cmpne0
 
 __bool:
+__cmpne0:
 	ld	a,h
 	or	l
 	ret	z
