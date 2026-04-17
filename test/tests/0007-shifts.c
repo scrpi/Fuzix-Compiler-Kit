@@ -42,40 +42,42 @@ int main(int argc, char *argv[])
         return 4;
     if (rshiftu(0x3000, 12) != 0x03)
         return 5;
-    if (rshifts(0x3000, 12) != 0x03)
+    if (rshiftu(0x8000, 1) != 0x4000)
         return 6;
-    if (rshifts(0x8000, 12) != 0xFFF8)
+    if (rshifts(0x3000, 12) != 0x03)
         return 7;
-    if (rshifts(12, 0) != 12)
+    if (rshifts(0x8000, 12) != 0xFFF8)
         return 8;
-    if (lshift(0x55AA, 0) != 0x55AA)
+    if (rshifts(12, 0) != 12)
         return 9;
+    if (lshift(0x55AA, 0) != 0x55AA)
+        return 10;
 
     sint = 4;
     sint >>= 2;
     if (sint != 1)
-        return 10;
+        return 11;
     sint = 0xFFFE;
     sint >>= 1;
     if (sint != 0xFFFF)
-        return 11;
+        return 12;
 
     uint = 0xC000;
     uint >>= 4;
     if (uint != 0x0C00)
-        return 12;
+        return 13;
     chr = 4;
     chr >>= 2;
     if (chr != 1)
-        return 13;
+        return 14;
     chr = -2;
     chr >>= 1;
     if (chr != -1)
-        return 14;
+        return 15;
     uchr = 0xC0;
     uchr >>= 4;
     if (uchr != 0x0C)
-        return 15;
+        return 16;
     return 0;
 
     sint = 4;
@@ -86,14 +88,18 @@ int main(int argc, char *argv[])
     uint >>= 0;
     if (uint != 0xC000)
         return 17;
+    uint = 0xC000;
+    uint >>= 1;
+    if (uint != 0x6000)
+        return 18;
     chr = -2;
     chr >>= 0;
     if (chr != -2)
-        return 18;
+        return 19;
     uchr = 0xC0;
     uchr >>= 0;
     if (uchr != 0xC0)
-        return 19;
+        return 20;
     return 0;
 
 }
