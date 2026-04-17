@@ -4,10 +4,9 @@
 	.export __shreqc
 
 __shreqc:
-	call	__eqprep
+	call	__eqprepc
 	push	hl
-	ld	a,e		; count
-	and	7
+	and	7		; count
 	ld	e,a
 	ld	a,(hl)		; working value
 	jr	z, nowork

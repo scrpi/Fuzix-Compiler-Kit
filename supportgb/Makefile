@@ -20,7 +20,8 @@ OBJ = workspace.o \
       __shl2op.o __shl2opcon.o __shr2op.o __shr2opcon.o __shr2opu.o \
       __shreq.o __shrequ.o __shr2opconu.o __shreqc.o __shrequc.o \
       __cpl.o \
-      __assignl.o __cast_l.o __derefl.o __cpll.o
+      __assignl.o __cast_l.o __derefl.o __cpll.o \
+      __minuseql.o __pluseql.o
 
 .s.o:
 	fcc -mgb -c $<

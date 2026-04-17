@@ -12,6 +12,7 @@ __shr2op:
 loop:
 	sra	h
 	rr	l
+	dec	a
 	jr	nz, loop
 	ret
 

@@ -29,8 +29,8 @@ __mulde:
 low:	rra
 	jr	nc, noadd1
 	add	hl,de
-noadd1:	sla	l		; noxchg on SM83
-	rl	h		; so use the shifts
+noadd1:	sla	e		; noxchg on SM83
+	rl	d		; so use the shifts
 	dec	c
 	jr	nz, low
 
@@ -40,8 +40,8 @@ noadd1:	sla	l		; noxchg on SM83
 hi:	rra
 	jr	nc,noadd2
 	add	hl,de
-noadd2:	sla	l
-	rl	h
+noadd2:	sla	e
+	rl	d
 	dec	c
 	jr	nz,hi
 

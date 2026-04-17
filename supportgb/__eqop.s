@@ -4,15 +4,26 @@
 	.export __eqprep
 	.export __eqpopout
 	.export __eqpopouthl
+	.export __eqprepc
 	.export __eqpopoutc
 
 __eqprep:
 	ld	e,l
 	ld	d,h
-	ld	hl,sp+2
+	ld	hl,sp+4
 	ldi	a,(hl)
 	ld	h,(hl)
 	ld	l,a
+	; HL is now the pointer
+	ret
+
+__eqprepc:
+	;	Data is in A
+	ld	hl,sp+4
+	ld	e,(hl)
+	inc	hl
+	ld	h,(hl)
+	ld	l,e
 	; HL is now the pointer
 	ret
 

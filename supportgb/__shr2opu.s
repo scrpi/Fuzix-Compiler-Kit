@@ -12,6 +12,7 @@ __shr2opu:
 loop:
 	srl	h
 	rr	l
+	dec	a
 	jr	nz, loop
 	ret
 
