@@ -684,7 +684,7 @@ struct node *gen_rewrite_node(struct node *n)
 		}
 	}
 	/* Eliminate casts for sign, pointer conversion or same */
-	if (op == T_CAST) {
+	if (op == T_CAST && cast_fold_safe(r->op)) {
 		if (nt == r->type || (nt ^ r->type) == UNSIGNED ||
 		 (PTR(nt) && PTR(r->type))) {
 			free_node(n);

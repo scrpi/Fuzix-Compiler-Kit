@@ -765,7 +765,7 @@ static int do_pri8hi(struct node *n, const char *op, void (*pre)(struct node *__
 	unsigned v = n->value;
 
 	/* We can fold in some simple casting */
-	if (n->type == T_CAST) {
+	if (n->type == T_CAST && cast_fold_safe(r->op)) {
 		if ((!PTR(n->type) && n->type != CINT && n->type != UINT) || r->type != UCHAR)
 			return 0;
 		/* We need to do it on 0 */

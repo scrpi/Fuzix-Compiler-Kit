@@ -300,7 +300,7 @@ struct node *gen_rewrite_node(struct node *n)
 		}
 	}
 	/* Eliminate casts for sign, pointer conversion or same */
-	if (op == T_CAST) {
+	if (op == T_CAST && cast_fold_safe(r->op)) {
 		if (nt == r->type || (nt ^ r->type) == UNSIGNED ||
 		 (PTR(nt) && PTR(r->type))) {
 			free_node(n);
@@ -979,7 +979,8 @@ static unsigned gen_twoop(const char *op, struct node *n, struct node *r, unsign
 	if (s > 2)
 		return 0;
 	if (r->op == T_CONSTANT) {
-		sprintf(opc, "%scon", op);
+		strcpy(opc, op);
+		strcat(opc, "con");
 		op = opc;
 	}
 	if (s == 2) {
@@ -1884,6 +1885,7 @@ unsigned gen_shortcut(struct node *n)
 		ccvalid = CC_VALID;
 		return 1;
 	}
+#if 0	
 	/* Re-order assignments we can do the simple way */
 	if (n->op == T_NSTORE && s <= 2) {
 		codegen_lr(r);
@@ -1896,6 +1898,7 @@ unsigned gen_shortcut(struct node *n)
 			outputne("ld (_%s+%u),a", namestr(n->snum), WORD(n->value));
 		return 1;
 	}
+#endif	
 #if 0	
 	if (n->op == T_LSTORE && s <= 2) {
 		if (n->value + sp == 0 && s == 2) {
