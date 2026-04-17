@@ -9,6 +9,9 @@ __postdecl:
 	ld	e,l
 	ld	d,h
 	ld	hl,sp+2
+	ldi	a,(hl)
+	ld	h,(hl)
+	ld	l,a
 	ld	a,(hl)
 	push	af		; no room otherwise
 	sub	e
@@ -33,7 +36,8 @@ __postdecl:
 	ld	l,a
 	; Now clean up
 	pop	de
-	add	sp,4
+	inc	sp
+	inc	sp
 	push	de
 	ret
 

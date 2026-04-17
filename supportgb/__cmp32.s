@@ -16,6 +16,8 @@
 ;	On entry pointer HL is to high (top byte)
 
 __cmp32top:
+	ld	d,h
+	ld	e,l
 	ld	hl,sp+7
 __cmp32:
 	ld	a,b
@@ -30,6 +32,8 @@ __cmp32:
 	inc	a		; force NZ
 	ret
 __cmp32utop:
+	ld	d,h
+	ld	e,l
 	ld	hl,sp+7
 __cmp32u:
 	ld 	a,b
@@ -44,16 +48,15 @@ __cmp32u:
 	cp	(hl)
 	ret	nz
 	dec	hl
+	ld	a,e
 	cp	(hl)
 	ret
 
 
 __ccnel:
 	call	__cmp32utop
-	ld	hl,0
-	ret	z		; equality is false
-	inc	l
-	ret			; was not equal
+	jr	z,false
+	jr	true
 
 __cceql:
 	call	__cmp32utop
@@ -75,44 +78,44 @@ true:	pop	de
 
 __ccltul:
 	call	__cmp32utop
-	jr	c,true
-	jp	false
+	jr	z,false
+	jr	c,false
+	jr	true
 
 __ccgtequl:
 	call	__cmp32utop
-	jr	nc,true
-	jp	false
+	jr	c,true
+	jr	z,true
+	jr	false
 
 __ccltequl:
 	call	__cmp32utop
-	jr	c,true
-	jr	z,true
-	jp	false
+	jr	c,false
+	jr	true
 
 __ccgtul:
 	call	__cmp32utop
-	jr	c,false
-	jr	z,false
-	jp	true
+	jr	c,true
+	jr	false
 
 __ccltl:
 	call	__cmp32top
-	jr	c,true
-	jp	false
+	jr	z,false
+	jr	c,false
+	jr	true
 
 __ccgteql:
 	call	__cmp32top
-	jr	nc,true
-	jp	false
+	jr	c,true
+	jr	z,true
+	jr	false
 
 __cclteql:
 	call	__cmp32top
 	jr	c,true
-	jr	z,true
-	jp	false
+	jr	false
 
 __ccgtl:
 	call	__cmp32top
-	jr	c,false
-	jr	z,false
-	jp	true
+	jr	c,true
+	jr	false
