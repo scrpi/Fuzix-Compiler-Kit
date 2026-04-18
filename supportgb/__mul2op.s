@@ -18,35 +18,20 @@ __mul2opcon:
 ;
 __mulde:
 	push	bc
-
-	ld	b,h		; save old upper byte
-
-	ld	a,l		; work on old lower
-	ld	c,8
-
-	ld	hl,0		; accumulator for the shift/adds
-
-low:	rra
-	jr	nc, noadd1
-	add	hl,de
-noadd1:	sla	e		; noxchg on SM83
-	rl	d		; so use the shifts
-	dec	c
-	jr	nz, low
-
-	ld	a,b
-	ld	c,8
-
-hi:	rra
-	jr	nc,noadd2
-	add	hl,de
-noadd2:	sla	e
-	rl	d
-	dec	c
-	jr	nz,hi
-
+	ld	b,h		; copy value over
+	ld	c,l
+	ld	hl,0
+	ld	a,d		; upper half of work in A for speed
+	ld	d,16
+loop:
+	add	hl,hl		; shift result
+	rl	e
+	rla
+	jr	nc, noset	; not a 1 bit in this column
+	add	hl,bc		; add in the other half
+noset:	dec	d
+	jr	nz, loop
 	; result is in HL
-
 	pop	bc
 	ret
 
