@@ -4,51 +4,36 @@
 		.export __mul
 
 		.code
-;
-;	TODO: rework for Z80 optimized - use B not C etc
-;
-
 __mul:
-		ex	de,hl
-		pop	hl
-		ex	(sp),hl
+	ex	de,hl
+	pop	hl
+	ex	(sp),hl
 ;
 ;		HL * DE
 ;
-__mulde0d:	ld	d,0
-__mulde:	push	bc
+__mulde0d:
+	ld	d,0
+;
+;	DE * HL
+;
+__mulde:
+	push	bc
+	ld	b,h		; copy value over
+	ld	c,l
+	ld	hl,0
+	ld	a,b		; upper half of work in A for speed
+	ld	b,16
+loop:
+	add	hl,hl		; shift result
+	rl	c
+	rla
+	jr	nc, noset	; not a 1 bit in this column
+	add	hl,de		; add in the other half
+noset:	djnz	loop
+	; result is in HL
+	pop	bc
+	ret
 
-		ld	b,h		; save old upper byte
-
-		ld	a,l		; work on old lower
-		ld	c,8
-
-		ld	hl,0		; accumulator for the shift/adds
-
-low:		rra
-		jr	nc, noadd1
-		add	hl,de
-noadd1:		ex	de,hl
-		add	hl,hl
-		ex	de,hl
-		dec	c
-		jr	nz, low
-
-		ld	a,b
-		ld	c,8
-
-hi:		rra
-		jr	nc,noadd2
-		add	hl,de
-noadd2:		ex	de,hl
-		add	hl,hl
-		ex	de,hl
-		dec	c
-		jr	nz,hi
-
-		; result is in HL
-
-		pop	bc
-		ret
-__muldeb:	ld	h,0
-		jr	__mulde
+__muldeb:
+	ld	h,0
+	jr	__mulde
