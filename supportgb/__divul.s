@@ -113,7 +113,7 @@ nope:
 	ld	b,(hl)
 	ld	l,e
 	ld	h,d
-	add	sp,7
+	add	sp,5
 	; Remainder in BCDE
 	ret	
 

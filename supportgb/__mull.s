@@ -33,16 +33,16 @@ __mull:
 	ld	(hl),a
 
 	; Now work through the maths
-	ld	hl,sp+7
-	ldi	a,(hl)
-	call	mulstripe
-	ld	hl,sp+8
+	ld	hl,sp+10
 	ldi	a,(hl)
 	call	mulstripe
 	ld	hl,sp+9
 	ldi	a,(hl)
 	call	mulstripe
-	ld	hl,sp+10
+	ld	hl,sp+8
+	ldi	a,(hl)
+	call	mulstripe
+	ld	hl,sp+7
 	ldi	a,(hl)
 	call	mulstripe
 	; Result is now in WORK
@@ -67,13 +67,21 @@ __mull:
 mulstripe:	; BCDE * A
 	or	a
 	jr	z,shiftonly	; no additions this byte worth
-	ld	hl,sp+0
+	ld	hl,sp+2
 	ld	(hl),8
 stripeloop:
-	ld	hl,sp+1
-	rra
-	jr	nc,noadd
+	ld	hl,sp+3
+	sla	(hl)
 	inc	hl
+	rl	(hl)
+	inc	hl
+	rl	(hl)
+	inc	hl
+	rl	(hl)
+	rla
+	jr	nc,noadd
+	ld	hl,sp+3
+	push	af
 	ld	a,(hl)
 	add	e
 	ldi	(hl),a
@@ -86,33 +94,25 @@ stripeloop:
 	ld	a,(hl)
 	add	b
 	ld	(hl),a
+	pop	af
 noadd:
-	ld	hl,sp+WORK+4
-	sla	(hl)
-	dec	hl
-	sla	(hl)
-	dec	hl
-	sla	(hl)
-	dec	hl
-	sla	(hl)
-	dec	hl	; now points at counter
+	ld	hl,sp+2
 	dec	(hl)
-	jr	nz, mulstripe
+	jr	nz, stripeloop
 	ret
 
 shiftonly:
+	ld	hl,sp+3
 	push	de
-	ld	hl,sp+1
 	ld	a,(hl)
 	ld	(hl),0
+	inc	hl
 	ld	e,(hl)
 	ldi	(hl),a
 	ld	a,(hl)
 	ld	(hl),e
 	inc	hl
-	ld	e,(hl)
 	ldi	(hl),a
-	ld	(hl),e
 	pop	de
 	ret
 
