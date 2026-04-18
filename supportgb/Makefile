@@ -25,7 +25,7 @@ OBJ = workspace.o \
       __minuseql.o __pluseql.o __postincl.o __postdecl.o \
       __bandl.o __orl.o __xorl.o __andeql.o __oreql.o __xoreql.o \
       __shll.o __shrl.o \
-      __plusl.o __minusl.o \
+      __plusl.o __minusl.o __mull.o \
       __booll.o
 
 .s.o:
