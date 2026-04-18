@@ -417,7 +417,7 @@ void gen_epilogue(unsigned size, unsigned argsize)
 void gen_label(const char *tail, unsigned n)
 {
 	unreachable = 0;
-	output("L%u%s:", n, tail);
+	outputne("L%u%s:", n, tail);
 }
 
 /* A return statement. We can sometimes shortcut this if we have

@@ -1,4 +1,5 @@
 	.export __cast_l
+	.export __cast_ul
 	.export __castc_l
 
 
@@ -7,6 +8,7 @@ __castc_l:
 	ld	h,0
 	jr	z,__cast_l
 	dec	h
+__cast_ul:
 __cast_l:
 	bit	7,h
 	ld	bc,0
