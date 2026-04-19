@@ -5,10 +5,10 @@ __cceq:
 	ld	hl,sp+3
 	ldd	a,(hl)
 	cp	h
-	jr	nz,true
+	jr	nz,false
 	ld	a,(hl)
-	xor	l	; compare and end up with A = 0 if equal
-	jr	z, false
+	cp	l
+	jr	nz, false
 true:
 	ld	hl,0
 	inc	l
@@ -19,7 +19,7 @@ out:
 	push	de
 	ret
 false:
-	; At this point A is 0 and Z
+	xor	a
 	ld	l,a
 	ld	h,a
 	jr	out
