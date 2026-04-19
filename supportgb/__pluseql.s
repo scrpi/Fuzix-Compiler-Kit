@@ -28,6 +28,8 @@ __pluseql:
 	adc	b
 	ld	b,a
 	ld	(hl),a
+	ld	l,e
+	ld	h,d
 	; Now clean up
 	pop	de
 	inc	sp

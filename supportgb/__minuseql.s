@@ -28,6 +28,8 @@ __minuseql:
 	sbc	b
 	ld	b,a
 	ld	(hl),a
+	ld	h,d
+	ld	l,e
 	; Now clean up
 	pop	de
 	inc	sp

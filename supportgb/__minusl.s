@@ -1,10 +1,12 @@
 ;
-;	(TOS) + BCHL
+;	TOS + BCHL
 ;
 	.export __minusl
 
 __minusl:
-	call	__eqprep
+	ld	d,h
+	ld	e,l
+	ld	hl,sp+2
 	; now (HL) + BCDE
 	ldi	a,(hl)
 	sub	e
