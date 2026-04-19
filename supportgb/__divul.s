@@ -175,14 +175,13 @@ __divequl:
 	; result is in stack frame
 	pop	de
 	pop	bc		; recover value
-	add	sp,4
 	jr	eqout
 
 __remequl:
 	call	__eqprep
 	push	hl
 	push	bc
-	push	de
+	push	de		; save divisor		
 	ld	e,(hl)
 	inc	hl
 	ld	d,(hl)
@@ -190,12 +189,24 @@ __remequl:
 	ld	c,(hl)
 	inc	hl
 	ld	b,(hl)
+	push	bc
+	push	de		; push the value from the variable
+	; points to our save
+	ld	hl,sp+4
+	ld	e,(hl)
+	inc	hl
+	ld	d,(hl)
+	inc	hl
+	ld	c,(hl)
+	inc	hl
+	ld	b,(hl)		; working value now correct
 	push	hl		; dummy
 	push	hl
 	call	__div32
 	add	sp,8		; drop stack workspace and dummy
 	; Result is BCDE
 eqout:
+	add	sp,4
 	pop	hl		; destination address
 	ld	(hl),e
 	inc	hl

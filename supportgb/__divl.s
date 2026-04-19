@@ -79,10 +79,12 @@ __diveql:
 	push	af
 	bit	7,b
 	call	negbcde
+	pop	af
 	push	bc
 	push	de
+	push	af
 	; saved
-	ld	hl,sp+4
+	ld	hl,sp+6
 	ld	e,(hl)
 	inc	hl
 	ld	d,(hl)
@@ -95,10 +97,10 @@ __diveql:
 	push	hl		; dummy
 	call	__div32
 	pop	hl
+	pop	af
 	pop	de
 	pop	bc		; result
 eqout:
-	pop	af
 	call	nz,negbcde
 	pop	af		; discard save
 	pop	af
@@ -131,12 +133,13 @@ __remeql:
 	ld	c,(hl)
 	inc	hl
 	ld	b,(hl)		; variable into BCDE
-	xor	b		; compare signs
 	bit	7,b
 	push	af		; save sign
 	call	negbcde
+	pop	af
 	push	bc
 	push	de
+	push	af
 	; saved
 	ld	hl,sp+4
 	ld	e,(hl)
@@ -150,9 +153,13 @@ __remeql:
 	call	nz,negbcde
 	push	hl		; dummy
 	call	__div32
-	add	sp,6		; clean up stack
+	pop	hl
+	pop	af
+	inc	sp
+	inc	sp
+	inc	sp
+	inc	sp
 	jr	eqout
-
 negbcde:
 	; Temporary fudge. Once we switch to using DE as working reg and
 	; BCDE this will go away
