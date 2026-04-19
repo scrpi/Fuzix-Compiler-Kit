@@ -164,15 +164,18 @@ __divequl:
 	inc	hl
 	ld	d,(hl)
 	inc	hl
-	ld	d,(hl)
+	ld	c,(hl)
 	inc	hl
 	ld	b,(hl)		; working value now correct
 	push	hl		; dummy
+	push	hl
 	call	__div32
 	pop	hl		; dummy
+	pop	hl
 	; result is in stack frame
 	pop	de
 	pop	bc		; recover value
+	add	sp,4
 	jr	eqout
 
 __remequl:
@@ -188,8 +191,9 @@ __remequl:
 	inc	hl
 	ld	b,(hl)
 	push	hl		; dummy
+	push	hl
 	call	__div32
-	add	sp,6		; drop stack workspace and dummy
+	add	sp,8		; drop stack workspace and dummy
 	; Result is BCDE
 eqout:
 	pop	hl		; destination address
@@ -200,6 +204,8 @@ eqout:
 	ld	(hl),c
 	inc	hl
 	ld	(hl),b
+	ld	l,e
+	ld	h,d
 	pop	de
 	inc	sp
 	inc	sp
