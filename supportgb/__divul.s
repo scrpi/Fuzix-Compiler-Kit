@@ -138,7 +138,7 @@ __remul:
 	ld	d,h
 	push	hl
 	call	__div32
-	pop	hl
+	pop	af
 	pop	de		; return address
 	add	sp,4
 	push	de
