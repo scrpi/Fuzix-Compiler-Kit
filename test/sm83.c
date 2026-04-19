@@ -857,14 +857,19 @@ static void print_disasm(const char *ptr)
             if (ptr[1] == '2') {
                 fputs(rpair2_name[p], stderr);
                 ptr++;
-            } else
+            } else {
                 fputs(regname[y], stderr);
+                if (y == REG_M)
+                    fprintf(stderr, "[%02X]", mem_read8_debug(getpair(RR_HL)));
+            }
             break;
         case 'Y':
             fprintf(stderr, "%d", y << 3);
             break;
         case 'Z':
             fputs(regname[z], stderr);
+            if (z == REG_M)
+                fprintf(stderr, "[%02X]", mem_read8_debug(getpair(RR_HL)));
             break;
         default:
             error("bad disasm");
