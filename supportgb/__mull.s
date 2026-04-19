@@ -133,6 +133,8 @@ __muleql:
 	ld	b,(hl)
 	call	__mull
 	; mull removed the arg we pushed
+	ld	e,l
+	ld	d,h
 	; BCDE is now the result
 	pop	hl
 	ld	(hl),e
