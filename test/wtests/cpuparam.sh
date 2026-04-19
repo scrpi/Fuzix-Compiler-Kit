@@ -104,6 +104,14 @@ case "x"$1 in
 		EMU="emu6800 6811"
 		break
 		;;
+	xsm83)
+		CPU=gb
+		LINK=ldgb
+		LIB=gb
+		LINKOPT=-C0
+		EMU="emusm83"
+		break
+		;;
 	xtms7000)
 		CPU=tms7000
 		LINK=ld7000

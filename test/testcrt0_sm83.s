@@ -15,7 +15,7 @@ _printint:
 	ld	a,e
 	ld 	(0xFFFC),a
 	ld	a,d
-	ld 	(0xFFFC),a
+	ld 	(0xFFFD),a
 	jp	(hl)
 
 	.export	_printchar

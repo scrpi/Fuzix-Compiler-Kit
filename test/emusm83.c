@@ -55,13 +55,13 @@ void mem_write8(uint16_t addr, uint8_t val)
 		break;
 	    case 0xFFFD:
 		/* Make the value signed */
-		x=  (fffcval << 8) | val;
+		x=  fffcval | (val << 8);
 		if (x >= 0x8000)
 			x-= 0x10000;
 		printf("%d\n", x);
 		break;
 	    case 0xFFFC:
-		fffcval= val;	/* Save high byte for now */
+		fffcval= val;	/* Save low byte for now */
 		break;
 	    default:
 		ram[addr] = val;
