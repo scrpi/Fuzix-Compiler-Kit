@@ -11,6 +11,7 @@ all: Preprocessor cc cc0 \
      support6303 support6502 support65c816 support6800 support6803 \
      support6809 support68hc11 support8070 support8080 support8085 supportz80 \
      supportz8 supportsuper8 supportee200 supportnova supportnova3 supporttms7000 \
+     supportgb \
      test
 
 bootstuff: Preprocessor cc cc0 \
@@ -27,7 +28,7 @@ bootstuff: Preprocessor cc cc0 \
 .PHONY: support6303 support6502 support65c816 support6800 support6803 \
 	support6809 support68hc11 support8070 support8080 support8085 \
 	supportsuper8 supportz8 supportz80 supportee200 supportnova \
-	supportnova3 supporttms7000 test Preprocessor
+	supportnova3 supporttms7000 supportgb test Preprocessor
 
 CCROOT ?=/opt/fcc/
 
@@ -232,6 +233,9 @@ support8085:
 supportee200:
 	(cd supportee200; make)
 
+supportgb:
+	(cd supportgb; make)
+
 supportnova:
 	(cd supportnova; make)
 
@@ -284,13 +288,14 @@ clean:
 	(cd support8070; make clean)
 	(cd support8080; make clean)
 	(cd supportee200; make clean)
+	(cd supportgb; make clean)
 	(cd supportnova; make clean)
 	(cd supportnova3; make clean)
 	(cd supportsuper8; make clean)
 	(cd support8085; make clean)
 	(cd supporttms7000; make clean)
-	(cd supportz80; make clean)
 	(cd supportz8; make clean)
+	(cd supportz80; make clean)
 	(cd test; make clean)
 
 # New install version. This is used by both the install rules, as we need
@@ -384,14 +389,14 @@ bootinst:
 	cp cc2.z8 $(CCROOT)/lib
 	cp rules.z8 $(CCROOT)/lib
 	cp lorderz8 $(CCROOT)/bin/lorderz8
-	# Super8
+	# Super8 (WIP)
 	mkdir -p $(CCROOT)/lib/super8
 	mkdir -p $(CCROOT)/lib/super8/include/
 	cp cc1.super8 $(CCROOT)/lib
 	cp cc2.super8 $(CCROOT)/lib
 	cp rules.super8 $(CCROOT)/lib
 	cp lorderz8 $(CCROOT)/bin/lordersuper8
-	# 1802
+	# 1802 (engine WIP)
 	mkdir -p $(CCROOT)/lib/1802
 	mkdir -p $(CCROOT)/lib/1802/include/
 	cp cc1.1802 $(CCROOT)/lib
@@ -411,28 +416,28 @@ bootinst:
 	cp cc1.nova $(CCROOT)/lib
 	cp cc2.nova $(CCROOT)/lib
 	cp rules.nova $(CCROOT)/lib
-	# DDP
+	# DDP (Early testing)
 	mkdir -p $(CCROOT)/lib/ddp
 	mkdir -p $(CCROOT)/lib/ddp/include/
 	cp lorderddp $(CCROOT)/bin/lorderddp
 	cp cc1.ddp $(CCROOT)/lib
 	cp cc2.ddp $(CCROOT)/lib
 	cp rules.ddp $(CCROOT)/lib
-	# TMS7000
+	# TMS7000 (Early testing)
 	mkdir -p $(CCROOT)/lib/tms7000
 	mkdir -p $(CCROOT)/lib/tms7000/include/
 	cp lorder7000 $(CCROOT)/bin/lorder7000
 	cp cc1.7000 $(CCROOT)/lib
 	cp cc2.7000 $(CCROOT)/lib
 	cp rules.7000 $(CCROOT)/lib
-	# 68HC08
+	# 68HC08 (Prototype)
 	mkdir -p $(CCROOT)/lib/hc08
 	mkdir -p $(CCROOT)/lib/hc08/include/
 	cp lorderhc08 $(CCROOT)/bin/lorderhc08
 	cp cc1.hc08 $(CCROOT)/lib
 	cp cc2.hc08 $(CCROOT)/lib
 	cp rules.hc08 $(CCROOT)/lib
-	# Gameboy
+	# Gameboy (Prototype)
 	mkdir -p $(CCROOT)/lib/gb
 	mkdir -p $(CCROOT)/lib/gb/include/
 	cp lordergb $(CCROOT)/bin/lordergb
@@ -499,11 +504,14 @@ libinst:
 	cp supporttms7000/include/*.h $(CCROOT)/lib/tms7000/include/
 	cp supporttms7000/libtms7000.a $(CCROOT)/lib/tms7000/libtms7000.a
 	ar cq $(CCROOT)/lib/tms7000/libc.a
-	cp support8080/crt0.o $(CCROOT)/lib/8080/
 	cp supportz80/crt0.o $(CCROOT)/lib/z80/
 	cp supportz80/include/*.h $(CCROOT)/lib/z80/include/
 	cp supportz80/libz80.a $(CCROOT)/lib/z80/libz80.a
 	ar cq $(CCROOT)/lib/z80/libc.a
+	cp supportgb/crt0.o $(CCROOT)/lib/gb/
+	cp supportgb/include/*.h $(CCROOT)/lib/gb/include/
+	cp supportgb/libgb.a $(CCROOT)/lib/gb/libgb.a
+	ar cq $(CCROOT)/lib/gb/libc.a
 
 #
 #	Build the tools then install them
