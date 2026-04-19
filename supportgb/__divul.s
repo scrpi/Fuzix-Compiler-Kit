@@ -39,7 +39,7 @@ __div32:
 	ld	(hl),32		; set counter
 	inc	hl
 	xor	a
-	ldi	(hl),a
+	ldi	(hl),a		; clear work (sp + 1-4)
 	ldi	(hl),a
 	ldi	(hl),a
 	ld	(hl),a
@@ -53,8 +53,11 @@ loop:	; low byte of input
 	inc	hl
 	rl	(hl)		; rotated X left
 	; low byte of working
-	ld	hl,sp+1
-	rl	(hl)
+	push	af		; infuriatingly this messes with C
+	; +3 to allow for the push af
+	ld	hl,sp+3
+	pop	af
+	rl	(hl)		; rotate it into working
 	inc	hl
 	rl	(hl)
 	inc	hl
@@ -67,9 +70,9 @@ loop:	; low byte of input
 	ld	hl,sp+4
 	ldd	a,(hl)
 	cp	b
-	jr	c,nope
-	jr	nz,dosub
-	ldd	a,(hl)
+	jr	c,nope		; top < b
+	jr	nz,dosub	; top > b
+	ldd	a,(hl)		; top == b - try next
 	cp	c
 	jr	c,nope
 	jr	nz,dosub
@@ -96,7 +99,7 @@ dosub:	ld	hl,sp+1
 	ld	(hl),a
 	; Back to low of X
 	ld	hl,sp+9
-	inc	(hl)		; will always be 0 in low bit at this point
+	inc	(hl)		; will always be 0 in low bit before inc
 nope:
 	ld	hl,sp+0
 	dec	(hl)
@@ -114,7 +117,7 @@ nope:
 	ld	l,e
 	ld	h,d
 	add	sp,5
-	; Remainder in BCDE
+	; Remainder in BCDE/BCHL
 	ret	
 
 
@@ -123,8 +126,8 @@ __divul:
 	ld	d,h
 	call	__div32
 	pop	de		; return address
-	pop	bc		; upper half
 	pop	hl		; lower half
+	pop	bc		; upper half
 	push	de		; put return back
 	ret
 
