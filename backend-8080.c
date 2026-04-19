@@ -1,7 +1,5 @@
 /*
  *	Things to improve
- *	- Use the BC register either via a register hint in the compiler or by looking for
- *	  a non pointer arg candidate (especially on 8080 where the loads are expensive)
  *	- Improve initialized variable generation in stack frame creation
  *	- Do we want a single "LBREF or NREF name print" function
  *	- Optimize xor 0xff with cpl ?
