@@ -20,7 +20,7 @@ OBJ = workspace.o \
       __shl2op.o __shl2opcon.o __shr2op.o __shr2opcon.o __shr2opu.o \
       __shreq.o __shrequ.o __shr2opconu.o __shreqc.o __shrequc.o \
       __shleq.o \
-      __cpl.o __cmp32.o \
+      __cpl.o __cmp32.o __switchl.o \
       __assignl.o __cast_l.o __derefl.o __cpll.o \
       __minuseql.o __pluseql.o __postincl.o __postdecl.o \
       __bandl.o __orl.o __xorl.o __andeql.o __oreql.o __xoreql.o \

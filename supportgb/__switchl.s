@@ -28,11 +28,13 @@ next:
 	pop	af
 	dec	a
 	jr	nz, loop
+	jr	default
 match:
-	ldi	a,(hl)
-	ldi	h,(hl)
-	ld	l,a
 	pop	af
+default:
+	ldi	a,(hl)
+	ld	h,(hl)
+	ld	l,a
 	jp	(hl)
 
 miss1:	inc	hl
