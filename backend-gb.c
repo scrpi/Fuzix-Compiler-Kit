@@ -931,12 +931,16 @@ static unsigned load_a_with(struct node *n, unsigned keep_hl)
 		break;
 	case T_LREF:
 		/* We don't want to trash HL as we may be doing an HL:A op */
-		if (keep_hl)
+		if (keep_hl) {
+			sp += 2;
 			outputne("push hl");
-		hl_from_sp(v);
+		}
+		hl_from_sp(v + sp);
 		output("ld a,(hl)");
-		if (keep_hl)
+		if (keep_hl) {
+			sp -= 2;
 			outputne("pop hl");
+		}
 		break;
 	default:
 		return 0;
