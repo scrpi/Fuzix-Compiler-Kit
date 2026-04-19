@@ -7,26 +7,26 @@
 	.export __remeql
 
 __divl:
+	ld	d,b		; save sign before negation
 	bit	7,b
 	call	nz, __negatel
+	ld	a,d		; recover sign we saved
 	ld	d,h
-	ld	e,l	
+	ld	e,l		; shuffle into DE
 	ld	hl,sp+5
-	ld	a,(hl)
-	xor	b
+	xor	(hl)
 	push	af		; save sign difference
-	push	af		; save dummy
 	bit	7,(hl)
 	call	nz, neghl
 	; Both sides are now positive
 	call	__div32
 	; Result is on stack frame
-	pop	af
+	ld	hl,sp+7
 	pop	af
 	bit	7,a
-	ld	hl,sp+2
 	call	nz, neghl
 	; Now load it 
+	ld	hl,sp+2
 	ld	e,(hl)
 	inc	hl
 	ld	d,(hl)
@@ -46,10 +46,8 @@ __reml:
 	call	nz, __negatel
 	ld	d,h
 	ld	e,l
-	ld	hl,sp+4
-	ld	a,(hl)
+	ld	hl,sp+5
 	bit	7,(hl)
-	push	af
 	push	af
 	call	nz, neghl
 	call	__div32
@@ -57,8 +55,7 @@ __reml:
 	ld	l,e
 	ld	h,d
 	pop	af
-	pop	af
-	call	nz, neghl
+	call	nz, __negatel
 	pop	de
 	add	sp,4
 	push	de
@@ -168,11 +165,7 @@ negbcde:
 	pop	hl
 	ret
 
-neghl:	; Negate the 32bit value at HL
-	push	hl
-	inc	hl
-	inc	hl
-	inc	hl
+neghl:	; Negate the 32bit value at HL (pointer is top top byte)
 	ld	a,(hl)
 	cpl
 	ldd	(hl),a
@@ -196,5 +189,4 @@ neghl:	; Negate the 32bit value at HL
 	ret	nz
 	inc	hl
 	inc	(hl)
-	pop	hl
 	ret

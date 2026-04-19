@@ -26,8 +26,8 @@
 ;
 ;
 ;	BCDE	divisor
-;	9-12	input value
-;	7-8	return address
+;	11-14	input value
+;	7-10	return address/saves/dummy for caller
 ;	5-6	return address
 ;	1-4	working
 ;	0	counter
@@ -44,7 +44,7 @@ __div32:
 	ldi	(hl),a
 	ld	(hl),a
 loop:	; low byte of input
-	ld	hl,sp+9
+	ld	hl,sp+11
 	sla	(hl)
 	inc	hl
 	rl	(hl)
@@ -98,7 +98,7 @@ dosub:	ld	hl,sp+1
 	sbc	b
 	ld	(hl),a
 	; Back to low of X
-	ld	hl,sp+9
+	ld	hl,sp+11
 	inc	(hl)		; will always be 0 in low bit before inc
 nope:
 	ld	hl,sp+0
@@ -124,7 +124,9 @@ nope:
 __divul:
 	ld	e,l
 	ld	d,h
+	push	hl		; dummy
 	call	__div32
+	pop	hl
 	pop	de		; return address
 	pop	hl		; lower half
 	pop	bc		; upper half
@@ -134,7 +136,9 @@ __divul:
 __remul:
 	ld	e,l
 	ld	d,h
+	push	hl
 	call	__div32
+	pop	hl
 	pop	de		; return address
 	add	sp,4
 	push	de
