@@ -41,7 +41,7 @@ not3byte:
 		jr	c,not2byte
 		ex	de,hl		; HL into DE
 		ld	h,255
-		ld	l,d
+		ld	l,h
 		sub	16
 		jr	leftover
 not2byte:

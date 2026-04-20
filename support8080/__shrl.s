@@ -42,7 +42,7 @@ not3byte:
 		jc	not2byte
 		xchg			; HL into DE
 		mvi	h,255
-		mov	l,d
+		mov	l,h
 		sui	16
 		jmp	leftover
 not2byte:
