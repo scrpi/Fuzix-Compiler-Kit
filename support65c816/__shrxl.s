@@ -69,9 +69,11 @@ do_signed:
 	rts
 shifts16:
 	tax
+	lda @hireg
+	pha
 	lda #0xffff
 	sta @hireg
-	lda @tmp
+	pla
 shifts16l:	; shift 16bit leading 1 
 	sec
 	ror a
