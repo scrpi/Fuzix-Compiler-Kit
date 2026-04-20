@@ -1,17 +1,17 @@
-	.export __pluseq
-	.export __pluseq2op
+	.export __minuseq
+	.export __minuseq2op
 ;
 ;	(TOS) -= HL
 ;
-__pluseq:
+__minuseq:
 	call	__eqprep
 	; (HL) - DE
 	ld	a,(hl)
-	add	e
+	sub	e
 	ldi	(hl),a
 	ld	e,a
 	ld	a,(hl)
-	adc	d
+	sbc	d
 	ld	(hl),a
 	ld	h,a
 	ld	l,e
@@ -21,7 +21,7 @@ __pluseq:
 	push	de
 	ret
 
-__pluseq2op:
+__minuseq2op:
 	; (DE) -= (HL)
 	ldi	a,(hl)
 	ld	h,(hl)
@@ -33,11 +33,11 @@ __pluseq2op:
 	pop	hl
 	; (HL) - DE
 	ld	a,(hl)
-	add	e
+	sub	e
 	ldi	(hl),a
 	ld	e,a
 	ld	a,(hl)
-	adc	d
+	sbc	d
 	ld	(hl),a
 	ld	h,a
 	ld	l,e

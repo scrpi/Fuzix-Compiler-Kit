@@ -1949,14 +1949,14 @@ unsigned gen_shortcut(struct node *n)
 	}
 #endif	
 	if (s == 2 && n->op == T_PLUSEQ && l->op == T_LOCAL && l->value == 0 &&
-		r->op == T_CONSTANT && r->value <= 4) {
+		r->op == T_CONSTANT && r->value <= 4 && sp == 0) {
 		outputne("pop hl");
 		repeated_op("inc hl", r->value);
 		outputne("push hl");
 		return 1;
 	}
 	if (s == 2 && n->op == T_MINUSEQ && l->op == T_LOCAL && l->value == 0 &&
-		r->op == T_CONSTANT && r->value <= 4) {
+		r->op == T_CONSTANT && r->value <= 4 && sp == 0) {
 		outputne("pop hl");
 		repeated_op("dec hl", r->value);
 		outputne("push hl");
@@ -2402,6 +2402,7 @@ unsigned gen_node(struct node *n)
 		}
 		return 1;
 	case T_LSTORE:
+		v += sp;
 		/* Store A or HL at TOS */
 		if (size == 1) {
 			hl_from_sp(v);
@@ -2421,8 +2422,10 @@ unsigned gen_node(struct node *n)
 			outputne("push de");
 			return 1;
 		}
-		if (!nr)
+		if (!nr) {
 			outputne("push hl");
+			v += 2;
+		}
 		outputne("ld e,l");
 		outputne("ld d,h");
 		hl_from_sp(v);

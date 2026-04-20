@@ -10,7 +10,7 @@ OBJ = workspace.o \
       __cmpgteqconu.o __cmpltconu.o \
       __minus.o \
       __postinc.o __postdec.o __postincc.o __postdecc.o \
-      __pluseq.o \
+      __pluseq.o __minuseq.o \
       __minuseq2opcon.o __pluseq2opcon.o \
       __mul2op.o \
       __div2opcon.o __diveq.o \

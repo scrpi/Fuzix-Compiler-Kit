@@ -6,6 +6,7 @@
 	.export __mulde
 	.export __muleq
 	.export __muleqc
+	.export __mul
 
 ;	DE * (HL)
 __mul2op:
@@ -51,3 +52,17 @@ __muleqc:
 	jp	__eqpopoutc
 
 
+__mul:
+	;	TOS * DE
+	ld	e,l
+	ld	d,h
+	ld	hl,sp+2
+	ldi	a,(hl)
+	ld	h,(hl)
+	ld	l,a
+	call	__mulde
+	pop	de
+	inc	sp
+	inc	sp
+	push	de
+	ret
