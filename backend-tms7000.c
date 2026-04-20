@@ -683,9 +683,9 @@ static void rshift_r(unsigned r, unsigned size, unsigned l, unsigned uns)
 				load_r_r(r + 1, r);
 				load_r_constb(r, 0);
 			} else {
-				load_r_r(r + 1, r);
-				load_r_r(r + 2, r + 1);
 				load_r_r(r + 3, r + 2);
+				load_r_r(r + 2, r + 1);
+				load_r_r(r + 1, r);
 				load_r_constb(r, 0);
 			}
 			l -= 8;
