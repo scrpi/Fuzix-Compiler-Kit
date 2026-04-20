@@ -668,6 +668,7 @@ static void hl_from_sp(unsigned off)
  */
 unsigned gen_lref(unsigned v, unsigned size, unsigned to_de)
 {
+	printf(";gen_lref offset %u\n", v);
 	/* Trivial case: if the variable is top of stack then just pop and
 	   push it back */
 	if (v == 0 && size == 2) {
@@ -695,9 +696,11 @@ unsigned gen_lref(unsigned v, unsigned size, unsigned to_de)
 	 *	Shortest forms use ld hl, sp+n for range up to 127
 	 */
 	if (size <= 2) {
-		if (to_de && size > 1)
+		if (to_de && size > 1) {
 			outputne("push hl");
-		hl_from_sp(v);
+			hl_from_sp(v + 2);
+		} else
+			hl_from_sp(v);
 		if (size == 2) {
 			output("ldi a,(hl)");
 			output("ld h,(hl)");
@@ -2297,7 +2300,8 @@ static unsigned gen_cast(struct node *n)
 
 	/* Size shrink is not always free for us as it's a reg change */
 	if (ls < rs) {
-		if (ls > 1 && rs == 1)
+		/* Going from integer to char is a move into a */
+		if (rs > 1 && ls == 1)
 			outputne("ld a,l");
 		return 1;
 	}
