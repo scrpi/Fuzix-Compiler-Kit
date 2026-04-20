@@ -26,10 +26,13 @@ OBJ = workspace.o \
       __bandl.o __orl.o __xorl.o __andeql.o __oreql.o __xoreql.o \
       __shll.o __shrl.o \
       __plusl.o __minusl.o __mull.o __divul.o __divl.o \
-      __booll.o
+      __booll.o \
+     __boolf.o __cast2f.o __castf.o __cceqf.o __ccgteqf.o __ccgtf.o __cclteqf.o \
+      __ccltf.o __ccnef.o __divf.o __minusf.o __mulf.o __plusf.o __eqopf.o
 
 .s.o:
 	fcc -mgb -c $<
+
 .c.o:
 	fcc -mgb -O -c $<
 

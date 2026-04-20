@@ -4,8 +4,10 @@
 ;	Probably ought to be inlined and do LREF LSTORE etc for
 ;	32bit forms
 ;
+	.export __assignf
 	.export __assignl
 
+__assignf:
 __assignl:
 	ld	e,l
 	ld	d,h
