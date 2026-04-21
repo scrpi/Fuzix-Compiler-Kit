@@ -16,7 +16,7 @@ __bandl:
 	ldi	a,(hl)
 	and	c
 	ld	c,a
-	ldi	a,(hl)
+	ld	a,(hl)
 	and	b
 	ld	b,a
 	ld	h,d

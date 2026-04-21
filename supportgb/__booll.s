@@ -12,7 +12,7 @@ __booll:
 	jr	z, false
 true:
 	ld	hl,0
-	inc	hl
+	inc	l
 	ret
 false:
 	xor	a

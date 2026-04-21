@@ -3,11 +3,14 @@
  *	Z80isms and some random other stuff thrown in.
  *
  *	TODO: Track HL pointing versus SP to reduce LDHL usage and use inc/dec
- *	TODO: Can we do better logic for stuff we move into DE so we load into DE
- *	      in the first place ?
  *	TODO: import volatile handling into this, Z80 and 8080
  *
  *	For now we use BC:HL for 32bit values.
+ *
+ *	TODO; Switch to DE as working register (BCDE for 32bit)
+ *	TODO: Rename everything in the tool chain to sm83 for correctness
+ *	TODO: Tracking, reg load helpers etc
+ *
  */
 #include <stdio.h>
 #include <stdint.h>
@@ -540,6 +543,7 @@ void gen_helpclean(struct node *n)
 		gen_cleanup(s);
 		/* C style ops that are ISBOOL didn't set the bool flags */
 		/* Need to think about keeping bool stuff 8bit here */
+		printf(";help clean isbool %04x C\n", n->flags);
 		if (n->flags & ISBOOL) {
 			output("xor a");
 			outputcc("cp l");
@@ -1873,8 +1877,8 @@ unsigned gen_shortcut(struct node *n)
 		/* TODO: Can we get the case where we have a bool of a cc */
 		/* If we will need to turn a CC into a value */
 		/* Too big or value needed */
-		helper(n, "bool");
 		n->flags |= ISBOOL;
+		helper(n, "bool");
 		ccvalid = CC_VALID;
 		return 1;
 	}
@@ -1907,8 +1911,8 @@ unsigned gen_shortcut(struct node *n)
 			return 1;
 		}
 		/* Too big or value needed */
-		helper(n, "not");
 		n->flags |= ISBOOL;
+		helper(n, "not");
 		ccvalid = CC_VALID;
 		return 1;
 	}

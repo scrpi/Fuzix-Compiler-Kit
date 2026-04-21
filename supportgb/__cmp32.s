@@ -73,7 +73,7 @@ true:	pop	de
 	add	sp,4
 	push	de
 	ld	hl,0
-	inc	hl
+	inc	l
 	ret
 
 __ccltul:
