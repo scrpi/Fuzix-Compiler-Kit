@@ -1,0 +1,11 @@
+.PHONY checks
+
+Support a way to do rules for .o -> binary (pattern rules needed ?)
+
+Report file name in errors
+
+Additional commands other than include ?
+
+Depth limit include
+
++= and ?= ?

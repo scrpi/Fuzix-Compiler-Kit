@@ -7,7 +7,7 @@ all: Preprocessor cc cc0 \
      cc2.6502 cc2.z8 cc2.super8 cc2.1802 cc2.6800 cc2.6809 \
      cc2.8070 cc2.8086 \
      cc2.ee200 cc2.nova cc2.ddp cc2.7000 cc2.hc08 cc2.gb \
-     copt \
+     copt make \
      support6303 support6502 support65c816 support6800 support6803 \
      support6809 support68hc11 support8070 support8080 support8085 supportz80 \
      supportz8 supportsuper8 supportee200 supportnova supportnova3 supporttms7000 \
@@ -28,7 +28,7 @@ bootstuff: Preprocessor cc cc0 \
 .PHONY: support6303 support6502 support65c816 support6800 support6803 \
 	support6809 support68hc11 support8070 support8080 support8085 \
 	supportsuper8 supportz8 supportz80 supportee200 supportnova \
-	supportnova3 supporttms7000 supportgb test Preprocessor
+	supportnova3 supporttms7000 supportgb test Preprocessor make
 
 CCROOT ?=/opt/fcc/
 
@@ -309,6 +309,8 @@ bootinst:
 	mkdir -p $(CCROOT)/lib
 	cp cc $(CCROOT)/bin/fcc
 	cp cc.hlp $(CCROOT)/lib/cc.hlp
+	cp Make/fmake $(CCROOT)/bin
+	cp Make/makeactions Make/makemacros $(CCROOT)/lib
 	cp cc0 $(CCROOT)/lib
 	cp Preprocessor/cpp $(CCROOT)/lib
 	# 6502
