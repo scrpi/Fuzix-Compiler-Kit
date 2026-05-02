@@ -2,6 +2,9 @@
 
 	.export __andeqtmp
 	.export __andeqtmpu
+	.export __andeq
+__andeq:
+	jsr __poptmp
 __andeqtmp:
 __andeqtmpu:
 	ldy #0

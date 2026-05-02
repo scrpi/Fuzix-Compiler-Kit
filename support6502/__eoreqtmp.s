@@ -2,6 +2,9 @@
 
 	.export __eoreqtmp
 	.export __eoreqtmpu
+	.export __xoreq
+__xoreq:
+	jsr __poptmp
 __eoreqtmp:
 __eoreqtmpu:
 	ldy #0

@@ -8,6 +8,8 @@
 	.export __rstmp
 	.export __l_gtgt
 	.export __l_gtgtu
+	.export __shru
+	.export __shr
 
 	.code
 
@@ -52,3 +54,11 @@ __l_gtgtu:
 	dey
 	lda	(@sp),y
 	jmp	__rstmpu
+
+__shru:
+	jsr	__poptmp
+	jmp	__rstmpu
+
+__shr:
+	jsr	__poptmp
+	jmp	__rstmp

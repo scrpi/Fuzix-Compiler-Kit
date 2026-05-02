@@ -1,11 +1,9 @@
 	.code
 
-	.export __ora
-	.export __orau
+	.export __or
 	.export __oratmp
 	.export __oratmpu
-__ora:
-__orau:
+__or:
 	jsr __poptmp
 __oratmp:
 __oratmpu:

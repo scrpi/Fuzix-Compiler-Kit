@@ -4,21 +4,17 @@
 ;
 ;	Based on code from Ullrich von Bassewitz for CC65
 ;
-	.export	__minuseq
+	.export	__minuseqtmpc
+	.export	__minuseqtmpuc
+	.export __minuseqc
 
-__minuseq:
+__minuseqc:
 	jsr	__poptmp
-	; Y is now 0
+__minuseqtmpc:
+__minuseqtmpuc:
+	ldy	#0
 	eor	#0xFF
 	sec
 	adc	(@tmp),y
 	sta	(@tmp),y
-	pha
-	iny
-	txa
-	eor	#0xFF
-	adc	(@tmp),y
-	sta	(@tmp),y
-	tax
-	pla
 	rts

@@ -1,5 +1,5 @@
 ;
-;	Pop a 16hit value from stack into tmp, preserve XA. Leaves Y as 0
+;	Pop a 16bit value from stack into tmp, preserve XA.  Leaves Y as 0
 ;
 ;	Based on code by Ullrich von Bassetwitz for CC65
 ;	Always returns with Y = 0

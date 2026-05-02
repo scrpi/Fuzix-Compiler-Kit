@@ -169,12 +169,10 @@ static void invalidate_x(void)
 	reg[R_X].state = INVALID;
 }
 
-#if 0
 static void invalidate_y(void)
 {
 	reg[R_Y].state = INVALID;
 }
-#endif
 
 static void invalidate_tmp(void)
 {
@@ -723,21 +721,38 @@ static int do_pri8(struct node *n, struct node *r, const char *op, void (*pre)(s
 	case T_LREF:
 	case T_LSTORE:
 		v += sp;
-		/* 255 is a fringe case we can do for 8bit but not split
-		   8 and 16, so for now just skip it */
 		if (v == 0 && direct_z(op)) {
 			pre(n);
 			output("%s (@sp)", op);
 			return 1;
 		}
-		if (v < 254) {
+		if (v <= 255) {
 			pre(n);
 			load_y(v);
 			output("%s (@sp),y", op);
 			return 1;
 		}
-		/* For now punt */
-		return 0;
+		/* We rarely hit this case but we have to deal with it */
+		/* A is needed if storing */
+		if (r->op == T_LSTORE)
+			tax();
+		output("lda @sp");
+		output("clc");
+		output("adc #%u", BYTE(v));
+		output("sta @tmp2");
+		output("lda @sp+1");
+		output("adc #%u", BYTE(v >> 8));
+		output("sta @tmp2+1");
+		if (r->op == T_LSTORE)
+			txa();
+		/* (@tmp2) is now our target */
+		if (cpu > NMOS_6502)
+			output("%s (@tmp2)", op);
+		else {
+			load_y(0);
+			output("%s (@tmp2),y", op);
+		}
+		return 1;
 	case T_NREF:
 	case T_NSTORE:
 		pre(n);
@@ -926,8 +941,22 @@ static int do_pri16(struct node *n, struct node *r, const char *op, void (*pre)(
 			}
 			return 1;
 		}
-		/* For now punt */
-		return 0;
+		/* We rarely hit this case but we have to deal with it */
+		/* XA can be destroyed thankfully */
+		output("lda @sp");
+		output("clc");
+		output("adc #%u", BYTE(v));
+		output("sta @tmp2");
+		output("lda @sp+1");
+		output("adc #%u", BYTE(v >> 8));
+		output("sta @tmp2+1");
+		/* (@tmp2) is now our target */
+		load_y(1);
+		output("lda (@tmp2),y");
+		tax();
+		output("dey");
+		output("lda (@tmp2),y");
+		return 1;
 	case T_LSTORE:
 		if (v < 255) {
 			pre(n);
@@ -942,8 +971,24 @@ static int do_pri16(struct node *n, struct node *r, const char *op, void (*pre)(
 			output("%sa (@sp),y", op);
 			return 1;
 		}
-		/* For now punt */
-		return 0;
+		/* We rarely hit this case but we have to deal with it */
+		/* @tmp is free */
+		output("sta @tmp");
+		output("lda @sp");
+		output("clc");
+		output("adc #%u", BYTE(v));
+		output("sta @tmp2");
+		output("lda @sp+1");
+		output("adc #%u", BYTE(v >> 8));
+		output("sta @tmp2+1");
+		/* (@tmp2) is now our target */
+		load_y(1);
+		txa();
+		output("sta (@tmp2),y");
+		output("dey");
+		output("lda @tmp");
+		output("sta (@tmp2),y");
+		return 1;
 	case T_NSTORE:
 	case T_NREF:
 		name = namestr(r->snum);
@@ -1429,15 +1474,16 @@ static unsigned is_simple(struct node *n)
  * If x is exact positive power of two, return log2(x).
  * If x is zero, negative, or not a power of two, return -1.
  */
-static int intlog2(long x) {
+static int intlog2(long x)
+{
 	int lg2;
 	/* x must be positive and have only one bit set */
-	if (x<=0)
+	if (x <= 0)
 		return -1;
 	if ((x & (x-1)) != 0)
 		return -1;
 	/* There's only one bit set. Shift it right until gone */
-	for(lg2=0;x>>=1;)
+	for(lg2 = 0; x >>= 1;)
 		lg2++;
 	return lg2;
 }
@@ -1449,16 +1495,17 @@ static int intlog2(long x) {
  * 7 4 bytes
  * (worst case 5 bytes)
  */
-static void asl_a(unsigned n) {
-	if (n==0)
+static void asl_a(unsigned n)
+{
+	if (n == 0)
 		return;
 
-	if (n>=8) {
+	if (n >= 8) {
 		load_a(0);
 		return;
 	}
 
-	if (n<=5)
+	if (n <= 5)
 		repeated_op(n, "asl a"); /* Shift left up to 5 times */
 	else if (n==6) {
 		repeated_op(3, "ror a"); /* Rotate right 3 times */
@@ -1476,18 +1523,17 @@ static void asl_a(unsigned n) {
  * (worst case 5 bytes)
  * Left bits filled with *zero*
  */
-static void lsr_a(unsigned n) {
-	if (n==0)
+static void lsr_a(unsigned n)
+{
+	if (n == 0)
 		return;
-
-	if (n>=8) {
+	if (n >= 8) {
 		load_a(0);
 		return;
 	}
-
-	if (n<=5) {
+	if (n <= 5) {
 		repeated_op(n, "lsr a");
-	} else if (n==6) {
+	} else if (n == 6) {
 		output("asl a");
 		repeated_op(2, "rol a");
 		output("and #0x03");
@@ -1496,7 +1542,6 @@ static void lsr_a(unsigned n) {
 		output("lda #0"); // Clear the other bits
 		output("rol a");  // C to bit 0
 	}
-
 	invalidate_a();
 }
 
@@ -1529,12 +1574,14 @@ struct node *gen_rewrite_node(struct node *n)
 	if (op == T_DEREF && r->op == T_RREF) {
 		n->op = T_RDEREF;
 		n->right = NULL;
+		free_node(r);
 		return n;
 	}
 	/* *regptr = */
 	if (op == T_EQ && l->op == T_RREF) {
 		n->op = T_REQ;
 		n->left = NULL;
+		free_node(l);
 		return n;
 	}
 	/* Rewrite references into a load operation */
@@ -1628,37 +1675,37 @@ struct node *gen_rewrite_node(struct node *n)
 	 */
 	if (opt>=2 && r != NULL && IS_INTARITH(nt) && r->op == T_CONSTANT) {
 		switch(op) {
-			/* Multiplication ( * and *= ) of integral types
-	   	   	   by constant powers of two can be re-written
-	   	  	   as left shifts. */
-			case T_STAR:
-			case T_STAREQ:
-				/* TODO: Does not (yet) consider signed operations where the constant
-				   is a negative power of two. For example,
-				   "x * -8" could become "(-x) << 3" if x is signed
-				   That's not yet done because it it's not a direct replacement
-				   of one node with another.
-				*/
-				log2const = intlog2(r->value);
-				if (log2const != -1) {
-					n->op = op = (op == T_STAR ? T_LTLT : T_SHLEQ);
-					r->value = log2const;
-				}
-				break;
-				/* Division ( / and /= ) of integral types
-				   by constant powers of two can be re-written as right shifts,
-				   But cautions with respect to 6502 and signed right shifts.
-				*/
-			case T_SLASH:
-			case T_SLASHEQ:
-				/*	Only apply this optimisation to UNSIGNED types at the moment.
-					TODO for signed implementation
-					1.	Signed right shifts must maintain the sign bit which is a
-						PITA in 6502
-					2.  Signed operations where the constant is negative
-						i.e. "x / -8" could become "(-x) >> 3"
-					3.  For signed operations, direction of rounding towards
-						zero must be preserved.
+		/* Multiplication ( * and *= ) of integral types
+		   by constant powers of two can be re-written
+		   as left shifts. */
+		case T_STAR:
+		case T_STAREQ:
+			/* TODO: Does not (yet) consider signed operations where the constant
+			   is a negative power of two. For example,
+			   "x * -8" could become "(-x) << 3" if x is signed
+			   That's not yet done because it it's not a direct replacement
+			   of one node with another.
+			*/
+			log2const = intlog2(r->value);
+			if (log2const != -1) {
+				n->op = op = (op == T_STAR ? T_LTLT : T_SHLEQ);
+				r->value = log2const;
+			}
+			break;
+		/* Division ( / and /= ) of integral types
+		   by constant powers of two can be re-written as right shifts,
+		   But cautions with respect to 6502 and signed right shifts.
+		*/
+		case T_SLASH:
+		case T_SLASHEQ:
+			/*	Only apply this optimisation to UNSIGNED types at the moment.
+				TODO for signed implementation
+				1.	Signed right shifts must maintain the sign bit which is a
+					PITA in 6502
+				2.  Signed operations where the constant is negative
+					i.e. "x / -8" could become "(-x) >> 3"
+				3.  For signed operations, direction of rounding towards
+					zero must be preserved.
 				*/
 				if (nt & UNSIGNED) {
 					log2const = intlog2(r->value);
@@ -1670,31 +1717,30 @@ struct node *gen_rewrite_node(struct node *n)
 				}
 				break;
 
-				/*
-					Remainder operator T_PERCENT and T_PERCENTEQ can be reduced to bit
-					operations when the right operatand is a power of two constant.
-					As with T_SLASH and T_SLASHEQ, be aware that signed remainders are tricky
-					on 6502 and therefore ignored for the moment. Maybe another time.
-				*/
-			case T_PERCENT:
-			case T_PERCENTEQ:
-				if (nt & UNSIGNED) {
-					log2const = intlog2(r->value);
-					if (log2const != -1) {
-						/*
-							"% (2^n)" becomes "& (2^n-1)""
-						*/
-						n->op = op = (op==T_PERCENT ? T_AND : T_ANDEQ);
-						r->value = r->value-1;
-					}
+		/*
+			Remainder operator T_PERCENT and T_PERCENTEQ can be reduced to bit
+			operations when the right operatand is a power of two constant.
+			As with T_SLASH and T_SLASHEQ, be aware that signed remainders are tricky
+			on 6502 and therefore ignored for the moment. Maybe another time.
+		*/
+		case T_PERCENT:
+		case T_PERCENTEQ:
+			if (nt & UNSIGNED) {
+				log2const = intlog2(r->value);
+				if (log2const != -1) {
+					/*
+						"% (2^n)" becomes "& (2^n-1)""
+					*/
+					n->op = op = (op==T_PERCENT ? T_AND : T_ANDEQ);
+					r->value = r->value-1;
 				}
-				break;
+			}
+			break;
 
-			default:
-				break;
+		default:
+			break;
 		}
 	}
-
 	return n;
 }
 
@@ -1750,6 +1796,7 @@ void gen_frame(unsigned size, unsigned aframe)
 	load_a(size & 0xFF);
 	load_y(size >> 8);
 	output("jsr __subyasp");
+	invalidate_y();
 }
 
 void gen_epilogue(unsigned size, unsigned argsize)
@@ -2037,6 +2084,207 @@ unsigned gen_push(struct node *n)
 	return 0;
 }
 
+static unsigned gen_const_lshift(unsigned v, unsigned s)
+{
+	/* Do nothing if shift is zero or undefined */
+	if (v == 0 || v >= 8 * s)
+		return 1;
+	switch(s) {
+	case 1: /* Byte shift A */
+		/* Always 5 bytes or fewer */
+		asl_a(v);
+		return 1;
+	case 2:
+		if (1 <= v && v <=7 ) {
+			/* 4+3v bytes
+			   v==1 is faster and same size
+			   v>=2 is faster but bigger */
+			if (optsize && v >= 2)
+				break;
+			output("stx @tmp+1");
+			repeated_op(v, "asl a\n\trol @tmp+1");
+			output("ldx @tmp+1");
+			invalidate_tmp();
+			return 1;
+		}
+		if (v >= 8) {
+			if (optsize && v >= 11)
+				break;
+			/* We get 8 bits of shift by moving A->X */
+			asl_a(v-8); /* Max 5 bytes */
+			tax();
+			load_a(0);
+			return 1;
+		}
+		break;
+	case 4:
+		/* Long shift */
+		/* 1, bit shifts are assumed fairly common */
+		/* 8, 16, 24 bit shifts are 1,2,3 byte shifts */
+		/* Anything else bloats pretty quickly */
+		switch (v) {
+			case 1:
+				if (optsize)
+					break;
+				/* 11 bytes */
+				invalidate_tmp();
+				output("stx @tmp+1");
+				output("asl a");
+				output("rol @tmp+1");
+				output("rol @hireg");
+				output("rol @hireg+1");
+				output("ldx @tmp+1");
+				invalidate_a();
+				invalidate_x();
+				return 1;
+			case 8:
+				/* @hireg -> @hireg+1 */
+				/* x-> @hireg */
+				/* a-> x */
+				/* 0-> a */
+				if (optsize)
+					break;
+				/* 9 bytes */
+				output("ldy @hireg");
+				output("sty @hireg+1");
+				output("stx @hireg");
+				tax();
+				load_a(0);
+				return 1;
+			case 16:
+				/* x-> @hireg+1 */
+				/* a-> @hireg */
+				/* 0-> x */
+				/* 0-> a */
+				if(optsize)
+					break;
+				/* 7 bytes */
+				output("stx @hireg+1");
+				output("sta @hireg");
+				load_x(0);
+				load_a(0);
+				return 1;
+			case 24:
+				/* a-> @hireg+1 */
+				/* 0-> @hireg */
+				/* 0-> x */
+				/* 0-> a */
+				if (optsize)
+					break;
+				/* 7 bytes */
+				output("sta @hireg+1");
+				load_x(0);
+				load_a(0);
+				output("sta @hireg");
+				return 1;
+			default:
+				break;
+		}
+		default:
+			break;
+	}
+	return 0;
+}
+
+static unsigned gen_const_rshift(unsigned v, unsigned s, unsigned u)
+{
+	/* Byte value to stuff into upper bytes when shifting */
+	uint8_t siv = u ? 0 : 0xFF;
+
+	/* Do nothing if shift is zero or undefined */
+	if (v == 0 || v >= 8 * s)
+		return 1;
+
+	/* Unsigned */
+	switch(s) {
+	case 1:
+		/* TODO This code isn't currently reachable because / and >> operations
+		   are never analysed as being "byteable" */
+		if (u) {
+			lsr_a(v);
+			return 1;
+		}
+		/* TODO: for non u case or with mask after */
+		return 0;
+	case 2:
+		if (v == 1 && u) {
+			/* lsr XA 6 bytes is always worth doing inline */
+			output("pha");
+			output("txa");
+			output("lsr a");
+			output("tax");
+			output("pla");
+			output("ror a");
+			invalidate_x();
+			invalidate_a();
+			return 1;
+		}
+		if (v == 8) {
+			/* X->A, X=0 always worth doing*/
+			txa();
+			invalidate_a();
+			load_x(siv);
+			return 1;
+		}
+		break;
+	case 4:
+		if (v == 1 && !optsize && u) {
+			/* 10 bytes */
+			output("lsr @hireg+1");
+			output("ror @hireg");
+			output("pha");
+			output("txa");
+			output("ror a");
+			output("tax");
+			output("pla");
+			output("ror a");
+			invalidate_a();
+			invalidate_x();
+			return 1;
+		}
+		if (v == 8 && !optsize) {
+			/* X -> A */
+			/* hireg -> x */
+			/* hireg+1 -> hireg */
+			/* 0 -> hireg+1 */
+			/* Avoid using Y register */
+			/* 14 bytes */
+			output("stx @tmp"); // Save for A later
+			output("ldx @hireg");
+			output("lda @hireg+1");
+			output("sta @hireg");
+			invalidate_a();
+			load_a(siv);
+			output("sta @hireg+1");
+			output("lda @tmp"); // Old X, Neww A
+			invalidate_x();
+			invalidate_a();
+			invalidate_tmpl();
+			return 1;
+		}
+		if (v == 16 && !optsize) {
+			/* 9-10 bytes */
+			output("lda @hireg");
+			output("ldx @hireg+1");
+			invalidate_a();
+			invalidate_x();
+			load_y(siv);
+			output("sty @hireg");
+			output("sty @hireg+1");
+			return 1;
+		}
+		if (v == 24 && !optsize) {
+			/* 7-8 bytes */
+			output("lda @hireg+1");
+			invalidate_a();
+			load_x(siv);
+			output("stx @hireg+1");
+			output("stx @hireg");
+			return 1;
+		}
+	}
+	return 0;
+}
 
 /*
  *	If possible turn this node into a direct access. We've already checked
@@ -2204,7 +2452,7 @@ unsigned gen_direct(struct node *n)
 			return 1;
 		if (s == 2 && try_via_x(n, "eor", pre_none))
 			return 1;
-		return pri_help(n, "xortmp");
+		return pri_help(n, "eortmp");
 	case T_PLUS:
 		if (s > 2)
 			return 0;
@@ -2432,260 +2680,17 @@ unsigned gen_direct(struct node *n)
 	/* TODO: qq optimisations for >= fieldwidth ? */
 	case T_LTLT:
 		/* Optimise constant left shifts */
-		if (r->op == T_CONSTANT) {
-
-			/* Do nothing if shift is zero */
-			if (v==0)
-				return 1;
-
-			switch(s) {
-				case 1:
-					/* Byte shift A */
-					if (v>=8) { /* Out of range */
-						load_a(0);
-						return 1;
-					}
-
-					/* Always 5 bytes or fewer */
-					asl_a(v);
-					return 1;
-
-				case 2:
-					/* Word shift XA */
-					if (v>=16) { /* Out of range */
-						load_x(0);
-						load_a(0);
-						return 1;
-					}
-					if ((1<=v) && (v<=7)) {
-						/* 4+3v bytes
-						   v==1 is faster and same size
-						   v>=2 is faster but bigger */
-						if (optsize && v>=2)
-							break;
-						output("stx @tmp+1");
-						repeated_op(v, "asl a\n\trol @tmp+1");
-						output("ldx @tmp+1");
-						invalidate_tmp();
-						return 1;
-					}
-					if (v>=8) {
-						if (optsize && (v>=11))
-							break;
-						/* We get 8 bits of shift by moving A->X */
-						asl_a(v-8); /* Max 5 bytes */
-						tax();
-						load_a(0);
-						return 1;
-					}
-					break;
-
-				case 4:
-					/* Long shift */
-					if (v>=32) { /* Out of range */
-						load_x(0);
-						load_a(0);
-						output("sta @hireg");
-						output("sta @hireg+1");
-						return 1;
-					}
-
-					/* 1, bit shifts are assumed fairly common */
-					/* 8, 16, 24 bit shifts are 1,2,3 byte shifts */
-					/* Anything else bloats pretty quickly */
-					switch (v) {
-						case 1:
-							if (optsize)
-								break;
-							/* 11 bytes */
-							invalidate_tmp();
-							output("stx @tmp+1");
-							output("asl a");
-							output("rol @tmp+1");
-							output("rol @hireg");
-							output("rol @hireg+1");
-							output("ldx @tmp+1");
-							invalidate_a();
-							invalidate_x();
-							return 1;
-
-						case 8:
-							/* @hireg -> @hireg+1 */
-							/* x-> @hireg */
-							/* a-> x */
-							/* 0-> a */
-							if (optsize)
-								break;
-							/* 9 bytes */
-							output("ldy @hireg");
-							output("sty @hireg+1");
-							output("stx @hireg");
-							tax();
-							load_a(0);
-							return 1;
-
-						case 16:
-							/* x-> @hireg+1 */
-							/* a-> @hireg */
-							/* 0-> x */
-							/* 0-> a */
-							if(optsize)
-								break;
-							/* 7 bytes */
-							output("stx @hireg+1");
-							output("sta @hireg");
-							load_x(0);
-							load_a(0);
-							return 1;
-
-						case 24:
-							/* a-> @hireg+1 */
-							/* 0-> @hireg */
-							/* 0-> x */
-							/* 0-> a */
-							if (optsize)
-								break;
-							/* 7 bytes */
-							output("sta @hireg+1");
-							load_x(0);
-							load_a(0);
-							output("sta @hireg");
-							return 1;
-
-						default:
-							break;
-					}
-
-				default:
-					break;
-			}
-		}
-		if (local_yop(n, "l_ltlt"))
+		if (r->op == T_CONSTANT)
+			return gen_const_lshift(v, s);
+		/* TODO long logic for more l_ yop helpers */
+		if (s < 4 && local_yop(n, "l_ltlt"))
 			return 1;
 		return pri_help(n, "lstmp");
 	case T_GTGT:
 		/* Optimize constant right shifts */
-		if (r->op == T_CONSTANT) {
-
-			/* Do nothing if shift is zero */
-			if (v==0)
-				return 1;
-
-			switch(n->type) {
-				case UCHAR:
-					/* TODO This code isn't currently reachable because / and >> operations
-					   are never analysed as being "byteable" */
-					if (v>=8) {
-						load_a(0);
-					}
-					else {
-						lsr_a(v);
-					}
-					return 1;
-
-				case USHORT:
-					if (v>16) {
-						load_x(0);
-						load_a(0);
-						return 1;
-					}
-					if (v==1) {
-						/* lsr XA 6 bytes is always worth doing inline */
-						output("pha");
-						output("txa");
-						output("lsr a");
-						output("tax");
-						output("pla");
-						output("ror a");
-						invalidate_x();
-						invalidate_a();
-						return 1;
-					}
-					if (v==8) {
-						/* X->A, X=0 always worth doing*/
-						txa();
-						invalidate_a();
-						load_x(0);
-						return 1;
-					}
-					break;
-				case ULONG:
-					/* Shift by 1 and multiples of 8 are worth expanding for speed
-					   But they are generally bigger than the support routine call */
-					if (v>32) {
-						/* 7 bytes */
-						load_x(0);
-						load_a(0);
-						output("stx @hireg");
-						output("stx @hireg+1");
-						return 1;
-					}
-					if (v==1) {
-						if (optsize)
-							break;
-						/* 10 bytes */
-						output("lsr @hireg+1");
-						output("ror @hireg");
-						output("pha");
-						output("txa");
-						output("ror a");
-						output("tax");
-						output("pla");
-						output("ror a");
-						invalidate_a();
-						invalidate_x();
-						return 1;
-					}
-					if (v==8) {
-						if (optsize)
-							break;
-						/* X -> A */
-						/* hireg -> x */
-						/* hireg+1 -> hireg */
-						/* 0 -> hireg+1 */
-						/* Avoid using Y register */
-						/* 14 bytes */
-						output("stx @tmp"); // Save for A later
-						output("ldx @hireg");
-						output("lda @hireg+1");
-						output("sta @hireg");
-						output("lda #0");
-						output("sta @hireg+1");
-						output("lda @tmp"); // Old X, Neww A
-						invalidate_x();
-						invalidate_a();
-						invalidate_tmpl();
-						return 1;
-					}
-					if (v==16) {
-						if(optsize)
-							break;
-						// 9-10 bytes
-						output("lda @hireg");
-						output("ldx @hireg+1");
-						invalidate_a();
-						invalidate_x();
-						load_y(0);
-						output("sty @hireg");
-						output("sty @hireg+1");
-						return 1;
-					}
-					if (v==24) {
-						if (optsize)
-							break;
-						/* 7-8 bytes */
-						output("lda @hireg+1");
-						invalidate_a();
-						load_x(0);
-						output("stx @hireg+1");
-						output("stx @hireg");
-						return 1;
-					}
-				default:
-					break;
-			}
-		}
-		if (local_yop_s(n, "l_gtgt"))
+		if (r->op == T_CONSTANT)
+			return gen_const_rshift(v, s, n->type & UNSIGNED);
+		if (s < 4 && local_yop_s(n, "l_gtgt"))
 			return 1;
 		return pri_help(n, "rstmp");
 
@@ -2775,22 +2780,6 @@ unsigned gen_direct(struct node *n)
 		}
 		return pri_help(n, "pluseqtmp");
 	case T_MINUSEQ:
-#if 0
-		if (s == 2 && r->op == T_CONSTANT) {
-			if (v == 1) {
-				gen_internal("minuseq1");
-				return 1;
-			}
-			if (v == 2) {
-				gen_internal("minuseq2");
-				return 1;
-			}
-			if (v == 4) {
-				gen_internal("minuseq4");
-				return 1;
-			}
-		}
-#endif
 		return pri_help(n, "minuseqtmp");
 	case T_ANDEQ:
 		return pri_help(n, "andeqtmp");
@@ -2966,6 +2955,61 @@ static unsigned gen_cast(struct node *n)
 		return 1;
 	}
 	return 0;
+}
+
+static unsigned bop_help_c(struct node *n, const char *op, const char *preop)
+{
+	unsigned size = get_size(n->type);
+	unsigned nr = n->flags & NORETURN;
+	unsigned is_byte = (n->flags & (BYTETAIL | BYTEOP)) == (BYTETAIL | BYTEOP);
+
+	/* Result unused, don't bother */
+	if (nr)
+		return 1;
+	/* We should look at inlining size 2 on -O2 TODO */
+	if (!is_byte && size > 1)
+		return 0;
+	output("jsr __poptmpc");
+	set_reg(R_Y, 0);
+	if (preop)
+		output(preop);
+	output("%s @tmp", op);
+	invalidate_a();
+	return 1;
+}
+
+/* (TOS) op A for 1 byte cases - again short and inlined. Could make -Os
+   uninline this but marginal */
+static unsigned bop_help_eq_c(struct node *n, const char *op, const char *preop)
+{
+	unsigned size = get_size(n->type);
+	unsigned nr = n->flags & NORETURN;
+	unsigned is_byte = (n->flags & (BYTETAIL | BYTEOP)) == (BYTETAIL | BYTEOP);
+
+	/* Result unused, don't bother */
+	if (nr)
+		return 1;
+	/* We should look at inlining size 2 on -O2 TODO */
+	if (!is_byte && size > 1)
+		return 0;
+	output("jsr __poptmp");	/* A preserved Y 0 @tmp is ptr */
+	set_reg(R_Y, 0);
+	if (preop)
+		output(preop);
+	output("%s (@tmp),y", op);
+	output("sta (@tmp),y");
+	invalidate_a();
+	return 1;
+}
+
+static unsigned bop_help(struct node *n, const char *op)
+{
+	return bop_help_c(n, op, NULL);
+}
+
+static unsigned bop_help_eq(struct node *n, const char *op)
+{
+	return bop_help_eq_c(n, op, NULL);
 }
 
 unsigned gen_node(struct node *n)
@@ -3226,6 +3270,22 @@ unsigned gen_node(struct node *n)
 			helper(n, "bool");
 		}
 		return 1;
+	case T_AND:
+		return bop_help(n, "and");
+	case T_OR:
+		return bop_help(n, "ora");
+	case T_HAT:
+		return bop_help(n, "eor");
+	case T_PLUS:
+		return bop_help_c(n, "adc", "clc");
+	case T_ANDEQ:
+		return bop_help_eq(n, "and");
+	case T_OREQ:
+		return bop_help_eq(n, "ora");
+	case T_HATEQ:
+		return bop_help_eq(n, "eor");
+	case T_PLUSEQ:
+		return bop_help_c(n, "adc", "clc");
 	}
 	return 0;
 }

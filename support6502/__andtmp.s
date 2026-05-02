@@ -1,11 +1,9 @@
 	.code
 
-	.export __and
-	.export __andu
+	.export __band
 	.export __andtmp
 	.export __andtmpu
-__and:
-__andu:
+__band:
 	jsr __poptmp
 __andtmp:
 __andtmpu:

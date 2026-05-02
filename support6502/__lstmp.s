@@ -4,6 +4,7 @@
 	.export __lstmp
 	.export __lstmpu
 	.export __l_ltlt
+	.export __shl
 
 	.code
 
@@ -26,4 +27,8 @@ nowork:
 	ldx	@tmp+1
 	rts
 
+__shl:	; (TOS) << XA
+	jsr	__poptmp
+	; now @tmp << XA
+	jmp	__lstmp
 	

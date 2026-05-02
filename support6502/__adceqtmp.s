@@ -2,6 +2,9 @@
 
 	.export __adceqtmp
 	.export __adceqtmpu
+	.export __adceq
+__adceq:
+	jsr __poptmp
 __adceqtmp:
 __adceqtmpu:
 	ldy #0

@@ -71,6 +71,16 @@ void write_tmpop(const char *op, const char *pre)
 {
     char buf[64];
     FILE *f;
+    char *mop = op;
+
+    /* Compiler naming versus instruction naming */
+    if (strcmp(op, "ora") == 0)
+        mop = "or";
+    if (strcmp(op, "eor") == 0)
+        mop = "xor";
+    if (strcmp(op, "and") == 0)
+        mop = "band";
+
     snprintf(buf, 64, "__%stmp.s", op);
 
     f = fopen(buf, "w");
@@ -80,10 +90,9 @@ void write_tmpop(const char *op, const char *pre)
     }
     
     fprintf(f, "\t.code\n\n");
-    fprintf(f, "\t.export __%s\n\t.export __%su\n", op, op);
+    fprintf(f, "\t.export __%s\n", mop);
     fprintf(f, "\t.export __%stmp\n\t.export __%stmpu\n", op, op);
-    fprintf(f, "__%s:\n", op);
-    fprintf(f, "__%su:\n", op);
+    fprintf(f, "__%s:\n", mop);
     fprintf(f, "\tjsr __poptmp\n");
     fprintf(f, "__%stmp:\n", op);
     fprintf(f, "__%stmpu:\n", op);
@@ -109,6 +118,14 @@ void write_eqtmpop(const char *op, const char *pre)
 {
     char buf[64];
     FILE *f;
+    const char *mop = op;
+
+    /* Compiler naming versus instruction naming */
+    if (strcmp(op, "ora") == 0)
+        mop = "or";
+    if (strcmp(op, "eor") == 0)
+        mop = "xor";
+
     snprintf(buf, 64, "__%seqtmp.s", op);
 
     f = fopen(buf, "w");
@@ -119,6 +136,9 @@ void write_eqtmpop(const char *op, const char *pre)
     
     fprintf(f, "\t.code\n\n");
     fprintf(f, "\t.export __%seqtmp\n\t.export __%seqtmpu\n", op, op);
+    fprintf(f, "\t.export __%seq\n", mop);
+    fprintf(f, "__%seq:\n", mop);
+    fprintf(f, "\tjsr __poptmp\n");
     fprintf(f, "__%seqtmp:\n", op);
     fprintf(f, "__%seqtmpu:\n", op);
     fprintf(f, "\tldy #0\n");

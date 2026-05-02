@@ -2,6 +2,9 @@
 
 	.export __oraeqtmp
 	.export __oraeqtmpu
+	.export __oreq
+__oreq:
+	jsr __poptmp
 __oraeqtmp:
 __oraeqtmpu:
 	ldy #0

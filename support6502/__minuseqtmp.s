@@ -5,8 +5,11 @@
 ;	Based on code from Ullrich von Bassewitz for CC65
 ;
 	.export	__minuseqtmp
-	.export __minuseqtmpu
+	.export	__minuseqtmpu
+	.export __minuseq
 
+__minuseq:
+	jsr	__poptmp
 __minuseqtmp:
 __minuseqtmpu:
 	ldy	#0

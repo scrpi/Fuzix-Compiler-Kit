@@ -1,11 +1,9 @@
 	.code
 
-	.export __eor
-	.export __eoru
+	.export __xor
 	.export __eortmp
 	.export __eortmpu
-__eor:
-__eoru:
+__xor:
 	jsr __poptmp
 __eortmp:
 __eortmpu:
