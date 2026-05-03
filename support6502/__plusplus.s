@@ -18,9 +18,9 @@ __plusplustmpu:
 	stx	@tmp1+1
 	clc
 	lda	(@tmp),y
+	pha
 	adc	@tmp1
 	sta	(@tmp),y
-	pha
 	iny
 	lda	(@tmp),y
 	tax

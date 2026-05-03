@@ -9,6 +9,11 @@
 	.export __push0
 	.export __push1
 	.export __pushffff
+	.export __pasp
+
+__pasp:
+	jsr	__asp
+	jmp	__push
 
 __pushffff:
 	lda	#0xFF

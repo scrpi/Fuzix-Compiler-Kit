@@ -9,9 +9,12 @@
 	.export __pushc1
 	.export __pushc0
 	.export __pushc
+	.export __pushlyc
 
 	.code
 
+__pushlyc:
+	lda	(@sp),y
 ; It's surprisingly common to push 0 or 1
 __pushc1:
 	lda	#1

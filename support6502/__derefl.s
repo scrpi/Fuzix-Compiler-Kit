@@ -3,7 +3,12 @@
 ;
 	.export __dereff
 	.export __derefl
+	.export __dereff_a
+	.export __derefl_a
 
+__derefl_a:
+__dereff_a:
+	jsr	__asp
 __dereff:
 __derefl:
 	sta	@tmp

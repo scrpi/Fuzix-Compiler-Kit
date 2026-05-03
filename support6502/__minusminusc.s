@@ -4,17 +4,18 @@
 
 __minusminusc:
 	jsr	__poptmp	; TOS into @tmp, preserve XA, Y is now 0
-	jmp	domm
+	jmp	doop
 __minusmtmpc:
 __minusmtmpuc:
-	stx	@tmp+1		; save other half of working pointer
-domm:
+	stx	@tmp+1
 	ldy	#0
-	sta	@tmp1
-	lda	(@tmp),y	; low half
-	pha
+doop:
+	eor	#0xFF
 	sec
-	sbc	@tmp1		; adjust
-	sta	(@tmp),y	; store
-	pla			; return old value
+	sta	@tmp1
+	lda	(@tmp),y
+	tax
+	adc	@tmp1
+	sta	(@tmp),y
+	txa
 	rts

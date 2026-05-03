@@ -1,16 +1,16 @@
 all: lib6502.a crt0.o
 
-OBJ =  __addysp.o __addyasp.o __subysp.o __subyasp.o __asp.o __yasp.o \
+OBJ =  __addysp.o __addyasp.o __subysp.o __asp.o __yasp.o \
 	__lxaysptmp.o __asptmp.o \
        __lxa0sptmp.o __gloy.o __gloyl.o __lstxay.o __l_eq.o __l_eqc.o \
-       __deref.o __derefc.o \
+       __deref.o __derefc.o __castc_.o __asra.o \
        __minuseqtmp.o __minuseqtmpc.o  __minus.o __minusminus.o \
        __minusminusc.o __minusc.o \
        __divu.o __mulu.o __div.o __muluc.o \
        __plusplus1.o __plusplus2.o __plusplus.o __plusplusy.o __plus.o \
-       __pluseqy.o __pluseqtmp.o __pluseqtmpc.o \
+       __pluseqy.o __pluseqtmp.o __pluseqtmpc.o __plusplusc.o \
        __poptmp.o __poptmpc.o __pushc.o __pushl.o __push.o __ytmp.o __ytmpc.o \
-       __poptmpstxa.o \
+       __poptmpstxa.o __pop.o \
        __callfunc.o __switchc.o __switch.o __switchl.o \
        zeropage.o __eqop.o __negate.o \
        __bool.o __boolc.o __not.o __notc.o __eqeqtmp.o __netmp.o \
@@ -27,7 +27,8 @@ OBJ =  __addysp.o __addyasp.o __subysp.o __subyasp.o __asp.o __yasp.o \
        __shll.o __shrl.o __sheqlop.o \
        __lmul.o __ldiv.o \
       __boolf.o __cast2f.o __castf.o __cceqf.o __ccgteqf.o __ccgtf.o __cclteqf.o \
-      __ccltf.o __ccnef.o __divf.o __minusf.o __mulf.o __plusf.o __eqopf.o
+      __ccltf.o __ccnef.o __divf.o __minusf.o __mulf.o __plusf.o __eqopf.o \
+      __lderef.o __lderefc.o
 
 GEN =  __adcspy.o __adctmpy.o __sbcspy.o __sbctmpy.o __andspy.o __andtmpy.o __eorspy.o __eortmpy.o \
        __ldaspy.o __ldatmpy.o __oraspy.o __oratmpy.o __staspy.o __statmpy.o \
