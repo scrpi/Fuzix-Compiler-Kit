@@ -3389,7 +3389,8 @@ unsigned gen_node(struct node *n)
 	/* TODO: CCONLY */
 	case T_BANG:
 		n->flags |= ISBOOL;
-		if (r->flags & (ISBOOL|BYTEABLE)) {
+		/* For bool ops we need to add flag tracking and flipping */
+		if (r->flags & ISBOOL) {
 			output("eor #1");
 			invalidate_a();
 		} else
