@@ -320,6 +320,7 @@ bootinst:
 	cp cc2.6502 $(CCROOT)/lib
 	cp copt $(CCROOT)/lib
 	cp rules.6502 $(CCROOT)/lib
+	cp lorder6809 $(CCROOT)/bin/lorder6502
 	# 65c816
 	mkdir -p $(CCROOT)/lib/65c816
 	mkdir -p $(CCROOT)/lib/65c816/include
@@ -327,6 +328,7 @@ bootinst:
 	cp cc2.65c816 $(CCROOT)/lib
 	cp copt $(CCROOT)/lib
 	cp rules.65c816 $(CCROOT)/lib
+	cp lorder6809 $(CCROOT)/bin/lorder65c816
 	# 6800
 	mkdir -p $(CCROOT)/lib/6303
 	mkdir -p $(CCROOT)/lib/6303/include
