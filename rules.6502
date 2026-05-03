@@ -113,7 +113,6 @@
 #
 #	Fold pushes
 #
-	jeq L1_e
 	lda #%1
 	jsr __pushc
 	lda #%2
