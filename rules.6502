@@ -74,6 +74,12 @@
 =
 	jsr __pushly0l
 
+	lda (@sp),y
+	jsr __pushc
+=
+	jsr __pushlyc
+
+
 #
 #	Deref versions for common case. These ought to be implemented
 #	in the compiler itself by folding the subtree perhaps ?
@@ -104,3 +110,38 @@
 =
 	jsr __pushyd2
 
+#
+#	Fold pushes
+#
+	jeq L1_e
+	lda #%1
+	jsr __pushc
+	lda #%2
+	jsr __pushc
+;invalidate regs
+=
+	lda #%2
+	ldx #%1
+	jsr __push
+;invalidate regs
+
+#
+#	ASP related rules
+#
+
+	jsr __asp
+	jsr __push
+=
+	jsr __pasp
+
+	jsr __asp
+;invalidate regs
+	jsr __derefl
+=
+	jsr __derefl_a
+
+	jsr __asp
+;invalidate regs
+	jsr __dereff
+=
+	jsr __dereff_a
