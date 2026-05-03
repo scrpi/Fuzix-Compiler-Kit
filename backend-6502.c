@@ -102,7 +102,8 @@ static unsigned argbase;	/* Track shift between arguments and stack */
 #define T_RSTORE	(T_USER+8)
 #define T_RDEREF	(T_USER+9)		/* *regptr */
 #define T_REQ		(T_USER+10)		/* *regptr */
-
+#define T_DEREFPLUS	(T_USER+11)
+#define T_LDEREF	(T_USER+12)
 
 /*
  *	6502 specifics. We need to track some register values to produce
@@ -415,7 +416,6 @@ static unsigned a_contains(struct node *n)
 	return 1;
 }
 
-#if 0
 static void set_tmp_node(struct node *n)
 {
 	unsigned op = map_op(n->op);
@@ -441,7 +441,6 @@ static void set_tmp_node(struct node *n)
 	reg[R_TMPH].value = value >> 8;
 	reg[R_TMPH].snum = n->snum;
 }
-#endif
 
 /*
  *	TODO
@@ -455,7 +454,7 @@ static void set_tmp_node(struct node *n)
  *	keep @tmp pointing at the object base and use Y when possible to
  *	do offsetting.
  */
-#if 0
+
 static unsigned tmp_contains(struct node *n)
 {
 	if (n->op == T_NREF && (n->flags & SIDEEFFECT))		/* Volatiles */
@@ -469,7 +468,6 @@ static unsigned tmp_contains(struct node *n)
 	/* Looks good */
 	return 1;
 }
-#endif
 
 static unsigned reg_match(unsigned r1, unsigned r2)
 {
@@ -1587,11 +1585,35 @@ struct node *gen_rewrite_node(struct node *n)
 	unsigned op = n->op;
 	unsigned nt = n->type;
 	int log2const;
+	unsigned s = get_size(n->type);
+	unsigned off;
 
 	/* TODO
 		- rewrite some reg ops
 	*/
 
+	if (s <= 2 && (op == T_DEREF || op == T_DEREFPLUS)) {
+		if (op == T_DEREF)
+			n->value = 0;
+		if (r->op == T_PLUS) {
+			off = n->value + r->right->value;
+			if (r->right->op == T_CONSTANT && off < 253) {
+				n->op = T_DEREFPLUS;
+				free_node(r->right);
+				n->right = r->left;
+				n->value = off;
+				free_node(r);
+				return gen_rewrite_node(n);
+			}
+		}
+	}
+	if (s <=2 && op == T_DEREFPLUS && r->op == T_LREF) {
+		/* At this point r->value is the offset for the local */
+		/* n->value is the offset for the ptr load */
+		r->val2 = n->value;		/* Save the offset so it is squashed in */
+		squash_right(n, T_LDEREF);	/* n->value becomes the local ref */
+		return n;
+	}
 	/* *regptr */
 	if (op == T_DEREF && r->op == T_RREF) {
 		n->op = T_RDEREF;
@@ -1809,16 +1831,18 @@ void gen_frame(unsigned size, unsigned aframe)
 	sp = 0;
 	/* Maybe shortcut some common values ? */
 
-	if (size < 256) {
+	if (size <= 4)
+		output("jsr __sub%usp", size);
+	else if (size < 256) {
 		load_y(size);
 		output("jsr __subysp");
-		return;
+	} else {
+		size = -size;
+		load_a(size & 0xFF);
+		load_y(size >> 8);
+		output("jsr __addyasp");
+		invalidate_y();
 	}
-	size = -size;
-	load_a(size & 0xFF);
-	load_y(size >> 8);
-	output("jsr __subyasp");
-	invalidate_y();
 }
 
 void gen_epilogue(unsigned size, unsigned argsize)
@@ -1846,10 +1870,12 @@ void gen_epilogue(unsigned size, unsigned argsize)
 			output("pla");
 		}
 		output("rts");
-	} else if (size) {
+	} else if (size > 4) {
 		load_y(size);
 		output("jmp __addysp");
-	} else
+	} else if (size)
+		output("jmp __add%usp", size);
+	else
 		output("rts");
 	unreachable = 1;
 }
@@ -2359,7 +2385,9 @@ unsigned gen_direct(struct node *n)
 		if (n->val2) {
 			/* Only clean up vararg. stdarg is cleaned up by
 			   the called function */
-			if (v < 256) {
+			if (v <= 4)
+				output("jsr __add%usp", v);
+			else if (v < 256) {
 				load_y(v);
 				output("jsr __addysp");
 			} else {
@@ -2763,7 +2791,7 @@ unsigned gen_direct(struct node *n)
 				return 4;
 			}
 		}
-		if (s <= 2) {
+		if (s <= 2 && !optsize) {
 			/* XA is the pointer */
 			/* Might want a tighter helper for -Os TODO */
 			store_xa_tmp();
@@ -3145,8 +3173,12 @@ unsigned gen_node(struct node *n)
 	case T_LSTORE:
 		v += sp;
 		if (optsize && size == 2 && v < 254) {
-			load_y(v);
-			output("jsr __lstxay");
+			if (v <= 4)
+				output("jsr __lstxa%u", v);
+			else {
+				load_y(v);
+				output("jsr __lstxay");
+			}
 			set_xa_node(n);
 			/* Y is incremented in the helper */
 			set_reg(R_Y, v + 1);
@@ -3212,6 +3244,9 @@ unsigned gen_node(struct node *n)
 		/* For now just helper it */
 		return 0;
 	case T_DEREF:
+		if (size == 4)
+			return 0;
+	case T_DEREFPLUS:
 		if (nr && !se)
 			return 1;
 		/* If BYTEOP is set then non volatiles can be done
@@ -3221,10 +3256,32 @@ unsigned gen_node(struct node *n)
 		/* We could optimize the tracing a bit here. A deref
 		   of memory where we know XA is a name, local etc is
 		   one where we can update the contents info TODO */
-		if (size > 2 || optsize)
-			return 0;
+		if (size > 2)
+			error("drl");
+		if (optsize) {
+			if (size == 1) {
+				if (v == 0) {
+					output("jsr __derefc");
+					set_reg(R_Y, 0);
+				} else {
+					load_y(v);
+					output("jsr __derefcy");
+				}
+				set_reg(R_X, 0);
+				invalidate_a();
+				return 1;
+			}
+			if (v == 0)
+				return 0;
+			load_y(v + 1);
+			output("jsr __derefy");
+			set_reg(R_Y, v);
+			invalidate_x();
+			invalidate_a();
+			return 1;
+		}
 		store_xa_tmp();
-		if (size == 1) {
+		if (size == 1 && v == 0) {
 			if (cpu != NMOS_6502)
 				output("lda (@tmp)");
 			else {
@@ -3233,14 +3290,36 @@ unsigned gen_node(struct node *n)
 			}
 			invalidate_a();
 		} else {
-			load_y(1);
+			load_y(v + 1);
 			invalidate_a();
 			output("lda (@tmp),y");
 			tax();
-			load_y(0);
+			load_y(v);
 			output("lda (@tmp),y");
 			invalidate_a();
 		}
+		return 1;
+	case T_LDEREF:
+		/* offset of local */
+		if (size == 2) {
+			load_x(n->val2 + 1);
+			if (v) {
+				load_y(v);
+				output("jsr __lderef");
+			} else
+				output("jsr __lderef0");
+			invalidate_x();
+		} else {
+			load_x(n->val2);
+			if (v) {
+				load_y(v);
+				output("jsr __lderefc");
+			} else
+				output("jsr __lderefc0");
+			set_reg(R_X, 0);
+		}
+		invalidate_a();
+		invalidate_y();
 		return 1;
 	case T_CONSTANT:
 		/* Only load the bits needed if we are constant */
