@@ -2470,6 +2470,13 @@ unsigned gen_direct(struct node *n)
 			return 0;
 		if (r->op == T_CONSTANT) {
 			if (s == 2) {
+				if ((v & 0xFF) == 0) {
+					txa();
+					do_pri8hi(n, "and", pre_none);
+					tax();
+					load_a(0);
+					return 1;
+				}
 				if ((v & 0xFF00) == 0x0000)
 					load_x(0);
 				else if ((v & 0xFF00) != 0xFF00)
@@ -2493,6 +2500,13 @@ unsigned gen_direct(struct node *n)
 			return 0;
 		if (r->op == T_CONSTANT) {
 			if (s == 2) {
+				if ((v & 0xFF) == 0xFF) {
+					txa();
+					do_pri8hi(n, "and", pre_none);
+					tax();
+					load_a(0xFF);
+					return 1;
+				}
 				if ((v & 0xFF00) == 0xFF00)
 					load_x(0xFF);
 				else if ((v & 0xFF00) != 0x0000)
