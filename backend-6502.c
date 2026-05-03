@@ -1545,6 +1545,28 @@ static void lsr_a(unsigned n)
 	invalidate_a();
 }
 
+/*
+ * Shift A right by n bits in as few instructions as possible
+ * (worst case 5 bytes)
+ * Left bits filled with *zero*
+ */
+static void asr_a(unsigned n)
+{
+	if (n == 0)
+		return;
+	if (n >= 8) {
+		load_a(0);
+		return;
+	}
+	if (n >= 3 && optsize)
+		output("jsr __asra%u", n);
+	else while(n--) {
+		output("cmp #0x80");
+		output("ror a");
+	}
+	invalidate_a();
+}
+
 /* Chance to rewrite the tree from the top rather than none by node
    upwards. We will use this for 8bit ops at some point and for cconly
    propagation */
@@ -2111,7 +2133,7 @@ static unsigned gen_const_lshift(unsigned v, unsigned s)
 			if (optsize && v >= 11)
 				break;
 			/* We get 8 bits of shift by moving A->X */
-			asl_a(v-8); /* Max 5 bytes */
+			asl_a(v & 7); /* Max 5 bytes */
 			tax();
 			load_a(0);
 			return 1;
@@ -2188,9 +2210,6 @@ static unsigned gen_const_lshift(unsigned v, unsigned s)
 
 static unsigned gen_const_rshift(unsigned v, unsigned s, unsigned u)
 {
-	/* Byte value to stuff into upper bytes when shifting */
-	uint8_t siv = u ? 0 : 0xFF;
-
 	/* Do nothing if shift is zero or undefined */
 	if (v == 0 || v >= 8 * s)
 		return 1;
@@ -2200,18 +2219,22 @@ static unsigned gen_const_rshift(unsigned v, unsigned s, unsigned u)
 	case 1:
 		/* TODO This code isn't currently reachable because / and >> operations
 		   are never analysed as being "byteable" */
-		if (u) {
+		if (u)
 			lsr_a(v);
-			return 1;
-		}
-		/* TODO: for non u case or with mask after */
-		return 0;
+		else
+			asr_a(v);
+		return 1;
 	case 2:
-		if (v == 1 && u) {
+		if (v == 1) {
 			/* lsr XA 6 bytes is always worth doing inline */
 			output("pha");
 			output("txa");
-			output("lsr a");
+			if (u)
+				output("lsr a");
+			else {
+				output("cmp #0x80");
+				output("ror a");
+			}
 			output("tax");
 			output("pla");
 			output("ror a");
@@ -2219,11 +2242,17 @@ static unsigned gen_const_rshift(unsigned v, unsigned s, unsigned u)
 			invalidate_a();
 			return 1;
 		}
-		if (v == 8) {
-			/* X->A, X=0 always worth doing*/
+		if (v >= 8) {
+			/* X->A, X=0 or sign always worth doing*/
 			txa();
+			if (u) {
+				lsr_a(v & 7);
+				load_x(0);
+			} else {
+				asr_a(v & 7);
+				output("jsr __castc_");
+			}
 			invalidate_a();
-			load_x(siv);
 			return 1;
 		}
 		break;
@@ -2242,7 +2271,7 @@ static unsigned gen_const_rshift(unsigned v, unsigned s, unsigned u)
 			invalidate_x();
 			return 1;
 		}
-		if (v == 8 && !optsize) {
+		if (v == 8 && u && !optsize) {
 			/* X -> A */
 			/* hireg -> x */
 			/* hireg+1 -> hireg */
@@ -2254,7 +2283,7 @@ static unsigned gen_const_rshift(unsigned v, unsigned s, unsigned u)
 			output("lda @hireg+1");
 			output("sta @hireg");
 			invalidate_a();
-			load_a(siv);
+			load_a(0);
 			output("sta @hireg+1");
 			output("lda @tmp"); // Old X, Neww A
 			invalidate_x();
@@ -2268,18 +2297,38 @@ static unsigned gen_const_rshift(unsigned v, unsigned s, unsigned u)
 			output("ldx @hireg+1");
 			invalidate_a();
 			invalidate_x();
-			load_y(siv);
-			output("sty @hireg");
-			output("sty @hireg+1");
+			if (u) {
+				if (cpu != NMOS_6502) {
+					output("stz @hireg");
+					output("stz @hireg+1");
+				} else {
+					load_y(0);
+					output("sty @hireg");
+					output("sty @hireg+1");
+				}
+			} else {
+				output("jsr __cast_l");
+				invalidate_y();
+			}
 			return 1;
 		}
-		if (v == 24 && !optsize) {
+		if (v >= 24 && !optsize) {
 			/* 7-8 bytes */
 			output("lda @hireg+1");
+			if (u)
+				lsr_a(v & 7);
+			else
+				asr_a(v & 7);
+			if (u) {
+				load_x(0);
+				output("stx @hireg");
+				output("stx @hireg+1");
+			} else {
+				output("jsr __castc_l");
+				invalidate_y();
+			}
 			invalidate_a();
-			load_x(siv);
-			output("stx @hireg+1");
-			output("stx @hireg");
+			invalidate_x();
 			return 1;
 		}
 	}
@@ -2983,12 +3032,8 @@ static unsigned bop_help_c(struct node *n, const char *op, const char *preop)
 static unsigned bop_help_eq_c(struct node *n, const char *op, const char *preop)
 {
 	unsigned size = get_size(n->type);
-	unsigned nr = n->flags & NORETURN;
 	unsigned is_byte = (n->flags & (BYTETAIL | BYTEOP)) == (BYTETAIL | BYTEOP);
 
-	/* Result unused, don't bother */
-	if (nr)
-		return 1;
 	/* We should look at inlining size 2 on -O2 TODO */
 	if (!is_byte && size > 1)
 		return 0;
@@ -3285,7 +3330,7 @@ unsigned gen_node(struct node *n)
 	case T_HATEQ:
 		return bop_help_eq(n, "eor");
 	case T_PLUSEQ:
-		return bop_help_c(n, "adc", "clc");
+		return bop_help_eq_c(n, "adc", "clc");
 	}
 	return 0;
 }

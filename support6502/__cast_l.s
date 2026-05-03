@@ -10,6 +10,7 @@ __castc_ul:
 	ldx #0
 	ora #0
 	bpl pve
+	dex
 	bmi nve
 __cast_l:
 __cast_ul:
