@@ -5,6 +5,7 @@
 ;
 	.export __poptmpc
 	.export __incsp
+	.export __add1sp
 	.code
 
 __poptmpc:
@@ -13,6 +14,7 @@ __poptmpc:
 	lda	(@sp),y
 	sta	@tmp
 	pla
+__add1sp:
 __incsp:
 	inc	@sp
 	bne	l1

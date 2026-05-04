@@ -10,8 +10,6 @@
 
 	.export __add4sp
 	.export __add3sp
-	.export __add2sp
-	.export __add1sp
 	.export	__addysp1
 	.export __addysp
 
@@ -21,12 +19,6 @@ __add4sp:
 	bne	__addysp
 __add3sp:
 	ldy	#3
-	bne	__addysp
-__add2sp:
-	ldy	#2
-	bne	__addysp
-__add1sp:
-	ldy	#1
 	bne	__addysp
 __addysp1:
 	iny

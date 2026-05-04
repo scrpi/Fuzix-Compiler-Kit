@@ -6,6 +6,7 @@
 ;
 	.export __poptmp
 	.export __incsp2
+	.export __add2sp
 	.code
 
 __poptmp:
@@ -17,6 +18,7 @@ __poptmp:
 	lda	(@sp),y
 	sta	@tmp
 	pla
+__add2sp:
 __incsp2:
 	; +2 can only overflow once
 	inc	@sp
