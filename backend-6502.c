@@ -60,6 +60,8 @@
  *	LDEREF helper for tight use of *local and *arg.
  *
  *	Track what is in @tmp.
+ *
+ *	Remove incsp/incsp2 in favour of general addnsp form
  */
 
 #include <stdio.h>
@@ -1607,7 +1609,8 @@ struct node *gen_rewrite_node(struct node *n)
 			}
 		}
 	}
-	if (s <=2 && op == T_DEREFPLUS && r->op == T_LREF) {
+	/* Squash typical indirect struct references within our reach */
+	if (s <=2 && op == T_DEREFPLUS && r->op == T_LREF && n->value < 255) {
 		/* At this point r->value is the offset for the local */
 		/* n->value is the offset for the ptr load */
 		r->val2 = n->value;		/* Save the offset so it is squashed in */
@@ -3314,6 +3317,24 @@ unsigned gen_node(struct node *n)
 		}
 		return 1;
 	case T_LDEREF:
+		v += sp;
+		/* Hairy if the offset of the local is > 254 but this
+		   is rare */
+		if (v > 254) {
+			/* This one is safe */
+			load_x(n->val2 + 1);
+			load_a(v);
+			load_y(v >> 8);
+			if (size == 1) {
+				output("jsr __lderefcya");
+				set_reg(R_X, 0);
+			} else {
+				output("jsr __lderefya");
+				invalidate_x();
+			}
+			invalidate_a();
+			invalidate_y();
+		}
 		/* offset of local */
 		if (size == 2) {
 			load_x(n->val2 + 1);
