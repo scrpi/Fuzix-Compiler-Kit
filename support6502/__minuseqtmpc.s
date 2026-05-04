@@ -10,9 +10,12 @@
 
 __minuseqc:
 	jsr	__poptmp
+	jmp	doop
 __minuseqtmpc:
 __minuseqtmpuc:
+	stx	@tmp+1
 	ldy	#0
+doop:
 	eor	#0xFF
 	sec
 	adc	(@tmp),y
