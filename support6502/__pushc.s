@@ -13,14 +13,15 @@
 
 	.code
 
-__pushlyc:
-	lda	(@sp),y
 ; It's surprisingly common to push 0 or 1
 __pushc1:
 	lda	#1
 	bne	__pushc
 __pushc0:
 	lda	#0
+	beq	__pushc
+__pushlyc:
+	lda	(@sp),y
 __pushc:
 	ldy	@sp
 	beq	l1
