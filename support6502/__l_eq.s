@@ -8,7 +8,6 @@
 __l_eq:
 	sta	@tmp
 	stx	@tmp+1
-	iny
 	lda	(@sp),y
 	dey
 	tax
