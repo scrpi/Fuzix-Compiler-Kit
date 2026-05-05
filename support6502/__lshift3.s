@@ -2,10 +2,10 @@
 		.code
 
 __lshift2:
-	stx	@tmp
+	stx	@tmp1
 	asl	a
-	rol	@tmp
+	rol	@tmp1
 	asl	a
-	rol	@tmp
-	ldx	@tmp
+	rol	@tmp1
+	ldx	@tmp1
 	rts

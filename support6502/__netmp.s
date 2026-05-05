@@ -6,12 +6,14 @@
 	.export __l_netmp
 	.export __l_netmpu
 	.export __ccne
+	.export __ccneu
 
 __l_netmp:
 __l_netmpu:
 	jsr __ytmp
 	jmp __netmp
 __ccne:
+__ccneu:
 	jsr __poptmp
 __netmp:
 __netmpu:

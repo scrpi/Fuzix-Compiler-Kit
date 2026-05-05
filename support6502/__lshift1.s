@@ -2,8 +2,8 @@
 		.code
 
 __lshift1:
-	stx	@tmp
+	stx	@tmp1
 	asl	a
-	rol	@tmp
-	ldx	@tmp
+	rol	@tmp1
+	ldx	@tmp1
 	rts

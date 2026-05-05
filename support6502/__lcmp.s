@@ -7,6 +7,8 @@
 
 	.export __cceql
 	.export __ccnel
+	.export __ccequl
+	.export __ccneul
 	.export __ccgtl
 	.export __ccgteql
 	.export __ccgtul
@@ -133,9 +135,11 @@ __ccltequl:
 	jmp	is_ule
 
 __cceql:
+__ccequl:
 	jsr	__lcmp
 	jmp	is_eq
 
 __ccnel:
+__ccneul:
 	jsr	__lcmp
 	jmp	is_ne

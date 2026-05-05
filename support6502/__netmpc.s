@@ -6,12 +6,14 @@
 	.export __l_netmpc
 	.export __l_netmpuc
 	.export __ccnec
+	.export __ccneuc
 
 __l_netmpc:
 __l_netmpuc:
 	jsr __ytmp
 	jmp __netmpc
 __ccnec:
+__ccneuc:
 	jsr __poptmpc
 __netmpc:
 __netmpuc:

@@ -1,11 +1,15 @@
 ;
 ;	a < @tmp signed
 ;
+	.export __ccgtc
 	.export	__lttmpc
 	.export	__l_lttmpc
 
 	.code
 
+__ccgtc:
+	jsr	__poptmp
+	jmp	__lttmpc
 __l_lttmpc:
 	jsr	__ytmpc
 __lttmpc:

@@ -6,12 +6,14 @@
 	.export __eqeqtmp
 	.export __eqeqtmpu
 	.export __cceq
+	.export __ccequ
 
 __l_eqeqtmp:
 __l_eqeqtmpu:
 	jsr __ytmp
 	jmp __eqeqtmp
 __cceq:
+__ccequ:
 	jsr __poptmp
 __eqeqtmp:
 __eqeqtmpu:

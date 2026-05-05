@@ -3,9 +3,13 @@
 ;
 	.export	__gteqtmpuc
 	.export	__l_gteqtmpuc
+	.export  __ccltequc
 
 	.code
 
+__ccltequc:
+	jsr	__poptmp
+	jmp	__gteqtmpuc
 __l_gteqtmpuc:
 	jsr	__ytmpc
 __gteqtmpuc:

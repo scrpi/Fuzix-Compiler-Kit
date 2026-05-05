@@ -18,6 +18,7 @@ OBJ =  __addysp.o __addyasp.o __subysp.o __asp.o __yasp.o \
        __lttmp.o __lttmpu.o __gteqtmp.o  __gteqtmpu.o \
        __lttmpc.o __lttmpuc.o __gteqtmpc.o __gteqtmpuc.o \
        __lstmp.o __rstmp.o __shlc.o \
+       __lshift1.o __lshift2.o __lshift3.o __lshift4.o \
        __shleqc.o __shleq.o  __shrequc.o __shrequ.o \
        __cpl.o \
        __cast_l.o __booll.o __notl.o __derefl.o __assignl.o __cpll.o \
