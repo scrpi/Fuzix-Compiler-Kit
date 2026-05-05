@@ -1,8 +1,8 @@
 	.export	__minusmtmp
 	.export __minusmtmpu
-	.export __minusminus
+	.export __postdec
 
-__minusminus:
+__postdec:
 	jsr	__poptmp	; TOS into @tmp, preserve XA, Y is now 0
 __minusmtmp:
 __minusmtmpu:

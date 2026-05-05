@@ -1,8 +1,8 @@
 	.export	__minusmtmpc
 	.export __minusmtmpuc
-	.export __minusminusc
+	.export __postdecc
 
-__minusminusc:
+__postdecc:
 	jsr	__poptmp	; TOS into @tmp, preserve XA, Y is now 0
 	jmp	doop
 __minusmtmpc:

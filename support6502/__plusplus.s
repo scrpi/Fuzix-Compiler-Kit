@@ -3,12 +3,12 @@
 ;	there are complex forms both sides. In this case the top of the
 ;	data stack is the pointer
 
-	.export	__plusplus
+	.export	__postinc
 	.export	__plusplustmp
 	.export	__plusplustmpu
 	.code
 
-__plusplus:
+__postinc:
 	jsr	__poptmp	; pop TOS into @tmp, preserve XA
 				; Y is set to 0 after this
 __plusplustmp:
