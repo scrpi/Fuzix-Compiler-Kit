@@ -1,8 +1,10 @@
-		.export __lshift2
+		.export __lshift3
 		.code
 
-__lshift2:
+__lshift3:
 	stx	@tmp1
+	asl	a
+	rol	@tmp1
 	asl	a
 	rol	@tmp1
 	asl	a
