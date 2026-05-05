@@ -62,6 +62,10 @@
  *	Track what is in @tmp.
  *
  *	Remove incsp/incsp2 in favour of general addnsp form
+ *
+ *	Untangle the pri ops so they are always passed the node for the op
+ *	and the node for evaluation explicitly and logically so we can
+ *	avoid the squashing mess
  */
 
 #include <stdio.h>
@@ -640,12 +644,29 @@ static unsigned direct_z(const char *op)
 	return 1;
 }
 
+/* operations we can cover with pri8/pri16 that have side effects so must
+   not be folded into things */
+static unsigned has_sideeffect(struct node *n)
+{
+	/* We can generate these as pri16 ops but they are not load based
+	   so we must not fast cast them as they have side effects */
+	if (n->op == T_LSTORE || n->op == T_LBSTORE || n->op == T_NSTORE)
+		return 1;
+	return 0;
+}
+
+
 static unsigned can_bytecast(register struct node *n)
 {
 	register struct node *r = n->right;
 	/* Can we eliminate the cast because we are only working in
 	   byte sized objects anyway ? */
 	if (n->type != T_CAST)
+		return 0;
+	/* Can't reliably play games if it might have a whole subtree */
+	/* TODO: we can restrict this a fair bit more if we know
+	   whether we are coming from gen_node or not */
+	if (has_sideeffect(n))
 		return 0;
 	if ((!PTR(n->type) && n->type != CINT && n->type != UINT) || r->type != UCHAR)
 		return 0;
@@ -874,7 +895,6 @@ static int do_pri16(struct node *n, struct node *r, const char *op, void (*pre)(
 		return do_pri16(n, r->right, op, pre);
 	}
 #endif
-
 	switch(n->op) {
 	case T_LABEL:
 		pre(n);
@@ -1051,9 +1071,9 @@ static unsigned fast_castable(struct node *n)
 {
 	/* Is this a case we can just flow into the code. Usually that's
 	   a uchar to int */
-	if (n->op == T_CAST && get_size(n->type) == 2 && n->right->type == UCHAR)
-		return 1;
-	return 0;
+	if (n->op != T_CAST || n->right->type != UCHAR || get_size(n->type) != 2)
+		return 0;
+	return 1;
 }
 
 /*
@@ -1063,11 +1083,15 @@ static unsigned fast_castable(struct node *n)
 static void helper_sb(struct node *n, char *helper)
 {
 	unsigned t;
-	if (n->flags & BYTEABLE) {
+	if (n->flags & BYTEOP) {
 		t = CCHAR;
 		if (n->right->type & UNSIGNED)
 			t = UCHAR;
 		do_helper(n, helper, t, 1);
+		/* Q: Do we need to cast in some cases then. We are ok
+		   for conditionals but others ? */
+		if (n->flags & BYTEROOT)
+			printf(";cast required.\n");
 	} else
 		helper_s(n, helper);
 }
@@ -1075,6 +1099,9 @@ static void helper_sb(struct node *n, char *helper)
 static int pri8_help(struct node *n, char *helper)
 {
 	struct node *r = n->right;
+        /* Don't try and fold stores with side effects */
+	if (has_sideeffect(r))
+		return 0;
 	/* Special case for cast first */
 	if (fast_castable(r)) {
 		if (do_pri8(n, r->right, "lda", pre_store8)) {
@@ -1084,7 +1111,7 @@ static int pri8_help(struct node *n, char *helper)
 	}
 	/* If we can't guarantee do_pri8 protects X then in future we'd
 	    need to check r size for 2 and if so pre_store16 here */
-	if (do_pri8(n, n->right, "lda", pre_store8)) {
+	if (do_pri8(n, r, "lda", pre_store8)) {
 		/* Helper invalidates A itself */
 		helper_sb(n, helper);
 		return 1;
@@ -1120,6 +1147,10 @@ static int pri16_help(struct node *n, char *helper)
 	unsigned v = r->value;
 	unsigned s = get_size(r->type);
 
+	/* Don't try and fold stores as they need to actually do the
+	   store */
+	if (has_sideeffect(r))
+		return 0;
 	/* Special case for cast first */
 	if (fast_castable(r)) {
 		if (get_size(r->right->type) == 2) {
@@ -1135,13 +1166,14 @@ static int pri16_help(struct node *n, char *helper)
 		}
 	}
 
+
 	if (s == 1) {
-		if (do_pri8(n, n->right, "ld", pre_store16clx)) {
+		if (do_pri8(n, r, "lda", pre_store16clx)) {
 			helper_s(n, helper);
 			return 1;
 		}
 	} else if (s == 2) {
-		if (do_pri16(n, n->right, "ld", pre_store16)) {
+		if (do_pri16(n, r, "ld", pre_store16)) {
 			/* Helper invalidates XA itself */
 			helper_s(n, helper);
 			return 1;
@@ -1171,6 +1203,10 @@ static int pri16_help(struct node *n, char *helper)
 	return 0;
 }
 
+/*
+ *	Try and construct a short form helper for the expression
+ *	to avoid the expensive stack operations.
+ */
 static int pri_help(struct node *n, char *helper)
 {
 	unsigned s = get_size(n->type);
@@ -1242,11 +1278,17 @@ unsigned local_yop_s(struct node *n, const char *name)
 	return 1;
 }
 
-static int pri_cchelp(register struct node *n, unsigned s, char *helper)
+static int pri_cchelp(register struct node *n, char *helper)
 {
 	register struct node *r = n->right;
 	unsigned v = r->value;
+	/* Sizing for comparisons is from the children */
+	unsigned s = get_size(r->type);
+	unsigned is_byte = (n->flags & (BYTETAIL | BYTEOP)) == (BYTETAIL | BYTEOP);
 	char buf[32];
+
+	if (is_byte)
+		s = 1;
 
 	n->flags |= ISBOOL;
 
@@ -1257,6 +1299,8 @@ static int pri_cchelp(register struct node *n, unsigned s, char *helper)
 		return 1;
 	}
 
+#if 0
+	/* Can't do this as we've already pushed the other half as a word */
 	/* In the case where we know the upper half of the value. Need to sort
 	   the signed version out eventually */
 	if (r->op == T_CONSTANT && s == 2 && (n->type & UNSIGNED)) {
@@ -1268,14 +1312,20 @@ static int pri_cchelp(register struct node *n, unsigned s, char *helper)
 			return pri8_help(n, helper);
 		}
 	}
+	/* DEBUG ME TODO */
 	/* Byte sized result operations are handled via pri8_help after
 	   we fudge the type info a bit */
-	if (n->flags & BYTEABLE) {
+	if (n->flags & BYTEOP) {
 		n->type &= UNSIGNED | PTRMASK;
 		n->type |= CCHAR;
 		return pri8_help(n, helper);
 	}
-	return pri_help(n, helper);
+#endif
+	if (s == 1 && pri8_help(n, helper))
+		return 1;
+	else if (s == 2 && pri16_help(n, helper))
+		return 1;
+	return 0;
 }
 
 static void pre_clc(struct node *n)
@@ -1376,8 +1426,8 @@ static int leftop_memc(struct node *n, const char *op)
 /* Do a 16bit operation upper half by switching X into A */
 static unsigned try_via_x(struct node *n, const char *op, void (*pre)(struct node *))
 {
+	struct node *r = n->right;
 	if (optsize)  {
-		struct node *r = n->right;
 		unsigned rop = r->op;
 		unsigned v = r->value;
 		if (rop == T_LREF) {
@@ -1409,8 +1459,9 @@ static unsigned try_via_x(struct node *n, const char *op, void (*pre)(struct nod
 			return 1;
 		}
 	}
-	/* Name and lbref are probably not worth it as have to go via tmp */
-	if (do_pri8(n, n->right, op, pre) == 0)
+	/* FIXME: need to untangle all the pri8 stuff so we can do
+	   NAME and LABEL here */
+	if (do_pri8(n, r, op, pre) == 0)
 		return 0;
 	output("pha");
 	txa();
@@ -1716,14 +1767,18 @@ struct node *gen_rewrite_node(struct node *n)
 	 * where right op is a constant power of two can be re-written
 	 * using bit operations.
 	 *
-	 * Only apply these optimisations if at -O2 or higher
+	 * These rewrites are "almost" processor independent, in that
+	 * for most microprocessors with 2's complement arithmetic, the same
+	 * rewrites might apply. However, converting signed division and
+	 * remainder isn't a good match for 6502's LSR instuctions so signed
+	 * division and remainder isn't changed here. At least for now.
+	 * (in particular we have to watch rounding)
 	 *
-	 * These rewrites are "almost" processor independent, in that for most microprocessors
-	 * with 2's complement arithmetic, the same rewrites might apply. However, converting
-	 * signed division and remainder isn't a good match for 6502's LSR instuctions
-	 * so signed division and remainder isn't changed here. At least for now.
+	 * We always rewrite. We will then pick up the rewritten shift and
+	 * figure out whether to inline it by optimisation level. The shift
+	 * will always be the better option
 	 */
-	if (opt>=2 && r != NULL && IS_INTARITH(nt) && r->op == T_CONSTANT) {
+	if (r != NULL && IS_INTARITH(nt) && r->op == T_CONSTANT) {
 		switch(op) {
 		/* Multiplication ( * and *= ) of integral types
 		   by constant powers of two can be re-written
@@ -1749,14 +1804,14 @@ struct node *gen_rewrite_node(struct node *n)
 		case T_SLASH:
 		case T_SLASHEQ:
 			/*	Only apply this optimisation to UNSIGNED types at the moment.
-				TODO for signed implementation
-				1.	Signed right shifts must maintain the sign bit which is a
-					PITA in 6502
-				2.  Signed operations where the constant is negative
-					i.e. "x / -8" could become "(-x) >> 3"
-				3.  For signed operations, direction of rounding towards
-					zero must be preserved.
-				*/
+			  TODO for signed implementation
+			  1.  Signed right shifts must maintain the sign bit which is a
+			      PITA in 6502
+			  2.  Signed operations where the constant is negative
+			      i.e. "x / -8" could become "(-x) >> 3"
+			  3.  For signed operations, direction of rounding towards
+			      zero must be preserved.
+			  */
 				if (nt & UNSIGNED) {
 					log2const = intlog2(r->value);
 					if (log2const != -1) {
@@ -1916,7 +1971,10 @@ void gen_jump(const char *tail, unsigned n)
 	if (unreachable)
 		return;
 	/* Want to use BRA if we have the option */
-	output("jmp L%u%s", n, tail);
+	if (cpu != NMOS_6502)
+		output("bra L%u%s", n, tail);
+	else
+		output("jmp L%u%s", n, tail);
 	unreachable = 1;
 }
 
@@ -2149,12 +2207,10 @@ static unsigned gen_const_lshift(unsigned v, unsigned s)
 		asl_a(v);
 		return 1;
 	case 2:
-		if (1 <= v && v <=7 ) {
+		if (!optsize && 1 <= v && v <=7 ) {
 			/* 4+3v bytes
 			   v==1 is faster and same size
 			   v>=2 is faster but bigger */
-			if (optsize && v >= 2)
-				break;
 			output("stx @tmp+1");
 			repeated_op(v, "asl a\n\trol @tmp+1");
 			output("ldx @tmp+1");
@@ -2236,6 +2292,19 @@ static unsigned gen_const_lshift(unsigned v, unsigned s)
 		}
 		default:
 			break;
+	}
+	/* Helpers for the very common case are worth it */
+	if (s == 2) {
+		/* These intentionally don't touch @tmp */
+		if (v & 4)
+			output("jsr __lshift4");
+		if (v & 3)
+			output("jsr __lshift%u", v & 3);
+		if (v & 8) {
+			txa();
+			load_a(0);
+		}
+		return 1;
 	}
 	return 0;
 }
@@ -2367,10 +2436,82 @@ static unsigned gen_const_rshift(unsigned v, unsigned s, unsigned u)
 	return 0;
 }
 
+static unsigned gen_const_mul(unsigned v, unsigned s)
+{
+	switch(s) {
+	case 1:	/* Byte */
+		switch(v) {
+		/* Multiply by 2^n+1. Save original, shift (n) and add original */
+		case 9:  /* 2^3+1, 8 bytes */
+		case 5:  /* 2^2+1, 7 bytes */
+			if (optsize || opt < 3)
+				break;
+			/* Fall through if -O3  */
+			case 3:  /* 2^1+1, 6 bytes, always smaller and faster*/
+				store_a_tmp();
+				asl_a(intlog2(v-1));
+				output("clc");
+				output("adc @tmp");
+				invalidate_tmpl();
+				invalidate_a();
+				return 1;
+			default:
+				break;
+		}
+		break;
+	case 2:
+		switch(v) {
+		case 3:
+			if (optsize || opt < 3)
+				break;
+			/* This is faster than calling the support routine
+			   but at 17 bytes it's a bit of a bloat, so only
+			   generate this version if we're agressively optimising
+			   for speed and "*3" is especially important to you. If
+			   maintainers want to get rid of this in future, that
+			   is fair enough. I would not object. */
+
+			/* XA->@tmp */
+			store_xa_tmp();
+			/* @tmp <<= 1 */
+			output("asl @tmp");
+			output("rol @tmp+1");
+			invalidate_tmp();
+			/* XA += @tmp */
+			output("clc");
+			output("adc @tmp");
+			output("pha");
+			output("txa");
+			output("adc @tmp+1");
+			output("tax");
+			output("pla");
+			invalidate_a();
+			invalidate_x();
+			invalidate_tmp();
+			return 1;
+		default:
+			break;
+		}
+		break;
+	default:
+		/* For longs and floats there are no obvious multiply
+		 * optimisations other than powers of two, dealt with
+		 * in T_LTLT
+		 */
+		break;
+	}
+	return 0;
+}
+
 /*
  *	If possible turn this node into a direct access. We've already checked
  *	that the right hand side is suitable. If this returns 0 it will instead
  *	fall back to doing it stack based.
+ *
+ *	At this point in time n is the operation node, any left hand side
+ *	operation has been done and the result is in hireg:XA as appropriate.
+ *	The right hand node (or subtree) has not been evaluated so we must
+ *	be careful not to shortcut anything
  */
 unsigned gen_direct(struct node *n)
 {
@@ -2434,9 +2575,14 @@ unsigned gen_direct(struct node *n)
 			}
 			return 1;
 		}
+
+		/* We can't squash LSTORE etc but must evaluate the subtree */
+		if (has_sideeffect(r))
+			return 0;
+
 		if (local_yop(n, "l_eq" ))
 			return 1;
-		if (s == 1 && do_pri8(n, n->right, "lda", pre_stash)) {
+		if (s == 1 && do_pri8(n, r, "lda", pre_stash)) {
 			invalidate_a();
 			if (cpu != NMOS_6502)
 				output("sta (@tmp)");
@@ -2496,6 +2642,8 @@ unsigned gen_direct(struct node *n)
 			}
 			return 1;
 		}
+		if (has_sideeffect(r))
+			return 0;
 		if (s == 1 && pri8(n, "and"))
 			return 1;
 		if (s == 2 && try_via_x(n, "and", pre_none))
@@ -2526,6 +2674,8 @@ unsigned gen_direct(struct node *n)
 			}
 			return 1;
 		}
+		if (has_sideeffect(r))
+			return 0;
 		if (s == 1 && pri8(n, "ora"))
 			return 1;
 		if (s == 2 && try_via_x(n, "ora", pre_none))
@@ -2545,6 +2695,8 @@ unsigned gen_direct(struct node *n)
 			}
 			return 1;
 		}
+		if (has_sideeffect(r))
+			return 0;
 		if (s == 1 && pri8(n, "eor"))
 			return 1;
 		if (s == 2 && try_via_x(n, "eor", pre_none))
@@ -2563,7 +2715,12 @@ unsigned gen_direct(struct node *n)
 			const_a_set(reg[R_A].value - 1);
 			return 1;
 		}
-		if (s == 1 && do_pri8(n, n->right, "adc", pre_clc)) {
+
+		printf(";Right is %04X\n", r->op);
+		if (has_sideeffect(r))
+			return 0;
+
+		if (s == 1 && do_pri8(n, r, "adc", pre_clc)) {
 			if (r->op == T_CONSTANT)
 				const_a_set(reg[R_A].value + r->value);
 			else
@@ -2594,6 +2751,7 @@ unsigned gen_direct(struct node *n)
 				return 1;
 			}
 		}
+		printf(";Right via X S %u is %04X\n", s, r->op);
 		if (s == 2 && try_via_x(n, "adc", pre_clc))
 			return 1;
 		return pri_help(n, "adctmp");
@@ -2610,6 +2768,9 @@ unsigned gen_direct(struct node *n)
 			const_a_set(reg[R_A].value + 1);
 			return 1;
 		}
+
+		if (has_sideeffect(r))
+			return 0;
 		if (s == 1 && do_pri8(n, n->right, "sbc", pre_sec)) {
 			if (r->op == T_CONSTANT)
 				const_a_set(reg[R_A].value - r->value);
@@ -2647,7 +2808,6 @@ unsigned gen_direct(struct node *n)
 	case T_STAR:
 		if (local_yop(n, "l_mul" ))
 			return 1;
-
 		/* Multiplication by integer powers of two have already been re-written
 		   and inline code is generated as part of T_LTLT processing
 		   Special case for a few constant multiplies that are not powers of two
@@ -2656,76 +2816,8 @@ unsigned gen_direct(struct node *n)
 		*/
 
  		if (r->op == T_CONSTANT) {
-			switch(n->type) {
-				case CCHAR:
-				case UCHAR:
-					/* Byte */
-					switch(v) {
-						/* Multiply by 2^n+1. Save original, shift (n) and add original */
-						case 9:  /* 2^3+1, 8 bytes */
-						case 5:  /* 2^2+1, 7 bytes */
-							if (optsize || opt<3)
-								break;
-							/* Fall through if -O3  */
-						case 3:  /* 2^1+1, 6 bytes, always smaller and faster*/
-							store_a_tmp();
-							asl_a(intlog2(v-1));
-							output("clc");
-							output("adc @tmp");
-							invalidate_tmpl();
-							invalidate_a();
-							return 1;
-
-						default:
-							break;
-					}
-					break;
-
-				case CINT:
-				case UINT:
-					/* Word */
-					switch(v) {
-						case 3:
-							if (optsize || opt<3)
-								break;
-
-							/* This is faster than calling the support routine
-							   but at 17 bytes it's a bit of a bloat, so only
-							   generate this version if we're agressively optimising
-							   for speed and "*3" is especially important to you. If
-							   maintainers want to get rid of this in future, that
-							   is fair enough. I would not object. */
-
-							/* XA->@tmp */
-							store_xa_tmp();
-							/* @tmp <<= 1 */
-							output("asl @tmp");
-							output("rol @tmp+1");
-							invalidate_tmp();
-							/* XA += @tmp */
-							output("clc");
-							output("adc @tmp");
-							output("pha");
-							output("txa");
-							output("adc @tmp+1");
-							output("tax");
-							output("pla");
-							invalidate_a();
-							invalidate_x();
-							invalidate_tmp();
-							return 1;
-
-						default:
-							break;
-					}
-					break;
-
-				default:
-					// For ULONG, CLONG, ULONGLONG, CLONGLONG
-					// There are no obvious multiply optimisations
-					// Other than powers of two, dealt with in T_LTLT
-					break;
-			}
+ 			if (gen_const_mul(v, s))
+ 				return 1;
 		}
 		return pri_help(n, "multmp");
 	case T_SLASH:
@@ -2752,15 +2844,15 @@ unsigned gen_direct(struct node *n)
 			helper(n, "not");
 			return 1;
 		}
-		return pri_cchelp(n, s, "eqeqtmp");
+		return pri_cchelp(n, "eqeqtmp");
 	case T_GTEQ:
-		return pri_cchelp(n, s, "lteqtmp");
+		return pri_cchelp(n, "lteqtmp");
 	case T_GT:
-		return pri_cchelp(n, s, "lttmp");
+		return pri_cchelp(n, "lttmp");
 	case T_LTEQ:
-		return pri_cchelp(n, s, "gteqtmp");
+		return pri_cchelp(n, "gteqtmp");
 	case T_LT:
-		return pri_cchelp(n, s, "gttmp");
+		return pri_cchelp(n, "gttmp");
 	case T_BANGEQ:
 		if (r->op == T_CONSTANT && v == 0) {
 			if (is_byte) {
@@ -2772,7 +2864,7 @@ unsigned gen_direct(struct node *n)
 			helper(n, "bool");
 			return 1;
 		}
-		return pri_cchelp(n, s, "netmp");
+		return pri_cchelp(n, "netmp");
 	/* TODO: qq optimisations for >= fieldwidth ? */
 	case T_LTLT:
 		/* Optimise constant left shifts */
@@ -3066,6 +3158,7 @@ static unsigned bop_help_c(struct node *n, const char *op, const char *preop)
 	if (!is_byte && size > 1)
 		return 0;
 	output("jsr __poptmpc");
+	invalidate_tmp();
 	set_reg(R_Y, 0);
 	if (preop)
 		output(preop);
@@ -3085,6 +3178,7 @@ static unsigned bop_help_eq_c(struct node *n, const char *op, const char *preop)
 	if (!is_byte && size > 1)
 		return 0;
 	output("jsr __poptmp");	/* A preserved Y 0 @tmp is ptr */
+	invalidate_tmp();
 	set_reg(R_Y, 0);
 	if (preop)
 		output(preop);
@@ -3277,6 +3371,8 @@ unsigned gen_node(struct node *n)
 		   one where we can update the contents info TODO */
 		if (size > 2)
 			error("drl");
+		/* TODO: once xa tracking is more useful we should
+		   spot the xa good case and shortcut it even in optsize */
 		if (optsize) {
 			if (size == 1) {
 				if (v == 0) {
@@ -3286,6 +3382,7 @@ unsigned gen_node(struct node *n)
 					load_y(v);
 					output("jsr __derefcy");
 				}
+				invalidate_tmp();
 				set_reg(R_X, 0);
 				invalidate_a();
 				return 1;
@@ -3297,6 +3394,7 @@ unsigned gen_node(struct node *n)
 			set_reg(R_Y, v);
 			invalidate_x();
 			invalidate_a();
+			invalidate_tmp();
 			return 1;
 		}
 		store_xa_tmp();
@@ -3357,6 +3455,7 @@ unsigned gen_node(struct node *n)
 		}
 		invalidate_a();
 		invalidate_y();
+		invalidate_tmp();
 		return 1;
 	case T_CONSTANT:
 		/* Only load the bits needed if we are constant */
@@ -3448,6 +3547,14 @@ unsigned gen_node(struct node *n)
 		return bop_help_eq(n, "eor");
 	case T_PLUSEQ:
 		return bop_help_eq_c(n, "adc", "clc");
+	/* These may have been turned byte sized so we need to handle that
+	   aspect ourself */
+	case T_BANGEQ:
+		helper_sb(n, "ccne");
+		return 1;
+	case T_EQEQ:
+		helper_sb(n, "cceq");
+		return 1;
 	}
 	return 0;
 }
