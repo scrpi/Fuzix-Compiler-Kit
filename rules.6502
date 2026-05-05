@@ -144,3 +144,11 @@
 	jsr __dereff
 =
 	jsr __dereff_a
+
+#
+#	Minor folding
+#
+	jsr __deref
+	jsr __push
+=
+	jsr __pderef

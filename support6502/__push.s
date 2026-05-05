@@ -10,6 +10,11 @@
 	.export __push1
 	.export __pushffff
 	.export __pasp
+	.export __pderef
+
+__pderef:
+	jsr	__deref
+	jmp	__push
 
 __pasp:
 	jsr	__asp
