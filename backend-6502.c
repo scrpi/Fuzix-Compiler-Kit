@@ -1106,10 +1106,12 @@ static void pre_fastcast(struct node *n)
 	}
 }
 
+/* We've got thje left in XA, the right is byte sized so store the working
+   value in @tmp, then clear X and do a byte sized evaluation */
 static void pre_fastcastx0(struct node *n)
 {
-	load_x(0);
 	store_xa_tmp();
+	load_x(0);
 }
 
 static int pri16_help(struct node *n, char *helper)
@@ -1259,8 +1261,10 @@ static int pri_cchelp(register struct node *n, unsigned s, char *helper)
 	   the signed version out eventually */
 	if (r->op == T_CONSTANT && s == 2 && (n->type & UNSIGNED)) {
 		if (reg[R_X].state == T_CONSTANT && reg[R_X].value == (v >> 8)) {
-			n->type &= UNSIGNED;
-			n->type |= CCHAR;
+			/* We take the size of a comparison from the right not
+			   the node itself as the output type is always 0/1 */
+			r->type &= UNSIGNED;
+			r->type |= CCHAR;
 			return pri8_help(n, helper);
 		}
 	}
@@ -1315,7 +1319,6 @@ static int leftop_memc(struct node *n, const char *op)
 	else
 		count = r->value;
 
-	printf(";leftop memc nr %u\n", nr);
 	/* Being super clever doesn't help if we need the value anyway */
 	if (!nr && (n->op == T_PLUSPLUS || n->op == T_MINUSMINUS))
 		return 0;
@@ -2751,7 +2754,6 @@ unsigned gen_direct(struct node *n)
 		}
 		return pri_cchelp(n, s, "eqeqtmp");
 	case T_GTEQ:
-		fprintf(stderr, "still a GTEQ live ?\n");
 		return pri_cchelp(n, s, "lteqtmp");
 	case T_GT:
 		return pri_cchelp(n, s, "lttmp");
