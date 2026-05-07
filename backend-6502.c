@@ -66,6 +66,15 @@
  *	Untangle the pri ops so they are always passed the node for the op
  *	and the node for evaluation explicitly and logically so we can
  *	avoid the squashing mess
+ *
+ *	Look at doing some kind of two step LDSTORE for struct referencing
+ *
+ *	Turn n = n + 1 into n += 1 as for 6502 that's going to help a lot
+ *
+ *	Register variables (aka bits of zero page). This will speed up pointers
+ *	a lot (at a stack save/restore cost). We can keep the code density
+ *	good by using a helper to stack "n" registers not doing the inline
+ *	stuff cc65 does.
  */
 
 #include <stdio.h>
