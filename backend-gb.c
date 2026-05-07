@@ -125,6 +125,79 @@ static void outputinv(const char *p, ...)
 	ccvalid = CC_INVERSE;
 }
 
+
+/* Start to break stuff out so we can begin to track things later on */
+
+/* Make HL = SP + offset */
+static void hl_from_sp(unsigned off)
+{
+	if (off < 128)
+		output("ld hl, sp+%u", off);
+	else {
+		outputne("ld hl, %u", off);
+		output("add hl,sp");
+	}
+}
+
+static void load_hl(unsigned n)
+{
+	outputne("ld hl,%u", n);
+}
+
+static void load_hl_de(void)
+{
+	outputne("ld h,d");
+	outputne("ld l,e");
+}
+
+static void load_de_hl(void)
+{
+	outputne("ld d,h");
+	outputne("ld e,l");
+}
+
+static void load_sp_hl(void)
+{
+	output("ld sp,hl");
+}
+
+static void adjust_sp(int size)
+{
+	if (size < 0) {
+		/* 4 bytes */
+		if (size < -256) {
+			outputne("ld hl,%d", size);
+			output("add hl,sp");
+			load_sp_hl();
+			return;
+		}
+		/* 2 bytes */
+		if (size <= -128) {
+			output("add sp,-128");
+			size += 128;
+		}
+		if (size == -1)
+			outputne("dec sp");
+		else
+			output("add sp,%d", size);
+	} else if (size > 0) {
+		if (size > 254) {
+			outputne("ld hl,%u", size);
+			output("add hl,sp");
+			outputne("ld sp,hl");
+			return;
+		}
+		if(size >= 127) {
+			output("add sp,#127");
+			size -= 127;
+		}
+		if (size == 1)
+			outputne("inc sp");
+		else if (size)
+			output("add sp,%u", size);
+	}
+}
+
 /*
  *	Object sizes
  */
@@ -354,22 +427,7 @@ void gen_frame(unsigned size, unsigned aframe)
 		func_cleanup = 0;
 
 	argbase = ARGBASE;
-	if (size > 256) {
-		outputne("ld hl,-%u", size);
-		output("add hl,sp");
-		outputne("ld sp,hl");
-		return;
-	}
-	while(size >= 128) {
-		output("add sp,-128");
-		size -= 128;
-	}
-	if (size) {
-		if (size == 1)
-			outputne("dec sp");
-		else
-			output("add sp,-%u", size);
-	}
+	adjust_sp(-size);
 }
 
 void gen_epilogue(unsigned size, unsigned argsize)
@@ -379,20 +437,8 @@ void gen_epilogue(unsigned size, unsigned argsize)
 
 	if (unreachable)
 		return;
-	if (size > 254) {
-		outputne("ld hl,%u", size);
-		output("add hl,sp");
-		outputne("ld sp,hl");
-	} else {
-		while(size >= 127) {
-			output("add sp,#127");
-			size -= 127;
-		}
-		if (size == 1)
-			outputne("inc sp");
-		else if (size)
-			output("add sp,%u", size);
-	}
+
+	adjust_sp(size);
 	outputne("ret");
 }
 
@@ -460,18 +506,6 @@ void gen_jtrue(const char *tail, unsigned n)
 	}
 }
 
-static void gen_cleanup(unsigned v)
-{
-	/* CLEANUP is special and needs to be handled directly */
-	sp -= v;
-	while(v >= 127) {
-		output("add sp,%u", v);
-		v -= 127;
-	}
-	if (v)
-		output("add sp,%u", v);
-}
-
 /*
  *	Helper handlers. We use a tight format for integers but C
  *	style for float as we'll have C coded float support if any
@@ -519,7 +553,8 @@ void gen_helpclean(struct node *n)
 			sp += s;
 		}
 		s += get_size(n->right->type);
-		gen_cleanup(s);
+		adjust_sp(s);
+		sp -= s;
 		/* C style ops that are ISBOOL didn't set the bool flags */
 		/* Need to think about keeping bool stuff 8bit here */
 		printf(";help clean isbool %04x C\n", n->flags);
@@ -625,29 +660,6 @@ void gen_tree(struct node *n)
 	codegen_lr(n);
 	outputne(";:");
 /*	printf(";SP=%d\n", sp); */
-}
-
-/* Make HL = SP + offset */
-static void hl_from_sp(unsigned off)
-{
-	if (off < 128)
-		output("ld hl, sp+%u", off);
-	else {
-		outputne("ld hl, %u", off);
-		output("add hl,sp");
-	}
-}
-
-static void load_hl_de(void)
-{
-	outputne("ld h,d");
-	outputne("ld l,e");
-}
-
-static void load_de_hl(void)
-{
-	outputne("ld d,h");
-	outputne("ld e,l");
 }
 
 /*
@@ -822,7 +834,6 @@ static void store_via_hl(unsigned s)
 		}
 	}
 }
-
 
 /*
  *	Get something that passed the access_direct check into a reg. Could
@@ -1094,7 +1105,6 @@ static unsigned gen_logicc(struct node *n, unsigned s, const char *op, unsigned 
 	if (s > 2 || (n && n->op != T_CONSTANT))
 		return 0;
 
-
 	if (s == 2) {
 		/* If we are trying to be compact only inline the short ones */
 		if (optsize && ((h != 0 && h != 255) || (l != 0 && l != 255)))
@@ -1187,17 +1197,20 @@ unsigned gen_direct(struct node *n)
 	unsigned nr = n->flags & NORETURN;
 	int b;
 	unsigned is_byte = (n->flags & (BYTETAIL | BYTEOP)) == (BYTETAIL | BYTEOP);
+	unsigned rs;
 
 	/* We only deal with simple cases for now */
 	if (r) {
 		if (!access_direct(n->right))
 			return 0;
 		v = r->value;
+		rs = get_size(r->type);
 	}
 
 	switch (n->op) {
 	case T_CLEANUP:
-		gen_cleanup(v);
+		adjust_sp(v);
+		sp -= v;
 		return 1;
 	case T_NSTORE:
 		if (s > 2)
@@ -1239,7 +1252,7 @@ unsigned gen_direct(struct node *n)
 		if (s == 1) {
 			if (load_a_with(r, 1) == 0)
 				return 0;
-			outputne("ld (hl),a");
+			outputne("ld (de),a");
 			return 1;
 		}
 		return 0;
@@ -1288,10 +1301,9 @@ unsigned gen_direct(struct node *n)
 				repeated_op("dec de", v);
 				return 1;
 			}
-			outputne("ld hl,%u", 65536 - v);
+			outputne("ld hl,-%u", WORD(v));
 			output("add hl,de");
 			load_de_hl();
-			/* Doesn't set Z alas */
 			return 1;
 		}
 		return 0;
@@ -1321,15 +1333,17 @@ unsigned gen_direct(struct node *n)
 		}
 		return gen_twoop("rem2op", n, r, 1, s);
 	case T_AND:
+		/* TODO: bitchecks on the direct andeq/oreq */
 		/* Better to use bit for single bit set on word */
+		/* TODO byte version */
 		if (s == 2 && r->op == T_CONSTANT && (n->flags & CCONLY)) {
 			b = bitcheck0(v, s);
 			if (b >= 0) {
 				/* Single set bit */
 				if (b < 8)
-					printf("\tres %u,l\n", b);
+					printf("\tres %u,e\n", b);
 				else
-					printf("\tres %u,h\n", b - 8);
+					printf("\tres %u,d\n", b - 8);
 				return 1;
 			}
 		}
@@ -1343,9 +1357,9 @@ unsigned gen_direct(struct node *n)
 			if (b >= 0) {
 				/* Single set bit */
 				if (b < 8)
-					printf("\tset %u,l\n", b);
+					printf("\tset %u,e\n", b);
 				else
-					printf("\tset %u,h\n", b - 8);
+					printf("\tset %u,d\n", b - 8);
 				return 1;
 			}
 		}
@@ -1357,12 +1371,22 @@ unsigned gen_direct(struct node *n)
 			return 1;
 		return gen_twoop("bxor2op", n, r, 0, s);
 	case T_EQEQ:
-		/* TODO: We can do word this way at least for non -Os by
-		   doing cp jr z, cp, ditto for BANGEQ */
-		if (is_byte && r->op == T_CONSTANT && (n->flags & CCONLY)) {
-			outputinv("cp %u", BYTE(v));
-			n->flags |= ISBOOL;
-			return 1;
+		/* The sizes for comparisons are from the right node as the
+		   output is always 1 / 0 */
+		if (rs <= 2 && r->op == T_CONSTANT && (n->flags & CCONLY) && !(n->flags & CCFIXED)) {
+			if (rs == 1) {
+				outputinv("cp %u", BYTE(v));
+				n->flags |= ISBOOL;
+				return 1;
+			}
+			if (rs == 2) {
+				load_hl(WORD(-v));
+				output("add hl,de");
+				output("ld a,h");
+				outputinv("or l");
+				n->flags |= ISBOOL;
+				return 1;
+			}
 		}
 		/* For 16bit we should make use of ld de,-nnnn add hl,de
 		   ld hl,0 jr z,false inc l or similar */
@@ -1399,11 +1423,20 @@ unsigned gen_direct(struct node *n)
 		}
 		return gen_compc("cmplt", n, r, 1);
 	case T_BANGEQ:
-		/* TODO: Expand 16bit versions of these when not -Os ? */
-		if (s == 1 && r->op == T_CONSTANT && (n->flags & CCONLY)) {
-			outputcc("cp %u", BYTE(v));
-			n->flags |= ISBOOL;
-			return 1;
+		if (rs == 1 && r->op == T_CONSTANT && (n->flags & CCONLY)) {
+			if (rs == 1) {
+				outputcc("cp %u", BYTE(v));
+				n->flags |= ISBOOL;
+				return 1;
+			}
+			if (rs == 2) {
+				load_hl(WORD(-v));
+				outputcc("add hl,de");
+				output("ld a,h");
+				outputcc("or l");
+				n->flags |= ISBOOL;
+				return 1;
+			}
 		}
 		return gen_compc("cmpne", n, r, 0);
 	case T_LTLT:
@@ -1465,25 +1498,25 @@ unsigned gen_direct(struct node *n)
 		break;
 	case T_PLUSEQ:
 		if (s == 1) {
-			/* TODO flip to use HL */
-#if 0
-			if (r->op == T_CONSTANT && r->value < 4 && nr)
-				repeated_op("inc (de)", r->value);
-			else {
-				/* FIXME: add a,(de) */ 
+			if (r->op == T_CONSTANT && r->value < 4 && nr) {
+				load_hl_de();
+				repeated_op("inc (hl)", r->value);
+			} else {
+				/* May eat HL but not DE */
 				if (load_a_with(r, 1) == 0)
 					return 0;
-				outputcc("add a,(de)");
-				outputne("ld (de),a");
+				load_hl_de();
+				outputcc("add a,(hl)");
+				outputne("ld (hl),a");
 			}
 			return 1;
-#endif
 		}
 		if (s == 2 && nr && r->op == T_CONSTANT) {
 			if ((r->value & 0x00FF) == 0) {
 				outputne("inc de");
 				if ((r->value >> 8) < 4) {
-					repeated_op("inc (de)", r->value >> 8);
+					load_hl_de();
+					repeated_op("inc (hl)", r->value >> 8);
 					return 1;
 				}
 				outputne("ld a,(de)");
@@ -1492,6 +1525,7 @@ unsigned gen_direct(struct node *n)
 				return 1;
 			}
 			if (r->value == 1) {
+				load_hl_de();
 				output("inc (hl)");
 				outputne("jr nz, X%u", ++label);
 				outputne("inc hl");
@@ -1575,8 +1609,6 @@ unsigned gen_direct(struct node *n)
 		}
 		return gen_twoop("minuseq2op", n, r, 0, s);
 	case T_ANDEQ:
-		/* TODO: we need to reverse these higher up so we end up
-		   with HL as the pointer automatically */
 		if (s == 1) {
 			if (load_a_with(r, 1) == 0)
 				return 0;
@@ -1587,12 +1619,10 @@ unsigned gen_direct(struct node *n)
 		}
 		return gen_twoop("andeq2op", n, r, 0, s);
 	case T_OREQ:
-		/* TODO: we need to reverse these higher up so we end up
-		   with HL as the pointer automatically */
-		load_hl_de();
 		if (s == 1) {
 			if (load_a_with(r, 1) == 0)
 				return 0;
+			load_hl_de();
 			 outputcc("or (hl)");
 			 outputne("ld (hl),a");
 			 return 1;
@@ -1604,11 +1634,11 @@ unsigned gen_direct(struct node *n)
 		if (s == 1) {
 			if (load_a_with(r, 1) == 0)
 				return 0;
+			load_hl_de();
 			outputcc("xor (hl)");
 			outputne("ld (hl),a");
 			return 1;
 		}
-		load_hl_de();
 		return gen_twoop("xoreq2op", n, r, 0, s);
 	}
 	return 0;
@@ -1713,6 +1743,7 @@ static void propogate_cconly(register struct node *n)
 	}
 }
 
+/* Perform an operation between (HL) and working. Do some basic optimisations */
 static void perform_op_hl(const char *op, const char *os, unsigned s, unsigned nr)
 {
 	if (s == 1) {
@@ -1987,7 +2018,7 @@ unsigned gen_shortcut(struct node *n)
 			return 1;
 		}
 		s = get_size(r->type);
-		if (s <= 2 && (n->flags & CCONLY)) {
+		if (s <= 2 && (n->flags & CCONLY) && !(n->flags & CCFIXED)) {
 			printf(";BOOL - process cc from %d\n", ccvalid);
 			if (ccvalid == CC_INVERSE)
 				ccvalid = CC_VALID;
@@ -2263,7 +2294,7 @@ unsigned gen_node(struct node *n)
 		}
 		break;
 	case T_BANG:
-		if (n->flags & CCONLY) {
+		if ((n->flags & CCONLY) && !(n->flags & CCFIXED)) {
 			n->flags |= ISBOOL;
 			if (ccvalid) {
 				/* Just remember flags are reversed */
