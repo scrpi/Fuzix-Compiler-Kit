@@ -207,6 +207,12 @@ An initial port to the DG Nova 3 and Nova 4. Autoinc/dec memory is not
 required. The Nova 4 byte operations are not currently supported or used.
 Currently adding Nova 4 byte operations and the related DG Eclipse.
 
+### SM83
+
+An initial port to the Sharp SM83 processor. Passes the tests but the code
+quality is not yet that good and it's not been tested beyond basic test
+suite stuff.
+
 ### Super8
 
 Early code only for the Zilog Super8 variant of the Z8 processor.
