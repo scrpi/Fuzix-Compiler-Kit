@@ -1,15 +1,16 @@
 ;
-;	HL >> E signed
+;	DE >> L signed
 ;
 	.export __shr2opcon
 
+
 __shr2opcon:
-	ld	a,e
+	ld	a,l
 	and	15
 	ret	z
 loop:
-	sra	h
-	rr	l
+	sra	d
+	rr	e
 	dec	a
 	jr	nz, loop
 	ret

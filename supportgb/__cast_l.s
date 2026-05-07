@@ -4,13 +4,13 @@
 
 
 __castc_l:
-	bit	7,l
-	ld	h,0
+	bit	7,e
+	ld	d,0
 	jr	z,__cast_l
-	dec	h
+	dec	d
 __cast_ul:
 __cast_l:
-	bit	7,h
+	bit	7,d
 	ld	bc,0
 	ret	z
 	dec	bc

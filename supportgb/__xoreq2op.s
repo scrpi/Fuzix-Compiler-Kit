@@ -14,7 +14,7 @@ __xoreq2op:
 	ld	a,(de)
 	xor	(hl)
 	ld	(de),a
-	ld	h,a
+	ld	d,a
 	pop	af
-	ld	l,a
+	ld	e,a
 	ret

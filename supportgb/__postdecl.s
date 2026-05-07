@@ -1,13 +1,11 @@
 ;
-;	(TOS) -= BCHL
+;	(TOS) -= BCDE
 ;
 ;	return original TOS
 ;
 	.export __postdecl
 
 __postdecl:
-	ld	e,l
-	ld	d,h
 	ld	hl,sp+2
 	ldi	a,(hl)
 	ld	h,(hl)
@@ -31,15 +29,14 @@ __postdecl:
 	; Sort out saved bits
 	ld	b,c
 	ld	c,d
-	ld	h,e
+	ld	d,e
 	pop	af
-	ld	l,a
+	ld	e,a
 	; Now clean up
-	pop	de
+	pop	hl
 	inc	sp
 	inc	sp
-	push	de
-	ret
+	jp	(hl)
 
 	
 	

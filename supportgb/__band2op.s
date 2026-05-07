@@ -9,6 +9,5 @@ __band2op:
 	ld	e,a
 	ld	a,(hl)
 	and	d
-	ld	h,a
-	ld	l,e
+	ld	d,a
 	ret

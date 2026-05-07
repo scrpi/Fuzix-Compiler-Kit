@@ -1,11 +1,11 @@
 ;
-;	HL < 0
+;	DE < 0
 ;
 	.export __cmplt0
 
 __cmplt0:
-	bit	7,h
-	ld	hl,0
+	bit	7,d
+	ld	de,0
 	ret	z
-	inc	l
+	inc	e
 	ret

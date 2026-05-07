@@ -1,5 +1,5 @@
 ;
-;	(TOS) ^= BCHL
+;	(TOS) ^= BCDE
 ;
 	.export __xoreql
 
@@ -23,11 +23,7 @@ __xoreql:
 	ld	(hl),a
 	ld	b,a
 
-	ld	l,e
-	ld	h,d
-
-	pop	de
+	pop	hl
 	inc	sp
 	inc	sp
-	push	de
-	ret
+	jp	(hl)

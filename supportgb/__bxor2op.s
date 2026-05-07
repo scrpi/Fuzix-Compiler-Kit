@@ -9,6 +9,5 @@ __bxor2op:
 	ld	e,a
 	ld	a,(hl)
 	xor	d
-	ld	h,a
-	ld	l,e
+	ld	d,a
 	ret

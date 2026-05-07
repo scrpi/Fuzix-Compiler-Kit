@@ -1,5 +1,5 @@
-;
-;	(HL) ^ DE
+
+;;	(HL) ^ DE
 ;
 	.export __bor2op
 
@@ -9,6 +9,5 @@ __bor2op:
 	ld	e,a
 	ld	a,(hl)
 	or	d
-	ld	h,a
-	ld	l,e
+	ld	d,a
 	ret

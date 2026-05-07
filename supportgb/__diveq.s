@@ -17,102 +17,111 @@ __divequ:
 	call	__eqprep
 	; HL is now the pointer
 	push	hl
-	ldi	a,(hl)
-	ld	h,(hl)
-	ld	l,a
-	call	__divhlde
-	; result is in HL
-	jp	__eqpopouthl
+	push	de
+	ld	e,(hl)
+	inc	hl
+	ld	d,(hl)
+	pop	hl
+	call	__divdehl
+	; result is in DE
+	jp	__eqpopout
 
 __remequ:
 	call	__eqprep
 	; HL is now the pointer
 	push	hl
-	ldi	a,(hl)
-	ld	h,(hl)
-	ld	l,a
-	call	__divhlde
-	; result is in DE
-	jp	__eqpopout
+	push	de
+	ld	e,(hl)
+	inc	hl
+	ld	d,(hl)
+	pop	hl
+	call	__divdehl
+	; result is in HL
+	jp	__eqpopouthl
 
 __diveq:
 	call	__eqprep
 	push	hl
-	ldi	a,(hl)
-	ld	h,(hl)
-	ld	l,a
+	push	de
+	ld	e,(hl)
+	inc	hl
+	ld	d,(hl)
+	pop	hl
 	call	__div2opcon
-	jp	__eqpopouthl
+	jp	__eqpopout
 
 __remeq:
 	call	__eqprep
 	push	hl
-	ldi	a,(hl)
-	ld	h,(hl)
-	ld	l,a
+	push	de
+	ld	e,(hl)
+	inc	hl
+	ld	d,(hl)
+	pop	hl
 	call	__rem2opcon
-	jp	__eqpopouthl
+	jp	__eqpopout
 
 __divequc:
 	call	__eqprepc
-	; HL is now the pointer, A the divisor
+	; HL is now the pointer
+	; (HL) / A
 	push	hl
-	ld	l,(hl)
-	ld	h,0
-	ld	e,a
+	ld	e,(hl)
 	ld	d,0
-	call	__divhlde
-	; result is in HL
-	ld	a,l
+	ld	l,a
+	ld	h,0
+	call	__divdehl
+	; result is in DE
+	ld	a,e
 	jp	__eqpopoutc
 
 __remequc:
 	call	__eqprepc
 	; HL is now the pointer
 	push	hl
-	ld	l,(hl)
-	ld	h,0
-	ld	e,a
+	ld	e,(hl)
 	ld	d,0
-	call	__divhlde
-	; result is in DE
-	ld	a,e
+	ld	l,a
+	ld	h,0
+	call	__divdehl
+	; result is in HL
+	ld	a,l
 	jp	__eqpopoutc
 
 __diveqc:
 	call	__eqprepc
 	push	hl
-	ld	l,(hl)
-	ld	h,0
-	bit	7,l
-	jr	z,nosex
-	dec	h
-nosex:
-	ld	e,a
+	ld	e,(hl)
 	ld	d,0
 	bit	7,e
-	jr	z,nosexb
+	jr	z,nosex
 	dec	d
+nosex:
+	ld	l,a
+	ld	h,0
+	bit	7,l
+	jr	z,nosexb
+	dec	h
 nosexb:
 	call	__div2opcon
-	ld	a,l
+	ld	a,e
 	jp	__eqpopoutc
 
 __remeqc:
 	call	__eqprepc
 	push	hl
-	ld	l,(hl)
-	ld	h,0
-	bit	7,l
-	jr	z,nosex2
-	dec	h
-nosex2:
-	ld	e,a
+	ld	e,(hl)
 	ld	d,0
 	bit	7,e
-	jr	z,nosex2b
+	jr	z,nosex2
 	dec	d
+nosex2:
+	ld	l,a
+	ld	h,0
+	bit	7,l
+	jr	z,nosex2b
+	dec	h
 nosex2b:
 	call	__rem2opcon
-	ld	a,l
+	ld	a,e
 	jp	__eqpopoutc

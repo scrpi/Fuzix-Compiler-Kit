@@ -1,11 +1,11 @@
 	.export __pluseq
 	.export __pluseq2op
 ;
-;	(TOS) -= HL
+;	(TOS) -= DE
 ;
 __pluseq:
 	call	__eqprep
-	; (HL) - DE
+	; (HL) + DE
 	ld	a,(hl)
 	add	e
 	ldi	(hl),a
@@ -13,32 +13,27 @@ __pluseq:
 	ld	a,(hl)
 	adc	d
 	ld	(hl),a
-	ld	h,a
-	ld	l,e
-	pop	de
-	inc	sp
-	inc	sp
-	push	de
-	ret
-
-__pluseq2op:
-	; (DE) -= (HL)
-	ldi	a,(hl)
-	ld	h,(hl)
-	ld	l,a
-	; (DE) - HL
-	push	de	; untangle this when we switch to
-	push	hl	; DE as working: TODO
-	pop	de
+	ld	d,a
 	pop	hl
-	; (HL) - DE
+	inc	sp
+	inc	sp
+	jp	(hl)
+
+	; (DE) += (HL)
+__pluseq2op:
+	ld	c,(hl)
+	inc	hl
+	ld	b,(hl)
+	; (DE) += BC
+	ld	l,e
+	ld	h,d
+	; (HL) += BC
 	ld	a,(hl)
-	add	e
+	add	c
 	ldi	(hl),a
 	ld	e,a
 	ld	a,(hl)
-	adc	d
+	adc	b
 	ld	(hl),a
-	ld	h,a
-	ld	l,e
+	ld	d,a
 	ret

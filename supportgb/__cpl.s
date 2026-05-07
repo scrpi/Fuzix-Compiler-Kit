@@ -2,12 +2,12 @@
 		.export __cpl
 
 __negate:
-		dec	hl
+		dec	de
 __cpl:
-		ld	a,h
+		ld	a,d
 		cpl
-		ld	h,a
-		ld	a,l
+		ld	d,a
+		ld	a,e
 		cpl
-		ld	l,a
+		ld	e,a
 		ret

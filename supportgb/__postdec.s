@@ -8,10 +8,9 @@ __postdec:
 	; Much messier as we have to do things in the right order
 	; and the SM83 doesn't quite have enough registers for the modes
 	; available
-	push	bc
-	ld	b,h
-	ld	c,l
-	ld	hl,sp+4
+	ld	b,d
+	ld	c,e
+	ld	hl,sp+2
 	ldi	a,(hl)
 	ld	h,(hl)
 	ld	l,a
@@ -25,13 +24,8 @@ __postdec:
 	ld	d,a
 	sbc	a, b
 	ld	(hl),a
-	ld	l,e
-	ld	h,d
-	pop	bc
-	pop	de
+	pop	hl
 	inc	sp
 	inc	sp
-	push	de
-	ret
-
+	jp	(hl)
 	

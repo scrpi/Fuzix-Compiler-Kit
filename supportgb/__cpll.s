@@ -2,9 +2,9 @@
 		.export __cpll
 
 __negatel:
-		ld	a,h
-		or	l		; will it wrap ?
-		dec	hl		; doesn't touch Z
+		ld	a,d
+		or	e		; will it wrap ?
+		dec	de		; doesn't touch Z
 		jr	nz,__cpll
 		dec	bc		; ripple carry
 __cpll:
@@ -14,10 +14,10 @@ __cpll:
 		ld	a,c
 		cpl
 		ld	c,a
-		ld	a,h
+		ld	a,d
 		cpl
-		ld	h,a
-		ld	a,l
+		ld	d,a
+		ld	a,e
 		cpl
-		ld	l,a
+		ld	e,a
 		ret

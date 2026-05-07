@@ -1,11 +1,9 @@
 ;
-;	TOS + BCHL
+;	TOS + BCDE
 ;
 	.export __plusl
 
 __plusl:
-	ld	d,h
-	ld	e,l
 	ld	hl,sp+2
 	; now (HL) + BCDE
 	ldi	a,(hl)
@@ -20,9 +18,6 @@ __plusl:
 	ld	a,(hl)
 	adc	b
 	ld	b,a
-	ld	l,e
-	ld	h,d
-	pop	de
+	pop	hl
 	add	sp,4
-	push	de
-	ret
+	jp	(hl)

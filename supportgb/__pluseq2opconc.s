@@ -3,18 +3,12 @@
 ;	return result
 ;
 ;	FIXME: flip this one in the compiler ?
+;	FIXME: should always inline this case!
 ;
-	.export __pluseq2opcon
+	.export __pluseq2opconc
 
-__pluseq2opcon:
+__pluseq2opconc:
 	ld	a,(de)
 	add	l
 	ld	(de),a
-	inc	de
-	ld	l,a
-	ld	a,(de)
-	adc	h
-	ld	(de),a
-	ld	d,a
-	ld	e,l
 	ret

@@ -1,5 +1,5 @@
 ;
-;	(TOS) = BCHL
+;	(TOS) = BCDE
 ;
 ;	Probably ought to be inlined and do LREF LSTORE etc for
 ;	32bit forms
@@ -9,8 +9,6 @@
 
 __assignf:
 __assignl:
-	ld	e,l
-	ld	d,h
 	ld	hl,sp+2
 	ldi	a,(hl)
 	ld	h,(hl)
@@ -22,12 +20,8 @@ __assignl:
 	ld	(hl),c
 	inc	hl
 	ld	(hl),b
-	; Return correct value as well
-	ld	l,e
-	ld	h,d
-	pop	de
+	pop	hl
 	inc	sp
 	inc	sp
-	push	de
-	ret
+	jp	(hl)
 

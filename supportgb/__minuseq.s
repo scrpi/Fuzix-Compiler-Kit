@@ -13,14 +13,13 @@ __minuseq:
 	ld	a,(hl)
 	sbc	d
 	ld	(hl),a
-	ld	h,a
-	ld	l,e
-	pop	de
+	ld	d,a
+	pop	hl
 	inc	sp
 	inc	sp
-	push	de
-	ret
+	jp	(hl)
 
+; sort out compiler side ?  is (HL) -= (DE) ?
 __minuseq2op:
 	; (DE) -= (HL)
 	ldi	a,(hl)

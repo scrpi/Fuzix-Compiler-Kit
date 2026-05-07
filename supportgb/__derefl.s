@@ -1,19 +1,19 @@
 ;
-;	BCHL = (HL)
+;	BCDE = (DE)
 ;
 	.export __dereff
 	.export __derefl
 
 __derefl:
 __dereff:
+	ld	l,e
+	ld	h,d
 	ldi	a,(hl)
 	ld	e,a
 	ldi	a,(hl)
 	ld	d,a
 	ldi	a,(hl)
-	ld	b,(hl)
 	ld	c,a
-	ld	h,d
-	ld	l,e
+	ld	b,(hl)
 	ret
 

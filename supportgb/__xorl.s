@@ -4,8 +4,6 @@
 	.export __xorl
 
 __xorl:
-	ld	e,l
-	ld	d,h
 	ld	hl,sp+2
 	ldi	a,(hl)
 	xor	e
@@ -19,9 +17,6 @@ __xorl:
 	ldi	a,(hl)
 	xor	b
 	ld	b,a
-	ld	h,d
-	ld	l,e
-	pop	de
+	pop	hl
 	add	sp,4
-	push	de
-	ret
+	jp	(hl)

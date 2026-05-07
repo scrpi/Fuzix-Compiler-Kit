@@ -3,7 +3,7 @@
 		.export __tmp
 		.export __tmp2
 		.export __tmp3
-		.export	__callhl
+		.export	__callde
 
 ; __tmp must be the word before hireg
 __tmp:
@@ -17,4 +17,5 @@ __tmp3:
 
 		.code
 
-__callhl:	jp	(hl)
+__callde:	push	de
+		ret

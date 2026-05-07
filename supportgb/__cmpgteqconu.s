@@ -2,20 +2,34 @@
 ;	HL >= DE
 ;
 	.export __cmpgteqconu
+	.export __cmpgtequ
+	.export	__ccltequ
 
+;	TOS <= DE
+__ccltequ:
+	pop	bc
+	pop	hl
+	push	bc
+	jr	__cmpgteqconu
+;	DE >= (HL)
+__cmpgtequ:
+	ldi	a,(hl)
+	ld	h,(hl)
+	ld	l,a	
+;	DE >= HL
 __cmpgteqconu:
-	ld 	a,h
-	cp	d
+	ld 	a,d
+	cp	h
 	jr	c, false
 	jr	nz, true
-	ld	a,l
-	cp	e
+	ld	a,e
+	cp	l
 	jr	nc, true
 false:	xor	a
-	ld	h,a
-	ld	l,a
+	ld	d,a
+	ld	e,a
 	ret
 true:
-	ld	hl,0
-	inc	l
+	ld	de,0
+	inc	e
 	ret

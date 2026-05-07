@@ -4,8 +4,19 @@
 ;	TODO: in the backend generate the DE load when possible as negative
 ;	and use ADD instead
 ;
+	.export __ccne
+	.export	__cmpne
 	.export __cmpnecon
 
+__ccne:
+	pop	bc
+	pop	hl
+	push	bc
+	jr	__cmpnecon
+__cmpne:
+	ldi	a,(hl)
+	ld	h,(hl)
+	ld	l,a
 __cmpnecon:
 	ld	a,h
 	xor	d
@@ -13,8 +24,8 @@ __cmpnecon:
 	ld	a,l
 	xor	e
 	jr	nz,true
-	ld	hl,0
+	ld	de,0
 	; Z is already set
 	ret
-true:	ld	hl,1	; already NZ
+true:	ld	de,1	; already NZ
 	ret

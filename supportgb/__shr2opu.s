@@ -5,13 +5,11 @@
 
 __shr2opu:
 	ld	a,(hl)
-	ld	l,e
-	ld	h,d
 	and	15
 	ret	z
 loop:
-	srl	h
-	rr	l
+	srl	d
+	rr	e
 	dec	a
 	jr	nz, loop
 	ret

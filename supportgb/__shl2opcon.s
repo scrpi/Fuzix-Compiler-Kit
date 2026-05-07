@@ -1,14 +1,15 @@
 ;
-;	HL << E
+;	DE << L
 ;
 	.export __shl2opcon
 
 __shl2opcon:
-	ld	a,e
+	ld	a,l
 	and	15
 	ret	z
 loop:
-	add	hl,hl
+	sla	e
+	rl	d
 	dec	a
 	jr	nz, loop
 	ret

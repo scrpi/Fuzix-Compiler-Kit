@@ -7,12 +7,10 @@
 	.export __remeql
 
 __divl:
-	ld	d,b		; save sign before negation
+	ld	h,b		; save sign before negation
 	bit	7,b
 	call	nz, __negatel
-	ld	a,d		; recover sign we saved
-	ld	d,h
-	ld	e,l		; shuffle into DE
+	ld	a,h		; recover sign we saved
 	ld	hl,sp+5
 	xor	(hl)
 	push	af		; save sign difference
@@ -34,32 +32,24 @@ __divl:
 	ld	c,(hl)
 	inc	hl
 	ld	b,(hl)
-	ld	l,e
-	ld	h,d
-	pop	de
+	pop	hl
 	add	sp,4
-	push	de
-	ret
+	jp	(hl)
 
 __reml:
 	bit	7,b
 	call	nz, __negatel
-	ld	d,h
-	ld	e,l
 	ld	hl,sp+5
 	bit	7,(hl)
 	push	af
 	call	nz, neghl
 	call	__div32
 	; Result is in BCDE
-	ld	l,e
-	ld	h,d
 	pop	af
 	call	nz, __negatel
-	pop	de
+	pop	hl
 	add	sp,4
-	push	de
-	ret
+	jp	(hl)
 
 __diveql:
 	call	__eqprep
@@ -78,7 +68,7 @@ __diveql:
 	bit	7,a
 	push	af
 	bit	7,b
-	call	negbcde
+	call	nz,__negatel
 	pop	af
 	push	bc
 	push	de
@@ -93,7 +83,7 @@ __diveql:
 	inc	hl
 	ld	b,(hl)
 	bit	7,b
-	call	nz,negbcde
+	call	nz,__negatel
 	push	hl		; dummy
 	call	__div32
 	pop	hl
@@ -101,7 +91,7 @@ __diveql:
 	pop	de
 	pop	bc		; result
 eqout:
-	call	nz,negbcde
+	call	nz,__negatel
 	pop	af		; discard save
 	pop	af
 	pop	hl		; pointer
@@ -112,8 +102,6 @@ eqout:
 	ld	(hl),c
 	inc	hl
 	ld	(hl),b
-	ld	l,e
-	ld	h,d
 	pop	de
 	inc	sp
 	inc	sp
@@ -135,7 +123,7 @@ __remeql:
 	ld	b,(hl)		; variable into BCDE
 	bit	7,b
 	push	af		; save sign
-	call	negbcde
+	call	nz, __negatel
 	pop	af
 	push	bc
 	push	de
@@ -150,7 +138,7 @@ __remeql:
 	inc	hl
 	ld	b,(hl)
 	bit	7,b
-	call	nz,negbcde
+	call	nz,__negatel
 	push	hl		; dummy
 	call	__div32
 	pop	hl
@@ -160,17 +148,6 @@ __remeql:
 	inc	sp
 	inc	sp
 	jr	eqout
-negbcde:
-	; Temporary fudge. Once we switch to using DE as working reg and
-	; BCDE this will go away
-	push	hl
-	ld	h,d
-	ld	l,e
-	call	__negatel
-	ld	d,h
-	ld	e,l
-	pop	hl
-	ret
 
 neghl:	; Negate the 32bit value at HL (pointer is top top byte)
 	ld	a,(hl)

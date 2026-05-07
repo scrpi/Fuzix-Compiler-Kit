@@ -6,9 +6,9 @@
 ;	Worth inlining ? TODO
 ;
 __castc_:
-	ld	h,0
-	ld	l,a
-	bit	7,l
+	ld	d,0
+	ld	e,a
+	bit	7,e
 	ret	z
-	dec	h
+	dec	d
 	ret

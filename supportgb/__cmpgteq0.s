@@ -1,14 +1,14 @@
 ;
-;	HL >= 0
+;	DE >= 0
 ;
 	.export __cmpgteq0
 
 __cmpgteq0:
-	bit	7,h
-	ld	hl,0
+	bit	7,d
+	ld	de,0
 	jr	z, true
 	xor	a
 	ret
 true:
-	inc	l
+	inc	e
 	ret

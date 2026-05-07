@@ -114,35 +114,27 @@ nope:
 	ld	c,(hl)
 	inc	hl
 	ld	b,(hl)
-	ld	l,e
-	ld	h,d
 	add	sp,5
-	; Remainder in BCDE/BCHL
+	; Remainder in BCDE
 	ret	
 
 
 __divul:
-	ld	e,l
-	ld	d,h
 	push	hl		; dummy
 	call	__div32
 	pop	hl
-	pop	de		; return address
-	pop	hl		; lower half
+	pop	hl		; return address
+	pop	de		; lower half
 	pop	bc		; upper half
-	push	de		; put return back
-	ret
+	jp	(hl)
 
 __remul:
-	ld	e,l
-	ld	d,h
 	push	hl
 	call	__div32
 	pop	af
-	pop	de		; return address
+	pop	hl		; return address
 	add	sp,4
-	push	de
-	ret
+	jp	(hl)
 
 __divequl:
 	call	__eqprep
@@ -215,10 +207,7 @@ eqout:
 	ld	(hl),c
 	inc	hl
 	ld	(hl),b
-	ld	l,e
-	ld	h,d
-	pop	de
+	pop	hl
 	inc	sp
 	inc	sp
-	push	de
-	ret
+	jp	(hl)

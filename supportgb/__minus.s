@@ -1,21 +1,17 @@
 ;
-;	TOS - HL
+;	TOS - DE
 ;
 	export	__minus
 
 __minus:
-	ld	d,h
-	ld	e,l
 	ld	hl,sp+2
 	ldi	a,(hl)
 	sub	e
 	ld	e,a
 	ld	a,(hl)
 	sbc	d
-	ld	h,a
-	ld	l,e
-	pop	de
+	ld	d,a
+	pop	hl
 	inc	sp
 	inc	sp
-	push	de
-	ret
+	jp	(hl)

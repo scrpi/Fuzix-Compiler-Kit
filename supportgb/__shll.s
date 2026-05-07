@@ -1,5 +1,5 @@
 ;
-;	(TOS) << L
+;	(TOS) << E
 ;
 ;	TODO: optimize shifts by 8 / 16 / 24
 ;
@@ -7,13 +7,13 @@
 	.export __shleql
 
 __shll:
-	ld	a,l
+	ld	a,e
 	ld	hl,sp+5
 	call	do_shll
-	pop	de
+	pop	hl
 	add	sp,4
-	push	de
-	ret
+	jp	(hl)
+
 do_shll:
 	ld	b,(hl)
 	dec	hl
@@ -31,13 +31,15 @@ do_shll:
 	call	nz, do16
 	ld	b,h
 	ld	c,l
-	ld	hl,0
+	ld	de,0
 	ret
 do16:
 	and	15
 loop16:	add	hl,hl
 	dec	a
 	jr	nz,loop16
+	ld	d,h
+	ld	e,l
 	ret
 
 loop:
@@ -46,6 +48,8 @@ loop:
 	rl	b
 	dec	a
 	jr	nz,loop
+	ld	d,h
+	ld	e,l
 	ret
 
 __shleql:
@@ -57,4 +61,4 @@ __shleql:
 	inc	hl
 	ld	a,e
 	call	do_shll
-	jp	__eqpopouthlbc
+	jp	__eqpopoutdebc

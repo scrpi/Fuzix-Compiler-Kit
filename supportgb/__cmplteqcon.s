@@ -1,37 +1,37 @@
 ;
 ;	16bit signed comparisons
 ;
-	.export __cclteq
-	.export __cmpgteq
-	.export __cmpgteqcon
+	.export __ccgteq
+	.export __cmplteq
+	.export __cmplteqcon
 ;	TOS >= DE
-__cclteq:
+__ccgteq:
 	pop	bc
 	pop	hl		; args reverse so this is gt not lt
 	push	bc
 	jr	__cmplteqcon
 ;	DE <= (HL)
-__cmpgteq:
+__cmplteq:
 	ldi	a,(hl)
 	ld	h,(hl)
 	ld	l,a	
 ;	DE <= HL
-__cmpgteqcon:
-	ld	a,d
-	xor	h
+__cmplteqcon:
+	ld	a,h
+	xor	d
 	cp	128
 	jr	c,sign_same
-	xor	h
+	xor	d
 	rlca
 	jr	c,false
 	jr	true
 sign_same:
-	xor	h
-	cp	h
+	xor	d
+	cp	d
 	jr	c,false
 	jr	nz,true
-	ld	a,e
-	cp	l
+	ld	a,l
+	cp	e
 	jr	c, false
 true:	ld	de,0
 	inc	e

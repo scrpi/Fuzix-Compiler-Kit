@@ -3,7 +3,7 @@
 ;
 	ld	sp,0xF000
 	call	_main
-	ld	a,l
+	ld	a,e
 	ld 	(0xFFFF),a
 
 	.export	_printint

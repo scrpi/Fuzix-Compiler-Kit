@@ -16,8 +16,6 @@
 ;	On entry pointer HL is to high (top byte)
 
 __cmp32top:
-	ld	d,h
-	ld	e,l
 	ld	hl,sp+7
 __cmp32:
 	ld	a,b
@@ -32,8 +30,6 @@ __cmp32:
 	inc	a		; force NZ
 	ret
 __cmp32utop:
-	ld	d,h
-	ld	e,l
 	ld	hl,sp+7
 __cmp32u:
 	ld 	a,b
@@ -62,19 +58,17 @@ __cceql:
 	call	__cmp32utop
 	jr	z,true
 false:
-	pop	de
+	pop	hl
 	add	sp,4
-	push	de
 	xor	a
-	ld	h,a
-	ld	l,a
-	ret
-true:	pop	de
+	ld	d,a
+	ld	e,a
+	jp	(hl)
+true:	pop	hl
 	add	sp,4
-	push	de
-	ld	hl,0
-	inc	l
-	ret
+	ld	de,0
+	inc	e
+	jp	(hl)
 
 __ccltul:
 	call	__cmp32utop

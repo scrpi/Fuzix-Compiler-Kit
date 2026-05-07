@@ -1,11 +1,9 @@
 ;
-;	BCHL & TOS
+;	BCDE & TOS
 ;
 	.export __bandl
 
 __bandl:
-	ld	e,l
-	ld	d,h
 	ld	hl,sp+2
 	ldi	a,(hl)
 	and	e
@@ -19,9 +17,6 @@ __bandl:
 	ld	a,(hl)
 	and	b
 	ld	b,a
-	ld	h,d
-	ld	l,e
-	pop	de
+	pop	hl
 	add	sp,4
-	push	de
-	ret
+	jp	(hl)

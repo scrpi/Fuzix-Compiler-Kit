@@ -1,17 +1,18 @@
 ;
-;	(HL) -= DE
+;	(DE) -= HL
 ;	return result
 ;
 	.export __minuseq2opcon
 
 __minuseq2opcon:
-	ld	a,(hl)
-	sub	e
-	ldi	(hl),a
-	ld	e,a
-	ld	a,(hl)
-	sbc	d
-	ld	(hl),a
-	ld	h,a
-	ld	l,e
+	ld	a,(de)
+	sub	l
+	ld	(de),a
+	inc	de
+	ld	l,a
+	ld	a,(de)
+	sbc	h
+	ld	(de),a
+	ld	e,l
+	ld	d,a
 	ret

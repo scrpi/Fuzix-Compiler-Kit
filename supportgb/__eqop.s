@@ -4,14 +4,11 @@
 	.export __eqprep
 	.export __eqpopout
 	.export __eqpopouthl
-	.export __eqpopouthlbc
 	.export __eqpopoutdebc
 	.export __eqprepc
 	.export __eqpopoutc
 
 __eqprep:
-	ld	e,l
-	ld	d,h
 	ld	hl,sp+4
 	ldi	a,(hl)
 	ld	h,(hl)
@@ -40,27 +37,19 @@ __eqpopout:
 	ld	(hl),e
 	inc	hl
 	ld	(hl),d
-	ld	h,d
-	ld	l,e
-	pop	de
+	pop	hl
 	inc	sp
 	inc	sp
-	push	de
-	ret
+	jp	(hl)
 
 __eqpopoutc:
 	pop	hl
 	ld	(hl),a
-	ld	l,e
-	pop	de
+	pop	hl
 	inc	sp
 	inc	sp
-	push	de
-	ret
+	jp	(hl)
 
-__eqpopouthlbc:
-	ld	e,l
-	ld	d,h
 __eqpopoutdebc:
 	pop	hl
 	ld	(hl),e
@@ -70,10 +59,7 @@ __eqpopoutdebc:
 	ld	(hl),c
 	inc	hl
 	ld	(hl),b
-	ld	h,d
-	ld	l,e
-	pop	de
+	pop	hl
 	inc	sp
 	inc	sp
-	push	de
-	ret
+	jp	(hl)

@@ -14,7 +14,7 @@ __andeq2op:
 	ld	a,(de)
 	and	(hl)
 	ld	(de),a
-	ld	h,a
+	ld	d,a
 	pop	af
-	ld	l,a
+	ld	e,a
 	ret

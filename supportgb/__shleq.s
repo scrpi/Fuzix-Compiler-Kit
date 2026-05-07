@@ -5,11 +5,13 @@
 
 __shleq:
 	call	__eqprep
+	ld	a,e
 	push	hl
-	ldi	a,(hl)
-	ld	h,(hl)
+	ld	e,(hl)
+	inc	hl
+	ld	d,(hl)
 	ld	l,a
-	; HL is pointer, DE is shift amount
+	; DE is the value L is the shift
 	call	__shl2opcon
-	jp	__eqpopouthl
+	jp	__eqpopout
 

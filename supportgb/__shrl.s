@@ -1,7 +1,5 @@
 ;
-;	(TOS) >> L
-;
-;	TODO: optimize shifts by 8 / 16 / 24
+;	(TOS) >> E
 ;
 	.export __shrl
 	.export __shrul
@@ -9,13 +7,12 @@
 	.export __shrequl
 
 __shrul:
-	ld	a,l
+	ld	a,e
 	ld	hl,sp+5
 	call	do_shrul
-	pop	de
+	pop	hl
 	add	sp,4
-	push	de
-	ret
+	jp	(hl)
 
 do_shrul:
 	ld	b,(hl)
@@ -25,61 +22,57 @@ pve:
 	dec	hl
 	ld	d,(hl)
 	dec	hl
-	ld	l,(hl)
-	ld	h,d
-	; BCHL >> A
+	ld	e,(hl)
+	; BCDE >> A
 	and	31
 	ret	z
 	cp	24
 	jr	c, try16
-	ld	l,b
+	ld	e,b
 	ld	bc,0
-	ld	h,b
+	ld	d,b
 	and	7
 	ret	z
 loop8:
-	srl	l
+	srl	e
 	dec	a
 	jr	nz,loop8
 	ret
 try16:
 	cp	16
 	jr	c, loop32
-	ld	h,b
-	ld	l,c
+	ld	d,b
+	ld	e,c
 	ld	bc,0
 	and	15
 	ret	z
 loop16:
-	srl	h
-	rr	l
+	srl	d
+	rr	e
 	dec	a
 	jr	nz,loop16
 	ret
 loop32:
 	srl	b
 	rr	c
-	rr	h
-	rr	l
+	rr	d
+	rr	e
 	dec	a
 	jr	nz,loop32
 	ret
-
 __shrl:
-	ld	a,l	
+	ld	a,e
 	ld	hl,sp+5
 	call	do_shrl
-	pop	de
+	pop	hl
 	add	sp,4
-	push	de
-	ret
+	jp	(hl)
 
 do_shrl:
 	ld	b,(hl)
-	bit	7,(hl)
-	; If top bit clear use the unsigned path as it will one day get
-	; some optimizations, and it's easier to optimize this for negative
-	; cases only
+	bit	7,b
+	; If top bit clear use the unsigned path for optimizations
+	; TODO negative side optimizations
 	jr	z, pve
 
 	dec	hl
@@ -87,17 +80,15 @@ do_shrl:
 	dec	hl
 	ld	d,(hl)
 	dec	hl
-	ld	l,(hl)
-	ld	h,d
-	; BCHL >> A
-
+	ld	e,(hl)
+	; BCDE >> A
 	and	31
 	ret	z
 loop:
 	sra	b
 	rr	c
-	rr	h
-	rr	l
+	rr	d
+	rr	e
 	dec	a
 	jr	nz,loop
 	ret
@@ -111,7 +102,7 @@ __shrequl:
 	inc	hl
 	ld	a,e
 	call	do_shrul
-	jp	__eqpopouthlbc
+	jp	__eqpopoutdebc
 
 __shreql:
 	call	__eqprep
@@ -122,4 +113,4 @@ __shreql:
 	inc	hl
 	ld	a,e
 	call	do_shrl
-	jp	__eqpopouthlbc
+	jp	__eqpopoutdebc

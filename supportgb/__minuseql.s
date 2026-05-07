@@ -1,13 +1,11 @@
 ;
-;	(TOS) -= BCHL
+;	(TOS) -= BCDE
 ;
 ;	return result
 ;
 	.export __minuseql
 
 __minuseql:
-	ld	e,l
-	ld	d,h
 	ld	hl,sp+2
 	ldi	a,(hl)
 	ld	h,(hl)
@@ -28,14 +26,11 @@ __minuseql:
 	sbc	b
 	ld	b,a
 	ld	(hl),a
-	ld	h,d
-	ld	l,e
 	; Now clean up
-	pop	de
+	pop	hl
 	inc	sp
 	inc	sp
-	push	de
-	ret
+	jp	(hl)
 
 	
 	

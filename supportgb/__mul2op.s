@@ -18,7 +18,6 @@ __mul2opcon:
 ;	DE * HL
 ;
 __mulde:
-	push	bc
 	ld	b,h		; copy value over
 	ld	c,l
 	ld	hl,0
@@ -33,14 +32,15 @@ loop:
 noset:	dec	d
 	jr	nz, loop
 	; result is in HL
-	pop	bc
+	ld	d,h
+	ld	e,l
 	ret
 
 __muleq:
 	call	__eqprep
 	push	hl
 	call	__mul2op
-	jp	__eqpopouthl
+	jp	__eqpopout
 
 __muleqc:
 	call	__eqprep
@@ -54,15 +54,12 @@ __muleqc:
 
 __mul:
 	;	TOS * DE
-	ld	e,l
-	ld	d,h
 	ld	hl,sp+2
 	ldi	a,(hl)
 	ld	h,(hl)
 	ld	l,a
 	call	__mulde
-	pop	de
+	pop	hl
 	inc	sp
 	inc	sp
-	push	de
-	ret
+	jp	(hl)

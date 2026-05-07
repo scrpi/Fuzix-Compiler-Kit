@@ -54,15 +54,12 @@ __mull:
 	ld	c,(hl)
 	inc	hl
 	ld	b,(hl)
-	ld	l,e
-	ld	h,d
 	; Now clean up the stack
 	add	sp,5
-	pop	de
+	pop	hl
 	add	sp,4
-	push	de
 	; and done
-	ret
+	jp	(hl)
 
 mulstripe:	; BCDE * A
 	or	a
@@ -133,8 +130,6 @@ __muleql:
 	ld	b,(hl)
 	call	__mull
 	; mull removed the arg we pushed
-	ld	e,l
-	ld	d,h
 	; BCDE is now the result
 	pop	hl
 	ld	(hl),e
@@ -144,11 +139,7 @@ __muleql:
 	ld	(hl),c
 	inc	hl
 	ld	(hl),b
-	ld	l,e
-	ld	h,d
-	pop	de
+	pop	hl
 	inc	sp
 	inc	sp
-	push	de
-	ret
-
+	jp	(hl)

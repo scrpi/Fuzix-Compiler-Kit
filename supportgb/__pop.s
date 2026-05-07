@@ -1,19 +1,16 @@
 ;
 ;	Clean up helper stack frames
-;	Think about using DE for returns ?
 ;
 	.export __popint
 	.export __poplong
 
 __popint:
-	pop	de	; return
+	pop	hl	; return
 	inc	sp
 	inc	sp
-	push	de
-	ret
+	jp	(hl)
 
 __poplong:
-	pop	de
+	pop	hl
 	add	sp,4
-	push	de
-	ret
+	jp	(hl)

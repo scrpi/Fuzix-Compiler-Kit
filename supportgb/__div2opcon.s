@@ -2,7 +2,7 @@
 ;	Core division operation	HL / DE unsigned
 ;	Produces both result and remainder
 ;
-	.export __divhlde
+	.export __divdehl
 
 	.export __div2opcon
 	.export __rem2opcon
@@ -14,29 +14,28 @@
 	.export __rem2opu
 
 dodiv2opcon:
-	;	HL / DE signed. Track state in C
+	;	DE / HL signed. Track state in C
 	;	Caller does any final negation
-	bit	7,h
+	bit	7,d
 	jr	z,pve1
 	inc	c
 	call	__negate
 pve1:
-	bit	7,d
-	jr	z, __divhlde
+	bit	7,h
+	jr	z, __divdehl
 	bit	7,c
 	jr	nz, ismod
 	inc	c
 ismod:
-	dec	de
-	ld	a,d
+	dec	hl
+	ld	a,h
 	cpl
-	ld	d,a
-	ld	a,e
+	ld	h,a
+	ld	a,l
 	cpl	
-	ld	e,a
-	;	HL/DE unsigned
-__divhlde:
-	push	bc
+	ld	l,a
+	;	DE/HL unsigned
+__divdehl:
 ;
 ;	This is the standard algorithm used on the other ports
 ;	except that the SM83 is extra nasty as it lacks both xchg
@@ -46,13 +45,14 @@ __divhlde:
 ;
 ;	Thankfully we have rl and the like on any register unlike 8080
 ;	
+	push	bc
 	ld	bc,0	; work register
 	ld	a,16	; bits to do
 	or	a	; carry clear
 loop:
 	push	af	; save count
-	rl	l	; rotate the quotient through work clearing the low	
-	rl	h
+	rl	e	; rotate the quotient through work clearing the low	
+	rl	d
 	rl	c
 	rl	b	; drops bit into carry
 	push	bc
@@ -60,10 +60,10 @@ loop:
 	;	Check if working exceeds divisor (DE)
 	;
 	ld	a,c
-	sbc	e
+	sbc	l
 	ld	c,a
 	ld	a,b
-	sbc	d
+	sbc	h
 	ld	b,a	; BC is now the result if we want it
 	;	Did it fit ?
 	jr	nc, dosub
@@ -81,79 +81,55 @@ dosub:
 	jr	nz, loop
 out:
 	; shift the last bit in
-	rl	l
-	rl	h
-	ld	e,c	; We need to restore BC so return in DE
-	ld	c,b
+	rl	e
+	rl	d
+	ld	l,c	; and remainder in HL
+	ld	h,b
 	pop	bc
 	ret
-
 ;	DE / (HL)
 __div2op:
 	ldi	a,(hl)
 	ld	h,(hl)
 	ld	l,a
-	push	de	; no XCHG on SM83
-	push	hl
-	pop	de
-	pop	hl
 __div2opcon:
-	; HL / DE
-	push	bc
+	; DE / HL
 	ld	c,0
 	call	dodiv2opcon
 	bit	0,c
-	pop	bc
 	ret	z
 	jp	__negate
-	
 ;	DE % (HL)
 __rem2op:
 	ldi	a,(hl)
 	ld	h,(hl)
 	ld	l,a
-	push	de	; no XCHG on SM83
-	push	hl
-	pop	de
-	pop	hl
-	; HL % DE
+	; DE % HL
 __rem2opcon:
-	push	bc
 	ld	c,128
 	call	dodiv2opcon
-	ld	l,e
-	ld	h,d
+	ld	e,l
+	ld	d,h
 	bit	0,c
-	pop	bc
 	ret	z
 	jp	__negate
-
 ;	DE / (HL)
 __div2opu:
 	ldi	a,(hl)
 	ld	h,(hl)
 	ld	l,a
-	push	de	; no XCHG on SM83
-	push	hl
-	pop	de
-	pop	hl
 __div2opconu:
-	; HL / DE
-	call	__divhlde
+	; DE / HL
+	call	__divdehl
 	ret
-
 ;	DE % (HL)
 __rem2opu:
 	ldi	a,(hl)
 	ld	h,(hl)
 	ld	l,a
-	push	de	; no XCHG on SM83
-	push	hl
-	pop	de
-	pop	hl
 __rem2opconu:
-	; HL % DE
-	call __divhlde
-	ld l,e
-	ld h,d
+	; DE % HL
+	call	__divdehl
+	ld	e,l
+	ld	d,h
 	ret

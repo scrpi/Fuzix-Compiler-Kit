@@ -1,31 +1,31 @@
 ;
 ;	16bit unsigned comparisons
 ;
-	.export __ccgtu
-	.export __cmpltu
-	.export __cmpltconu
+	.export __ccltu
+	.export __cmpgtu
+	.export __cmpgtconu
 
-;	TOS > DE
-__ccgtu:
-	pop	bc		; ok to eat BC
+;	TOS < DE
+__ccltu:
+	pop	bc
 	pop	hl		; args reverse so this is gt not lt
-	push	bc		; restore return addr
+	push	bc
 	jr	__cmpltconu
 
-;	DE < (HL)
-__cmpltu:
+;	DE > (HL)
+__cmpgtu:
 	ldi	a,(hl)
 	ld	h,(hl)
 	ld	l,a	
 
-;	DE < HL
-__cmpltconu:
-	ld 	a,d
-	cp	h
+;	DE > HL
+__cmpgtconu:
+	ld 	a,h
+	cp	d
 	jr	c, true
 	jr	nz, false
-	ld	a,e
-	cp	l
+	ld	a,l
+	cp	e
 	jr	nc, false
 true:
 	ld	de,0

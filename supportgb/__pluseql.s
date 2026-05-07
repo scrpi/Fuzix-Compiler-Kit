@@ -1,13 +1,11 @@
 ;
-;	(TOS) += BCHL
+;	(TOS) += BCDE
 ;
 ;	return result
 ;
 	.export __pluseql
 
 __pluseql:
-	ld	e,l
-	ld	d,h
 	ld	hl,sp+2
 	ldi	a,(hl)
 	ld	h,(hl)
@@ -28,14 +26,11 @@ __pluseql:
 	adc	b
 	ld	b,a
 	ld	(hl),a
-	ld	l,e
-	ld	h,d
 	; Now clean up
-	pop	de
+	pop	hl
 	inc	sp
 	inc	sp
-	push	de
-	ret
+	jp	(hl)
 
 	
 	

@@ -1,12 +1,10 @@
 ;
-;	(TOS) += HL
+;	(TOS) += DE
 ;	return original (TOS)
 ;
 	.export __postinc
 
 __postinc:
-	ld	d,h
-	ld	e,l
 	ld	hl,sp+2
 	ldi	a,(hl)
 	ld	h,(hl)
@@ -19,12 +17,9 @@ __postinc:
 	ld	d,(hl)
 	adc	a,(hl)
 	ld	(hl),a
-	ld	h,d
-	ld	l,e
-	pop	de
+	pop	hl
 	inc	sp
 	inc	sp
-	push	de
-	ret
+	jp	(hl)
 
 	

@@ -3,15 +3,14 @@ all: libgb.a crt0.o
 OBJ = workspace.o \
       __bool.o __castc_.o __pop.o __eqop.o \
       __switch.o __switchc.o \
-      __ccgtu.o __ccgtequ.o __ccltu.o __ccltequ.o \
-      __cclt.o __ccgteq.o __ccgt.o __cclteq.o __cceq.o __ccne.o \
       __cmpgteq0.o __cmplt0.o \
-      __cmpeqcon.o __cmpnecon.o __cmpltcon.o __cmpgteqcon.o \
-      __cmpgteqconu.o __cmpltconu.o \
+      __cmpeqcon.o __cmpnecon.o \
+      __cmpgteqconu.o __cmpltconu.o __cmplteqconu.o __cmpgtconu.o \
+      __cmpgteqcon.o __cmpltcon.o __cmplteqcon.o __cmpgtcon.o \
       __minus.o \
       __postinc.o __postdec.o __postincc.o __postdecc.o \
       __pluseq.o __minuseq.o \
-      __minuseq2opcon.o __pluseq2opcon.o \
+      __minuseq2opcon.o __pluseq2opcon.o __pluseq2opconc.o \
       __mul2op.o \
       __div2opcon.o __diveq.o \
       __band2op.o __bor2op.o __bxor2op.o \

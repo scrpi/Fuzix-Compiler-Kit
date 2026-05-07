@@ -1,5 +1,5 @@
 ;
-;	boolify HL
+;	boolify DE
 ;
 	.export __bool
 	.export __not
@@ -8,20 +8,20 @@
 
 __bool:
 __cmpne0:
-	ld	a,h
-	or	l
+	ld	a,d
+	or	e
 	ret	z
-	ld	hl,0
+	ld	de,0
 true:
-	inc	l		; set flags
+	inc	e		; set flags
 	ret
 
 __not:
 __cmpeq0:			; compare to 0 is not
-	ld	a,h
-	or	l
+	ld	a,d
+	or	e
 	jr	z, true
 	xor	a
-	ld	h,a
-	ld	l,a
+	ld	d,a
+	ld	e,a
 	ret
