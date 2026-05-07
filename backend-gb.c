@@ -1061,6 +1061,8 @@ static unsigned can_fast_mul(unsigned s, unsigned n)
 		cost = 10;
 	if (s > 2)
 		return 0;
+	if (n == 2)
+		return 1;
 	if (n == 0 || count_mul_cost(n) <= cost)
 		return 1;
 	return 0;
@@ -1071,7 +1073,10 @@ static void gen_fast_mul(unsigned s, unsigned n)
 
 	if (n == 0)
 		outputne("ld de,0");
-	else {
+	else if (n == 2) {
+		output("sla e");
+		output("rl d");
+	} else {
 		load_hl_de();
 		write_mul(n);
 		load_de_hl();
@@ -1089,6 +1094,12 @@ static unsigned gen_fast_udiv(unsigned n, unsigned s)
 		return 0;
 	if (n == 1)
 		return 1;
+	/* TODO: powers of 2 unsigned are right shifts and should use
+	   that helper - translate node as on 6502 ? */
+	if (n == 2) {
+		output("srl d");
+		output("rr e");
+	}
 	if (n == 256) {
 		outputne("ld e,d");
 		outputne("ld d,0");
@@ -1880,7 +1891,7 @@ static void perform_op_const(const char *op, const char *op2, unsigned s, unsign
 		perform_byte_const(op, nr, t, v, 1);
 		if (!nr)
 			outputne("ld e,a");
-		perform_byte_const(op, nr, t, v >> 8, 0);
+		perform_byte_const(op2, nr, t, v >> 8, 0);
 		if (!nr)
 			outputne("ld d,a");
 		return;
