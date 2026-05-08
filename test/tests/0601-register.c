@@ -38,6 +38,15 @@ int test_cast(void)
     return buf;
 }
 
+int test_rsave(void)
+{
+    register int n = 4;
+    register int m = test_cast();
+    if (n != 4)
+        return -1;
+    return 0;
+}
+
 int main(int argc, char *argv[])
 {
     register int x = 0;
@@ -54,5 +63,7 @@ int main(int argc, char *argv[])
         return 5;
     if (test_cast() != 0x1234)
         return 6;
+    if (test_rsave() != 0)
+        return 7;
     return 0;
 }
