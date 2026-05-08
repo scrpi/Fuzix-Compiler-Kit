@@ -7,6 +7,7 @@
 	.export __sub2sp
 	.export __sub1sp
 	.export __subysp
+	.export __rs0subysp
 
 	.code
 
@@ -21,6 +22,7 @@ __sub2sp:
 	bne __subysp
 __sub1sp:
 	ldy #1
+__rs0subysp:
 __subysp:
 	pha
 	sty @tmp

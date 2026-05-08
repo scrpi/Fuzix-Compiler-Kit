@@ -102,6 +102,7 @@ static unsigned sp;		/* Stack pointer offset tracking */
 static unsigned unreachable;	/* Code following an unconditional jump */
 static unsigned xlabel;		/* Internal backend generated branches */
 static unsigned argbase;	/* Track shift between arguments and stack */
+static unsigned nregs;		/* Number of stacked registers */
 
 /*
  *	Node types we create in rewriting rules
@@ -343,6 +344,8 @@ static unsigned map_op(unsigned op)
 		return  T_LBREF;
 	if (op == T_LSTORE)
 		return T_LREF;
+	if (op == T_RSTORE)
+		return T_RREF;
 	return op;
 }
 
@@ -565,7 +568,7 @@ static void tay(void)
 static void store_xa_tmp(void)
 {
 	if (tmp_contains_xa()) {
-		printf("; avoided reload of @tmp\n"); 
+		printf("; avoided reload of @tmp\n");
 		return;
 	}
 	memcpy(reg + R_TMPL, reg + R_A, sizeof(struct regtrack));
@@ -659,11 +662,11 @@ static unsigned has_sideeffect(struct node *n)
 {
 	/* We can generate these as pri16 ops but they are not load based
 	   so we must not fast cast them as they have side effects */
-	if (n->op == T_LSTORE || n->op == T_LBSTORE || n->op == T_NSTORE)
+	if (n->op == T_LSTORE || n->op == T_LBSTORE || n->op == T_NSTORE ||
+		n->op == T_RSTORE)
 		return 1;
 	return 0;
 }
-
 
 static unsigned can_bytecast(register struct node *n)
 {
@@ -709,14 +712,20 @@ static int do_pri8(struct node *n, struct node *r, const char *op, void (*pre)(s
 		name = namestr(n->snum);
 		output("%s #<_%s+%u", op,  name, v);
 		return 1;
+	case T_REG:
+		pre(n);
+		output("%s #reg%u", op, v);
+		return 1;
 	case T_CONSTANT:
 		/* These had the right squashed into them */
 	case T_LREF:
 	case T_NREF:
 	case T_LBREF:
+	case T_RREF:
 	case T_LSTORE:
 	case T_NSTORE:
 	case T_LBSTORE:
+	case T_RSTORE:
 		/* These had the right squashed into them */
 		r = n;
 		break;
@@ -746,7 +755,7 @@ static int do_pri8(struct node *n, struct node *r, const char *op, void (*pre)(s
 		else if (strcmp(op, "ldx") == 0)
 			load_x(v);
 		else
-			output("%s #%u", op, r->value & 0xFF);
+			output("%s #%u", op, BYTE(v));
 		return 1;
 	case T_LREF:
 	case T_LSTORE:
@@ -787,17 +796,17 @@ static int do_pri8(struct node *n, struct node *r, const char *op, void (*pre)(s
 	case T_NSTORE:
 		pre(n);
 		name = namestr(r->snum);
-		output("%s _%s+%u", op,  name, (unsigned)r->value);
+		output("%s _%s+%u", op,  name, v);
 		return 1;
 	case T_LBSTORE:
 	case T_LBREF:
 		pre(n);
-		output("%s T%u+%u", op,  r->val2, (unsigned)r->value);
+		output("%s T%u+%u", op,  r->val2, v);
 		return 1;
-	/* If we add registers
+	case T_RSTORE:
 	case T_RREF:
-		output("%s __reg%u", op, r->val2);
-		return 1;*/
+		output("%s @reg%u", op, v);
+		return 1;
 	}
 	return 0;
 }
@@ -829,14 +838,20 @@ static int do_pri8hi(struct node *n, const char *op, void (*pre)(struct node *__
 		name = namestr(n->snum);
 		output("%s #_%s+%u", op,  name, v);
 		return 1;
+	case T_REG:
+		pre(n);
+		output("%s #reg%u", op, v);
+		return 1;
 	case T_CONSTANT:
 		/* These had the right squashed into them */
 	case T_LREF:
 	case T_NREF:
 	case T_LBREF:
+	case T_RREF:
 	case T_LSTORE:
 	case T_NSTORE:
 	case T_LBSTORE:
+	case T_RSTORE:
 		/* These had the right squashed into them */
 		r = n;
 		break;
@@ -877,10 +892,10 @@ static int do_pri8hi(struct node *n, const char *op, void (*pre)(struct node *__
 		pre(n);
 		output("%s T%u+%u", op,  r->val2, v + 1);
 		return 1;
-	/* If we add registers
+	case T_RSTORE:
 	case T_RREF:
-		output("%s __reg%u+1", op, r->val2);
-		return 1;*/
+		output("%s @reg%u+1", op, v);
+		return 1;
 	}
 	return 0;
 }
@@ -916,13 +931,20 @@ static int do_pri16(struct node *n, struct node *r, const char *op, void (*pre)(
 		output("%sa #<_%s+%u", op,  name, v);
 		output("%sx #>_%s+%u", op,  name, v);
 		return 1;
+	case T_REG:
+		pre(n);
+		output("%sa #<reg%u", op,  v);
+		output("%sx #>reg%u", op,  v);
+		return 1;
 	case T_LOCAL:
 	case T_LREF:
 	case T_NREF:
 	case T_LBREF:
+	case T_RREF:
 	case T_LSTORE:
 	case T_NSTORE:
 	case T_LBSTORE:
+	case T_RSTORE:
 	case T_CONSTANT:
 		/* These had the right squashed into them */
 		r = n;
@@ -1022,21 +1044,21 @@ static int do_pri16(struct node *n, struct node *r, const char *op, void (*pre)(
 	case T_NREF:
 		name = namestr(r->snum);
 		pre(n);
-		output("%sa _%s+%u", op,  name, (unsigned)r->value);
-		output("%sx _%s+%u", op,  name, ((unsigned)r->value) + 1);
+		output("%sa _%s+%u", op,  name, v);
+		output("%sx _%s+%u", op,  name, v + 1);
 		return 1;
 	case T_LBSTORE:
 	case T_LBREF:
 		pre(n);
-		output("%sa T%u+%u", op,  r->val2, (unsigned)r->value);
-		output("%sx T%u+%u", op,  r->val2, ((unsigned)r->value) + 1);
+		output("%sa T%u+%u", op,  r->val2, v);
+		output("%sx T%u+%u", op,  r->val2, v + 1);
 		return 1;
-	/* If we add registers
+	case T_RSTORE:
 	case T_RREF:
 		pre(n);
-		output("%sa __reg%u", op, r->val2);
-		output("%sx __reg%u + 1", op,  r->val2);
-		return 1;*/
+		output("%sa @reg%u", op, v);
+		output("%sx @reg%u+1", op,  v);
+		return 1;
 	}
 	return 0;
 }
@@ -1421,6 +1443,21 @@ static int leftop_memc(struct node *n, const char *op)
 				output("ldx T%u+%u", (unsigned)l->val2, v + 1);
 		}
 		return 1;
+	case T_REG:
+		while(count--) {
+			output("%s @reg%u", op, v);
+			if (sz == 2) {
+				output("b%s X%u", cc, ++xlabel);
+				output("%s @reg%u+1", op, v);
+				label("X%u", xlabel);
+			}
+		}
+		if (!nr) {
+			output("lda @reg%u", v);
+			if (sz == 2)
+				output("ldx @reg%u+1", v);
+		}
+		return 1;
 	case T_ARGUMENT:
 		v += argbase + frame_len;
 	case T_LOCAL:
@@ -1681,15 +1718,20 @@ struct node *gen_rewrite_node(struct node *n)
 		return n;
 	}
 	/* *regptr */
-	if (op == T_DEREF && r->op == T_RREF) {
+	/* FIXME: these should end up working like DEREFPLUS as we can use
+	   ,y on them */
+	if ((op == T_DEREF || op == T_DEREFPLUS) && r->op == T_RREF) {
 		n->op = T_RDEREF;
+		n->val2 = r->value;
 		n->right = NULL;
+		n->value = 0;
 		free_node(r);
 		return n;
 	}
 	/* *regptr = */
 	if (op == T_EQ && l->op == T_RREF) {
 		n->op = T_REQ;
+		n->val2 = l->value;
 		n->left = NULL;
 		free_node(l);
 		return n;
@@ -1894,19 +1936,33 @@ void gen_prologue(const char *name)
 /* Generate the stack frame */
 void gen_frame(unsigned size, unsigned aframe)
 {
-	frame_len = size;
-	if (size == 0)
-		return;
+	nregs = 0;
+
+	/* Registers are allocated in order */
+	if (func_flags & F_REG(3)) {
+		if (func_flags & F_REG(4))
+			nregs = 4;
+		else
+			nregs = 3;
+	} else if (func_flags & F_REG(2))
+		nregs = 2;
+	else if (func_flags & F_REG(1))
+		nregs = 1;
 
 	sp = 0;
-	/* Maybe shortcut some common values ? */
+	frame_len = size + 2 * nregs;
 
-	if (size <= 4)
+	if (frame_len == 0)
+		return;
+
+	if (size <= 4 && !nregs)
 		output("jsr __sub%usp", size);
 	else if (size < 256) {
 		load_y(size);
-		output("jsr __subysp");
+		output("jsr __rs%usubysp", nregs);
 	} else {
+		if (nregs)
+			output("jsr __rsave%u", nregs);
 		size = -size;
 		load_a(size & 0xFF);
 		load_y(size >> 8);
@@ -1926,6 +1982,7 @@ void gen_epilogue(unsigned size, unsigned argsize)
 	if (!(func_flags & F_VARARG))
 		size += argsize;
 
+	/* TODO: restore register saves */
 	if (size > 256) {
 		/* Ugly as we need to preserve AX */
 		if (!(func_flags & F_VOIDRET)) {
@@ -1939,10 +1996,12 @@ void gen_epilogue(unsigned size, unsigned argsize)
 			restored_a();
 			output("pla");
 		}
+		if (nregs)
+			output("jmp __rres%u", nregs);
 		output("rts");
-	} else if (size > 4) {
+	} else if (size > 4 || nregs) {
 		load_y(size);
-		output("jmp __addysp");
+		output("jmp __rr%uaddysp", nregs);
 	} else if (size)
 		output("jmp __add%usp", size);
 	else
@@ -3269,6 +3328,7 @@ unsigned gen_node(struct node *n)
 			}
 		}
 		/* Fall through */
+	case T_RREF:
 	case T_NREF:
 	case T_LBREF:
 		if (nr && !se)
@@ -3308,6 +3368,7 @@ unsigned gen_node(struct node *n)
 		}
 	case T_NSTORE:
 	case T_LBSTORE:
+	case T_RSTORE:
 		if (size == 1 && pri8(n, "sta")) {
 			set_a_node(n);
 			return 1;
@@ -3362,6 +3423,41 @@ unsigned gen_node(struct node *n)
 		}
 		invalidate_mem();
 		return 1;
+	case T_REQ:
+		/* store via reg */
+		/* assumes works like rderef etc and accumulates addition TODO
+		   in the tree parse */
+		if (size == 1) {
+			if (v == 0) {
+				if (cpu != NMOS_6502)
+					output("sta (@reg%u)", n->val2);
+				else {
+					load_x(0);
+					output("sta (@reg%u,x)", n->val2);
+				}
+				return 1;
+			}
+			load_y(v);
+			output("sta (@reg%u),y", n->val2);
+			return 1;
+		}
+		if (size == 2) {
+			load_y(v);
+			output("sta (@reg%u),y", n->val2);
+			/* Reload before we muck with registers
+			   temporarily so we don't confuse load_y */
+			load_y(v + 1);
+			if (nr) {
+				output("pha");
+				output("txa");
+			} else
+				txa();
+			output("sta (@reg%u),y", n->val2);
+			if (nr)
+				output("pla");
+			return 1;
+		}
+		error("req");
 	case T_FUNCCALL:
 		/* For now just helper it */
 		return 0;
@@ -3416,12 +3512,41 @@ unsigned gen_node(struct node *n)
 			}
 			invalidate_a();
 		} else {
-			load_y(v + 1);
-			invalidate_a();
-			output("lda (@tmp),y");
-			tax();
+			if (size == 2) {
+				load_y(v + 1);
+				output("lda (@tmp),y");
+				invalidate_a();
+				tax();
+			}
 			load_y(v);
 			output("lda (@tmp),y");
+			invalidate_a();
+		}
+		return 1;
+	case T_RDEREF:
+		if (nr && !se)
+			return 1;
+		if (!se && is_byte)
+			size = 1;
+		if (size > 2)
+			error("rdrl");
+		if (size == 1 && v == 0) {
+			if (cpu != NMOS_6502)
+				output("lda (@reg%u)", n->val2);
+			else {
+				load_x(0);
+				output("lda (@reg%u,x)", n->val2);
+			}
+			invalidate_a();
+		} else {
+			if (size == 2) {
+				load_y(v + 1);
+				output("lda (@reg%u),y", n->val2);
+				invalidate_a();
+				tax();
+			}
+			load_y(v);
+			output("lda (@reg%u),y", n->val2);
 			invalidate_a();
 		}
 		return 1;
@@ -3483,6 +3608,7 @@ unsigned gen_node(struct node *n)
 		return 1;
 	case T_NAME:
 	case T_LABEL:
+	case T_REG:
 		if (is_byte)
 			size = 1;
 		if (size == 1 && pri8(n, "lda")) {

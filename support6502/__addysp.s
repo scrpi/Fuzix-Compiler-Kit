@@ -12,6 +12,7 @@
 	.export __add3sp
 	.export	__addysp1
 	.export __addysp
+	.export __rr0addysp
 
 	.code
 __add4sp:
@@ -22,6 +23,7 @@ __add3sp:
 	bne	__addysp
 __addysp1:
 	iny
+__rr0addysp:
 __addysp:
 	pha		; Save A
 	clc
