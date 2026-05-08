@@ -83,11 +83,26 @@ unsigned target_type_remap(unsigned type)
 	return type;
 }
 
+static unsigned nreg;
+
+static unsigned ralloc(unsigned storage, unsigned n)
+{
+	/* Tell the backend what is allocated */
+	if (storage == S_AUTO)
+		func_flags |= F_REG(n);
+	else
+		arg_flags |= F_REG(n);
+	return n;
+}
+
 unsigned target_register(unsigned type, unsigned storage)
 {
+	if (target_sizeof(type) == 2 && nreg < 4)
+		return ralloc(storage, ++nreg);
 	return 0;
 }
 
 void target_reginit(void)
 {
+	nreg = 0;
 }
