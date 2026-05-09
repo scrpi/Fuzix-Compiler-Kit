@@ -71,10 +71,11 @@
  *
  *	Turn n = n + 1 into n += 1 as for 6502 that's going to help a lot
  *
- *	Register variables (aka bits of zero page). This will speed up pointers
- *	a lot (at a stack save/restore cost). We can keep the code density
- *	good by using a helper to stack "n" registers not doing the inline
- *	stuff cc65 does.
+ *	The real challenge is that 6502 asm people interleave 6502 code with
+ *	loads and stores so that we don't "load XA with this, and with blah
+ *	save XA to wherever" but load the low, and it store it, load the high
+ *	and it store it, and in some cases use PHP PLP and other tricks to
+ *	move carry along with this. That's tricky to do from a compiler tree.
  */
 
 #include <stdio.h>
@@ -159,6 +160,7 @@ struct regtrack {
 	unsigned state;
 	uint8_t value;
 	unsigned snum;
+	unsigned val2;
 	unsigned offset;
 };
 
@@ -238,7 +240,6 @@ static void load_a(uint8_t n)
 		   and is only one byte. It's no faster than LDA #n but shorter.
 		 */
 		if ((curr_a << 1) == n) {
-			output(";A contains %u, left shift", curr_a);
 			output("asl a");
 			reg[R_A].value = n;
 			return;
@@ -248,7 +249,6 @@ static void load_a(uint8_t n)
 		   Note that lsr a always puts 0 in the most significant bit.
 		 */
 		if (((curr_a >> 1) & 0x7F) == n) {
-			output(";A contains %u, right shift", curr_a);
 			output("lsr a");
 			reg[R_A].value = n;
 			return;
@@ -266,16 +266,16 @@ static void load_a(uint8_t n)
 		}
 	}
 	if (reg[R_X].state == T_CONSTANT && reg[R_X].value == n) {
-		output(";X contains %u", reg[R_X].value);
 		output("txa");
 	}
 	else if (reg[R_Y].state == T_CONSTANT && reg[R_Y].value == n) {
-		output(";Y contains %u", reg[R_Y].value);
 		output("tya");
 	} else
 		output("lda #%u", n);
 	reg[R_A].state = T_CONSTANT;
 	reg[R_A].value = n;
+	reg[R_A].snum = 0;
+	reg[R_A].val2 = 0;
 }
 
 /* Get a value into X, adjust and track */
@@ -303,6 +303,8 @@ static void load_x(uint8_t n)
 		output("ldx #%u", n);
 	reg[R_X].state = T_CONSTANT;
 	reg[R_X].value = n;
+	reg[R_X].snum = 0;
+	reg[R_X].val2 = 0;
 }
 
 /* Get a value into Y, adjust and track */
@@ -330,6 +332,8 @@ static void load_y(uint8_t n)
 		output("ldy #%u", n);
 	reg[R_Y].state = T_CONSTANT;
 	reg[R_Y].value = n;
+	reg[R_Y].snum = 0;
+	reg[R_Y].val2 = 0;
 }
 
 /*
@@ -368,6 +372,7 @@ static void set_xa_node(struct node *n)
 	case T_NREF:
 	case T_LBREF:
 	case T_LREF:
+	case T_RREF:
 	case T_LOCAL:
 	case T_ARGUMENT:
 		break;
@@ -382,6 +387,8 @@ static void set_xa_node(struct node *n)
 	reg[R_X].value = value >> 8;
 	reg[R_A].snum = n->snum;
 	reg[R_X].snum = n->snum;
+	reg[R_A].val2 = n->val2;
+	reg[R_X].val2 = n->val2;
 	return;
 }
 
@@ -394,6 +401,8 @@ static unsigned xa_contains(struct node *n)
 	if (reg[R_A].value != (n->value & 0xFF) || reg[R_X].value != (n->value >> 8))
 		return 0;
 	if (reg[R_A].snum != n->snum || reg[R_X].snum != n->snum)
+		return 0;
+	if (reg[R_A].val2 != n->val2 || reg[R_X].val2 != n->val2)
 		return 0;
 	/* Looks good */
 	return 1;
@@ -420,6 +429,7 @@ static void set_a_node(struct node *n)
 	reg[R_A].state = op;
 	reg[R_A].value = value;
 	reg[R_A].snum = n->snum;
+	reg[R_A].val2 = n->val2;
 }
 
 static unsigned a_contains(struct node *n)
@@ -429,6 +439,8 @@ static unsigned a_contains(struct node *n)
 	if (reg[R_A].value != n->value)
 		return 0;
 	if (reg[R_A].snum != n->snum)
+		return 0;
+	if (reg[R_A].val2 != n->val2)
 		return 0;
 	/* Looks good */
 	return 1;
@@ -455,9 +467,11 @@ static void set_tmp_node(struct node *n)
 	reg[R_TMPL].state = op;
 	reg[R_TMPL].value = value;
 	reg[R_TMPL].snum = n->snum;
+	reg[R_TMPL].val2 = n->val2;
 	reg[R_TMPH].state = op;
 	reg[R_TMPH].value = value >> 8;
 	reg[R_TMPH].snum = n->snum;
+	reg[R_TMPL].val2 = n->val2;
 }
 
 /*
@@ -482,6 +496,8 @@ static unsigned tmp_contains(struct node *n)
 	if (reg[R_TMPL].value != (n->value & 0xFF) || reg[R_TMPH].value != (n->value >> 8))
 		return 0;
 	if (reg[R_TMPL].snum != n->snum || reg[R_TMPL].snum != n->snum)
+		return 0;
+	if (reg[R_TMPL].val2 != n->val2 || reg[R_TMPL].val2 != n->val2)
 		return 0;
 	/* Looks good */
 	return 1;
@@ -540,8 +556,11 @@ static void invalidate_mem(void)
 
 static void set_reg(unsigned r, unsigned v)
 {
+/*	printf("; Set %c to %u\n", "AXYLH"[r], BYTE(v)); */
 	reg[r].state = T_CONSTANT;
 	reg[r].value = (uint8_t)v;
+	reg[r].snum = 0;
+	reg[r].val2 = 0;
 }
 
 /* TODO: worth checking these for cases they already are the same ? */
@@ -805,6 +824,7 @@ static int do_pri8(struct node *n, struct node *r, const char *op, void (*pre)(s
 		return 1;
 	case T_RSTORE:
 	case T_RREF:
+		pre(n);
 		output("%s @reg%u", op, v);
 		return 1;
 	}
@@ -894,10 +914,24 @@ static int do_pri8hi(struct node *n, const char *op, void (*pre)(struct node *__
 		return 1;
 	case T_RSTORE:
 	case T_RREF:
+		pre(n);
 		output("%s @reg%u+1", op, v);
 		return 1;
 	}
 	return 0;
+}
+
+/* Generate inline gloy helpers for getting locals. We do a lot of these
+   with -Os so shrink the common range */
+static void gen_gloy(unsigned v)
+{
+	if (v >= 16) {
+		load_y(v + 1);
+		output("jsr __gloy");
+	} else {
+		output("jsr __gloy%u",v + 1);
+	}
+	const_y_set(v);
 }
 
 /* 16bit/ We are rather limited here because we only have a few ops with x */
@@ -969,13 +1003,7 @@ static int do_pri16(struct node *n, struct node *r, const char *op, void (*pre)(
 		v += sp;
 		if (optsize && v < 255 && strcmp(op, "ld") == 0) {
 			pre(n);
-			if (v) {
-				load_y(v + 1);
-				output("jsr __gloy");
-			} else {
-				output("jsr __gloy0");
-			}
-			const_y_set(v);
+			gen_gloy(v);
 			return 1;
 		}
 		if (v < 255) {
@@ -1009,6 +1037,7 @@ static int do_pri16(struct node *n, struct node *r, const char *op, void (*pre)(
 		output("lda (@tmp2),y");
 		return 1;
 	case T_LSTORE:
+		v += sp;
 		if (v < 255) {
 			pre(n);
 			if (v == 0 && direct_za(op))
@@ -1253,21 +1282,38 @@ static int pri_help(struct node *n, char *helper)
  *	Shunt some things via a shorter form when right arg is a local
  */
 
+unsigned can_yop_ptr(struct node *n, unsigned *p)
+{
+	unsigned v;
+	if (n == NULL || (n->op != T_LOCAL && n->op != T_ARGUMENT))
+		return 0;
+	/* Point Y at top byte versus @sp */
+	v = n->value + sp;
+	if (n->op == T_ARGUMENT)
+		v += frame_len + argbase;
+	if (v > 256 - get_size(n->type))
+		return 0;
+	/* Don't get clever with float for the moment : TODO */
+	if (n->type == FLOAT)
+		return 0;
+	*p = v;
+	return 1;
+}
+
 unsigned can_yop(struct node *n)
 {
 	unsigned v;
-	struct node *r = n->right;
 
 	if (opt > 1)
 		return 0;
-	if (r == NULL || r->op != T_LREF)
+	if (n == NULL || n->op != T_LREF)
 		return 0;
 	/* Point Y at top byte versus @sp */
-	v = r->value + sp + get_size(r->type) - 1;
+	v = n->value + sp + get_size(n->type) - 1;
 	if (v > 255)
 		return 0;
 	/* Don't get clever with float for the moment : TODO */
-	if (r->type == FLOAT)
+	if (n->type == FLOAT)
 		return 0;
 	return 1;
 }
@@ -1323,7 +1369,7 @@ static int pri_cchelp(register struct node *n, char *helper)
 
 	n->flags |= ISBOOL;
 
-	if (can_yop(n)) {
+	if (can_yop(r)) {
 		strcpy(buf, "l_");
 		strcat(buf, helper);
 		local_yop_s(n, buf);
@@ -1647,8 +1693,7 @@ static void lsr_a(unsigned n)
 
 /*
  * Shift A right by n bits in as few instructions as possible
- * (worst case 5 bytes)
- * Left bits filled with *zero*
+ * Left bits filled with sign.
  */
 static void asr_a(unsigned n)
 {
@@ -1690,16 +1735,12 @@ struct node *gen_rewrite_node(struct node *n)
 	unsigned s = get_size(n->type);
 	unsigned off;
 
-	/* TODO
-		- rewrite some reg ops
-	*/
-
-	if (s <= 2 && (op == T_DEREF || op == T_DEREFPLUS)) {
+	if (op == T_DEREF || op == T_DEREFPLUS) {
 		if (op == T_DEREF)
 			n->value = 0;
 		if (r->op == T_PLUS) {
 			off = n->value + r->right->value;
-			if (r->right->op == T_CONSTANT && off < 253) {
+			if (r->right->op == T_CONSTANT && off < 255 - s) {
 				n->op = T_DEREFPLUS;
 				free_node(r->right);
 				n->right = r->left;
@@ -1710,10 +1751,13 @@ struct node *gen_rewrite_node(struct node *n)
 		}
 	}
 	/* Squash typical indirect struct references within our reach */
-	if (s <=2 && op == T_DEREFPLUS && r->op == T_LREF && n->value < 255) {
+	if (s <= 2 && (op == T_DEREF || op == T_DEREFPLUS) && r->op == T_LREF && n->value < 255) {
 		/* At this point r->value is the offset for the local */
 		/* n->value is the offset for the ptr load */
-		r->val2 = n->value;		/* Save the offset so it is squashed in */
+		if (op == T_DEREF)
+			r->val2 = 0;
+		else
+			r->val2 = n->value;	/* Save the offset so it is squashed in */
 		squash_right(n, T_LDEREF);	/* n->value becomes the local ref */
 		return n;
 	}
@@ -1724,15 +1768,37 @@ struct node *gen_rewrite_node(struct node *n)
 		n->op = T_RDEREF;
 		n->val2 = r->value;
 		n->right = NULL;
-		n->value = 0;
 		free_node(r);
 		return n;
+	}
+	if (op == T_PLUS && l->op == T_RDEREF && r->op == T_CONSTANT) {
+		l->val2 += r->value;
+		free_node(r);
+		free_node(n);
+		return l;
 	}
 	/* *regptr = */
 	if (op == T_EQ && l->op == T_RREF) {
 		n->op = T_REQ;
+		/* Put the register number into REQ val2 */
 		n->val2 = l->value;
+		/* Accumulate the offsets */
+		n->value = l->val2;
 		n->left = NULL;
+		free_node(l);
+		return n;
+	}
+	/* struct reference into rref ( regptr->foo = bar ) */
+	if (op == T_EQ && l->op == T_PLUS && l->left->op == T_RREF &&
+		l->right->op == T_CONSTANT && l->right->value < 253) {
+		n->op = T_REQ;
+		/* Put the register number into REQ val2 */
+		n->val2 = l->left->value;
+		/* Accumulate the offsets */
+		n->value = l->right->value;
+		n->left = NULL;
+		free_node(l->left);
+		free_node(l->right);
 		free_node(l);
 		return n;
 	}
@@ -1806,6 +1872,7 @@ struct node *gen_rewrite_node(struct node *n)
 			n->left = r;
 		}
 	}
+
 	/* Reverse the order of comparisons to make them easier. C sequence points says this
 	   is fine. Arguably we should implement T_LT and T_GTEQ and only do this if at that
 	   point on code gen XA is holding the value we want for the left TODO */
@@ -1936,6 +2003,7 @@ void gen_prologue(const char *name)
 /* Generate the stack frame */
 void gen_frame(unsigned size, unsigned aframe)
 {
+	unsigned space;
 	nregs = 0;
 
 	/* Registers are allocated in order */
@@ -1949,42 +2017,73 @@ void gen_frame(unsigned size, unsigned aframe)
 	else if (func_flags & F_REG(1))
 		nregs = 1;
 
-	sp = 0;
-	frame_len = size + 2 * nregs;
+	/* We put the register variables below the locals, which is
+	   backwards to most ports but we do caller cleanup on the
+	   stack and that's harder with the registers in the middle */
+	sp = 2 * nregs;
+	frame_len = size;
 
-	if (frame_len == 0)
+	/* Total to allocate */
+	space = size + sp;
+
+	if (frame_len == 0 && nregs == 0)
 		return;
 
-	if (size <= 4 && !nregs)
-		output("jsr __sub%usp", size);
-	else if (size < 256) {
-		load_y(size);
+	if (space <= 4 && !nregs) {
+		if (size)
+			output("jsr __sub%usp", size);
+	} else if (space < 256) {
+		load_y(space);
 		output("jsr __rs%usubysp", nregs);
-	} else {
 		if (nregs)
-			output("jsr __rsave%u", nregs);
-		size = -size;
-		load_a(size & 0xFF);
-		load_y(size >> 8);
+			set_reg(R_Y, 0);
+	} else {
+		if (nregs) {
+			/* Might be worth making a specific handler but this
+			   is corner case code in most stuff */
+			load_y(255);
+			output("jsr __rs%usubysp", nregs);
+			set_reg(R_Y, 0);
+			space -= 255;
+			if (space < 256) {
+				load_y(space);
+				output("jsr __rs%usubysp", nregs);
+			}
+			set_reg(R_Y, 0);
+			return;
+		}
+		space = -space;
+		load_a(space & 0xFF);
+		load_y(space >> 8);
 		output("jsr __addyasp");
 		invalidate_y();
+		invalidate_a();
 	}
 }
 
 void gen_epilogue(unsigned size, unsigned argsize)
 {
-	if (sp)
+	if (sp != 2 * nregs)
 		error("sp");
+
+	/* We also have to clean up the registers */
+	size += 2 * nregs;
 
 	if (unreachable)
 		return;
 
+	/* Non vararg functions the called function cleans up the
+	   arguments so add them in as well */
 	if (!(func_flags & F_VARARG))
 		size += argsize;
 
-	/* TODO: restore register saves */
 	if (size > 256) {
-		/* Ugly as we need to preserve AX */
+		/* Could optimize but all large frames are a fringe case */
+		if (nregs) {
+			load_y(0);
+			output("jmp __rr%uaddysp", nregs);
+		}
+		/* Ugly as we need to preserve XA */
 		if (!(func_flags & F_VOIDRET)) {
 			saved_a();
 			output("pha");
@@ -1996,8 +2095,6 @@ void gen_epilogue(unsigned size, unsigned argsize)
 			restored_a();
 			output("pla");
 		}
-		if (nregs)
-			output("jmp __rres%u", nregs);
 		output("rts");
 	} else if (size > 4 || nregs) {
 		load_y(size);
@@ -2722,9 +2819,9 @@ unsigned gen_direct(struct node *n)
 			return 0;
 		if (r->op == T_CONSTANT) {
 			if (s == 2) {
-				if ((v & 0xFF) == 0xFF) {
+				if ((v & 0xFF) == 0x00) {
 					txa();
-					do_pri8hi(n, "and", pre_none);
+					do_pri8hi(n, "ora", pre_none);
 					tax();
 					load_a(0xFF);
 					return 1;
@@ -2784,7 +2881,6 @@ unsigned gen_direct(struct node *n)
 			return 1;
 		}
 
-		printf(";Right is %04X\n", r->op);
 		if (has_sideeffect(r))
 			return 0;
 
@@ -2819,7 +2915,6 @@ unsigned gen_direct(struct node *n)
 				return 1;
 			}
 		}
-		printf(";Right via X S %u is %04X\n", s, r->op);
 		if (s == 2 && try_via_x(n, "adc", pre_clc))
 			return 1;
 		return pri_help(n, "adctmp");
@@ -2996,22 +3091,25 @@ unsigned gen_direct(struct node *n)
 		return pri_help(n, "plusplustmp");
 	case T_MINUSMINUS:
 		/* The right side here is always constant */
-#if 0
 		if (s == 2) {
 			if (v == 1) {
-				gen_internal("minusminus1");
+				gen_internal("mminus1");
 				return 1;
 			}
 			if (v == 2) {
-				gen_internal("minusminus2");
+				gen_internal("mminus2");
 				return 1;
 			}
 			if (v == 4) {
-				gen_internal("minusminus4");
+				gen_internal("mminus4");
+				return 1;
+			}
+			if (v < 256) {
+				load_y(v);
+				gen_internal("mminusy");
 				return 1;
 			}
 		}
-#endif
 		/* TODO: make at least byte handling smarter */
 		return pri_help(n, "minusmtmp");
 	case T_PLUSEQ:
@@ -3082,6 +3180,7 @@ unsigned gen_shortcut(struct node *n)
 	struct node *l = n->left;
 	struct node *r = n->right;
 	unsigned nr = n->flags & NORETURN;
+	unsigned size = get_size(n->type);
 	unsigned v;
 
 	/* Unreachable code we can shortcut into nothing whee.bye.. */
@@ -3101,14 +3200,126 @@ unsigned gen_shortcut(struct node *n)
 	}
 	switch(n->op) {
 	case T_PLUSPLUS:
+		v = r->value;
+		if (l->op == T_REG && v <= 2 + opt) {
+			unsigned x, lv = l->value;
+			if (!nr) {
+				output("lda @reg%u", lv);
+				output("ldx @reg%u+1", lv);
+			}
+			while(v--) {
+				x = ++xlabel;
+				output("inc @reg%u", lv);
+				output("bne X%u", x);
+				output("inc @reg%u+1", lv);
+				label("X%u", x);
+			}
+			return 1;
+		}
 		/* The left nay be a complex expression but also may be soemthing
 		   we can directly reference. The right is the amount */
 		if (leftop_memc(n, "inc"))
 			return 1;
+		/* See if we can do stuff via a y_ helper */
+		if (size <= 2 && can_yop_ptr(l, &v)) {
+			if (size == 2) {
+				if (r->op == T_CONSTANT && r->value <= 4) {
+					load_y(v);
+					output("jsr __l_plusplus%u", r->value);
+					invalidate_regs();
+					return 1;
+					/* TODO < 256 do l_plusplusa */
+				}
+				codegen_lr(r);
+				load_y(v);
+				output("jsr __l_plusplus");
+				invalidate_regs();
+				return 1;
+			} else if (!optsize) {
+				if (r->op == T_CONSTANT) {
+					load_y(v);
+					output("lda (@sp),y");
+					if (!nr)
+						output("tax");
+					output("clc");
+					output("adc #%u", BYTE(r->value));
+					output("sta (@sp),y");
+					if (!nr)
+						output("txa");
+					invalidate_a();
+					invalidate_x();
+					return 1;
+				}
+				codegen_lr(r);
+				/* A is the value */
+				output("sta @tmp");
+				load_y(v);
+				output("lda (@sp),y");
+				if (!nr)
+					output("tax");
+				output("clc");
+				output("adc @tmp");
+				output("sta (@sp),y");
+				if (!nr)
+					output("txa");
+				invalidate_a();
+				if (!nr)
+					invalidate_x();
+				return 1;
+			}
+		}	
 		break;
 	case T_MINUSMINUS:
 		if (leftop_memc(n, "dec"))
 			return 1;
+		/* See if we can do stuff via a y_ helper */
+		if (size <= 2 && can_yop_ptr(l, &v)) {
+			if (size == 2) {
+				if (r->op == T_CONSTANT && r->value <= 4) {
+					load_y(v);
+					output("jsr __l_mminus%u", r->value);
+					invalidate_regs();
+					return 1;
+					/* TODO < 256 do l_mminusa */
+				}
+				codegen_lr(r);
+				load_y(v);
+				output("jsr __l_mminus");
+				invalidate_regs();
+				return 1;
+			} else if (!optsize) {
+				if (r->op == T_CONSTANT) {
+					load_y(v);
+					output("lda (@sp),y");
+					if (!nr)
+						output("tax");
+					output("sec");
+					output("sbc #%u", BYTE(r->value));
+					output("sta (@sp),y");
+					if (!nr)
+						output("txa");
+					invalidate_a();
+					invalidate_x();
+					return 1;
+				}
+				codegen_lr(r);
+				/* A is the value */
+				output("sta @tmp");
+				load_y(v);
+				output("lda (@sp),y");
+				if (!nr)
+					output("tax");
+				output("sec");
+				output("sbc @tmp");
+				output("sta (@sp),y");
+				if (!nr)
+					output("txa");
+				invalidate_a();
+				if (!nr)
+					invalidate_x();
+				return 1;
+			}
+		}	
 		break;
 	case T_PLUSEQ:
 		if (leftop_memc(n, "inc"))
@@ -3121,6 +3332,7 @@ unsigned gen_shortcut(struct node *n)
 	/* TODO: look at rewriting LSTORE (CONSTANT 0) here as a pair of byte ops ? */
 	case T_LSTORE:
 		v = r->value;
+		v += sp;
 		/* TODO works for any pair of identical bytes */
 		if (nr && r->op == T_CONSTANT && get_size(n->type) == 2 && v == 0 && n->value < 256) {
 			v &= 0xFF;
@@ -3289,7 +3501,7 @@ unsigned gen_node(struct node *n)
 		if (is_byte && !se)
 			size = 1;
 		if (size == 1 && v + sp == 0) {
-			if (a_contains(n))
+			if (!se && a_contains(n))
 				return 1;
 			/* Same length as simple load via Y but
 			   sets X to 0 so avoids the casting cost */
@@ -3303,15 +3515,13 @@ unsigned gen_node(struct node *n)
 		}
 		if (optsize) {
 			if (size == 2 && v + sp < 255) {
-				if (n == 0)
-					output("jsr __gloy0");
-				else {
-					load_y(v + sp + 1);
-					output("jsr __gloy");
-				}
+				if (!se && xa_contains(n))
+					return 1;
+				gen_gloy(v + sp);
 				const_y_set(v + sp);
 				invalidate_a();
 				invalidate_x();
+				set_xa_node(n);
 				return 1;
 			}
 			if (size == 4 && v + sp < 253) {
@@ -3336,14 +3546,14 @@ unsigned gen_node(struct node *n)
 		if (is_byte && !se)
 			size = 1;
 		if (size == 1) {
-			if (a_contains(n))
+			if (!se && a_contains(n))
 				return 1;
 			if (pri8(n, "lda")) {
 				set_a_node(n);
 				return 1;
 			}
 		} else if (size == 2) {
-			if (xa_contains(n))
+			if (!se && xa_contains(n))
 				return 1;
 			if (pri16(n, "ld")) {
 				set_xa_node(n);
@@ -3377,8 +3587,10 @@ unsigned gen_node(struct node *n)
 			/* It seems marginal whether using this path for
 			   LSTORE nr = 1 is worth it */
 			if (n->op != T_LSTORE) {
-				if (pri16(n, "st"))
+				if (pri16(n, "st")) {
+					set_xa_node(n);
 					return 1;
+				}
 			} else {
 				/* Stack and restore A */
 				if (do_pri16(n, r, "st", pre_pha)) {
@@ -3406,7 +3618,7 @@ unsigned gen_node(struct node *n)
 		}
 		/* Maybe make this whole lot a pair of helpers ? */
 		gen_internal("poptmp");
-		const_y_set(0);	/* Will always be set to 0 by helper */
+		set_reg(R_Y, 0);	/* Will always be set to 0 by helper */
 		output("sta (@tmp),y");
 		if (size == 2) {
 			load_y(1);
@@ -3425,8 +3637,6 @@ unsigned gen_node(struct node *n)
 		return 1;
 	case T_REQ:
 		/* store via reg */
-		/* assumes works like rderef etc and accumulates addition TODO
-		   in the tree parse */
 		if (size == 1) {
 			if (v == 0) {
 				if (cpu != NMOS_6502)
@@ -3439,6 +3649,26 @@ unsigned gen_node(struct node *n)
 			}
 			load_y(v);
 			output("sta (@reg%u),y", n->val2);
+			return 1;
+		}
+		if (size == 4) {
+			load_y(v);
+			output("sta (@reg%u),y", n->val2);
+			if (!nr) {
+				output("pha");
+				output("txa");
+			} else
+				txa();
+			load_y(v + 1);
+			output("sta (@reg%u),y", n->val2);
+			load_y(v + 2);
+			output("lda @hireg");
+			output("sta (@reg%u),y", n->val2);
+			load_y(v + 3);
+			output("lda @hireg+1");
+			output("sta (@reg%u),y", n->val2);
+			if (!nr)
+				output("pla");
 			return 1;
 		}
 		if (size == 2) {
@@ -3458,6 +3688,7 @@ unsigned gen_node(struct node *n)
 			return 1;
 		}
 		error("req");
+		return 0;
 	case T_FUNCCALL:
 		/* For now just helper it */
 		return 0;
@@ -3474,11 +3705,9 @@ unsigned gen_node(struct node *n)
 		/* We could optimize the tracing a bit here. A deref
 		   of memory where we know XA is a name, local etc is
 		   one where we can update the contents info TODO */
-		if (size > 2)
-			error("drl");
 		/* TODO: once xa tracking is more useful we should
 		   spot the xa good case and shortcut it even in optsize */
-		if (optsize) {
+		if (optsize || size == 4) {
 			if (size == 1) {
 				if (v == 0) {
 					output("jsr __derefc");
@@ -3494,8 +3723,13 @@ unsigned gen_node(struct node *n)
 			}
 			if (v == 0)
 				return 0;
-			load_y(v + 1);
-			output("jsr __derefy");
+			if (size == 2) {
+				load_y(v + 1);
+				output("jsr __derefy");
+			} else {
+				load_y(v + 3);
+				output("jsr __derefly");
+			}
 			set_reg(R_Y, v);
 			invalidate_x();
 			invalidate_a();
@@ -3528,8 +3762,6 @@ unsigned gen_node(struct node *n)
 			return 1;
 		if (!se && is_byte)
 			size = 1;
-		if (size > 2)
-			error("rdrl");
 		if (size == 1 && v == 0) {
 			if (cpu != NMOS_6502)
 				output("lda (@reg%u)", n->val2);
@@ -3539,7 +3771,15 @@ unsigned gen_node(struct node *n)
 			}
 			invalidate_a();
 		} else {
-			if (size == 2) {
+			if (size == 4) {
+				load_y(v + 3);
+				output("lda (@reg%u),y", n->val2);
+				output("sta @hireg+1");
+				load_y(v + 2);
+				output("lda (@reg%u),y", n->val2);
+				output("sta @hireg");
+			}
+			if (size >= 2) {
 				load_y(v + 1);
 				output("lda (@reg%u),y", n->val2);
 				invalidate_a();
