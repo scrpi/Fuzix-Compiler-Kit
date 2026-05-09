@@ -1,4 +1,4 @@
-static unsigned char byteop(void)
+unsigned char byteop(void)
 {
     register unsigned char i = 16;
 
@@ -6,7 +6,7 @@ static unsigned char byteop(void)
     return i;
 }
 
-static unsigned int preop(void)
+unsigned int preop(void)
 {
     register unsigned i = 16;
     unsigned j = 0;
@@ -16,9 +16,9 @@ static unsigned int preop(void)
     return j;
 }
 
-static const char *str="01234567";
+const char *str="01234567";
 
-static unsigned int ptrop(void)
+unsigned int ptrop(void)
 {
     register char *p = str;
     register unsigned n = 0;
