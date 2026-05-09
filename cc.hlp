@@ -24,6 +24,7 @@ long options:
 --dlib:	build a loadable object module instead
 
 processors:
+-m6800: Motorola 6800 (compatible 6303, 6803, 68HC11)
 -m8080: Intel 8080 (compatible 8085, Z80)
 -m8085: Intel 8085
 -mz80: Zilog Z80 (compatible Z180, Z280, eZ80)
@@ -38,9 +39,11 @@ processors (debug):
 -m65c816: 65C816 16bit mode
 -m6303: Hitachi 6303
 -m6309: Hitachi 6309 (currently as 6809)
--m6800: Motorola 6800 (compatible 6303, 6803, 68HC11)
+-m6502:	6502 8bit, NMOS legal instructions
+-m65c02: 6502 8bit CMOS legal instructions
 -m6803: Motorola 6803 (compatible 6303, 68HC11)
 -m6809: Motorola 6809 (compatible 6309)
+-m8070: NS8070 series
 -m68hc11: Motorola 68HC11
 -mnova: DG Nova
 -mnova3: DG Nova 3 and later (with stack hardware)
@@ -54,9 +57,5 @@ nova feature options:
 processors (development only)
 -m1802: bytecode for 1802 interpreter
 -m1805: bytecode for 1805 interpreter
--m6502:	6502 8bit, NMOS legal instructions
--m65c02: 6502 8bit CMOS legal instructions
 -m8086: Intel 8088/8086 (compatible 80186/286/..)
 -m80186: Intel 80188/186 (compatible 80286/...)
--m8070: NS8070 series
--mnova3: DG Nova3, Nova4 or MicroNova
