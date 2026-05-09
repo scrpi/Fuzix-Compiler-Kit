@@ -1768,8 +1768,6 @@ struct node *gen_rewrite_node(struct node *n)
 		return n;
 	}
 	/* *regptr */
-	/* FIXME: these should end up working like DEREFPLUS as we can use
-	   ,y on them */
 	if ((op == T_DEREF || op == T_DEREFPLUS) && r->op == T_RREF) {
 		n->op = T_RDEREF;
 		n->val2 = r->value;
@@ -1777,7 +1775,8 @@ struct node *gen_rewrite_node(struct node *n)
 		free_node(r);
 		return n;
 	}
-	if (op == T_PLUS && l->op == T_RDEREF && r->op == T_CONSTANT) {
+	/* Wrong. Probably just remove */
+	if (0 && op == T_PLUS && l->op == T_RDEREF && r->op == T_CONSTANT) {
 		l->val2 += r->value;
 		free_node(r);
 		free_node(n);
