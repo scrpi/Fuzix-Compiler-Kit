@@ -5,10 +5,6 @@
 	.export __rr2addysp
 	.export __rr3addysp
 	.export __rr4addysp
-	.export __rres1
-	.export __rres2
-	.export __rres3
-	.export __rres4
 	.export __rs1subysp
 	.export __rs2subysp
 	.export __rs3subysp
@@ -17,30 +13,30 @@
 	.export __rsave2
 	.export __rsave3
 	.export __rsave4
+	.export __pushr1
+	.export __pushr2
+	.export __pushr3
+	.export __pushr4
 
 	.code
 
 __rr1addysp:
-	jsr	__addysp
-__rres1:
+	sty	@tmp
 	pha
 	ldy	#0
 	beq	dorr1
 __rr2addysp:
-	jsr	__addysp
-__rres2:
+	sty	@tmp
 	pha
 	ldy	#0
 	beq	dorr2
 __rr3addysp:
-	jsr	__addysp
-__rres3:
+	sty	@tmp
 	pha
 	ldy	#0
 	beq	dorr3
 __rr4addysp:
-	jsr	__addysp
-__rres4:
+	sty	@tmp
 	pha
 	ldy	#0
 	lda	(@sp),y
@@ -71,27 +67,37 @@ dorr1:
 	sta	@reg1
 	iny
 	pla
+	ldy	@tmp
+	beq	done
 	jmp	__addysp
 
-
+;
+;	@tmp is used by subysp
+;	
+__rs1subysp:
+	jsr	__subysp
+__rsave1:
+	ldy	#1
+	bne	rsave
+__rs2subysp:
+	jsr	__subysp
+__rsave2:
+	ldy	#3
+	bne	rsave
+__rs3subysp:
+	jsr	__subysp
+__rsave3:
+	ldy	#5
+	bne	rsave
+__rs4subysp:
+	jsr	__subysp
 ;
 ;	Save the registers onto the stack pushing r4 first
 ;	Unroll ?
 ;
-__rsave1:
-	ldy	#2
-	bne	rsave
-__rsave2:
-	ldy	#4
-	bne	rsave
-__rsave3:
-	ldy	#6
-	bne	rsave
 __rsave4:
-	ldy	#8
+	ldy	#7
 rsave:
-	jsr	__subysp		; leaves X and Y unchanged
-	dey
 	ldx	#0
 rsavel:
 	lda	@reg1,x
@@ -101,36 +107,22 @@ rsavel:
 	bne	rsavel
 	lda	@reg1,x
 	sta	(@sp),y
-nosub:
+done:
 	rts
 
-;
-;	@tmp is used by subysp
-;	
-__rs1subysp:
-	sty	@tmp+1
-	jsr	__rsave1
-	ldy	@tmp+1
-	bne	nosub
-	jmp	__subysp
-
-__rs2subysp:
-	sty	@tmp+1
-	jsr	__rsave2
-	ldy	@tmp+1
-	bne	nosub
-	jmp	__subysp
-
-__rs3subysp:
-	sty	@tmp+1
-	jsr	__rsave3
-	ldy	@tmp+1
-	bne	nosub
-	jmp	__subysp
-
-__rs4subysp:
-	sty	@tmp+1
-	jsr	__rsave4
-	ldy	@tmp+1
-	bne	nosub
-	jmp	__subysp
+__pushr1:
+	lda	@reg1
+	ldx	@reg1+1
+	jmp	__push
+__pushr2:
+	lda	@reg2
+	ldx	@reg2+1
+	jmp	__push
+__pushr3:
+	lda	@reg3
+	ldx	@reg3+1
+	jmp	__push
+__pushr4:
+	lda	@reg4
+	ldx	@reg4+1
+	jmp	__push

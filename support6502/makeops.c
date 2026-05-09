@@ -2,107 +2,110 @@
 #include <stdlib.h>
 #include <string.h>
 
-void write_ysubop(const char *path, const char *op, const char *end, const char *pre)
+void write_ysubop(const char *path, const char *op, const char *end,
+		  const char *pre)
 {
-    FILE *f = fopen(path, "w");
-    if (f == NULL) {
-        perror(path);
-        exit(1);
-    }
-    
-    fprintf(f, "\t.code\n\n");
-    fprintf(f, "\t.export __%s%sy0\n\t.export __%s%sy0s\n", op, end, op, end);
-    fprintf(f, "\t.export __%s%sy\n\t.export __%s%sys\n", op, end, op, end);
-    fprintf(f, "__%s%sy0:\n", op, end);
-    fprintf(f, "__%s%sy0s:\n", op, end);
-    fprintf(f, "\tldy #0\n");
-    fprintf(f, "__%s%sy:\n", op, end);
-    fprintf(f, "__%s%sys:\n", op, end);
-    if (pre)
-        fprintf(f, "\t%s\n", pre);
-    fprintf(f, "\t%s (@%s),y\n", op, end);
-    fprintf(f, "\tpha\n\ttxa\n\tiny\n");
-    fprintf(f, "\t%s (@%s),y\n", op, end);
-    fprintf(f, "\ttax\n\tpla\n\trts\n");
-    fclose(f);
+	FILE *f = fopen(path, "w");
+	if (f == NULL) {
+		perror(path);
+		exit(1);
+	}
+
+	fprintf(f, "\t.code\n\n");
+	fprintf(f, "\t.export __%s%sy0\n\t.export __%s%sy0s\n", op, end,
+		op, end);
+	fprintf(f, "\t.export __%s%sy\n\t.export __%s%sys\n", op, end, op,
+		end);
+	fprintf(f, "__%s%sy0:\n", op, end);
+	fprintf(f, "__%s%sy0s:\n", op, end);
+	fprintf(f, "\tldy #0\n");
+	fprintf(f, "__%s%sy:\n", op, end);
+	fprintf(f, "__%s%sys:\n", op, end);
+	if (pre)
+		fprintf(f, "\t%s\n", pre);
+	fprintf(f, "\t%s (@%s),y\n", op, end);
+	fprintf(f, "\tpha\n\ttxa\n\tiny\n");
+	fprintf(f, "\t%s (@%s),y\n", op, end);
+	fprintf(f, "\ttax\n\tpla\n\trts\n");
+	fclose(f);
 }
 
 void write_yop(const char *op, const char *pre)
 {
-    char buf[64];
-    snprintf(buf, 64, "__%sspy.s", op);
-    write_ysubop(buf, op, "sp", pre);
-    snprintf(buf, 64, "__%stmpy.s", op);
-    write_ysubop(buf, op, "tmp", pre);
+	char buf[64];
+	snprintf(buf, 64, "__%sspy.s", op);
+	write_ysubop(buf, op, "sp", pre);
+	snprintf(buf, 64, "__%stmpy.s", op);
+	write_ysubop(buf, op, "tmp", pre);
 }
 
 void write_c8_op(const char *op, const char *pre)
 {
-    char buf[64];
-    FILE *f;
-    snprintf(buf, 64, "__%sc8.s", op);
-    f = fopen(buf, "w");
-    if (f == NULL) {
-        perror(buf);
-        exit(1);
-    }
-    fprintf(f, "\t.code\n\n");
-    fprintf(f, "\t.export __%sc8\n\t.export __%sc8s\n", op, op);
-    fprintf(f, "__%sc8:\n", op);
-    fprintf(f, "__%sc8s:\n", op);
-    fprintf(f, "\tsty @tmp\n");
-    if (pre)
-        fprintf(f, "\t%s\n", pre);
-    fprintf(f, "\t%s @tmp\n", op);
-    if (strcmp(op, "adc") == 0) {
-        fprintf(f, "\tbcc l1\n");
-        fprintf(f, "\tinx\n");
-        fprintf(f, "l1:\n");
-    }
-    if (strcmp(op, "sbc") == 0) {
-        fprintf(f, "\tbcs l1\n");
-        fprintf(f, "\tdex\n");
-        fprintf(f, "l1:\n");
-    }
-    fprintf(f, "\trts\n");
+	char buf[64];
+	FILE *f;
+	snprintf(buf, 64, "__%sc8.s", op);
+	f = fopen(buf, "w");
+	if (f == NULL) {
+		perror(buf);
+		exit(1);
+	}
+	fprintf(f, "\t.code\n\n");
+	fprintf(f, "\t.export __%sc8\n\t.export __%sc8s\n", op, op);
+	fprintf(f, "__%sc8:\n", op);
+	fprintf(f, "__%sc8s:\n", op);
+	fprintf(f, "\tsty @tmp\n");
+	if (pre)
+		fprintf(f, "\t%s\n", pre);
+	fprintf(f, "\t%s @tmp\n", op);
+	if (strcmp(op, "adc") == 0) {
+		fprintf(f, "\tbcc l1\n");
+		fprintf(f, "\tinx\n");
+		fprintf(f, "l1:\n");
+	}
+	if (strcmp(op, "sbc") == 0) {
+		fprintf(f, "\tbcs l1\n");
+		fprintf(f, "\tdex\n");
+		fprintf(f, "l1:\n");
+	}
+	fprintf(f, "\trts\n");
 }
 
 void write_tmpop(const char *op, const char *pre)
 {
-    char buf[64];
-    FILE *f;
-    char *mop = op;
+	char buf[64];
+	FILE *f;
+	char *mop = op;
 
-    /* Compiler naming versus instruction naming */
-    if (strcmp(op, "ora") == 0)
-        mop = "or";
-    if (strcmp(op, "eor") == 0)
-        mop = "xor";
-    if (strcmp(op, "and") == 0)
-        mop = "band";
+	/* Compiler naming versus instruction naming */
+	if (strcmp(op, "ora") == 0)
+		mop = "or";
+	if (strcmp(op, "eor") == 0)
+		mop = "xor";
+	if (strcmp(op, "and") == 0)
+		mop = "band";
 
-    snprintf(buf, 64, "__%stmp.s", op);
+	snprintf(buf, 64, "__%stmp.s", op);
 
-    f = fopen(buf, "w");
-    if (f == NULL) {
-        perror(buf);
-        exit(1);
-    }
-    
-    fprintf(f, "\t.code\n\n");
-    fprintf(f, "\t.export __%s\n", mop);
-    fprintf(f, "\t.export __%stmp\n\t.export __%stmpu\n", op, op);
-    fprintf(f, "__%s:\n", mop);
-    fprintf(f, "\tjsr __poptmp\n");
-    fprintf(f, "__%stmp:\n", op);
-    fprintf(f, "__%stmpu:\n", op);
-    if (pre)
-        fprintf(f, "\t%s\n", pre);
-    fprintf(f, "\t%s @tmp\n", op);
-    fprintf(f, "\tpha\n\ttxa\n");
-    fprintf(f, "\t%s @tmp+1\n", op);
-    fprintf(f, "\ttax\n\tpla\n\trts\n");
-    fclose(f);
+	f = fopen(buf, "w");
+	if (f == NULL) {
+		perror(buf);
+		exit(1);
+	}
+
+	fprintf(f, "\t.code\n\n");
+	fprintf(f, "\t.export __%s\n", mop);
+	fprintf(f, "\t.export __%stmp\n\t.export __%stmpu\n", op, op);
+	fprintf(f, "__%s:\n", mop);
+	fprintf(f, "\tjsr __poptmp\n");
+	fprintf(f, "__%stmp:\n", op);
+	fprintf(f, "__%stmpu:\n", op);
+	if (pre)
+		fprintf(f, "\t%s\n", pre);
+	fprintf(f, "\t%s @tmp\n", op);
+	fprintf(f, "\tpha\n\ttxa\n");
+	fprintf(f, "\t%s @tmp+1\n", op);
+	fprintf(f, "\ttax\n\tpla\n\trts\n");
+	fclose(f);
 }
 
 /* This writes all the usual word forms of
@@ -116,98 +119,163 @@ void write_tmpop(const char *op, const char *pre)
 
 void write_eqtmpop(const char *op, const char *pre)
 {
-    char buf[64];
-    FILE *f;
-    const char *mop = op;
+	char buf[64];
+	FILE *f;
+	const char *mop = op;
 
-    /* Compiler naming versus instruction naming */
-    if (strcmp(op, "ora") == 0)
-        mop = "or";
-    if (strcmp(op, "eor") == 0)
-        mop = "xor";
+	/* Compiler naming versus instruction naming */
+	if (strcmp(op, "ora") == 0)
+		mop = "or";
+	if (strcmp(op, "eor") == 0)
+		mop = "xor";
 
-    snprintf(buf, 64, "__%seqtmp.s", op);
+	snprintf(buf, 64, "__%seqtmp.s", op);
 
-    f = fopen(buf, "w");
-    if (f == NULL) {
-        perror(buf);
-        exit(1);
-    }
-    
-    fprintf(f, "\t.code\n\n");
-    fprintf(f, "\t.export __%seqtmp\n\t.export __%seqtmpu\n", op, op);
-    fprintf(f, "\t.export __%seq\n", mop);
-    fprintf(f, "__%seq:\n", mop);
-    fprintf(f, "\tjsr __poptmp\n");
-    fprintf(f, "__%seqtmp:\n", op);
-    fprintf(f, "__%seqtmpu:\n", op);
-    fprintf(f, "\tldy #0\n");
-    if (pre)
-        fprintf(f, "\t%s\n", pre);
-    fprintf(f, "\t%s (@tmp),y\n", op);
-    fprintf(f, "\tsta (@tmp),y\n");
-    fprintf(f, "\tpha\n\ttxa\n\tiny\n");
-    fprintf(f, "\t%s (@tmp),y\n", op);
-    fprintf(f, "\tsta (@tmp),y\n");
-    fprintf(f, "\ttax\n\tpla\n\trts\n");
-    fclose(f);
+	f = fopen(buf, "w");
+	if (f == NULL) {
+		perror(buf);
+		exit(1);
+	}
+
+	fprintf(f, "\t.code\n\n");
+	fprintf(f, "\t.export __%seqtmp\n\t.export __%seqtmpu\n", op, op);
+	fprintf(f, "\t.export __%seq\n", mop);
+	fprintf(f, "__%seq:\n", mop);
+	fprintf(f, "\tjsr __poptmp\n");
+	fprintf(f, "__%seqtmp:\n", op);
+	fprintf(f, "__%seqtmpu:\n", op);
+	fprintf(f, "\tldy #0\n");
+	if (pre)
+		fprintf(f, "\t%s\n", pre);
+	fprintf(f, "\t%s (@tmp),y\n", op);
+	fprintf(f, "\tsta (@tmp),y\n");
+	fprintf(f, "\tpha\n\ttxa\n\tiny\n");
+	fprintf(f, "\t%s (@tmp),y\n", op);
+	fprintf(f, "\tsta (@tmp),y\n");
+	fprintf(f, "\ttax\n\tpla\n\trts\n");
+	fclose(f);
 }
 
 void write_eqtmpopc(const char *op, const char *pre)
 {
-    char buf[64];
-    FILE *f;
-    snprintf(buf, 64, "__%seqtmpc.s", op);
+	char buf[64];
+	FILE *f;
+	snprintf(buf, 64, "__%seqtmpc.s", op);
 
-    f = fopen(buf, "w");
-    if (f == NULL) {
-        perror(buf);
-        exit(1);
-    }
+	f = fopen(buf, "w");
+	if (f == NULL) {
+		perror(buf);
+		exit(1);
+	}
 
-    fprintf(f, "\t.code\n\n");
-    fprintf(f, "\t.export __%seqtmpc\n\t.export __%seqtmpuc\n", op, op);
-    fprintf(f, "__%seqtmpc:\n", op);
-    fprintf(f, "__%seqtmpuc:\n", op);
-    fprintf(f, "\tldy #0\n");
-    fprintf(f, "\tstx @tmp+1\n");
-    if (pre)
-        fprintf(f, "\t%s\n", pre);
-    fprintf(f, "\t%s (@tmp),y\n", op);
-    fprintf(f, "\tsta (@tmp),y\n");
-    fprintf(f, "\trts\n");
-    fclose(f);
+	fprintf(f, "\t.code\n\n");
+	fprintf(f, "\t.export __%seqtmpc\n\t.export __%seqtmpuc\n", op,
+		op);
+	fprintf(f, "__%seqtmpc:\n", op);
+	fprintf(f, "__%seqtmpuc:\n", op);
+	fprintf(f, "\tldy #0\n");
+	fprintf(f, "\tstx @tmp+1\n");
+	if (pre)
+		fprintf(f, "\t%s\n", pre);
+	fprintf(f, "\t%s (@tmp),y\n", op);
+	fprintf(f, "\tsta (@tmp),y\n");
+	fprintf(f, "\trts\n");
+	fclose(f);
+}
+
+void write_gloy(unsigned n)
+{
+	char buf[64];
+	FILE *f;
+	snprintf(buf, 64, "__gloy%u.s", n);
+
+	f = fopen(buf, "w");
+	if (f == NULL) {
+		perror(buf);
+		exit(1);
+	}
+	fprintf(f, "\t.code\n\n");
+	fprintf(f, "\t.export __gloy%u\n", n);
+	fprintf(f, "__gloy%u:\n", n);
+	fprintf(f, "\tldy #%u", n);
+	fprintf(f, "\tjmp __gloy\n");
+	fclose(f);
+}
+
+void write_gloytmp(unsigned n)
+{
+	char buf[64];
+	FILE *f;
+	snprintf(buf, 64, "__gloytmp%u.s", n);
+
+	f = fopen(buf, "w");
+	if (f == NULL) {
+		perror(buf);
+		exit(1);
+	}
+	fprintf(f, "\t.code\n\n");
+	fprintf(f, "\t.export __gloytmp%u\n", n);
+	fprintf(f, "__gloytmp%u:\n", n);
+	fprintf(f, "\tldy #%u", n);
+	fprintf(f, "\tjmp __gloytmp\n");
+	fclose(f);
+}
+
+void write_pushly(unsigned n)
+{
+	char buf[64];
+	FILE *f;
+	snprintf(buf, 64, "__pushly%u.s", n);
+
+	f = fopen(buf, "w");
+	if (f == NULL) {
+		perror(buf);
+		exit(1);
+	}
+	fprintf(f, "\t.code\n\n");
+	fprintf(f, "\t.export __pushly%u\n", n);
+	fprintf(f, "__pushly%u:\n", n);
+	fprintf(f, "\tldy #%u", n);
+	fprintf(f, "\tjsr __gloy\n");
+	fprintf(f, "\tjmp __push\n");
+	fclose(f);
 }
 
 int main(int argc, char *argv[])
 {
-    write_yop("adc", "clc");
-    write_yop("sbc", "sec");
-    write_yop("and", NULL);
-    write_yop("ora", NULL);
-    write_yop("eor", NULL);
-    write_yop("lda", NULL);
-    write_yop("sta", NULL);
+	unsigned n;
+	write_yop("adc", "clc");
+	write_yop("sbc", "sec");
+	write_yop("and", NULL);
+	write_yop("ora", NULL);
+	write_yop("eor", NULL);
+	write_yop("lda", NULL);
+	write_yop("sta", NULL);
 
-    write_tmpop("adc", "clc");
-    /* sbctmp is not commutive write_tmpop("sbc", "sec"); */
-    write_tmpop("and", NULL);
-    write_tmpop("ora", NULL);
-    write_tmpop("eor", NULL);
+	write_tmpop("adc", "clc");
+	/* sbctmp is not commutive write_tmpop("sbc", "sec"); */
+	write_tmpop("and", NULL);
+	write_tmpop("ora", NULL);
+	write_tmpop("eor", NULL);
 
-    write_eqtmpop("adc", "clc");
-    /* sbc is not commutive */
+	write_eqtmpop("adc", "clc");
+	/* sbc is not commutive */
 /*    write_eqtmpop("sbc", "sec"); */
-    write_eqtmpop("and", NULL);
-    write_eqtmpop("ora", NULL);
-    write_eqtmpop("eor", NULL);
+	write_eqtmpop("and", NULL);
+	write_eqtmpop("ora", NULL);
+	write_eqtmpop("eor", NULL);
 
-    write_eqtmpopc("adc", "clc");
-    /* sbc is not commutive */
+	write_eqtmpopc("adc", "clc");
+	/* sbc is not commutive */
 /*    write_eqtmpopc("sbc", "sec"); */
-    write_eqtmpopc("and", NULL);
-    write_eqtmpopc("ora", NULL);
-    write_eqtmpopc("eor", NULL);
-    
-    return 0;
+	write_eqtmpopc("and", NULL);
+	write_eqtmpopc("ora", NULL);
+	write_eqtmpopc("eor", NULL);
+
+	for (n = 1; n <= 16; n++) {
+		write_gloy(n);
+		write_gloytmp(n);
+		write_pushly(n);
+	}
+	return 0;
 }

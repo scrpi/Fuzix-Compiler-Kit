@@ -5,15 +5,17 @@
 	.export __derefl
 	.export __dereff_a
 	.export __derefl_a
+	.export __derefly
 
 __derefl_a:
 __dereff_a:
 	jsr	__asp
 __dereff:
 __derefl:
+	ldy	#3
+__derefly:
 	sta	@tmp
 	stx	@tmp+1
-	ldy	#3
 	lda	(@tmp),y
 	sta	@hireg+1
 	dey

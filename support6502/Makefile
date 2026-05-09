@@ -7,7 +7,7 @@ OBJ =  __addysp.o __addyasp.o __subysp.o __asp.o __yasp.o \
        __minuseqtmp.o __minuseqtmpc.o  __minus.o __minusminus.o \
        __minusminusc.o __minusc.o \
        __divu.o __mulu.o __div.o __muluc.o \
-       __plusplus1.o __plusplus2.o __plusplus.o __plusplusy.o __plus.o \
+       __plusplus.o __plus.o \
        __pluseqy.o __pluseqtmp.o __pluseqtmpc.o __plusplusc.o \
        __poptmp.o __poptmpc.o __pushc.o __pushl.o __push.o __ytmp.o __ytmpc.o \
        __poptmpstxa.o __pop.o \
@@ -36,7 +36,19 @@ GEN =  __adcspy.o __adctmpy.o __sbcspy.o __sbctmpy.o __andspy.o __andtmpy.o __eo
        __ldaspy.o __ldatmpy.o __oraspy.o __oratmpy.o __staspy.o __statmpy.o \
        __adctmp.o __sbctmp.o __andtmp.o __oratmp.o __eortmp.o \
        __adceqtmp.o __andeqtmp.o __oraeqtmp.o __eoreqtmp.o \
-       __adceqtmpc.o __andeqtmpc.o __eoreqtmpc.o __oraeqtmpc.o
+       __adceqtmpc.o __andeqtmpc.o __eoreqtmpc.o __oraeqtmpc.o \
+       __gloy1.o __gloy2.o __gloy3.o __gloy4.o \
+       __gloy5.o __gloy6.o __gloy7.o __gloy8.o \
+       __gloy9.o __gloy10.o __gloy11.o __gloy12.o \
+       __gloy13.o __gloy14.o __gloy15.o __gloy16.o \
+       __gloytmp1.o __gloytmp2.o __gloytmp3.o __gloytmp4.o \
+       __gloytmp5.o __gloytmp6.o __gloytmp7.o __gloytmp8.o \
+       __gloytmp9.o __gloytmp10.o __gloytmp11.o __gloytmp12.o \
+       __gloytmp13.o __gloytmp14.o __gloytmp15.o __gloytmp16.o \
+       __pushly1.o __pushly2.o __pushly3.o __pushly4.o \
+       __pushly5.o __pushly6.o __pushly7.o __pushly8.o \
+       __pushly9.o __pushly10.o __pushly11.o __pushly12.o \
+       __pushly13.o __pushly14.o __pushly15.o __pushly16.o
     
 makeops: makeops.c
 	$(CC) makeops.c -o makeops
