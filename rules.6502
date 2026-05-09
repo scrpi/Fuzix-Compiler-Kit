@@ -47,10 +47,10 @@
 =
 	jsr __pushly
 
-	jsr __gloy0
+	jsr __gloy%1
 	jsr __push
 =
-	jsr __pushly0
+	jsr __pushly%1
 
 	jsr __gloy
 	sta @tmp
@@ -58,11 +58,11 @@
 =
 	jsr __gloytmp
 
-	jsr __gloy0
+	jsr __gloy%1
 	sta @tmp
 	stx @tmp+1
 =
-	jsr __gloytmp0
+	jsr __gloytmp%1
 
 	jsr __gloyl
 	jsr __pushl
@@ -79,6 +79,30 @@
 =
 	jsr __pushlyc
 
+	ldx #0
+	txa
+	jsr __push
+=
+	jsr __push0
+
+	ldx #0
+	lda #1
+	jsr __push
+=
+	jsr __push1
+
+	ldx #255
+	txa
+	jsr __push
+=
+	jsr __pushffff
+
+	ldx #0
+	lda #%1
+	jsr __push
+=
+	lda #%1
+	jsr __push0a
 
 #
 #	Deref versions for common case. These ought to be implemented
@@ -111,7 +135,7 @@
 	jsr __pushyd2
 
 #
-#	Fold pushes
+#	Fold pushes (iffy - reg tracking.. needs better review TODO)
 #
 	lda #%1
 	jsr __pushc
@@ -152,3 +176,30 @@
 	jsr __push
 =
 	jsr __pderef
+
+#
+#	Push register
+#
+	lda @reg1
+	ldx @reg1+1
+	jsr __push
+=
+	jsr __pushr1
+
+	lda @reg2
+	ldx @reg2+1
+	jsr __push
+=
+	jsr __pushr2
+
+	lda @reg3
+	ldx @reg3+1
+	jsr __push
+=
+	jsr __pushr3
+
+	lda @reg4
+	ldx @reg4+1
+	jsr __push
+=
+	jsr __pushr4
