@@ -4,6 +4,7 @@
 	.export	__lttmpu
 	.export	__l_lttmpu
 	.export __ccgtu
+	.export __lttmpu
 
 	.code
 
@@ -23,3 +24,8 @@ __lttmpu:
 true:
 	lda	#1
 	rts
+__ltxayu:
+	sty @tmp
+	ldy #0
+	sty @tmp+1
+	beq __lttmpu

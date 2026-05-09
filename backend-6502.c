@@ -1606,8 +1606,14 @@ static unsigned is_simple(struct node *n)
 	if (!PTR(n->type) && (n->type & ~UNSIGNED) > CSHORT)
 		return 0;
 
+	/* Slightly favour constant on right for things like multiply into
+	   shift */
+	if (op == T_CONSTANT)
+		return 12;
+	if (optsize && op == T_LREF && n->value < 224)
+		return 11;
 	/* We can use these directly with primary operators on A */
-	if (op == T_CONSTANT || op == T_LABEL || op == T_NAME || (op == T_LREF && n->value < 255))
+	if (op == T_LABEL || op == T_NAME || (op == T_LREF && n->value < 253))
 		return 10;
 	/* Can go via @tmp */
 	if (op == T_NREF || op == T_LBREF)
@@ -1870,6 +1876,8 @@ struct node *gen_rewrite_node(struct node *n)
 		if (is_simple(n->left) > is_simple(n->right)) {
 			n->right = l;
 			n->left = r;
+			r = n->right;
+			l = n->left;
 		}
 	}
 
@@ -2997,35 +3005,101 @@ unsigned gen_direct(struct node *n)
 	 *	Need CCONLY to make this work really
 	 */
 	case T_EQEQ:
-		if (r->op == T_CONSTANT && v == 0) {
-			if (is_byte) {
-				output("tax");	/* For now TODO */
-				/* And fall through until we have CCONLY support */
+		s = get_size(r->type);
+		if (r->op == T_CONSTANT) {
+			if (v == 0) {
+				if (is_byte) {
+					output("tax");	/* For now TODO */
+					/* And fall through until we have CCONLY support */
+				}
+				/* TODO: not via helper */
+				n->flags |= ISBOOL;
+				helper(n, "not");
+				return 1;
 			}
-			/* TODO: not via helper */
-			n->flags |= ISBOOL;
-			helper(n, "not");
-			return 1;
+			if (s == 1 || is_byte) {
+				load_x(v);
+				output("jsr __eqeqxa");
+				set_reg(R_X, 0);
+				invalidate_a();
+				n->flags |= ISBOOL;
+				return 1;
+			}
+			if (s == 2 && v <= 255) {
+				load_y(v);
+				output("jsr __eqeqxay");
+				set_reg(R_X, 0);
+				set_reg(R_Y, 0);
+				invalidate_a();
+				n->flags |= ISBOOL;
+				return 1;
+			}
 		}
 		return pri_cchelp(n, "eqeqtmp");
 	case T_GTEQ:
+		s = get_size(r->type);
+		if (s == 2 && r->op == T_CONSTANT && v <= 255) {
+			load_y(v);
+			if (r->type & UNSIGNED)
+				output("jsr __gteqxayu");
+			else
+				output("jsr __gteqxay");
+			set_reg(R_X, 0);
+			set_reg(R_Y, 0);
+			invalidate_a();
+			n->flags |= ISBOOL;
+			return 1;
+		}
 		return pri_cchelp(n, "lteqtmp");
 	case T_GT:
 		return pri_cchelp(n, "lttmp");
 	case T_LTEQ:
 		return pri_cchelp(n, "gteqtmp");
 	case T_LT:
+		s = get_size(r->type);
+		if (s == 2 && r->op == T_CONSTANT && v <= 255) {
+			load_y(v);
+			if (r->type & UNSIGNED)
+				output("jsr __ltxayu");
+			else
+				output("jsr __ltxay");
+			set_reg(R_X, 0);
+			set_reg(R_Y, 0);
+			invalidate_a();
+			n->flags |= ISBOOL;
+			return 1;
+		}
 		return pri_cchelp(n, "gttmp");
 	case T_BANGEQ:
-		if (r->op == T_CONSTANT && v == 0) {
-			if (is_byte) {
-				output("tax");	/* For now TODO */
-				/* And fall through until we have CCONLY support */
+		s = get_size(r->type);
+		if (r->op == T_CONSTANT) {
+			if (v == 0) {
+				if (is_byte) {
+					output("tax");	/* For now TODO */
+					/* And fall through until we have CCONLY support */
+				}
+				/* TODO: not via helper */
+				n->flags |= ISBOOL;
+				helper(n, "bool");
+				return 1;
 			}
-			/* TODO: not via helper */
-			n->flags |= ISBOOL;
-			helper(n, "bool");
-			return 1;
+			if (s == 1 || is_byte) {
+				load_x(v);
+				output("jsr __nexa");
+				invalidate_a();
+				set_reg(R_X, 0);
+				n->flags |= ISBOOL;
+				return 1;
+			}
+			if (s == 2 && v <= 255) {
+				load_y(v);
+				output("jsr __nexay");
+				set_reg(R_X, 0);
+				set_reg(R_Y, 0);
+				invalidate_a();
+				n->flags |= ISBOOL;
+				return 1;
+			}
 		}
 		return pri_cchelp(n, "netmp");
 	/* TODO: qq optimisations for >= fieldwidth ? */

@@ -197,7 +197,7 @@ void write_gloy(unsigned n)
 	fprintf(f, "\t.code\n\n");
 	fprintf(f, "\t.export __gloy%u\n", n);
 	fprintf(f, "__gloy%u:\n", n);
-	fprintf(f, "\tldy #%u", n);
+	fprintf(f, "\tldy #%u\n", n);
 	fprintf(f, "\tjmp __gloy\n");
 	fclose(f);
 }

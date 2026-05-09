@@ -7,6 +7,7 @@
 	.export __l_netmpu
 	.export __ccne
 	.export __ccneu
+	.export __nexay
 
 __l_netmp:
 __l_netmpu:
@@ -26,5 +27,10 @@ __netmpu:
 	txa
 	rts
 true:	ldx #0
-true2: lda #1
+true2:	lda #1
 	rts
+__nexay:
+	sty @tmp
+	ldy #0
+	sty @tmp+1
+	beq __netmp

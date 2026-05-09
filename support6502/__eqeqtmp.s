@@ -7,6 +7,7 @@
 	.export __eqeqtmpu
 	.export __cceq
 	.export __ccequ
+	.export __eqeqxay
 
 __l_eqeqtmp:
 __l_eqeqtmpu:
@@ -28,3 +29,8 @@ __eqeqtmpu:
 false:	ldx #0
 false2: txa
 	rts
+__eqeqxay:
+	sty @tmp
+	ldy #0
+	sty @tmp+1
+	beq __eqeqtmp

@@ -7,6 +7,7 @@
 	.export __l_netmpuc
 	.export __ccnec
 	.export __ccneuc
+	.export __nexa
 
 __l_netmpc:
 __l_netmpuc:
@@ -17,11 +18,12 @@ __ccneuc:
 	jsr __poptmpc
 __netmpc:
 __netmpuc:
-	ldx #0
-	cmp @tmp
-	beq false	; already 0
-true:	lda #1
-false:
+	ldx	#0
+	cmp	@tmp
+	beq	false	; already 0
+true:	lda	#1
 	rts
-
-
+false:	txa
+	rts
+__nexa:	stx	@tmp
+	jmp	__netmpc

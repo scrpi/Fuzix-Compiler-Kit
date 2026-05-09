@@ -7,7 +7,11 @@
 	.export __multmpuc
 	.export __muleqc
 	.export __mulequc
+	.export __l_mulc
 
+__l_mulc:
+	jsr	__ytmpc
+	jmp	__multmpc
 __mulc:
 __muluc:
 	jsr	__poptmpc

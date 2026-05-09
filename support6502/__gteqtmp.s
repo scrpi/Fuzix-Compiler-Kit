@@ -4,6 +4,7 @@
 	.export __cclteq
 	.export	__gteqtmp
 	.export	__l_gteqtmp
+	.export __gteqxay
 
 	.code
 
@@ -26,3 +27,8 @@ l1:
 true:
 	lda	#1
 	rts
+__gteqxay:
+	sty	@tmp
+	ldy	#0
+	sty	@tmp+1
+	beq	__gteqtmp

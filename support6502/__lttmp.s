@@ -4,6 +4,7 @@
 	.export __ccgt
 	.export	__lttmp
 	.export	__l_lttmp
+	.export __ltxay
 
 	.code
 
@@ -26,3 +27,8 @@ l1:
 true:
 	lda	#1
 	rts
+__ltxay:
+	sty	@tmp
+	ldy	#0
+	sty	@tmp+1
+	beq	__lttmp
