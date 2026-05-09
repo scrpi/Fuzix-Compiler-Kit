@@ -30,7 +30,7 @@ OBJ =  __addysp.o __addyasp.o __subysp.o __asp.o __yasp.o \
       __boolf.o __cast2f.o __castf.o __cceqf.o __ccgteqf.o __ccgtf.o __cclteqf.o \
       __ccltf.o __ccnef.o __divf.o __minusf.o __mulf.o __plusf.o __eqopf.o \
       __lderef.o __lderefc.o __lderefya.o __lderefcya.o \
-      __reg.o
+      __reg.o __reql1.o __reql2.o __reql3.o __reql4.o
 
 GEN =  __adcspy.o __adctmpy.o __sbcspy.o __sbctmpy.o __andspy.o __andtmpy.o __eorspy.o __eortmpy.o \
        __ldaspy.o __ldatmpy.o __oraspy.o __oratmpy.o __staspy.o __statmpy.o \

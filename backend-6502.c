@@ -2181,7 +2181,7 @@ void gen_switchdata(unsigned n, unsigned size)
 	label("Sw%u", n);
 	if (size > 255)
 		error("sw");
-	output("\t.byte %u", size);
+	output(".byte %u", size);
 }
 
 void gen_case_label(unsigned tag, unsigned entry)
@@ -3255,6 +3255,7 @@ unsigned gen_shortcut(struct node *n)
 	unsigned nr = n->flags & NORETURN;
 	unsigned size = get_size(n->type);
 	unsigned v;
+	unsigned lv;
 
 	/* Unreachable code we can shortcut into nothing whee.bye.. */
 	if (unreachable)
@@ -3275,7 +3276,8 @@ unsigned gen_shortcut(struct node *n)
 	case T_PLUSPLUS:
 		v = r->value;
 		if (l->op == T_REG && v <= 2 + opt) {
-			unsigned x, lv = l->value;
+			unsigned x;
+			lv = l->value;
 			if (!nr) {
 				output("lda @reg%u", lv);
 				output("ldx @reg%u+1", lv);
@@ -3397,6 +3399,26 @@ unsigned gen_shortcut(struct node *n)
 	case T_PLUSEQ:
 		if (leftop_memc(n, "inc"))
 			return 1;
+		/* TODO: generalize logic to T_NAME and T_LABEL and
+		   move into own helper */
+		if (l->op == T_REG && nr && r->op == T_CONSTANT) {
+			lv = l->value;
+			v = r->value;
+			output("clc");
+			output("lda @reg%u", lv);
+			output("adc #%u", BYTE(v));
+			output("sta @reg%u", lv);
+			if (v > 255) {
+				output("lda @reg%u+1", lv);
+				output("adc #%u", BYTE(v >> 8));
+				output("sta @reg%u+1", lv);
+			} else {
+				output("bcc X%u", ++xlabel);
+				output("inc @reg%u+1", lv);
+				label("X%u", xlabel);
+			}
+			return 1;
+		}
 		break;
 	case T_MINUSEQ:
 		if (leftop_memc(n, "dec"))
@@ -3726,6 +3748,11 @@ unsigned gen_node(struct node *n)
 		}
 		if (size == 4) {
 			load_y(v);
+			if (optsize) {
+				output("jsr __reql%u", n->val2);
+				set_reg(R_Y, v + 3);
+				return 1;
+			}
 			output("sta (@reg%u),y", n->val2);
 			if (!nr) {
 				output("pha");
@@ -3852,7 +3879,7 @@ unsigned gen_node(struct node *n)
 				output("lda (@reg%u),y", n->val2);
 				output("sta @hireg");
 			}
-			if (size >= 2) {
+			if (size == 2) {
 				load_y(v + 1);
 				output("lda (@reg%u),y", n->val2);
 				invalidate_a();
@@ -3891,7 +3918,7 @@ unsigned gen_node(struct node *n)
 			} else
 				output("jsr __lderef0");
 			invalidate_x();
-		} else {
+		} else if (size == 1) {
 			load_x(n->val2);
 			if (v) {
 				load_y(v);
@@ -3899,7 +3926,8 @@ unsigned gen_node(struct node *n)
 			} else
 				output("jsr __lderefc0");
 			set_reg(R_X, 0);
-		}
+		} else
+			error("ldr4");
 		invalidate_a();
 		invalidate_y();
 		invalidate_tmp();
