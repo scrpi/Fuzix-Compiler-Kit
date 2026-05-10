@@ -76,6 +76,24 @@
  *	save XA to wherever" but load the low, and it store it, load the high
  *	and it store it, and in some cases use PHP PLP and other tricks to
  *	move carry along with this. That's tricky to do from a compiler tree.
+ *
+ *	Why didn't a shrul by 16 get optimised to just load from hireg ?
+ *
+ *	Can we fix the common byte = byte >> n case - generically we can't
+ *	screw with right unsigned shift but if bot sides are byte we can
+ *
+ *	?? l_andeq and friends ?
+ *
+ *	l_assign ? - copy locals across ?
+ *
+ *	lstxay path didn't seem to set XA node
+ *
+ *	Add l_plus that adds a local to the working for array derefs
+ *	x2 x4 versions for scaling ?
+ *
+ *	Misreload of X when doing
+ *		udata.u_foo = 0;
+ *		udata.u_bar = 1;
  */
 
 #include <stdio.h>
@@ -167,6 +185,8 @@ struct regtrack {
 static struct regtrack reg[5];
 static struct regtrack rsaved;
 
+/* FIXME: We need to track the XA node and constants separately. It's possible for
+   a register to be a constant that is also a node */
 static void invalidate_regs(void)
 {
 	reg[R_A].state = INVALID;
@@ -3879,7 +3899,7 @@ unsigned gen_node(struct node *n)
 				output("lda (@reg%u),y", n->val2);
 				output("sta @hireg");
 			}
-			if (size == 2) {
+			if (size == 2 || size == 4) {
 				load_y(v + 1);
 				output("lda (@reg%u),y", n->val2);
 				invalidate_a();
@@ -4003,6 +4023,7 @@ unsigned gen_node(struct node *n)
 			output("beq X%u", ++xlabel);
 			load_a(1);
 			label("X%u", xlabel);
+			invalidate_a();
 		} else {
 			helper(n, "bool");
 		}
