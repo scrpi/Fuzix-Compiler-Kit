@@ -26,6 +26,7 @@ struct node *new_node(void)
 	n->flags = 0;
 	n->type = 0;
 	n->snum = 0;
+	n->val2 = 0;
 	return n;
 }
 
