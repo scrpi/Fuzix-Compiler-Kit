@@ -738,7 +738,7 @@ static int do_pri8(struct node *n, struct node *r, const char *op, void (*pre)(s
 	const char *name;
 
 	/* We can fold in some simple casting */
-	if (can_bytecast(n))
+	if (can_bytecast(n) && !has_sideeffect(r->right))
 		return do_pri8(n, r->right, op, pre);
 
 	switch(n->op) {
@@ -781,7 +781,7 @@ static int do_pri8(struct node *n, struct node *r, const char *op, void (*pre)(s
 	 * and we are fetching byte or word and casting cleanly to byte
 	 * then the cast can be ignored as it's implicit in the byte op
 	 */
-	if (can_bytecast(r)) {
+	if (can_bytecast(r) && !has_sideeffect(r->right)) {
 		r = r->right;
 		v = r->value;
 	}
@@ -1176,7 +1176,7 @@ static void helper_sb(struct node *n, char *helper)
 		helper_s(n, helper);
 }
 
-static int pri8_help(struct node *n, char *helper)
+static unsigned pri8_help(struct node *n, char *helper)
 {
 	struct node *r = n->right;
         /* Don't try and fold stores with side effects */
@@ -1221,9 +1221,10 @@ static void pre_fastcastx0(struct node *n)
 	load_x(0);
 }
 
-static int pri16_help(struct node *n, char *helper)
+static unsigned pri16_help(struct node *n, char *helper)
 {
 	struct node *r = n->right;
+	struct node *rr = r->right;
 	unsigned v = r->value;
 	unsigned s = get_size(r->type);
 
@@ -1231,15 +1232,16 @@ static int pri16_help(struct node *n, char *helper)
 	   store */
 	if (has_sideeffect(r))
 		return 0;
+
 	/* Special case for cast first */
-	if (fast_castable(r)) {
-		if (get_size(r->right->type) == 2) {
-			if (do_pri16(n, r->right, "ld", pre_fastcast)) {
+	if (fast_castable(r) && !has_sideeffect(rr)) {
+		if (get_size(rr->type) == 2) {
+			if (do_pri16(n, rr, "ld", pre_fastcast)) {
 				helper_s(n, helper);
 				return 1;
 			}
 		} else {
-			if (do_pri8(n, r->right, "lda", pre_fastcastx0)) {
+			if (do_pri8(n, rr, "lda", pre_fastcastx0)) {
 				helper_s(n, helper);
 				return 1;
 			}
@@ -1287,7 +1289,7 @@ static int pri16_help(struct node *n, char *helper)
  *	Try and construct a short form helper for the expression
  *	to avoid the expensive stack operations.
  */
-static int pri_help(struct node *n, char *helper)
+static unsigned pri_help(struct node *n, char *helper)
 {
 	unsigned s = get_size(n->type);
 
@@ -1302,7 +1304,7 @@ static int pri_help(struct node *n, char *helper)
  *	Shunt some things via a shorter form when right arg is a local
  */
 
-unsigned can_yop_ptr(struct node *n, unsigned *p)
+static unsigned can_yop_ptr(struct node *n, unsigned *p)
 {
 	unsigned v;
 	if (n == NULL || (n->op != T_LOCAL && n->op != T_ARGUMENT))
@@ -1320,7 +1322,7 @@ unsigned can_yop_ptr(struct node *n, unsigned *p)
 	return 1;
 }
 
-unsigned can_yop(struct node *n)
+static unsigned can_yop(struct node *n)
 {
 	unsigned v;
 
@@ -1338,7 +1340,7 @@ unsigned can_yop(struct node *n)
 	return 1;
 }
 
-unsigned local_yop(struct node *n, const char *name)
+static unsigned local_yop(struct node *n, const char *name)
 {
 	struct node *r = n->right;
 	unsigned v;
