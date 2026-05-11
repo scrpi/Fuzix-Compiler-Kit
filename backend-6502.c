@@ -1,4 +1,4 @@
-/*
+	/*
  *	6502 backend for the Fuzix C Compiler
  *
  *	The big challenge here is that the C stack is a software
@@ -78,6 +78,8 @@
  *	move carry along with this. That's tricky to do from a compiler tree.
  *
  *	Why didn't a shrul by 16 get optimised to just load from hireg ?
+ *	(because we need to spot shortening casts of GTGT by 8 16 24 and
+ *	before we eliminate unneeded casts in the tree walk)
  *
  *	Can we fix the common byte = byte >> n case - generically we can't
  *	screw with right unsigned shift but if bot sides are byte we can
@@ -94,6 +96,9 @@
  *	Misreload of X when doing
  *		udata.u_foo = 0;
  *		udata.u_bar = 1;
+ *
+ *	Spot incr/decr by xx00  for low values with nr and optimise += etc
+ *	by inc dec of high byte only
  */
 
 #include <stdio.h>
@@ -2816,11 +2821,31 @@ unsigned gen_direct(struct node *n)
 			return 0;
 		if (r->op == T_CONSTANT) {
 			if (s == 2) {
+				if (v == 0xFF00) {
+					load_a(0);
+					return 1;
+				}
+				if (v == 0x00FF) {
+					load_x(0);
+					return 1;
+				}
 				if ((v & 0xFF) == 0) {
 					txa();
 					do_pri8hi(n, "and", pre_none);
+					const_a_set(reg[R_A].value & (v >> 8));
 					tax();
 					load_a(0);
+					return 1;
+				}
+				if ((v & 0xFF) == 0xFF) {
+					output("pha");
+					saved_a();
+					txa();
+					do_pri8hi(n, "and", pre_none);
+					const_a_set(reg[R_A].value & (v >> 8));
+					tax();
+					output("pla");
+					restored_a();
 					return 1;
 				}
 				if ((v & 0xFF00) == 0x0000)
@@ -2838,21 +2863,43 @@ unsigned gen_direct(struct node *n)
 		}
 		if (has_sideeffect(r))
 			return 0;
-		if (s == 1 && pri8(n, "and"))
+		if (s == 1 && pri8(n, "and")) {
+			invalidate_a();
 			return 1;
+		}
 		if (s == 2 && try_via_x(n, "and", pre_none))
 			return 1;
 		return pri_help(n, "andtmp");
 	case T_OR:
 		if (s > 2)
 			return 0;
-		if (r->op == T_CONSTANT) {
+		if (0 && r->op == T_CONSTANT) {
 			if (s == 2) {
-				if ((v & 0xFF) == 0x00) {
+				if (v == 0xFF00) {
+					load_x(0xFF);
+					return 1;
+				}
+				if (v == 0x00FF) {
+					load_a(0xFF);
+					return 1;
+				}
+				if ((v & 0xFF) == 0xFF) {
 					txa();
 					do_pri8hi(n, "ora", pre_none);
+					const_a_set(reg[R_A].value | (v >> 8));
 					tax();
 					load_a(0xFF);
+					return 1;
+				}
+				if ((v & 0xFF) == 0x00) {
+					output("pha");
+					saved_a();
+					txa();
+					do_pri8hi(n, "ora", pre_none);
+					const_a_set(reg[R_A].value | (v >> 8));
+					tax();
+					output("pla");
+					restored_a();
 					return 1;
 				}
 				if ((v & 0xFF00) == 0xFF00)
@@ -2870,8 +2917,10 @@ unsigned gen_direct(struct node *n)
 		}
 		if (has_sideeffect(r))
 			return 0;
-		if (s == 1 && pri8(n, "ora"))
+		if (s == 1 && pri8(n, "ora")) {
+			invalidate_a();
 			return 1;
+		}
 		if (s == 2 && try_via_x(n, "ora", pre_none))
 			return 1;
 		return pri_help(n, "oratmp");
@@ -2891,8 +2940,10 @@ unsigned gen_direct(struct node *n)
 		}
 		if (has_sideeffect(r))
 			return 0;
-		if (s == 1 && pri8(n, "eor"))
+		if (s == 1 && pri8(n, "eor")) {
+			invalidate_a();
 			return 1;
+		}
 		if (s == 2 && try_via_x(n, "eor", pre_none))
 			return 1;
 		return pri_help(n, "eortmp");
@@ -3799,13 +3850,13 @@ unsigned gen_node(struct node *n)
 			/* Reload before we muck with registers
 			   temporarily so we don't confuse load_y */
 			load_y(v + 1);
-			if (nr) {
+			if (!nr) {
 				output("pha");
 				output("txa");
 			} else
 				txa();
 			output("sta (@reg%u),y", n->val2);
-			if (nr)
+			if (!nr)
 				output("pla");
 			return 1;
 		}
