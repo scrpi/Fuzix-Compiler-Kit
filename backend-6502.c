@@ -1838,8 +1838,10 @@ struct node *gen_rewrite_node(struct node *n)
 		/* Simple cases for now */
 		if (off == 8 || off == 16 || off == 24) {
 			r->op = T_SHIFTCAST;
-			/* Remember the output type */
-			r->val2 = n->type;
+			/* Remember the input type */
+			r->val2 = r->type;
+			/* Set the resulting type of our T_SHIFTCAST correctly */
+			r->type = n->type;
 			free_node(n);
 			return r;
 		}
