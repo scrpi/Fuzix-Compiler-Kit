@@ -1,4 +1,4 @@
-	/*
+/*
  *	6502 backend for the Fuzix C Compiler
  *
  *	The big challenge here is that the C stack is a software
@@ -63,13 +63,9 @@
  *
  *	Remove incsp/incsp2 in favour of general addnsp form
  *
- *	Untangle the pri ops so they are always passed the node for the op
- *	and the node for evaluation explicitly and logically so we can
- *	avoid the squashing mess
- *
  *	Look at doing some kind of two step LDSTORE for struct referencing
  *
- *	Turn n = n + 1 into n += 1 as for 6502 that's going to help a lot
+ *	Turn n = n + 1 into n += 1 as for 6502 that's going to help a lot ?
  *
  *	The real challenge is that 6502 asm people interleave 6502 code with
  *	loads and stores so that we don't "load XA with this, and with blah
@@ -93,7 +89,8 @@
  *	Add l_plus that adds a local to the working for array derefs
  *	x2 x4 versions for scaling ?
  *
- *	Misreload of X when doing
+ *	Misreload of X when doing (because we need to allow a ref to be
+ *		constant and an XA node)
  *		udata.u_foo = 0;
  *		udata.u_bar = 1;
  *
@@ -144,6 +141,7 @@ static unsigned nregs;		/* Number of stacked registers */
 #define T_REQ		(T_USER+10)		/* *regptr */
 #define T_DEREFPLUS	(T_USER+11)
 #define T_LDEREF	(T_USER+12)
+#define T_SHIFTCAST	(T_USER+13)		/* (cast)long >> n */
 
 /*
  *	6502 specifics. We need to track some register values to produce
@@ -736,44 +734,16 @@ static unsigned can_bytecast(register struct node *n)
 
    r is the right hand side of the main node n usually, but may change when
    we call this recursively when elimninating casts or other nodes we
-   can throw away */
+   can throw away. For some things like a direct build of a LABEL or
+   LREF etc then then n and r can start the same */
 static int do_pri8(struct node *n, struct node *r, const char *op, void (*pre)(struct node *__n))
 {
-	unsigned v = n->value;
+	unsigned v;
 	const char *name;
 
 	/* We can fold in some simple casting */
-	if (can_bytecast(n) && !has_sideeffect(r->right))
+	if (can_bytecast(r) && !has_sideeffect(r->right))
 		return do_pri8(n, r->right, op, pre);
-
-	switch(n->op) {
-	case T_LABEL:
-		pre(n);
-		output("%s #<T%u+%u", op,  n->val2, v);
-		return 1;
-	case T_NAME:
-		pre(n);
-		name = namestr(n->snum);
-		output("%s #<_%s+%u", op,  name, v);
-		return 1;
-	case T_REG:
-		pre(n);
-		output("%s #reg%u", op, v);
-		return 1;
-	case T_CONSTANT:
-		/* These had the right squashed into them */
-	case T_LREF:
-	case T_NREF:
-	case T_LBREF:
-	case T_RREF:
-	case T_LSTORE:
-	case T_NSTORE:
-	case T_LBSTORE:
-	case T_RSTORE:
-		/* These had the right squashed into them */
-		r = n;
-		break;
-	}
 
 	v = r->value;
 
@@ -792,6 +762,19 @@ static int do_pri8(struct node *n, struct node *r, const char *op, void (*pre)(s
 	}
 
 	switch(r->op) {
+	case T_LABEL:
+		pre(n);
+		output("%s #<T%u+%u", op,  r->val2, v);
+		return 1;
+	case T_NAME:
+		pre(n);
+		name = namestr(r->snum);
+		output("%s #<_%s+%u", op,  name, v);
+		return 1;
+	case T_REG:
+		pre(n);
+		output("%s #reg%u", op, v);
+		return 1;
 	case T_CONSTANT:
 		pre(n);
 		if (strcmp(op, "lda") == 0)
@@ -857,54 +840,42 @@ static int do_pri8(struct node *n, struct node *r, const char *op, void (*pre)(s
 }
 
 /* Construct a direct operation if possible for the primary op */
-static int do_pri8hi(struct node *n, const char *op, void (*pre)(struct node *__n))
+static int do_pri8hi(struct node *n, struct node *r, const char *op, void (*pre)(struct node *__n))
 {
-	struct node *r = n->right;
 	const char *name;
-	unsigned v = n->value;
+	unsigned v;
 
+	printf(";pri8hi node %04X right %04X op %s\n",
+		n->op, r->op, op);
+		
 	/* We can fold in some simple casting */
-	if (n->type == T_CAST) {
-		if ((!PTR(n->type) && n->type != CINT && n->type != UINT) || r->type != UCHAR)
+	/* FIXME: not clear this is safe (eg if using stx) */
+	if (r->type == T_CAST && !has_sideeffect(r->right)) {
+		if ((!PTR(r->type) && r->type != CINT && r->type != UINT) || r->right->type != UCHAR)
 			return 0;
 		/* We need to do it on 0 */
 		load_a(0);
-		n = n->right;
-		v = n->value;
-		r = n->right;
-	}
-	switch(n->op) {
-	case T_LABEL:
-		pre(n);
-		output("%s #>T%u+%", op,  n->val2, v);
-		return 1;
-	case T_NAME:
-		pre(n);
-		name = namestr(n->snum);
-		output("%s #_%s+%u", op,  name, v);
-		return 1;
-	case T_REG:
-		pre(n);
-		output("%s #reg%u", op, v);
-		return 1;
-	case T_CONSTANT:
-		/* These had the right squashed into them */
-	case T_LREF:
-	case T_NREF:
-	case T_LBREF:
-	case T_RREF:
-	case T_LSTORE:
-	case T_NSTORE:
-	case T_LBSTORE:
-	case T_RSTORE:
-		/* These had the right squashed into them */
-		r = n;
-		break;
+		r = r->right;
+		v = r->value;
+		r = r->right;
 	}
 
 	v = r->value;
 
 	switch(r->op) {
+	case T_LABEL:
+		pre(n);
+		output("%s #>T%u+%u", op,  r->val2, v);
+		return 1;
+	case T_NAME:
+		pre(n);
+		name = namestr(r->snum);
+		output("%s #>_%s+%u", op,  name, v);
+		return 1;
+	case T_REG:
+		pre(n);
+		output("%s #>reg%u", op, v);
+		return 1;
 	case T_CONSTANT:
 		pre(n);
 		v >>= 8;
@@ -924,6 +895,8 @@ static int do_pri8hi(struct node *n, const char *op, void (*pre)(struct node *__
 			output("%s (@sp),y", op);
 			return 1;
 		}
+		/* FIXME: in the corner case of a try_via X where this fails
+		   we will error out at the moment */
 		/* For now punt */
 		return 0;
 	case T_NREF:
@@ -965,7 +938,7 @@ static void gen_gloy(unsigned v)
 static int do_pri16(struct node *n, struct node *r, const char *op, void (*pre)(struct node *__n))
 {
 	const char *name;
-	unsigned v = n->value;
+	unsigned v;
 
 	/* We can fold in some simple casting */
 #if 0
@@ -978,15 +951,19 @@ static int do_pri16(struct node *n, struct node *r, const char *op, void (*pre)(
 		return do_pri16(n, r->right, op, pre);
 	}
 #endif
-	switch(n->op) {
+	v = r->value;
+
+	if (get_size(r->type) != 2)
+		error("pri16bt");
+	switch(r->op) {
 	case T_LABEL:
 		pre(n);
-		output("%sa #<T%u+%u", op,  n->val2, v);
-		output("%sx #>T%u+%u", op,  n->val2, v);
+		output("%sa #<T%u+%u", op,  r->val2, v);
+		output("%sx #>T%u+%u", op,  r->val2, v);
 		return 1;
 	case T_NAME:
 		pre(n);
-		name = namestr(n->snum);
+		name = namestr(r->snum);
 		output("%sa #<_%s+%u", op,  name, v);
 		output("%sx #>_%s+%u", op,  name, v);
 		return 1;
@@ -995,25 +972,6 @@ static int do_pri16(struct node *n, struct node *r, const char *op, void (*pre)(
 		output("%sa #<reg%u", op,  v);
 		output("%sx #>reg%u", op,  v);
 		return 1;
-	case T_LOCAL:
-	case T_LREF:
-	case T_NREF:
-	case T_LBREF:
-	case T_RREF:
-	case T_LSTORE:
-	case T_NSTORE:
-	case T_LBSTORE:
-	case T_RSTORE:
-	case T_CONSTANT:
-		/* These had the right squashed into them */
-		r = n;
-	}
-
-	v = r->value;
-
-	if (get_size(r->type) != 2)
-		error("pri16bt");
-	switch(r->op) {
 	case T_CONSTANT:
 		pre(n);
 		if (strcmp(op, "ld") == 0) {
@@ -1145,11 +1103,6 @@ static void pre_pha(struct node *n)
 static int pri8(struct node *n, const char *op)
 {
 	return do_pri8(n, n->right, op, pre_none);
-}
-
-static int pri16(struct node *n, const char *op)
-{
-	return do_pri16(n, n->right, op, pre_none);
 }
 
 static unsigned fast_castable(struct node *n)
@@ -1385,7 +1338,6 @@ unsigned local_yop_s(struct node *n, const char *name)
 static int pri_cchelp(register struct node *n, char *helper)
 {
 	register struct node *r = n->right;
-	unsigned v = r->value;
 	/* Sizing for comparisons is from the children */
 	unsigned s = get_size(r->type);
 	unsigned is_byte = (n->flags & (BYTETAIL | BYTEOP)) == (BYTETAIL | BYTEOP);
@@ -1578,13 +1530,21 @@ static unsigned try_via_x(struct node *n, const char *op, void (*pre)(struct nod
 			return 1;
 		}
 	}
-	/* FIXME: need to untangle all the pri8 stuff so we can do
-	   NAME and LABEL here */
+	/* TODO: temporary fix until do_pri8hi knows how to handle
+	   longer lref offsets. For now catch it here and don't try. We can't
+	   just do the high half first because of maths ops */
+	if ((r->op == T_LREF && r->value + sp >= 254) ||
+		r->op == T_CAST)
+		return 0;
 	if (do_pri8(n, r, op, pre) == 0)
 		return 0;
+	printf(";try via x\n");
 	output("pha");
 	txa();
-	do_pri8hi(n, op, pre_none);
+	/* We can't have do_pri8hi fail here if we've done the low
+	   byte already */
+	if (do_pri8hi(n, r, op, pre_none) == 0)
+		error("tvxf");
 	tax();
 	output("pla");
 
@@ -1802,13 +1762,6 @@ struct node *gen_rewrite_node(struct node *n)
 		free_node(r);
 		return n;
 	}
-	/* Wrong. Probably just remove */
-	if (0 && op == T_PLUS && l->op == T_RDEREF && r->op == T_CONSTANT) {
-		l->val2 += r->value;
-		free_node(r);
-		free_node(n);
-		return l;
-	}
 	/* *regptr = */
 	if (op == T_EQ && l->op == T_RREF) {
 		n->op = T_REQ;
@@ -1875,6 +1828,20 @@ struct node *gen_rewrite_node(struct node *n)
 				squash_left(n, T_RSTORE);
 				return n;
 			}
+		}
+	}
+	/* Look for casts of right shifts before we eliminate the
+	   surplus casts as we can optimize some common shifts by
+	   spotting the common >> 16 and cast type form */
+	if (op == T_CAST && r->op == T_GTGT && r->right->op == T_CONSTANT && (PTR(nt) || nt < CLONG) &&  (r->type == ULONG || r->type == CLONG)) {
+		off = r->right->value;
+		/* Simple cases for now */
+		if (off == 8 || off == 16 || off == 24) {
+			r->op = T_SHIFTCAST;
+			/* Remember the output type */
+			r->val2 = n->type;
+			free_node(n);
+			return r;
 		}
 	}
 	/* Eliminate casts for sign, pointer conversion or same */
@@ -2831,7 +2798,7 @@ unsigned gen_direct(struct node *n)
 				}
 				if ((v & 0xFF) == 0) {
 					txa();
-					do_pri8hi(n, "and", pre_none);
+					do_pri8hi(n, r, "and", pre_none);
 					const_a_set(reg[R_A].value & (v >> 8));
 					tax();
 					load_a(0);
@@ -2841,7 +2808,7 @@ unsigned gen_direct(struct node *n)
 					output("pha");
 					saved_a();
 					txa();
-					do_pri8hi(n, "and", pre_none);
+					do_pri8hi(n, r, "and", pre_none);
 					const_a_set(reg[R_A].value & (v >> 8));
 					tax();
 					output("pla");
@@ -2857,7 +2824,7 @@ unsigned gen_direct(struct node *n)
 				load_a(0);
 			else if ((v & 0xFF) != 0xFF) {
 				output("and #%u", v & 0xFF);
-				const_a_set(reg[R_A].value & v);
+				const_a_set(reg[R_A].value & BYTE(v));
 			}
 			return 1;
 		}
@@ -2873,7 +2840,7 @@ unsigned gen_direct(struct node *n)
 	case T_OR:
 		if (s > 2)
 			return 0;
-		if (0 && r->op == T_CONSTANT) {
+		if (r->op == T_CONSTANT) {
 			if (s == 2) {
 				if (v == 0xFF00) {
 					load_x(0xFF);
@@ -2885,7 +2852,7 @@ unsigned gen_direct(struct node *n)
 				}
 				if ((v & 0xFF) == 0xFF) {
 					txa();
-					do_pri8hi(n, "ora", pre_none);
+					do_pri8hi(n, r, "ora", pre_none);
 					const_a_set(reg[R_A].value | (v >> 8));
 					tax();
 					load_a(0xFF);
@@ -2895,7 +2862,7 @@ unsigned gen_direct(struct node *n)
 					output("pha");
 					saved_a();
 					txa();
-					do_pri8hi(n, "ora", pre_none);
+					do_pri8hi(n, r, "ora", pre_none);
 					const_a_set(reg[R_A].value | (v >> 8));
 					tax();
 					output("pla");
@@ -2911,7 +2878,7 @@ unsigned gen_direct(struct node *n)
 				load_a(0xFF);
 			else if ((v & 0xFF) != 0x00) {
 				output("ora #%u", v & 0xFF);
-				const_a_set(reg[R_A].value | v);
+				const_a_set(reg[R_A].value | BYTE(v));
 			}
 			return 1;
 		}
@@ -2933,8 +2900,8 @@ unsigned gen_direct(struct node *n)
 					return try_via_x(n, "eor", pre_none);
 			}
 			if ((v & 0xFF) != 0x00) {
-				output("eor #%u", ((unsigned)r->value) & 0xFF);
-				const_a_set(reg[R_A].value ^ r->value);
+				output("eor #%u", BYTE(v));
+				const_a_set(reg[R_A].value ^ BYTE(v));
 			}
 			return 1;
 		}
@@ -2966,19 +2933,23 @@ unsigned gen_direct(struct node *n)
 
 		if (s == 1 && do_pri8(n, r, "adc", pre_clc)) {
 			if (r->op == T_CONSTANT)
-				const_a_set(reg[R_A].value + r->value);
+				const_a_set(reg[R_A].value + v);
 			else
 				invalidate_a();
 			return 1;
 		}
+		/* TODO, there are a bunch of cases we can optimise. 
+			xx00 for low xx is repeated inx, xxnn for low
+			x can be an adc bra and repeated inx also some
+			with dex */
 		if (s == 2 && r->op == T_CONSTANT) {
 			if (r->value <= 0xFF) {
 				output("clc");
-				output("adc #%u",v & 0xFF);
+				output("adc #%u",BYTE(v));
 				output("bcc X%u", ++xlabel);
 				output("inx");
 				label("X%u", xlabel);
-				const_a_set(reg[R_A].value + (v & 0xFF));
+				const_a_set(reg[R_A].value + BYTE(v));
 				/* TODO: set up X properly if known */
 				invalidate_x();
 				return 1;
@@ -3014,9 +2985,9 @@ unsigned gen_direct(struct node *n)
 
 		if (has_sideeffect(r))
 			return 0;
-		if (s == 1 && do_pri8(n, n->right, "sbc", pre_sec)) {
+		if (s == 1 && do_pri8(n, r, "sbc", pre_sec)) {
 			if (r->op == T_CONSTANT)
-				const_a_set(reg[R_A].value - r->value);
+				const_a_set(reg[R_A].value - BYTE(v));
 			else
 				invalidate_a();
 			return 1;
@@ -3024,11 +2995,11 @@ unsigned gen_direct(struct node *n)
 		if (s == 2 && r->op == T_CONSTANT) {
 			if (r->value <= 0xFF) {
 				output("sec");
-				output("sbc #%u", v & 0xFF);
+				output("sbc #%u", BYTE(v));
 				output("bcs X%u", ++xlabel);
 				output("dex");
 				label("X%u", xlabel);
-				const_a_set(reg[R_A].value - (v & 0xFF));
+				const_a_set(reg[R_A].value - BYTE(v));
 				/* TODO: we should probably set this up */
 				invalidate_x();
 				return 1;
@@ -3190,7 +3161,52 @@ unsigned gen_direct(struct node *n)
 		if (s < 4 && local_yop_s(n, "l_gtgt"))
 			return 1;
 		return pri_help(n, "rstmp");
-
+	case T_SHIFTCAST:
+		/* A right long cast of 8, 16 or 24 into a smaller type */
+		/* Right is always a constant */
+		if (s == 1) {
+			switch(v) {
+			case 8:
+				txa();
+				break;
+			case 16:
+				output("lda @hireg");
+				break;
+			case 24:
+				output("lda @hireg+1");
+				break;
+			default:
+				error("sc1");
+			}
+			invalidate_a();
+			return 1;
+		}
+		/* From 32 to 16 bit */
+		switch(v) {
+		case 8:
+			output("txa");
+			output("ldx @hireg");
+			break;
+		case 16:
+			output("lda @hireg");
+			output("ldx @hireg+1");
+			break;
+		case 24:
+			output("lda @hireg+1");
+			load_x(0);
+			/* Was the original shift signed */
+			if (!(n->val2 & UNSIGNED)) {
+				output("bpl X%u", ++xlabel);
+				output("dex");
+				label("X%u", xlabel);
+			}
+			break;
+		default:
+			error("sc2");
+		}
+		invalidate_a();
+		invalidate_x();
+		return 1;
 	/* TODO: special case by 1,2,4, maybe inline byte cases ? */
 	/* We want to spot trees where the object on the left is directly
 	   addressible and fold them so we can generate inc _reg, bcc, inc _reg+1 etc */
@@ -3716,14 +3732,14 @@ unsigned gen_node(struct node *n)
 		if (size == 1) {
 			if (!se && a_contains(n))
 				return 1;
-			if (pri8(n, "lda")) {
+			if (do_pri8(n, n, "lda", pre_none)) {
 				set_a_node(n);
 				return 1;
 			}
 		} else if (size == 2) {
 			if (!se && xa_contains(n))
 				return 1;
-			if (pri16(n, "ld")) {
+			if (do_pri16(n, n, "ld", pre_none)) {
 				set_xa_node(n);
 				return 1;
 			}
@@ -3747,7 +3763,7 @@ unsigned gen_node(struct node *n)
 	case T_NSTORE:
 	case T_LBSTORE:
 	case T_RSTORE:
-		if (size == 1 && pri8(n, "sta")) {
+		if (size == 1 && do_pri8(n, n, "sta", pre_none)) {
 			set_a_node(n);
 			return 1;
 		} else if (size == 2) {
@@ -3755,13 +3771,13 @@ unsigned gen_node(struct node *n)
 			/* It seems marginal whether using this path for
 			   LSTORE nr = 1 is worth it */
 			if (n->op != T_LSTORE) {
-				if (pri16(n, "st")) {
+				if (do_pri16(n, n, "st", pre_none)) {
 					set_xa_node(n);
 					return 1;
 				}
 			} else {
 				/* Stack and restore A */
-				if (do_pri16(n, r, "st", pre_pha)) {
+				if (do_pri16(n, n, "st", pre_pha)) {
 					output("pla");
 					set_xa_node(n);
 					return 1;
@@ -4025,11 +4041,11 @@ unsigned gen_node(struct node *n)
 	case T_REG:
 		if (is_byte)
 			size = 1;
-		if (size == 1 && pri8(n, "lda")) {
+		if (size == 1 && do_pri8(n, n, "lda", pre_none)) {
 			invalidate_a();
 			return 1;
 		}
-		if (size == 2 && pri16(n, "ld")) {
+		if (size == 2 && do_pri16(n, n, "ld", pre_none)) {
 			invalidate_x();
 			invalidate_a();
 			return 1;
@@ -4100,9 +4116,11 @@ unsigned gen_node(struct node *n)
 	/* These may have been turned byte sized so we need to handle that
 	   aspect ourself */
 	case T_BANGEQ:
+		n->flags |= ISBOOL;
 		helper_sb(n, "ccne");
 		return 1;
 	case T_EQEQ:
+		n->flags |= ISBOOL;
 		helper_sb(n, "cceq");
 		return 1;
 	}
