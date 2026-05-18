@@ -73,18 +73,12 @@
  *	and it store it, and in some cases use PHP PLP and other tricks to
  *	move carry along with this. That's tricky to do from a compiler tree.
  *
- *	Why didn't a shrul by 16 get optimised to just load from hireg ?
- *	(because we need to spot shortening casts of GTGT by 8 16 24 and
- *	before we eliminate unneeded casts in the tree walk)
- *
  *	Can we fix the common byte = byte >> n case - generically we can't
  *	screw with right unsigned shift but if bot sides are byte we can
  *
  *	?? l_andeq and friends ?
  *
  *	l_assign ? - copy locals across ?
- *
- *	lstxay path didn't seem to set XA node
  *
  *	Add l_plus that adds a local to the working for array derefs
  *	x2 x4 versions for scaling ?
@@ -124,6 +118,7 @@ static unsigned unreachable;	/* Code following an unconditional jump */
 static unsigned xlabel;		/* Internal backend generated branches */
 static unsigned argbase;	/* Track shift between arguments and stack */
 static unsigned nregs;		/* Number of stacked registers */
+static unsigned stack_byte;	/* True if we need to push the left as a byte */
 
 /*
  *	Node types we create in rewriting rules
@@ -2344,6 +2339,12 @@ void gen_tree(struct node *n)
 unsigned gen_push(struct node *n)
 {
 	unsigned s = get_stack_size(n->type);
+
+	if (stack_byte) {
+		printf("; stack as byte for later byteop\n");
+		s = 1;
+	}
+
 	sp += s;
 	/* These don't invalidate registers and set Y to 0, so handle them
 	   directly */
@@ -2692,6 +2693,11 @@ unsigned gen_direct(struct node *n)
 	if (r)
 		v = r->value;
 
+	/* Hack whilst we work out the right way to handle this */
+	stack_byte = (n->left->flags & (BYTETAIL | BYTECAST)) == (BYTETAIL | BYTECAST);
+	if (stack_byte)
+		printf("; left side was word operation but done for byte value\n");
+
 	switch(n->op) {
 	/* Clean up is special and must be handled directly. It also has the
 	   type of the function return so don't use that for the cleanup value
@@ -2727,7 +2733,7 @@ unsigned gen_direct(struct node *n)
 		   type handling was done for us */
 		if (s > 2)
 			return 0;
-		if (r->op == T_CONSTANT) {
+		if (r->op == T_CONSTANT && nr) {
 			store_xa_tmp();
 			load_a(BYTE(v));
 			if (s == 1 && cpu != NMOS_6502) {
@@ -2769,13 +2775,13 @@ unsigned gen_direct(struct node *n)
 				output("sta (@tmp),y");
 			}
 			load_y(1);
-			if (nr) {
+			if (!nr) {
 				output("pha");
 				saved_a();
 			}
 			txa();
 			output("sta (@tmp),y");
-			if (nr) {
+			if (!nr) {
 				output("pla");
 				restored_a();
 			}
@@ -2940,31 +2946,25 @@ unsigned gen_direct(struct node *n)
 				invalidate_a();
 			return 1;
 		}
-		/* TODO, there are a bunch of cases we can optimise. 
-			xx00 for low xx is repeated inx, xxnn for low
-			x can be an adc bra and repeated inx also some
-			with dex */
+		/* TODO: optimise adds of stuff like FE14 by using dex */
 		if (s == 2 && r->op == T_CONSTANT) {
-			if (r->value <= 0xFF) {
-				output("clc");
-				output("adc #%u",BYTE(v));
-				output("bcc X%u", ++xlabel);
-				output("inx");
-				label("X%u", xlabel);
-				const_a_set(reg[R_A].value + BYTE(v));
-				/* TODO: set up X properly if known */
-				invalidate_x();
-				return 1;
-			}
-			if (r->value == 256) {
-				output("inx");
-				const_x_set(reg[R_X].value + 1);
-				return 1;
-			}
-			if (r->value == 512) {
-				output("inx");
-				output("inx");
-				const_x_set(reg[R_X].value + 2);
+			uint8_t lv = BYTE(v);
+			uint8_t hv = BYTE(v >> 8);
+			if ((lv && hv < 4) || (!lv && v < 8)) {
+				/* If we need to adjust the low byte then
+				   do it and conditionaly bump upper */
+				if (lv) {
+					output("clc");
+					output("adc #%u", lv);
+					output("bcc X%u", ++xlabel);
+					output("inx");
+					label("X%u", xlabel);
+					const_a_set(reg[R_A].value + lv);
+					invalidate_x();
+				}
+				/* Avoid all the mess of going via X if possible */
+				repeated_op(hv, "inx");
+				const_x_set(reg[R_X].value + hv);
 				return 1;
 			}
 		}
@@ -2995,26 +2995,22 @@ unsigned gen_direct(struct node *n)
 			return 1;
 		}
 		if (s == 2 && r->op == T_CONSTANT) {
-			if (r->value <= 0xFF) {
-				output("sec");
-				output("sbc #%u", BYTE(v));
-				output("bcs X%u", ++xlabel);
-				output("dex");
-				label("X%u", xlabel);
-				const_a_set(reg[R_A].value - BYTE(v));
-				/* TODO: we should probably set this up */
-				invalidate_x();
-				return 1;
-			}
-			if (r->value == 256) {
-				output("dex");
-				const_x_set(reg[R_X].value - 1);
-				return 1;
-			}
-			if (r->value == 512) {
-				output("dex");
-				output("dex");
-				const_x_set(reg[R_X].value - 2);
+			uint8_t lv = BYTE(v);
+			uint8_t hv = BYTE(v >> 8);
+			if ((lv && hv < 4) || (!lv && v < 8)) {
+				/* If we need to adjust the low byte then
+				   do it and conditionaly bump upper */
+				if (lv <= 0xFF) {
+					output("sec");
+					output("sbc #%u", lv);
+					output("bcs X%u", ++xlabel);
+					output("dex");
+					label("X%u", xlabel);
+					const_a_set(reg[R_A].value - lv);
+					invalidate_x();
+				}
+				repeated_op(hv, "dex");
+				const_x_set(reg[R_X].value - hv);
 				return 1;
 			}
 		}
@@ -3376,9 +3372,11 @@ unsigned gen_shortcut(struct node *n)
 			while(v--) {
 				x = ++xlabel;
 				output("inc @reg%u", lv);
-				output("bne X%u", x);
-				output("inc @reg%u+1", lv);
-				label("X%u", x);
+				if (size > 1) {
+					output("bne X%u", x);
+					output("inc @reg%u+1", lv);
+					label("X%u", x);
+				}
 			}
 			return 1;
 		}
@@ -3499,14 +3497,16 @@ unsigned gen_shortcut(struct node *n)
 			output("lda @reg%u", lv);
 			output("adc #%u", BYTE(v));
 			output("sta @reg%u", lv);
-			if (v > 255) {
-				output("lda @reg%u+1", lv);
-				output("adc #%u", BYTE(v >> 8));
-				output("sta @reg%u+1", lv);
-			} else {
-				output("bcc X%u", ++xlabel);
-				output("inc @reg%u+1", lv);
-				label("X%u", xlabel);
+			if (size > 1) {
+				if (v > 255) {
+					output("lda @reg%u+1", lv);
+					output("adc #%u", BYTE(v >> 8));
+					output("sta @reg%u+1", lv);
+				} else {
+					output("bcc X%u", ++xlabel);
+					output("inc @reg%u+1", lv);
+					label("X%u", xlabel);
+				}
 			}
 			return 1;
 		}
@@ -3677,8 +3677,12 @@ unsigned gen_node(struct node *n)
 
 	/* Function call arguments are special - they are removed by the
 	   act of call/return and reported via T_CLEANUP */
-	if (n->left && n->op != T_ARGCOMMA && n->op != T_FUNCCALL && n->op != T_CALLNAME)
-		sp -= get_stack_size(n->left->type);
+	if (n->left && n->op != T_ARGCOMMA && n->op != T_FUNCCALL && n->op != T_CALLNAME) {
+		if ((n->left->flags & (BYTETAIL|BYTECAST)) == (BYTETAIL|BYTECAST))
+			sp--;
+		else
+			sp -= get_stack_size(n->left->type);
+	}
 	switch(n->op) {
 	/* FIXME: need to do 4 byte forms */
 	case T_LREF:
