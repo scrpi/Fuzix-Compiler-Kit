@@ -375,6 +375,10 @@ static unsigned process_expression(void)
 	dump_tree(n, 0);
 #endif
 	n = gen_rewrite(n);
+#ifdef DEBUG
+	fprintf(stderr, ":first pass:\n");
+	dump_tree(n, 0);
+#endif
 	n = rewrite_tree(n);
 #ifdef DEBUG
 	fprintf(stderr, ":rewritten:\n");
