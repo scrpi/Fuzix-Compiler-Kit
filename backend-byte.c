@@ -10,6 +10,10 @@
  *	BYTEROOT	- operation is the top of a set of ops being done
  *			  byte sized but should return the value as indicated
  *			  by the type.
+ *	BYTECAST	- operation wil be done as normal (usually) but the
+ *			  result should be treated as a byte. In effect there's
+ *			  an implicit cast hiding there. Needed for sizing and
+ *			  will be needed in some cases to handle register moves
  *
  *
  *	BYTEABLE	- internal use only
@@ -23,6 +27,9 @@
  *	BYTETAIL|BYTEOP	- ditto
  *	BYTETAIL	- operation acts on normal types but result
  *			  should be byte form (no casting needed)
+ *	BYTETAIL|BYTECAST - perform on original types but produce the result
+ *			  in byte format (needs review to see if we need
+ *			  the BYTECAST tag or can rely on BYTETAIL alone)
  *
  *	If BYTE_REMAP is defined it will also rewrite the types for
  *	most operations to simplify logic in the CPU specific backend
@@ -246,7 +253,7 @@ static unsigned byte_convert(register struct node *n)
 	   !x which requires x is fully evaluated but whose result irrespective of the
 	   type of x can be properly resolved in byte form */
 	if (n->flags & BYTETAIL) {
-		n->flags &= ~BYTEROOT;	/* FIXME: this needs thought */
+		n->flags &= ~BYTEROOT;
 		n->flags |= BYTECAST;	/* Our node can be handled specially but not
 					   auto converted as size matters for the op not
 					   the result */
