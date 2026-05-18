@@ -226,7 +226,7 @@ static unsigned byte_convert(register struct node *n)
 				return 0;
 			}
 		}
-		/* Can do child notes in byte ops so we can do ourselves this way if
+		/* Can do child nodes in byte ops so we can do ourselves this way if
 		   we are not merely BYTEROOT */
 		if (n->flags & BYTEABLE)
 			n->flags |= BYTEOP;
@@ -247,6 +247,9 @@ static unsigned byte_convert(register struct node *n)
 	   type of x can be properly resolved in byte form */
 	if (n->flags & BYTETAIL) {
 		n->flags &= ~BYTEROOT;	/* FIXME: this needs thought */
+		n->flags |= BYTECAST;	/* Our node can be handled specially but not
+					   auto converted as size matters for the op not
+					   the result */
 		/* Type is preserved because we do the things normally on the
 		   sub ops but 8bit result going up */
 		return 1;
