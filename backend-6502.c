@@ -4058,6 +4058,19 @@ unsigned gen_node(struct node *n)
 			return 1;
 		}
 		break;
+	case T_NEGATE:
+		if (size == 1) {
+			output("eor #0xFF");
+			if (cpu > NMOS_6502)
+				output("inc a");
+			else {
+				output("clc");
+				output("adc #1");
+			}
+			const_a_set(-reg[R_A].value);
+			return 1;
+		}
+		break;
 	}
 	return 0;
 }

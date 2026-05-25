@@ -140,7 +140,7 @@ static unsigned op_can_byte(register struct node *n)
 		return BYTEABLE;
 	}
 	/* Mathematical operations */
-	if (op == T_PLUS || op == T_MINUS || op == T_STAR)
+	if (op == T_PLUS || op == T_MINUS || op == T_STAR || op == T_NEGATE)
 		return BYTEABLE;
 	/* Logic operations */
 	if (op == T_AND || op == T_OR || op == T_HAT || op == T_TILDE)
@@ -241,7 +241,6 @@ static unsigned byte_convert(register struct node *n)
 			}
 			if (!byte_convert(n->left)) {
 				depth--;
-				fprintf(stderr, "Conversion fixup n %04X l %p r %p\n", n->op, (void *)n->left, (void *)n->right);
 				/* We successfully converted the right but not the left. Fix this up with a
 				   cast */
 				t = new_node();
