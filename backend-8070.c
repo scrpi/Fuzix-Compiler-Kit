@@ -229,8 +229,7 @@ static unsigned is_ea_node(register struct node *n)
 //	printf(";is_ea_node op %04X node op %04X, val %08lX, node val %08lX\n",
 //		op, ea_node.op, n->value, ea_node.value);
 	if (ea_node.op == op && ea_node.value == n->value &&
-		ea_node.type == n->type && ea_node.snum == n->snum &&
-		ea_node.val2 == n->val2)
+		ea_node.type == n->type && ea_node.snum == n->snum)
 		return 1;
 	return 0;
 }
@@ -392,10 +391,10 @@ static unsigned find_ref(register struct node *n)
 	/* TODO: if value is not quite the same check if in off range and
 	   still use it */
 	if (p_valid[0] && p_node[0].op == op && p_node[0].value == n->value &&
-		p_node[0].val2 == n->val2 && p_node[0].snum == n->snum)
+		p_node[0].snum == n->snum)
 		return 2;
 	if (p_valid[1] && p_node[1].op == op && p_node[1].value == n->value &&
-		p_node[1].val2 == n->val2 && p_node[1].snum == n->snum)
+		p_node[1].snum == n->snum)
 		return 3;
 	return 0;
 }
@@ -416,7 +415,6 @@ static void set_ptr_ref(unsigned p, struct node *n)
 static void squash_node(struct node *n, struct node *o)
 {
 	n->value = o->value;
-	n->val2 = o->val2;
 	n->snum = o->snum;
 	free_node(o);
 }
@@ -502,14 +500,14 @@ struct node *gen_rewrite_node(struct node *n)
 	if ((op == T_DEREF || op == T_DEREFPLUS) && r->op == T_LREF) {
 		/* At this point r->value is the offset for the local */
 		/* n->value is the offset for the ptr load */
-		r->val2 = n->value;		/* Save the offset so it is squashed in */
+		r->snum = n->value;		/* Save the offset so it is squashed in */
 		squash_right(n, T_LDEREF);	/* n->value becomes the local ref */
 		return n;
 	}
 	if ((op == T_EQ || op == T_EQPLUS) && l->op == T_LREF) {
 		/* At this point r->value is the offset for the local */
 		/* n->value is the offset for the ptr load */
-		l->val2 = n->value;		/* Save the offset so it is squashed in */
+		l->snum = n->value;		/* Save the offset so it is squashed in */
 		squash_left(n, T_LEQ);	/* n->value becomes the local ref */
 		return n;
 	}
@@ -835,7 +833,7 @@ void gen_space(unsigned value)
 
 void gen_text_data(struct node *n)
 {
-	printf("\t.word T%d\n", n->val2);
+	printf("\t.word T%d\n", n->snum);
 }
 
 void gen_literal(unsigned n)
@@ -1176,7 +1174,7 @@ static unsigned make_ptr_ref(struct node *n, unsigned off)
 		ref_op = T_NREF;
 		break;
 	case T_LABEL:
-		printf("\tld p2,=T%u+%u\n", n->val2, v);
+		printf("\tld p2,=T%u+%u\n", n->snum, v);
 		ref_op = T_LBREF;
 		break;
 	case T_ARGUMENT:
@@ -1292,7 +1290,7 @@ static unsigned make_ref(struct node *n, unsigned keep_ea)
 		snprintf(ref_buf, sizeof(ref_buf), "=%%s_%s+%u+%%u", namestr(n->snum), v);
 		return 1;
 	case T_LABEL:
-		snprintf(ref_buf, sizeof(ref_buf), "=%%sT%u+%u+%%u", n->val2, v);
+		snprintf(ref_buf, sizeof(ref_buf), "=%%sT%u+%u+%%u", n->snum, v);
 		return 1;
 	case T_ARGUMENT:
 	case T_LOCAL:
@@ -1302,7 +1300,7 @@ static unsigned make_ref(struct node *n, unsigned keep_ea)
 		printf("\tld p2,=_%s+%u\n", namestr(n->snum), v);
 		break;
 	case T_LBREF:
-		printf("\tld p2,=T%u+%u\n", n->val2, v);
+		printf("\tld p2,=T%u+%u\n", n->snum, v);
 		break;
 	case T_LREF:
 		/* Simple lref */
@@ -2343,7 +2341,7 @@ unsigned gen_node(struct node *n)
 		return 1;
 	case T_LDEREF:
 		/* TODO: review for volatile byteable */
-		/* val2 offset of variable, val offset of ptr */
+		/* snum offset of variable, val offset of ptr */
 		/* We cannot alas do a straight ptr of ptr load, but must
 		   go via EA. No problem here as we will trash EA anyway */
 		v += sp;
@@ -2351,7 +2349,7 @@ unsigned gen_node(struct node *n)
 			printf("\tld ea,%u,p1\n", v);
 			invalidate_ea();
 			load_ptr_ea(2);
-			make_ref_p2(n->val2);
+			make_ref_p2(n->snum);
 		} else {
 			/* Don't need to keep EA */
 			load_ea_ptr(1);
@@ -2386,7 +2384,7 @@ unsigned gen_node(struct node *n)
 		}
 		load_ea_t();
 		flush_writeback();
-		make_ref_p2(n->val2);
+		make_ref_p2(n->snum);
 		op16("st", sz, O_STORE, nr);
 		/* TODO node track */
 		invalidate_ea();

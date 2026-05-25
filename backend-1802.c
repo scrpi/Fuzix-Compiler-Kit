@@ -70,7 +70,6 @@ static unsigned unreachable;	/* Is the code we are generating reachable ? */
 static void squash_node(struct node *n, struct node *o)
 {
 	n->value = o->value;
-	n->val2 = o->val2;
 	n->snum = o->snum;
 	free_node(o);
 }
@@ -299,7 +298,7 @@ void gen_space(unsigned value)
 
 void gen_text_data(struct node *n)
 {
-	printf("\t.word T%u\n", n->val2);
+	printf("\t.word T%u\n", n->snum);
 }
 
 void gen_literal(unsigned n)
@@ -529,12 +528,12 @@ void outsym(struct node *n)
 		gen_name(n);
 		break;
 	case T_ARGUMENT:
-		printf("\t.word T%u+%u\n", n->val2, (unsigned)n->value + frame_len);
+		printf("\t.word T%u+%u\n", n->snum, (unsigned)n->value + frame_len);
 		break;
 	case T_LREF:
 	case T_LSTORE:
 	case T_LOCAL:
-		printf("\t.word T%u+%u\n", n->val2, (unsigned)n->value);
+		printf("\t.word T%u+%u\n", n->snum, (unsigned)n->value);
 		break;
 	case T_LBREF:
 	case T_LBSTORE:

@@ -129,8 +129,6 @@ unsigned d_holds_node(struct node *n)
 		return 0;
 	if (d_node.op != n->op)
 		return 0;
-	if (d_node.val2 != n->val2)
-		return 0;
 	if (d_node.snum != n->snum)
 		return 0;
 	if (d_node.value != n->value)

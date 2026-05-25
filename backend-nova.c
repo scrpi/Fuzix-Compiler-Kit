@@ -132,7 +132,6 @@ static unsigned get_stack_size(unsigned t)
 static void squash_node(struct node *n, struct node *o)
 {
 	n->value = o->value;
-	n->val2 = o->val2;
 	n->snum = o->snum;
 	free_node(o);
 }
@@ -571,9 +570,9 @@ void gen_space(unsigned value)
 void gen_text_data(struct node *n)
 {
 	if (is_bytepointer(n->type))
-		printf("\t.byteptr T%d\n", n->val2);
+		printf("\t.byteptr T%d\n", n->snum);
 	else
-		printf("\t.word T%d\n", n->val2);
+		printf("\t.word T%d\n", n->snum);
 }
 
 void gen_literal(unsigned n)
@@ -956,9 +955,9 @@ static unsigned load_ac(unsigned ac, register struct node *n)
 	case T_LABEL:
 		printf("\tjsr @__const%u,0\n", ac);
 		if (is_bytepointer(n->type))
-			printf("\t.byteptr T%u+%u\n", n->val2, v);
+			printf("\t.byteptr T%u+%u\n", n->snum, v);
 		else
-			printf("\t.word T%u+%u\n", n->val2, v);
+			printf("\t.word T%u+%u\n", n->snum, v);
 		return 1;
 	case T_NREF:/* Refs are always word at this point */
 		printf("\tjsr @__iconst%u\n", ac);
@@ -966,7 +965,7 @@ static unsigned load_ac(unsigned ac, register struct node *n)
 		return 1;
 	case T_LBREF:
 		printf("\tjsr @__iconst%u\n", ac);
-		printf("\t.word T%u+%u\n", n->val2, v);
+		printf("\t.word T%u+%u\n", n->snum, v);
 		return 1;
 	}
 	printf(";couldnt shortcut %x\n", n->op);
@@ -1021,7 +1020,7 @@ static void node_word(struct node *n)
 	if (n->op == T_NAME)
 		printf("_%s+%u\n", namestr(n->snum), v);
 	else if (n->op == T_LABEL)
-		printf("T%u+%u\n", n->val2, v);
+		printf("T%u+%u\n", n->snum, v);
 	else
 		error("nw");
 }
@@ -1736,7 +1735,7 @@ unsigned gen_node(struct node *n)
 			return 1;
 		v = n->value;
 		if (cpu >= 100 && !is_bytepointer(n->type)) {
-			printf("\telef 1,T%u+%u,0\n", n->val2, v);
+			printf("\telef 1,T%u+%u,0\n", n->snum, v);
 			if (s == 4)
 				wipe_hireg();
 			return 1;
@@ -1752,9 +1751,9 @@ unsigned gen_node(struct node *n)
 		if (cpu >= 100) {
 			if (s > 1) {
 				v = n->value;
-				printf("\telda 1, T%u+%u\n", n->val2, v);
+				printf("\telda 1, T%u+%u\n", n->snum, v);
 				if (s == 4) {
-					printf("\telda 0, T%u+%u\n", n->val2, v + 1);
+					printf("\telda 0, T%u+%u\n", n->snum, v + 1);
 					store_hireg(0);
 				}
 				return 1;
@@ -1781,7 +1780,7 @@ unsigned gen_node(struct node *n)
 		if (n->op == T_NREF)
 			printf("\t.word _%s+%u\n", namestr(n->snum), v);
 		else
-			printf("\t.word T%u+%u\n", n->val2, v);
+			printf("\t.word T%u+%u\n", n->snum, v);
 		return 1;
 	case T_NSTORE:
 		if (cpu >= 100) {
@@ -1804,11 +1803,11 @@ unsigned gen_node(struct node *n)
 				v = n->value;
 				if (s == 4) {
 					load_hireg(0);
-					printf("\testa , T%u+%u\n", n->val2, v);
-					printf("\testa 1, T%u+%u\n", n->val2, v + 1);
+					printf("\testa , T%u+%u\n", n->snum, v);
+					printf("\testa 1, T%u+%u\n", n->snum, v + 1);
 				}
 				else
-					printf("\testa 1, T%u+%u\n", n->val2, v);
+					printf("\testa 1, T%u+%u\n", n->snum, v);
 				return 1;
 			}
 		}
@@ -1819,7 +1818,7 @@ unsigned gen_node(struct node *n)
 		if (n->op == T_NSTORE)
 			printf("\t.word _%s+%u\n", namestr(n->snum), v);
 		else
-			printf("\t.word T%u+%u\n", n->val2, v);
+			printf("\t.word T%u+%u\n", n->snum, v);
 		return 1;
 	case T_ARGUMENT:
 		if (nr)

@@ -26,7 +26,6 @@ struct node *new_node(void)
 	n->flags = 0;
 	n->type = 0;
 	n->snum = 0;
-	n->val2 = 0;
 	return n;
 }
 
@@ -106,12 +105,12 @@ struct node *make_symbol(register struct symbol *s)
 	register struct node *n = new_node();
 
 	n->value = s->data.offset;
-	n->val2 = 0;
+	n->snum = 0;
 
 	switch(S_STORAGE(s->infonext)) {
 	case S_LSTATIC:
 		n->op = T_LABEL;
-		n->val2 = s->data.offset;
+		n->snum = s->data.offset;
 		n->value = 0;
 		break;
 	case S_AUTO:
@@ -125,9 +124,9 @@ struct node *make_symbol(register struct symbol *s)
 		break;
 	default:
 		n->value = 0;
+		n->snum = s->name;
 		n->op = T_NAME;
 	}
-	n->snum = s->name;
 	n->flags = LVAL;
 	n->type = s->type;
 	/* Rewrite implicit pointer forms */
@@ -148,7 +147,7 @@ struct node *make_label(unsigned label)
 {
 	register struct node *n = new_node();
 	n->op = T_LABEL;
-	n->val2 = label;
+	n->snum = label;
 	n->value = 0;
 	n->flags = 0;
 #ifdef TARGET_CHAR_UNSIGNED

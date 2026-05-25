@@ -159,7 +159,7 @@ void gen_space(unsigned value)
 
 void gen_text_data(struct node *n)
 {
-	printf("\t.word T%d\n", n->val2);
+	printf("\t.word T%d\n", n->snum);
 }
 
 void gen_literal(unsigned n)

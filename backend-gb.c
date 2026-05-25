@@ -233,7 +233,6 @@ static unsigned get_size(unsigned t)
 static void squash_node(struct node *n, struct node *o)
 {
 	n->value = o->value;
-	n->val2 = o->val2;
 	n->snum = o->snum;
 	free_node(o);
 }
@@ -604,7 +603,7 @@ void gen_space(unsigned value)
 
 void gen_text_data(struct node *n)
 {
-	outputne(".word T%u", n->val2);
+	outputne(".word T%u", n->snum);
 }
 
 /* The label for a literal (currently only strings) */
@@ -770,7 +769,7 @@ static unsigned point_hl_at(struct node *n)
 		break;
 	case T_LBREF:
 	case T_LBSTORE:
-		outputne("ld hl,T%u+%u", n->val2, v);
+		outputne("ld hl,T%u+%u", n->snum, v);
 		break;
 	case T_ARGUMENT:
 		v += frame_len + argbase;
@@ -848,7 +847,7 @@ static unsigned load_r_with(const char *r, struct node *n)
 		outputne("ld %s,_%s+%u", r, namestr(n->snum), v);
 		return 1;
 	case T_LABEL:
-		outputne("ld %s,T%u+%u", r, n->val2, v);
+		outputne("ld %s,T%u+%u", r, n->snum, v);
 		return 1;
 	case T_CONSTANT:
 		/* We know this is not a long from the checks above */
@@ -909,7 +908,7 @@ static unsigned load_a_with(struct node *n, unsigned keep_hl)
 		outputne("ld a,(_%s+%u)", namestr(n->snum), v);
 		break;
 	case T_LBREF:
-		outputne("ld a,(T%u+%u)", n->val2, v);
+		outputne("ld a,(T%u+%u)", n->snum, v);
 		break;
 	case T_LREF:
 		/* We don't want to trash HL as we may be doing an HL:A op */
@@ -958,7 +957,7 @@ static unsigned gen_twoop(const char *op, struct node *n, struct node *r, unsign
 		else if (r->op == T_NAME)
 			outputne("ld hl,_%s+%u", namestr(r->snum), WORD(r->value));
 		else if (r->op == T_LABEL)
-			outputne("ld hl,T%u+%u", r->val2, WORD(r->value));
+			outputne("ld hl,T%u+%u", r->snum, WORD(r->value));
 		else if (can_point_hl_at(r)) {
 			if (point_hl_at(r) == 0)
 				error("cpha");
@@ -970,7 +969,7 @@ static unsigned gen_twoop(const char *op, struct node *n, struct node *r, unsign
 		else if (r->op == T_NAME)
 			outputne("ld l,<_%s+%u", namestr(r->snum), WORD(r->value));
 		else if (r->op == T_LABEL)
-			outputne("ld l,<T%u+%u", r->val2, WORD(r->value));
+			outputne("ld l,<T%u+%u", r->snum, WORD(r->value));
 		else if (point_hl_at(r) == 0)
 			return 0;
 		/* For now byte ops are done A,(HL) which works nicely */
@@ -1233,7 +1232,7 @@ unsigned gen_direct(struct node *n)
 	case T_LBSTORE:
 		if (s > 2)
 			return 0;
-		outputne("ld hl,T%u+%u", n->val2, v);
+		outputne("ld hl,T%u+%u", n->snum, v);
 		store_via_hl(s);
 		return 1;
 	case T_EQ:
@@ -1815,17 +1814,17 @@ static void perform_op_label(const char *op, const char *op2, unsigned s, unsign
 {
 	unsigned v = WORD(n->value);
 	if (s == 1) {
-		outputne("ld a, <T%u+%u", n->val2, v);
+		outputne("ld a, <T%u+%u", n->snum, v);
 		output("%s a,(hl)", op);
 		outputne("ld (hl),a");
 		return;
 	}
-	outputne("ld a, T%u+%u", n->val2, v);
+	outputne("ld a, T%u+%u", n->snum, v);
 	output("%s a,(hl)", op);
 	outputne("ldi (hl),a");
 	if (nr)
 		outputne("ld e,a");
-	outputne("ld a, T%u+%u", n->val2, v);
+	outputne("ld a, T%u+%u", n->snum, v);
 	output("%s a,(hl)", op2);
 	outputne("ld (hl),a");
 	if (nr)
@@ -2178,7 +2177,7 @@ unsigned gen_node(struct node *n)
 		if (nr && !se)
 			return 1;
 		if (size == 1) {
-			outputne("ld a,(T%u+%u)\n", n->val2, v);
+			outputne("ld a,(T%u+%u)\n", n->snum, v);
 			return 1;
 		}
 		point_hl_at(n);
@@ -2207,7 +2206,7 @@ unsigned gen_node(struct node *n)
 		return 1;
 	case T_LBSTORE:
 		if (size == 1) {
-			outputne("ld (T%u+%u),a", n->val2, v);
+			outputne("ld (T%u+%u),a", n->snum, v);
 		} else {
 			point_hl_at(n);
 			store_via_hl(size);

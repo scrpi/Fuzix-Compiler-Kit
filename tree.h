@@ -15,7 +15,7 @@ struct node
 #define CCFIXED			128	/* CC flags must match the expected default */
     unsigned long value;	/* Offset for a NAME fp offset for a LOCAL */
     unsigned snum;		/* Name of symbol (for code generator) */
-    unsigned val2;		/* Label for name, (also used for code gen) */
+                                /* Label for name, (also used for code gen) */
 };
 
 extern void init_nodes(void);

@@ -359,7 +359,7 @@ static void dump_tree(register struct node *n, unsigned depth)
 		fprintf(stderr, "%04X v%lx t%x f%x ", n->op, n->value,
 							n->type, n->flags);
 	if (n->snum)
-		fprintf(stderr, "\t%s", namestr(n->snum));
+		fprintf(stderr, "\t%s(%04X)", namestr(n->snum), n->snum);
 	fputc('\n', stderr);
 	dump_tree(n->left, depth + 1);
 	dump_tree(n->right, depth + 1);
@@ -649,7 +649,7 @@ void process_data(void)
 		gen_name(n);
 		break;
 	case T_CASELABEL:
-		gen_case_data(n->value, n->val2);
+		gen_case_data(n->value, n->snum);
 		break;
 	default:
 		gen_value(n->type, n->value);

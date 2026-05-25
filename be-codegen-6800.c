@@ -85,7 +85,6 @@ struct node *gen_rewrite(struct node *n)
 static void squash_node(struct node *n, struct node *o)
 {
 	n->value = o->value;
-	n->val2 = o->val2;
 	n->snum = o->snum;
 	free_node(o);
 }
@@ -253,7 +252,7 @@ struct node *gen_rewrite_node(struct node *n)
 		r->right->op == T_CONSTANT) {
 		n->op = T_RDEREF;
 		n->right = NULL;
-		n->val2 = r->right->value;	/* Offset to add */
+		n->snum = r->right->value;	/* Offset to add */
 		n->value = r->left->value;	/* Register number */
 		free_node(r->right);		/* Discard constant */
 		free_node(r->left);		/* Discard T_REG */
@@ -264,7 +263,7 @@ struct node *gen_rewrite_node(struct node *n)
 	if (op == T_DEREF && r->op == T_RREF) {
 		n->op = T_RDEREF;
 		n->right = NULL;
-		n->val2 = 0;
+		n->snum = 0;
 		n->value = r->value;
 		free_node(r);
 		return n;
@@ -273,7 +272,7 @@ struct node *gen_rewrite_node(struct node *n)
 	if (op == T_EQ && l->op == T_PLUS && l->left->op == T_RREF &&
 		l->right->op == T_CONSTANT) {
 		n->op = T_REQ;
-		n->val2 = l->right->value;	/* Offset to add */
+		n->snum = l->right->value;	/* Offset to add */
 		n->value = l->left->value;	/* Register number */
 		free_node(l->right);		/* Discard constant */
 		free_node(l->left);		/* Discard T_REG */
@@ -284,7 +283,7 @@ struct node *gen_rewrite_node(struct node *n)
 	/* *regptr = */
 	if (op == T_EQ && l->op == T_RREF) {
 		n->op = T_REQ;
-		n->val2 = 0;
+		n->snum = 0;
 		n->value = l->value;
 		n->left = NULL;
 		free_node(l);
@@ -293,14 +292,14 @@ struct node *gen_rewrite_node(struct node *n)
 	if ((op == T_DEREF || op == T_DEREFPLUS) && r->op == T_LREF) {
 		/* At this point r->value is the offset for the local */
 		/* n->value is the offset for the ptr load */
-		r->val2 = n->value;		/* Save the offset so it is squashed in */
+		r->snum = n->value;		/* Save the offset so it is squashed in */
 		squash_right(n, T_LDEREF);	/* n->value becomes the local ref */
 		return n;
 	}
 	if ((op == T_EQ || op == T_EQPLUS) && l->op == T_LREF) {
 		/* At this point r->value is the offset for the local */
 		/* n->value is the offset for the ptr load */
-		l->val2 = n->value;		/* Save the offset so it is squashed in */
+		l->snum = n->value;		/* Save the offset so it is squashed in */
 		squash_left(n, T_LEQ);		/* n->value becomes the local ref */
 		return n;
 	}
@@ -322,7 +321,7 @@ struct node *gen_rewrite_node(struct node *n)
 		return n;
 	}
 	if (cpu_is_09 && n->value == 0 && (op == T_EQ || op == T_EQPLUS) && l->op == T_LBREF) {
-		l->val2 = n->value;		/* Save the offset so it is squashed in */
+		l->snum = n->value;		/* Save the offset so it is squashed in */
 		squash_left(n, T_LBEQ);		/* n->value becomes the local ref */
 		return n;
 	}
@@ -352,7 +351,7 @@ struct node *gen_rewrite_node(struct node *n)
 			}
 			if (r->op == T_RREF) {
 				squash_right(n, T_RDEREF);
-				n->val2 = 0;
+				n->snum = 0;
 				return n;
 			}
 		}
@@ -483,7 +482,7 @@ unsigned gen_direct(struct node *n)
 	   in n->right */
 	case T_CLEANUP:
 		sp -= r->value;
-		if (cpu_has_d || n->val2) /* Varargs */
+		if (cpu_has_d || n->snum) /* Varargs */
 			adjust_s(r->value, (func_flags & F_VOIDRET) ? 0 : 1);
 		return 1;
 	case T_EQ:
@@ -728,10 +727,10 @@ unsigned gen_uni_direct(struct node *n)
 	case T_LEQ:
 		/* We have a specific optimization case that occurs a lot
 		   *auto = 0, that we can optimize nicely */
-		printf(";LEQ rv %lu nr %u nv %lu val2 %u s %u\n",
-			r->value, nr, n->value, n->val2, s);
+		printf(";LEQ rv %lu nr %u nv %lu snum %u s %u\n",
+			r->value, nr, n->value, n->snum, s);
 		if (r->op == T_CONSTANT && r->value == 0 && nr) {
-			if (cpu_is_09 && n->val2 == 0 && s == 1) {
+			if (cpu_is_09 && n->snum == 0 && s == 1) {
 				printf("\tclr [%u,s]\n", WORD(n->value));
 				return 1;
 			}
@@ -740,19 +739,19 @@ unsigned gen_uni_direct(struct node *n)
 				return 0;
 
 			/* Offset of pointer in local */
-			/* val2 is the local offset, value the data offset */
+			/* snum is the local offset, value the data offset */
 			off = make_local_ptr(n->value, 256 - s);
 			/* off,X is now the pointer */
 			printf("\tldx %u,x\n", off);
 			invalidate_x();
-			uniop_on_ptr("clr", n->val2, s);
+			uniop_on_ptr("clr", n->snum, s);
 			return 1;
 		}
 		return 0;
 	case T_LBEQ:
 		if (r->op == T_CONSTANT && r->value == 0 && nr) {
 			if (s == 1 && nr) {
-				printf("\tclr [T%u+%u]\n", n->val2, (unsigned)n->value);
+				printf("\tclr [T%u+%u]\n", n->snum, (unsigned)n->value);
 				return 1;
 			}
 		}
@@ -1022,12 +1021,12 @@ unsigned memop_const(struct node *n, const char *op, unsigned nr, unsigned pre)
 	switch(l->op) {
 	case T_LABEL:
 		if (pre == 1)
-			printf("ldb T%u+%u\n", l->val2, v);
-		sprintf(buf, "%s T%u+%u", op, l->val2, v);
+			printf("ldb T%u+%u\n", l->snum, v);
+		sprintf(buf, "%s T%u+%u", op, l->snum, v);
 		repeated_op(ct, buf);
 		invalidate_mem();
 		if (pre == 2)
-			printf("ldb T%u+%u\n", l->val2, v);
+			printf("ldb T%u+%u\n", l->snum, v);
 		if (pre)
 			invalidate_b();
 		return 1;
@@ -1083,7 +1082,7 @@ unsigned memop_shift(struct node *n, const char *op, const char *opu)
 		return 0;
 	switch(l->op) {
 	case T_LABEL:
-		sprintf(buf, "%s T%u+%u", op, l->val2, v);
+		sprintf(buf, "%s T%u+%u", op, l->snum, v);
 		repeated_op(r->value, buf);
 		invalidate_mem();
 		return 1;
@@ -1456,13 +1455,13 @@ unsigned gen_shortcut(struct node *n)
 		codegen_lr(r);
 		switch(s) {
 		case 4:
-			printf("\tsty %u,u\n\tstd %u,u\n", n->val2, n->val2 + 2);
+			printf("\tsty %u,u\n\tstd %u,u\n", n->snum, n->snum + 2);
 			return 1;
 		case 2:
-			printf("\tstd %u,u\n", n->val2);
+			printf("\tstd %u,u\n", n->snum);
 			return 1;
 		case 1:
-			printf("\tstb %u,u\n", n->val2);
+			printf("\tstb %u,u\n", n->snum);
 			return 1;
 		}
 		break;
@@ -1733,7 +1732,7 @@ unsigned gen_node(struct node *n)
 		return 1;
 	case T_LDEREF:
 		if (cpu_is_09) {
-			if (n->val2 == 0 && s <= 2) {
+			if (n->snum == 0 && s <= 2) {
 				if (s == 1)
 					printf("\tldb [%u,s]\n", v + sp);
 				else
@@ -1745,13 +1744,13 @@ unsigned gen_node(struct node *n)
 			}
 		} else {
 			/* Offset of pointer in local */
-			/* val2 is the local offset, value the data offset */
+			/* snum is the local offset, value the data offset */
 			off = make_local_ptr(v, 256 - s);
 			/* off,X is now the pointer */
 			printf("\tldx %u,x\n", off);
 		}
 		invalidate_x();
-		v = n->val2;
+		v = n->snum;
 		if (s == 1)
 			op8_on_ptr("ld", v);
 		else if (s == 2)
@@ -1773,18 +1772,18 @@ unsigned gen_node(struct node *n)
 		/* Deref through a label. Only generated for the 6809
 		   and only when the object offset is 0 and size is 1 or 2 */
 		if (s == 1)
-			printf("\tldb [T%u + %u]\n", n->val2, v);
+			printf("\tldb [T%u + %u]\n", n->snum, v);
 		else
-			printf("\tldd [T%u + %u]\n", n->val2, v);
+			printf("\tldd [T%u + %u]\n", n->snum, v);
 		invalidate_work();
 		return 1;
 	case T_RDEREF:
 		if (s == 4)
-			printf("\tldy %u,u\n\tldd %u,u\n", n->val2, n->val2 + 2);
+			printf("\tldy %u,u\n\tldd %u,u\n", n->snum, n->snum + 2);
 		else if (s == 2)
-			printf("\tldd %u,u\n", n->val2);
+			printf("\tldd %u,u\n", n->snum);
 		else
-			printf("\tldb %u,u\n", n->val2);
+			printf("\tldb %u,u\n", n->snum);
 		invalidate_work();
 		return 1;
 	case T_RDEREFPLUS:
@@ -1799,7 +1798,7 @@ unsigned gen_node(struct node *n)
 	case T_LEQ:
 		/* We probably want some indirecting helpers later */
 		if (cpu_is_09) {
-			if (n->val2 == 0 && s <= 2) {
+			if (n->snum == 0 && s <= 2) {
 				if (s == 1)
 					printf("\tstb [%u,s]\n", v + sp);
 				else
@@ -1815,11 +1814,11 @@ unsigned gen_node(struct node *n)
 		}
 		invalidate_x();
 		if (s == 1)
-			op8_on_ptr("st", n->val2);
+			op8_on_ptr("st", n->snum);
 		else if (s == 2)
-			op16d_on_ptr("st", "st", n->val2);
+			op16d_on_ptr("st", "st", n->snum);
 		else
-			op32d_on_ptr("st", "st", n->val2);
+			op32d_on_ptr("st", "st", n->snum);
 		return 1;
 	case T_NEQ:
 		if (s == 1)
@@ -1829,9 +1828,9 @@ unsigned gen_node(struct node *n)
 		return 1;
 	case T_LBEQ:
 		if (s == 1)
-			printf("\tstb [T%u + %u]\n", n->val2, v);
+			printf("\tstb [T%u + %u]\n", n->snum, v);
 		else
-			printf("\tstd [T%u + %u]\n", n->val2, v);
+			printf("\tstd [T%u + %u]\n", n->snum, v);
 		return 1;
 	case T_LPLUS:	/* 6800 and -Os only */
 		gen_lplus(n, "");

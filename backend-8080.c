@@ -366,8 +366,7 @@ static unsigned hl_contains(register struct node *n)
 	if (hl_valid != 2)
 		return 0;
 	if (hl_node.op == map_op(n->op) && hl_node.value == n->value &&
-	    hl_node.val2 == n->val2 && hl_node.snum == n->snum &&
-	    hl_node.type == n->type)
+	    hl_node.snum == n->snum && hl_node.type == n->type)
 	    	return 1;
 	return 0;
 }
@@ -379,8 +378,7 @@ static unsigned de_contains(register struct node *n)
 	if (de_valid != 2)
 		return 0;
 	if (de_node.op == map_op(n->op) && de_node.value == n->value &&
-	    de_node.val2 == n->val2 && de_node.snum == n->snum &&
-	    de_node.type == n->type)
+	    de_node.snum == n->snum && de_node.type == n->type)
 	    	return 1;
 	return 0;
 }
@@ -392,8 +390,7 @@ static unsigned bc_contains(register struct node *n)
 	if (bc_valid == 0)
 		return 0;
 	if (bc_node.op == map_op(n->op) && bc_node.value == n->value &&
-	    bc_node.val2 == n->val2 && bc_node.snum == n->snum &&
-	    bc_node.type == n->type)
+	    bc_node.snum == n->snum && bc_node.type == n->type)
 	    	return 1;
 	return 0;
 }
@@ -550,7 +547,6 @@ static unsigned get_stack_size(unsigned t)
 static void squash_node(struct node *n, struct node *o)
 {
 	n->value = o->value;
-	n->val2 = o->val2;
 	n->snum = o->snum;
 	free_node(o);
 }
@@ -624,7 +620,7 @@ struct node *gen_rewrite_node(struct node *n)
 	if (op == T_DEREF && r->op == T_RREF && (nt == CCHAR || nt == UCHAR)) {
 		n->op = T_RDEREF;
 		n->right = NULL;
-		n->val2 = 0;
+		n->snum = 0;
 		n->value = r->value;
 		free_node(r);
 		return n;
@@ -632,7 +628,7 @@ struct node *gen_rewrite_node(struct node *n)
 	/* *regptr = */
 	if (op == T_EQ && l->op == T_RREF && (nt == CCHAR || nt == UCHAR)) {
 		n->op = T_REQ;
-		n->val2 = 0;
+		n->snum = 0;
 		n->value = l->value;
 		n->left = NULL;
 		free_node(l);
@@ -998,7 +994,7 @@ void gen_space(unsigned value)
 
 void gen_text_data(struct node *n)
 {
-	opcode(".word T%u", n->val2);
+	opcode(".word T%u", n->snum);
 }
 
 /* The label for a literal (currently only strings) */
@@ -1227,7 +1223,7 @@ static unsigned load_r_with(const char r, struct node *n)
 		opcode("lxi %c,_%s+%u", r, namestr(n->snum), v);
 		return 1;
 	case T_LABEL:
-		opcode("lxi %c,T%u+%u", r, n->val2, v);
+		opcode("lxi %c,T%u+%u", r, n->snum, v);
 		return 1;
 	case T_CONSTANT:
 		/* We know this is not a long from the checks above */
@@ -1255,13 +1251,13 @@ static unsigned load_r_with(const char r, struct node *n)
 		if (r == 'b')
 			return 0;
 		else if (r == 'h') {
-			opcode("lhld T%u+%u", n->val2, v);
+			opcode("lhld T%u+%u", n->snum, v);
 			set_hl_node(n);
 			return 1;
 		} else if (r == 'd') {
 			/* We know it is int or pointer */
 			op_xchg();
-			opcode("lhld T%u+%u", n->val2, v);
+			opcode("lhld T%u+%u", n->snum, v);
 			set_hl_node(n);
 			op_xchg();
 			return 1;
@@ -1330,7 +1326,7 @@ static unsigned load_a_with(struct node *n)
 		opcode("lda _%s+%u", namestr(n->snum), WORD(n->value));
 		break;
 	case T_LBREF:
-		opcode("lda T%u+%u", n->val2, WORD(n->value));
+		opcode("lda T%u+%u", n->snum, WORD(n->value));
 		break;
 	case T_RREF:
 		opcode("mov a,c");
@@ -1646,9 +1642,9 @@ unsigned gen_direct(struct node *n)
 			return 0;
 		if (s == 1) {
 			opcode("mov a,l");
-			opcode("sta T%u+%u", n->val2, v);
+			opcode("sta T%u+%u", n->snum, v);
 		} else
-			opcode("shld T%u+%u", n->val2, v);
+			opcode("shld T%u+%u", n->snum, v);
 		set_hl_node(n);
 		return 1;
 	case T_RSTORE:
@@ -2109,10 +2105,10 @@ unsigned gen_shortcut(struct node *n)
 		codegen_lr(r);
 		/* Expression result is now in HL */
 		if (s == 2)
-			opcode("shld T%u+%u", n->val2, WORD(n->value));
+			opcode("shld T%u+%u", n->snum, WORD(n->value));
 		else {
 			opcode("mov a,l");
-			opcode("sta T%u+%u", n->val2, WORD(n->value));
+			opcode("sta T%u+%u", n->snum, WORD(n->value));
 		}
 		set_hl_node(n);
 		return 1;
@@ -2542,16 +2538,16 @@ unsigned gen_node(struct node *n)
 			}
 		}
 		if (size == 1) {
-			opcode("lda T%u+%u", n->val2, v);
+			opcode("lda T%u+%u", n->snum, v);
 			opcode("mov l,a");
 			set_hl_node(n);
 		} else if (size == 2) {
-			opcode("lhld T%u+%u", n->val2, v);
+			opcode("lhld T%u+%u", n->snum, v);
 			set_hl_node(n);
 		} else if (size == 4) {
-			opcode("lhld T%u+%u", n->val2, v + 2);
+			opcode("lhld T%u+%u", n->snum, v + 2);
 			opcode("shld __hireg");
-			opcode("lhld T%u+%u", n->val2, v);
+			opcode("lhld T%u+%u", n->snum, v);
 			set_hl_node(n);
 		} else
 			error("lbrb");
@@ -2621,19 +2617,19 @@ unsigned gen_node(struct node *n)
 				return 1;
 		}
 		if (size == 4) {
-			opcode("shld T%u+%u", n->val2, v);
+			opcode("shld T%u+%u", n->snum, v);
 			op_xchg();
 			opcode("lhld __hireg");
-			opcode("shld T%u+%u",	n->val2, v + 2);
+			opcode("shld T%u+%u",	n->snum, v + 2);
 			op_xchg();
 			set_hl_node(n);
 			return 1;
 		}
 		if (size == 1) {
 			opcode("mov a,l");
-			opcode("sta T%u+%u", n->val2, v);
+			opcode("sta T%u+%u", n->snum, v);
 		} else
-			opcode("shld T%u+%u", n->val2, v);
+			opcode("shld T%u+%u", n->snum, v);
 		set_hl_node(n);
 		return 1;
 	case T_LSTORE:
@@ -2831,7 +2827,7 @@ unsigned gen_node(struct node *n)
 		if (nr)
 			return 1;
 		/* Used for const strings and local static */
-		opcode("lxi h,T%u+%u", n->val2, v);
+		opcode("lxi h,T%u+%u", n->snum, v);
 		set_hl_node(n);
 		return 1;
 	case T_CONSTANT:

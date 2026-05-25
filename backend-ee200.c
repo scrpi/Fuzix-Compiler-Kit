@@ -227,7 +227,7 @@ void gen_space(unsigned value)
 
 void gen_text_data(struct node *n)
 {
-	printf("\t.word T%u\n", n->val2);
+	printf("\t.word T%u\n", n->snum);
 }
 
 void gen_literal(unsigned n)
@@ -382,7 +382,6 @@ void gen_helpclean(struct node *n)
 static void squash_node(struct node *n, struct node *o)
 {
 	n->value = o->value;
-	n->val2 = o->val2;
 	n->snum = o->snum;
 	free_node(o);
 }
@@ -553,7 +552,7 @@ unsigned op_into_r(char r, struct node *n, unsigned s, const char *b, const char
 		printf("\tld%c _%s+%u\n", r, namestr(n->snum), v);
 		break;
 	case T_LABEL:
-		printf("\tld%c T%u+%u\n", r, n->val2, v);
+		printf("\tld%c T%u+%u\n", r, n->snum, v);
 		break;
 	case T_ARGUMENT:
 		v += argbase + frame_len;
@@ -610,9 +609,9 @@ unsigned op_into_r(char r, struct node *n, unsigned s, const char *b, const char
 		break;
 	case T_LBREF:
 		if (s == 1)
-			printf("\tld%cb (T%u+%u)\n", r, n->val2, v);
+			printf("\tld%cb (T%u+%u)\n", r, n->snum, v);
 		else
-			printf("\tld%c (T%u+%u)\n", r, n->val2, v);
+			printf("\tld%c (T%u+%u)\n", r, n->snum, v);
 		break;
 	default:
 		return 0;
@@ -1318,19 +1317,19 @@ unsigned gen_node(struct node *n)
 		}
 		return 0;
 	case T_LABEL:
-		printf("\tldb T%u+%u\n", n->val2, v);
+		printf("\tldb T%u+%u\n", n->snum, v);
 		return 1;
 	case T_LBREF:
 		if (s == 1)
-			printf("\tldbb (T%u+%u)\n", n->val2, v);
+			printf("\tldbb (T%u+%u)\n", n->snum, v);
 		else
-			printf("\tldb (T%u+%u)\n", n->val2, v);
+			printf("\tldb (T%u+%u)\n", n->snum, v);
 		return 1;
 	case T_LBSTORE:
 		if (s == 1)
-			printf("\tstbb (T%u+%u)\n", n->val2, v);
+			printf("\tstbb (T%u+%u)\n", n->snum, v);
 		else
-			printf("\tstb (T%u+%u)\n", n->val2, v);
+			printf("\tstb (T%u+%u)\n", n->snum, v);
 		return 1;
 	case T_NAME:
 		printf("\tldb _%s+%u\n", namestr(n->snum), v);

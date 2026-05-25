@@ -76,7 +76,7 @@ void put_typed_case(unsigned tag, unsigned entry)
 {
 	register struct node *n = make_constant(tag, PTRTO|VOID);
 	n->op = T_CASELABEL;
-	n->val2 = entry;
+	n->snum = entry;
 	put_typed_data(n);
 	free_node(n);
 }

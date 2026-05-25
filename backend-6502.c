@@ -176,7 +176,6 @@ struct regtrack {
 	unsigned state;
 	uint8_t value;
 	unsigned snum;
-	unsigned val2;
 	unsigned offset;
 };
 
@@ -293,7 +292,6 @@ static void load_a(uint8_t n)
 	reg[R_A].state = T_CONSTANT;
 	reg[R_A].value = n;
 	reg[R_A].snum = 0;
-	reg[R_A].val2 = 0;
 }
 
 /* Get a value into X, adjust and track */
@@ -322,7 +320,6 @@ static void load_x(uint8_t n)
 	reg[R_X].state = T_CONSTANT;
 	reg[R_X].value = n;
 	reg[R_X].snum = 0;
-	reg[R_X].val2 = 0;
 }
 
 /* Get a value into Y, adjust and track */
@@ -351,7 +348,6 @@ static void load_y(uint8_t n)
 	reg[R_Y].state = T_CONSTANT;
 	reg[R_Y].value = n;
 	reg[R_Y].snum = 0;
-	reg[R_Y].val2 = 0;
 }
 
 /*
@@ -405,8 +401,6 @@ static void set_xa_node(struct node *n)
 	reg[R_X].value = value >> 8;
 	reg[R_A].snum = n->snum;
 	reg[R_X].snum = n->snum;
-	reg[R_A].val2 = n->val2;
-	reg[R_X].val2 = n->val2;
 	return;
 }
 
@@ -419,8 +413,6 @@ static unsigned xa_contains(struct node *n)
 	if (reg[R_A].value != (n->value & 0xFF) || reg[R_X].value != (n->value >> 8))
 		return 0;
 	if (reg[R_A].snum != n->snum || reg[R_X].snum != n->snum)
-		return 0;
-	if (reg[R_A].val2 != n->val2 || reg[R_X].val2 != n->val2)
 		return 0;
 	/* Looks good */
 	return 1;
@@ -447,7 +439,6 @@ static void set_a_node(struct node *n)
 	reg[R_A].state = op;
 	reg[R_A].value = value;
 	reg[R_A].snum = n->snum;
-	reg[R_A].val2 = n->val2;
 }
 
 static unsigned a_contains(struct node *n)
@@ -457,8 +448,6 @@ static unsigned a_contains(struct node *n)
 	if (reg[R_A].value != n->value)
 		return 0;
 	if (reg[R_A].snum != n->snum)
-		return 0;
-	if (reg[R_A].val2 != n->val2)
 		return 0;
 	/* Looks good */
 	return 1;
@@ -485,11 +474,9 @@ static void set_tmp_node(struct node *n)
 	reg[R_TMPL].state = op;
 	reg[R_TMPL].value = value;
 	reg[R_TMPL].snum = n->snum;
-	reg[R_TMPL].val2 = n->val2;
 	reg[R_TMPH].state = op;
 	reg[R_TMPH].value = value >> 8;
 	reg[R_TMPH].snum = n->snum;
-	reg[R_TMPL].val2 = n->val2;
 }
 
 /*
@@ -514,8 +501,6 @@ static unsigned tmp_contains(struct node *n)
 	if (reg[R_TMPL].value != (n->value & 0xFF) || reg[R_TMPH].value != (n->value >> 8))
 		return 0;
 	if (reg[R_TMPL].snum != n->snum || reg[R_TMPL].snum != n->snum)
-		return 0;
-	if (reg[R_TMPL].val2 != n->val2 || reg[R_TMPL].val2 != n->val2)
 		return 0;
 	/* Looks good */
 	return 1;
@@ -578,7 +563,6 @@ static void set_reg(unsigned r, unsigned v)
 	reg[r].state = T_CONSTANT;
 	reg[r].value = (uint8_t)v;
 	reg[r].snum = 0;
-	reg[r].val2 = 0;
 }
 
 /* TODO: worth checking these for cases they already are the same ? */
@@ -759,7 +743,7 @@ static int do_pri8(struct node *n, struct node *r, const char *op, void (*pre)(s
 	switch(r->op) {
 	case T_LABEL:
 		pre(n);
-		output("%s #<T%u+%u", op,  r->val2, v);
+		output("%s #<T%u+%u", op,  r->snum, v);
 		return 1;
 	case T_NAME:
 		pre(n);
@@ -823,7 +807,7 @@ static int do_pri8(struct node *n, struct node *r, const char *op, void (*pre)(s
 	case T_LBSTORE:
 	case T_LBREF:
 		pre(n);
-		output("%s T%u+%u", op,  r->val2, v);
+		output("%s T%u+%u", op,  r->snum, v);
 		return 1;
 	case T_RSTORE:
 	case T_RREF:
@@ -860,7 +844,7 @@ static int do_pri8hi(struct node *n, struct node *r, const char *op, void (*pre)
 	switch(r->op) {
 	case T_LABEL:
 		pre(n);
-		output("%s #>T%u+%u", op,  r->val2, v);
+		output("%s #>T%u+%u", op,  r->snum, v);
 		return 1;
 	case T_NAME:
 		pre(n);
@@ -903,7 +887,7 @@ static int do_pri8hi(struct node *n, struct node *r, const char *op, void (*pre)
 	case T_LBSTORE:
 	case T_LBREF:
 		pre(n);
-		output("%s T%u+%u", op,  r->val2, v + 1);
+		output("%s T%u+%u", op,  r->snum, v + 1);
 		return 1;
 	case T_RSTORE:
 	case T_RREF:
@@ -953,8 +937,8 @@ static int do_pri16(struct node *n, struct node *r, const char *op, void (*pre)(
 	switch(r->op) {
 	case T_LABEL:
 		pre(n);
-		output("%sa #<T%u+%u", op,  r->val2, v);
-		output("%sx #>T%u+%u", op,  r->val2, v);
+		output("%sa #<T%u+%u", op,  r->snum, v);
+		output("%sx #>T%u+%u", op,  r->snum, v);
 		return 1;
 	case T_NAME:
 		pre(n);
@@ -1057,8 +1041,8 @@ static int do_pri16(struct node *n, struct node *r, const char *op, void (*pre)(
 	case T_LBSTORE:
 	case T_LBREF:
 		pre(n);
-		output("%sa T%u+%u", op,  r->val2, v);
-		output("%sx T%u+%u", op,  r->val2, v + 1);
+		output("%sa T%u+%u", op,  r->snum, v);
+		output("%sx T%u+%u", op,  r->snum, v + 1);
 		return 1;
 	case T_RSTORE:
 	case T_RREF:
@@ -1450,17 +1434,17 @@ static int leftop_memc(struct node *n, const char *op)
 		return 1;
 	case T_LABEL:
 		while(count--) {
-			output("%s T%u+%u", op, (unsigned)l->val2, v);
+			output("%s T%u+%u", op, (unsigned)l->snum, v);
 			if (sz == 2) {
 				output("b%s X%u", cc, ++xlabel);
-				output("%s T%u+%u", op, (unsigned)l->val2, v + 1);
+				output("%s T%u+%u", op, (unsigned)l->snum, v + 1);
 				label("X%u", xlabel);
 			}
 		}
 		if (!nr) {
-			output("lda T%u+%u", (unsigned)l->val2, v);
+			output("lda T%u+%u", (unsigned)l->snum, v);
 			if (sz == 2)
-				output("ldx T%u+%u", (unsigned)l->val2, v + 1);
+				output("ldx T%u+%u", (unsigned)l->snum, v + 1);
 		}
 		return 1;
 	case T_REG:
@@ -1551,7 +1535,6 @@ static unsigned try_via_x(struct node *n, const char *op, void (*pre)(struct nod
 static void squash_node(struct node *n, struct node *o)
 {
 	n->value = o->value;
-	n->val2 = o->val2;
 	n->snum = o->snum;
 	free_node(o);
 }
@@ -1743,16 +1726,16 @@ struct node *gen_rewrite_node(struct node *n)
 		/* At this point r->value is the offset for the local */
 		/* n->value is the offset for the ptr load */
 		if (op == T_DEREF)
-			r->val2 = 0;
+			r->snum = 0;
 		else
-			r->val2 = n->value;	/* Save the offset so it is squashed in */
+			r->snum = n->value;	/* Save the offset so it is squashed in */
 		squash_right(n, T_LDEREF);	/* n->value becomes the local ref */
 		return n;
 	}
 	/* *regptr */
 	if ((op == T_DEREF || op == T_DEREFPLUS) && r->op == T_RREF) {
 		n->op = T_RDEREF;
-		n->val2 = r->value;
+		n->snum = r->value;
 		n->right = NULL;
 		free_node(r);
 		return n;
@@ -1760,10 +1743,10 @@ struct node *gen_rewrite_node(struct node *n)
 	/* *regptr = */
 	if (op == T_EQ && l->op == T_RREF) {
 		n->op = T_REQ;
-		/* Put the register number into REQ val2 */
-		n->val2 = l->value;
+		/* Put the register number into REQ snum */
+		n->snum = l->value;
 		/* Accumulate the offsets */
-		n->value = l->val2;
+		n->value = l->snum;
 		n->left = NULL;
 		free_node(l);
 		return n;
@@ -1772,8 +1755,8 @@ struct node *gen_rewrite_node(struct node *n)
 	if (op == T_EQ && l->op == T_PLUS && l->left->op == T_RREF &&
 		l->right->op == T_CONSTANT && l->right->value < 253) {
 		n->op = T_REQ;
-		/* Put the register number into REQ val2 */
-		n->val2 = l->left->value;
+		/* Put the register number into REQ snum */
+		n->snum = l->left->value;
 		/* Accumulate the offsets */
 		n->value = l->right->value;
 		n->left = NULL;
@@ -1834,7 +1817,7 @@ struct node *gen_rewrite_node(struct node *n)
 		if (off == 8 || off == 16 || off == 24) {
 			r->op = T_SHIFTCAST;
 			/* Remember the input type */
-			r->val2 = r->type;
+			r->snum = r->type;
 			/* Set the resulting type of our T_SHIFTCAST correctly */
 			r->type = n->type;
 			free_node(n);
@@ -1856,7 +1839,6 @@ struct node *gen_rewrite_node(struct node *n)
 		n->op = T_CALLNAME;
 		n->snum = r->snum;
 		n->value = r->value;
-		n->val2 = r->val2;
 		free_node(r);
 		n->right = NULL;
 	}
@@ -2254,7 +2236,7 @@ void gen_space(unsigned value)
 
 void gen_text_data(struct node *n)
 {
-	output(".word T%u", n->val2);
+	output(".word T%u", n->snum);
 }
 
 void gen_literal(unsigned n)
@@ -2703,7 +2685,7 @@ unsigned gen_direct(struct node *n)
 	   type of the function return so don't use that for the cleanup value
 	   in n->right */
 	case T_CLEANUP:
-		if (n->val2) {
+		if (n->snum) {
 			/* Only clean up vararg. stdarg is cleaned up by
 			   the called function */
 			if (v <= 4)
@@ -3193,7 +3175,7 @@ unsigned gen_direct(struct node *n)
 			output("lda @hireg+1");
 			load_x(0);
 			/* Was the original shift signed */
-			if (!(n->val2 & UNSIGNED)) {
+			if (!(n->snum & UNSIGNED)) {
 				output("bpl X%u", ++xlabel);
 				output("dex");
 				label("X%u", xlabel);
@@ -3830,45 +3812,45 @@ unsigned gen_node(struct node *n)
 		if (size == 1) {
 			if (v == 0) {
 				if (cpu != NMOS_6502)
-					output("sta (@reg%u)", n->val2);
+					output("sta (@reg%u)", n->snum);
 				else {
 					load_x(0);
-					output("sta (@reg%u,x)", n->val2);
+					output("sta (@reg%u,x)", n->snum);
 				}
 				return 1;
 			}
 			load_y(v);
-			output("sta (@reg%u),y", n->val2);
+			output("sta (@reg%u),y", n->snum);
 			return 1;
 		}
 		if (size == 4) {
 			load_y(v);
 			if (optsize) {
-				output("jsr __reql%u", n->val2);
+				output("jsr __reql%u", n->snum);
 				set_reg(R_Y, v + 3);
 				return 1;
 			}
-			output("sta (@reg%u),y", n->val2);
+			output("sta (@reg%u),y", n->snum);
 			if (!nr) {
 				output("pha");
 				output("txa");
 			} else
 				txa();
 			load_y(v + 1);
-			output("sta (@reg%u),y", n->val2);
+			output("sta (@reg%u),y", n->snum);
 			load_y(v + 2);
 			output("lda @hireg");
-			output("sta (@reg%u),y", n->val2);
+			output("sta (@reg%u),y", n->snum);
 			load_y(v + 3);
 			output("lda @hireg+1");
-			output("sta (@reg%u),y", n->val2);
+			output("sta (@reg%u),y", n->snum);
 			if (!nr)
 				output("pla");
 			return 1;
 		}
 		if (size == 2) {
 			load_y(v);
-			output("sta (@reg%u),y", n->val2);
+			output("sta (@reg%u),y", n->snum);
 			/* Reload before we muck with registers
 			   temporarily so we don't confuse load_y */
 			load_y(v + 1);
@@ -3877,7 +3859,7 @@ unsigned gen_node(struct node *n)
 				output("txa");
 			} else
 				txa();
-			output("sta (@reg%u),y", n->val2);
+			output("sta (@reg%u),y", n->snum);
 			if (!nr)
 				output("pla");
 			return 1;
@@ -3959,29 +3941,29 @@ unsigned gen_node(struct node *n)
 			size = 1;
 		if (size == 1 && v == 0) {
 			if (cpu != NMOS_6502)
-				output("lda (@reg%u)", n->val2);
+				output("lda (@reg%u)", n->snum);
 			else {
 				load_x(0);
-				output("lda (@reg%u,x)", n->val2);
+				output("lda (@reg%u,x)", n->snum);
 			}
 			invalidate_a();
 		} else {
 			if (size == 4) {
 				load_y(v + 3);
-				output("lda (@reg%u),y", n->val2);
+				output("lda (@reg%u),y", n->snum);
 				output("sta @hireg+1");
 				load_y(v + 2);
-				output("lda (@reg%u),y", n->val2);
+				output("lda (@reg%u),y", n->snum);
 				output("sta @hireg");
 			}
 			if (size == 2 || size == 4) {
 				load_y(v + 1);
-				output("lda (@reg%u),y", n->val2);
+				output("lda (@reg%u),y", n->snum);
 				invalidate_a();
 				tax();
 			}
 			load_y(v);
-			output("lda (@reg%u),y", n->val2);
+			output("lda (@reg%u),y", n->snum);
 			invalidate_a();
 		}
 		return 1;
@@ -3991,7 +3973,7 @@ unsigned gen_node(struct node *n)
 		   is rare */
 		if (v > 254) {
 			/* This one is safe */
-			load_x(n->val2 + 1);
+			load_x(n->snum + 1);
 			load_a(v);
 			load_y(v >> 8);
 			if (size == 1) {
@@ -4006,7 +3988,7 @@ unsigned gen_node(struct node *n)
 		}
 		/* offset of local */
 		if (size == 2) {
-			load_x(n->val2 + 1);
+			load_x(n->snum + 1);
 			if (v) {
 				load_y(v);
 				output("jsr __lderef");
@@ -4014,7 +3996,7 @@ unsigned gen_node(struct node *n)
 				output("jsr __lderef0");
 			invalidate_x();
 		} else if (size == 1) {
-			load_x(n->val2);
+			load_x(n->snum);
 			if (v) {
 				load_y(v);
 				output("jsr __lderefc");

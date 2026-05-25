@@ -28,7 +28,6 @@ static unsigned big_endian;	/* Machine word endianness */
 static void squash_node(struct node *n, struct node *o)
 {
 	n->value = o->value;
-	n->val2 = o->val2;
 	n->snum = o->snum;
 	free_node(o);
 }
@@ -259,7 +258,7 @@ void gen_space(unsigned value)
 
 void gen_text_data(struct node *n)
 {
-	printf("\t.word T%d\n", n->val2);
+	printf("\t.word T%d\n", n->snum);
 }
 
 void gen_literal(unsigned n)
@@ -435,7 +434,7 @@ unsigned gen_node(struct node *n)
 		return 1;
 	case T_LBREF:
 		helper(n, "lbref");
-		printf("\t.word T%ds+%d\n", n->val2, v);
+		printf("\t.word T%ds+%d\n", n->snum, v);
 		return 1;
 	case T_LREF:
 		if (nr)
@@ -449,7 +448,7 @@ unsigned gen_node(struct node *n)
 		return 1;
 	case T_LBSTORE:
 		helper(n, "lbstore");
-		printf("\t.word T%ds+%d\n", n->val2, v);
+		printf("\t.word T%ds+%d\n", n->snum, v);
 		return 1;
 	case T_LSTORE:
 		helper(n, "lstore");

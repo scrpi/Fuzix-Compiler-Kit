@@ -73,7 +73,6 @@ unsigned get_stack_size(unsigned t)
 static void squash_node(register struct node *n, struct node *o)
 {
 	n->value = o->value;
-	n->val2 = o->val2;
 	n->snum = o->snum;
 	free_node(o);
 }
@@ -197,7 +196,7 @@ struct node *gen_rewrite_node(register struct node *n)
 				/* IX and IY only ranged, BC char * direct */
 				if (val == 0 || (val >= -128 && val < 125 && r->left->value != 1)) {
 					n->op = T_RDEREF;
-					n->val2 = val;
+					n->snum = val;
 					n->value = r->left->value;
 					n->right = NULL;
 					free_tree(r);
@@ -207,7 +206,7 @@ struct node *gen_rewrite_node(register struct node *n)
 		} else if (r->op == T_RREF && type_compatible(r, nt)) {
 			/* Check - are we ok with BC always ? */
 			n->op = T_RDEREF;
-			n->val2 = 0;
+			n->snum = 0;
 			n->value = r->value;
 			n->right = NULL;
 			free_node(r);
@@ -223,7 +222,7 @@ struct node *gen_rewrite_node(register struct node *n)
 				/* IX and IY only -  BC char * direct only */
 				if (val == 0 || (val >= -128 && val < 125 && l->left->value != 1)) {
 					n->op = T_REQ;
-					n->val2 = val;
+					n->snum = val;
 					n->value = l->left->value;
 					n->left = NULL;
 					free_tree(l);
@@ -236,7 +235,7 @@ struct node *gen_rewrite_node(register struct node *n)
 			/* IX and IY only -  BC char * direct only */
 			if (val == 0 || (val >= -128 && val < 125 && l->value != 1)) {
 				n->op = T_REQ;
-				n->val2 = 0;
+				n->snum = 0;
 				n->value = val;
 				n->left = NULL;
 				free_node(l);
@@ -277,7 +276,7 @@ struct node *gen_rewrite_node(register struct node *n)
 			}
 			if (r->op == T_RREF) {
 				squash_right(n, T_RDEREF);
-				n->val2 = 0;
+				n->snum = 0;
 				return n;
 			}
 		}

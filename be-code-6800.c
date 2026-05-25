@@ -570,13 +570,13 @@ static char *addr_form(register struct node *r, unsigned off, unsigned s)
 		sprintf(addr, "_%s+%u%s", namestr(r->snum), v + off, pic_op);
 		return addr;
 	case T_LABEL:
-		sprintf(addr, "#%sT%u+%u", mod, r->val2, v + off);
+		sprintf(addr, "#%sT%u+%u", mod, r->snum, v + off);
 		return addr;
 	case T_LBSTORE:
-		sprintf(addr, "T%u+%u%s", r->val2, v + off, pic_op);
+		sprintf(addr, "T%u+%u%s", r->snum, v + off, pic_op);
 		return addr;
 	case T_LBREF:
-		sprintf(addr, "T%u+%u%s", r->val2, v + off, pic_op);
+		sprintf(addr, "T%u+%u%s", r->snum, v + off, pic_op);
 		return addr;
 	default:
 		error("aform");

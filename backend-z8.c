@@ -97,7 +97,7 @@ static void gen_symref(struct node *n)
 	if (op == T_NREF || op == T_NSTORE || op == T_NAME)
 		printf("\t.word _%s+%u\n",  namestr(n->snum), v);
 	else if (op == T_LBREF || op == T_LBSTORE || op == T_LABEL)
-		printf("\t.word T%u+%u\n", n->val2, v);
+		printf("\t.word T%u+%u\n", n->snum, v);
 	else
 		error("gsr");
 }
@@ -322,12 +322,12 @@ static void load_r_label(unsigned r, struct node *n, unsigned off)
 	r_modify(r, 2);
 #ifdef SUPER8
 	if (!(r & 1)) {
-		printf("\tldw rr%u,#T%u+%u\n", r, n->val2, off);
+		printf("\tldw rr%u,#T%u+%u\n", r, n->snum, off);
 		return;
 	}
 #endif
-	printf("\tld r%u,#>T%u+%u\n", r, n->val2, off);
-	printf("\tld r%u,#<T%u+%u\n", r + 1, n->val2, off);
+	printf("\tld r%u,#>T%u+%u\n", r, n->snum, off);
+	printf("\tld r%u,#<T%u+%u\n", r + 1, n->snum, off);
 }
 
 static void load_r_r(unsigned r1, unsigned r2)
@@ -1365,7 +1365,7 @@ static void load_da(unsigned r, struct node *n)
 	else if (n->op == T_LBREF) {
 		while(sz--) {
 			printf("\tlde r%u,T%u+%u\n",
-				r++, n->val2, v++);
+				r++, n->snum, v++);
 		}
 	}
 	else error("lda");
@@ -1411,7 +1411,7 @@ static void store_da(unsigned r, struct node *n)
 	else if (n->op == T_LBSTORE) {
 		while(sz--) {
 			printf("\tlde T%u+%u,r%u\n",
-				n->val2, v++, r++);
+				n->snum, v++, r++);
 		}
 	}
 	else error("lda");
@@ -1574,7 +1574,6 @@ static unsigned logic_eq_direct_r(struct node *r,unsigned v, unsigned size, unsi
 static void squash_node(struct node *n, struct node *o)
 {
 	n->value = o->value;
-	n->val2 = o->val2;
 	n->snum = o->snum;
 	free_node(o);
 }
@@ -1643,15 +1642,15 @@ struct node *gen_rewrite_node(struct node *n)
 		if (r->left->op == T_LREF && r->left->value < 256) {
 			printf("; rewrite deref plus lref const\n");
 			printf("; lref %lu %u, plus %lu\n",
-				r->left->value, r->left->val2,
+				r->left->value, r->left->snum,
 				r->right->value);
 			n->op = T_LSTREF;
 			n->value = r->right->value;
-			n->val2 = r->left->value;
+			n->snum = r->left->value;
 			n->left = NULL;
 			n->right = NULL;
 			printf(";new v v2 %lu %u\n",
-				n->value, n->val2);
+				n->value, n->snum);
 			free_node(r->right);
 			free_node(r->left);
 			free_node(r);
@@ -1665,7 +1664,7 @@ struct node *gen_rewrite_node(struct node *n)
 		if (l->left->op == T_LSTORE && l->left->value < 256) {
 			n->op = T_LSTSTORE;
 			n->value = l->right->value;
-			n->val2 = l->left->value;
+			n->snum = l->left->value;
 			n->left = NULL;
 			free_node(l->right);
 			free_node(l->left);
@@ -1700,7 +1699,7 @@ struct node *gen_rewrite_node(struct node *n)
 		r->right->op == T_CONSTANT) {
 		n->op = T_RDEREF;
 		n->right = NULL;
-		n->val2 = r->right->value;	/* Offset to add */
+		n->snum = r->right->value;	/* Offset to add */
 		n->value = r->left->value;	/* Register number */
 		free_node(r->right);		/* Discard constant */
 		free_node(r->left);		/* Discard T_REG */
@@ -1711,7 +1710,7 @@ struct node *gen_rewrite_node(struct node *n)
 	if (op == T_DEREF && r->op == T_RREF) {
 		n->op = T_RDEREF;
 		n->right = NULL;
-		n->val2 = 0;
+		n->snum = 0;
 		n->value = r->value;
 		free_node(r);
 		return n;
@@ -1720,7 +1719,7 @@ struct node *gen_rewrite_node(struct node *n)
 	if (op == T_EQ && l->op == T_PLUS && l->left->op == T_RREF &&
 		l->right->op == T_CONSTANT) {
 		n->op = T_REQ;
-		n->val2 = l->right->value;	/* Offset to add */
+		n->snum = l->right->value;	/* Offset to add */
 		n->value = l->left->value;	/* Register number */
 		free_node(l->right);		/* Discard constant */
 		free_node(l->left);		/* Discard T_REG */
@@ -1731,7 +1730,7 @@ struct node *gen_rewrite_node(struct node *n)
 	/* *regptr = */
 	if (op == T_EQ && l->op == T_RREF) {
 		n->op = T_REQ;
-		n->val2 = 0;
+		n->snum = 0;
 		n->value = l->value;
 		n->left = NULL;
 		free_node(l);
@@ -2090,7 +2089,7 @@ void gen_space(unsigned value)
 
 void gen_text_data(struct node *n)
 {
-	printf("\t.word T%d\n", n->val2);
+	printf("\t.word T%d\n", n->snum);
 }
 
 /* The label for a literal (currently only strings) */
@@ -2272,7 +2271,7 @@ unsigned gen_direct(struct node *n)
 	/* We can do a lot of stuff because we have r14/15 as a scratch */
 	switch (n->op) {
 	case T_CLEANUP:
-		gen_cleanup(v, n->val2);
+		gen_cleanup(v, n->snum);
 		return 1;
 	case T_NSTORE:
 #ifdef SUPER8
@@ -2997,12 +2996,12 @@ unsigned gen_shortcut(struct node *n)
 		/* Get thje value to assign into the working registers */
 		gen_node(n->right);
 		/* Now store t */
-		if (n->val2 + sp < 254) {
-			load_r_const(R_INDEX + 1, n->val2 + sp + 2, 1);
+		if (n->snum + sp < 254) {
+			load_r_const(R_INDEX + 1, n->snum + sp + 2, 1);
 			load_r_const(R_WORK + 1, n->value, 1);
 			helper(n, "lststore0");
 		} else {
-			load_r_const(R_INDEX, n->val2 + sp + 2, 2);
+			load_r_const(R_INDEX, n->snum + sp + 2, 2);
 			load_r_const(R_WORK + 1, n->value, 1);
 			helper(n, "lststore");
 		}
@@ -3025,7 +3024,7 @@ unsigned gen_shortcut(struct node *n)
 		codegen_lr(r);	/* AC now holds the value */
 		load_r_r(R_INDEX, R_REG(n->value));
 		load_r_r(R_INDEX + 1, R_REG(n->value) + 1);
-		add_r_const(R_INDEX, n->val2, 2);
+		add_r_const(R_INDEX, n->snum, 2);
 		store_r_memr(R_AC, R_INDEX, size);	/* Moves the pointer on as a side effect */
 		return 1;
 	}
@@ -3332,12 +3331,12 @@ unsigned gen_node(struct node *n)
 	case T_LSTREF:
 		/* The helper calls a helper so the stack offsetting is
 		   by 4 */
-		if (n->val2 + sp < 252) {
-			load_r_const(R_INDEX + 1, n->val2 + sp + 4, 1);
+		if (n->snum + sp < 252) {
+			load_r_const(R_INDEX + 1, n->snum + sp + 4, 1);
 			load_r_const(R_WORK + 1, v, 1);
 			helper(n, "lstref0");
 		} else {
-			load_r_const(R_INDEX, n->val2 + sp + 4, 2);
+			load_r_const(R_INDEX, n->snum + sp + 4, 2);
 			load_r_const(R_WORK + 1, v, 1);
 			helper(n, "lstref");
 		}
@@ -3408,13 +3407,13 @@ unsigned gen_node(struct node *n)
 		return 1;
 	case T_RDEREF:
 		/* We can do byte loads really easily if not offset */
-		if (size == 1 && n->val2 == 0) {
+		if (size == 1 && n->snum == 0) {
 			load_r_memr(R_AC, R_REG(v), size);
 			return 1;
 		}
 		/* Our deref actually is a ++ on the reg ptr. We optimize the *x++ as an op */
 		load_rr_rr(R_INDEX, R_REG(v));
-		add_r_const(R_INDEX, n->val2, 2);
+		add_r_const(R_INDEX, n->snum, 2);
 		load_r_memr(R_AC, R_INDEX, size);
 		return 1;
 	case T_RDEREFPLUS:

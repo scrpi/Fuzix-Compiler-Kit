@@ -96,7 +96,6 @@ struct node *gen_rewrite(struct node *n)
 static void squash_node(struct node *n, struct node *o)
 {
 	n->value = o->value;
-	n->val2 = o->val2;
 	n->snum = o->snum;
 	free_node(o);
 }
@@ -372,7 +371,7 @@ void gen_space(unsigned value)
 
 void gen_text_data(struct node *n)
 {
-	printf("\t.word T%d\n", n->val2);
+	printf("\t.word T%d\n", n->snum);
 }
 
 void gen_literal(unsigned n)
@@ -467,9 +466,9 @@ unsigned op_direct(struct node *r, unsigned size, const char *op, const char *op
 			printf("\t%s dx,_%s+%u\n", op2, name, v + 2);
 		return 1;
 	case T_LBREF:
-		printf("\t%s %s,[T%u+%u]\n", op, lr, r->val2, v);
+		printf("\t%s %s,[T%u+%u]\n", op, lr, r->snum, v);
 		if (size == 4)
-			printf("\t%s dx,[T%u+%u]\n", op2, r->val2, v + 2);
+			printf("\t%s dx,[T%u+%u]\n", op2, r->snum, v + 2);
 		return 1;
 	case T_LREF:
 		printf("\t%s %s,[bp + %u]\n", op, lr, v);
@@ -488,10 +487,10 @@ unsigned op_direct(struct node *r, unsigned size, const char *op, const char *op
 		return 1;
 	case T_LABEL:
 		if (size == 1) {
-			printf("\t%s al,T%u+%u\n", op, r->val2, v);
+			printf("\t%s al,T%u+%u\n", op, r->snum, v);
 			return 1;
 		}
-		printf("\t%s ax,T%u+%u\n", op, r->val2, v);
+		printf("\t%s ax,T%u+%u\n", op, r->snum, v);
 		if (size == 4)
 		 	printf("\t%s dx,0\n", op2);
 		return 1;
@@ -646,7 +645,7 @@ void load_reg(const char *reg, struct node *n)
 		printf("\tmov %s,_%s+%u\n", reg, namestr(n->snum), v);
 		break;
 	case T_LABEL:
-		printf("\tmov %s,T%u+%u\n", reg, n->val2, v);
+		printf("\tmov %s,T%u+%u\n", reg, n->snum, v);
 		break;
 	case T_ARGUMENT:
 		v += argbase + frame_len;
@@ -657,7 +656,7 @@ void load_reg(const char *reg, struct node *n)
 		printf("\tmov %s,[bp + %u]\n", reg, v);
 		break;
 	case T_LBREF:
-		printf("\tmov %s,[T%u+%u]\n", reg, n->val2, v);
+		printf("\tmov %s,[T%u+%u]\n", reg, n->snum, v);
 		break;
 	case T_NREF:
 		printf("\tmov %s,[_%s+%u]\n", reg, namestr(n->snum), v);
@@ -1015,7 +1014,7 @@ unsigned gen_node(struct node *n)
 	case T_LABEL:
 		if (nr)
 			return 1;
-		printf("\tmov ax,T%u+%u\n", n->val2, v);
+		printf("\tmov ax,T%u+%u\n", n->snum, v);
 		return 1;
 	case T_NAME:
 		if (nr)
@@ -1042,14 +1041,14 @@ unsigned gen_node(struct node *n)
 			return 1;
 		switch(size) {
 		case 1:
-			printf("\tmov al,T%u+%u\n", n->val2, v);
+			printf("\tmov al,T%u+%u\n", n->snum, v);
 			return 1;
 		case 2:
-			printf("\tmov ax,T%u+%u\n", n->val2, v);
+			printf("\tmov ax,T%u+%u\n", n->snum, v);
 			return 1;
 		case 4:
-			printf("\tmov ax,T%u+%u\n", n->val2, v);
-			printf("\tmov dx,T%u+%u\n", n->val2, v +2);
+			printf("\tmov ax,T%u+%u\n", n->snum, v);
+			printf("\tmov dx,T%u+%u\n", n->snum, v +2);
 			return 1;
 		}
 		break;
@@ -1089,14 +1088,14 @@ unsigned gen_node(struct node *n)
 		/* TODO direct const forms */
 		switch(size) {
 		case 1:
-			printf("\tmov T%u+%u, al\n", n->val2, v);
+			printf("\tmov T%u+%u, al\n", n->snum, v);
 			return 1;
 		case 2:
-			printf("\tmov T%u+%u, ax\n", n->val2, v);
+			printf("\tmov T%u+%u, ax\n", n->snum, v);
 			return 1;
 		case 4:
-			printf("\tmov T%u+%u, ax\n", n->val2, v);
-			printf("\tmov T%u+%u, dx\n", n->val2, v + 2);
+			printf("\tmov T%u+%u, ax\n", n->snum, v);
+			printf("\tmov T%u+%u, dx\n", n->snum, v + 2);
 			return 1;
 		}
 		break;

@@ -510,7 +510,7 @@ static int do_pri8(struct node *n, const char *op, void (*pre)(struct node *__n)
 	switch(n->op) {
 	case T_LABEL:
 		pre(n);
-		output("%s #<T%d+%d", op,  n->val2, v);
+		output("%s #<T%d+%d", op,  n->snum, v);
 		return 1;
 	case T_NAME:
 		pre(n);
@@ -556,11 +556,11 @@ static int do_pri8(struct node *n, const char *op, void (*pre)(struct node *__n)
 	case T_LBSTORE:
 	case T_LBREF:
 		pre(n);
-		output("%s T%d+%d", op,  r->val2, (unsigned)r->value + bias);
+		output("%s T%d+%d", op,  r->snum, (unsigned)r->value + bias);
 		return 1;
 	/* If we add registers
 	case T_RREF:
-		output("%s __reg%d", op, r->val2);
+		output("%s __reg%d", op, r->snum);
 		return 1;*/
 	}
 	return 0;
@@ -588,7 +588,7 @@ static int do_pri8hi(struct node *n, const char *op, void (*pre)(struct node *__
 	switch(n->op) {
 	case T_LABEL:
 		pre(n);
-		output("%s #>T%d+%d", op,  n->val2, v);
+		output("%s #>T%d+%d", op,  n->snum, v);
 		return 1;
 	case T_NAME:
 		pre(n);
@@ -636,11 +636,11 @@ static int do_pri8hi(struct node *n, const char *op, void (*pre)(struct node *__
 	case T_LBSTORE:
 	case T_LBREF:
 		pre(n);
-		output("%s T%d+%d", op,  r->val2, v);
+		output("%s T%d+%d", op,  r->snum, v);
 		return 1;
 	/* If we add registers
 	case T_RREF:
-		output("%s __reg%d+1", op, r->val2);
+		output("%s __reg%d+1", op, r->snum);
 		return 1;*/
 	}
 	return 0;
@@ -669,8 +669,8 @@ static int do_pri16(struct node *n, const char *op, void (*pre)(struct node *__n
 	case T_LABEL:
 		use_xa(11);
 		pre(n);
-		output("%sa #<T%d+%d", op,  n->val2, v);
-		output("%sx #>T%d+%d", op,  n->val2, v >> 8);
+		output("%sa #<T%d+%d", op,  n->snum, v);
+		output("%sx #>T%d+%d", op,  n->snum, v >> 8);
 		return 1;
 	case T_NAME:
 		use_xa(12);
@@ -736,14 +736,14 @@ static int do_pri16(struct node *n, const char *op, void (*pre)(struct node *__n
 	case T_LBREF:
 		use_xa(16);
 		pre(n);
-		output("%sa T%d+%d", op,  r->val2, (unsigned)r->value);
-		output("%sx T%d+%d", op,  r->val2, ((unsigned)r->value) + 1);
+		output("%sa T%d+%d", op,  r->snum, (unsigned)r->value);
+		output("%sx T%d+%d", op,  r->snum, ((unsigned)r->value) + 1);
 		return 1;
 	/* If we add registers
 	case T_RREF:
 		pre(n);
-		output("%sa __reg%dd", op, r->val2);
-		output("%sx __reg%d + 1", op,  r->val2);
+		output("%sa __reg%dd", op, r->snum);
+		output("%sx __reg%d + 1", op,  r->snum);
 		return 1;*/
 	}
 	return 0;
@@ -759,7 +759,7 @@ static int do_hxpri16(struct node *n, const char *op, void (*pre)(struct node *_
 	switch(n->op) {
 	case T_LABEL:
 		pre(n);
-		output("%shx #T%d+%d", op,  n->val2, v);
+		output("%shx #T%d+%d", op,  n->snum, v);
 		hx_live = 1;
 		return 1;
 	case T_NAME:
@@ -1095,17 +1095,17 @@ static int leftop_memc(struct node *n, const char *op)
 		return 1;
 	case T_LABEL:
 		while(count--) {
-			output("%s T%d+%d", op, (unsigned)l->val2, v + 1);
+			output("%s T%d+%d", op, (unsigned)l->snum, v + 1);
 			if (sz == 2) {
 				output("beq X%d", ++xlabel);
-				output("%s T%d+%d", op, (unsigned)l->val2, v);
+				output("%s T%d+%d", op, (unsigned)l->snum, v);
 				label("X%d", xlabel);
 			}
 		}
 		if (nr == 1) {
-			output("lda T%d+%d", (unsigned)l->val2, v + 1);
+			output("lda T%d+%d", (unsigned)l->snum, v + 1);
 			if (sz == 2)
-				output("ldx T%d+%d", (unsigned)l->val2, v);
+				output("ldx T%d+%d", (unsigned)l->snum, v);
 			hx_live = 0;
 		}
 		return 1;
@@ -1156,7 +1156,6 @@ static unsigned try_via_x(struct node *n, const char *op, void (*pre)(struct nod
 static void squash_node(struct node *n, struct node *o)
 {
 	n->value = o->value;
-	n->val2 = o->val2;
 	n->snum = o->snum;
 	free_node(o);
 }
@@ -1344,7 +1343,6 @@ struct node *gen_rewrite_node(struct node *n)
 		n->op = T_CALLNAME;
 		n->snum = r->snum;
 		n->value = r->value;
-		n->val2 = r->val2;
 		free_node(r);
 		n->right = NULL;
 	}
@@ -1538,7 +1536,7 @@ void gen_space(unsigned value)
 
 void gen_text_data(struct node *n)
 {
-	output(".word T%d", n->val2);
+	output(".word T%d", n->snum);
 }
 
 void gen_literal(unsigned n)
@@ -2417,7 +2415,7 @@ unsigned do_gen_node(struct node *n)
 		}
 	case T_LABEL:
 		if (hx) {
-			output("ldhx #T%u+%u\n", n->val2, v);
+			output("ldhx #T%u+%u\n", n->snum, v);
 			hx_live = 1;
 			return 1;
 		}

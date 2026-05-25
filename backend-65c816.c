@@ -81,6 +81,10 @@
  *		highest then TAS and PLA to get the arg back ?
  *	- how to redo optimisations relying on STX ,Y and LDX ,Y
  *	- port support library
+ *
+ *	TODO:
+ *	- rework the generation to avoid the squashing mess in the pri ops and add the 6502
+ *	  fixes for side effects
  */
 
 #include <stdio.h>
@@ -571,7 +575,7 @@ static int do_pri(struct node *n, const char *op, void (*pre)(struct node *__n),
 	switch (n->op) {
 	case T_LABEL:
 		pre(n);
-		outputnc("%s #T%d+%d", op, n->val2, (unsigned) n->value);
+		outputnc("%s #T%d+%d", op, n->snum, (unsigned) n->value);
 		return 1;
 	case T_NAME:
 		pre(n);
@@ -623,12 +627,12 @@ static int do_pri(struct node *n, const char *op, void (*pre)(struct node *__n),
 	case T_LBREF:
 		pre(n);
 		setsize(s);
-		outputnc("%s T%d+%d", op, r->val2, (unsigned) r->value);
+		outputnc("%s T%d+%d", op, r->snum, (unsigned) r->value);
 		set16bit();
 		return 1;
 		/* If we add registers
 		   case T_RREF:
-		   outputnc("%s @__reg%d", op, r->val2);
+		   outputnc("%s @__reg%d", op, r->snum);
 		   return 1; */
 		/*
 		 *      We may be able to dereference stuff
@@ -668,7 +672,7 @@ static int do_pri_cc(struct node *n, const char *op, void (*pre)(struct node *__
 	switch (n->op) {
 	case T_LABEL:
 		pre(n);
-		outputcc("%s #T%d+%d", op, n->val2, (unsigned) n->value);
+		outputcc("%s #T%d+%d", op, n->snum, (unsigned) n->value);
 		return 1;
 	case T_NAME:
 		pre(n);
@@ -723,14 +727,14 @@ static int do_pri_cc(struct node *n, const char *op, void (*pre)(struct node *__
 		pre(n);
 		setsize(s);
 		if (s == 2)
-			outputcc("%s T%d+%d", op, r->val2, (unsigned) r->value);
+			outputcc("%s T%d+%d", op, r->snum, (unsigned) r->value);
 		else
-			outputnc("%s T%d+%d", op, r->val2, (unsigned) r->value);
+			outputnc("%s T%d+%d", op, r->snum, (unsigned) r->value);
 		set16bit();
 		return 1;
 		/* If we add registers
 		   case T_RREF:
-		   output("%s @__reg%d", op, r->val2);
+		   output("%s @__reg%d", op, r->snum);
 		   return 1; */
 		/*
 		 *      We may be able to dereference stuff
@@ -894,13 +898,13 @@ static int leftop_memc(struct node *n, const char *op)
 	case T_LABEL:
 		setsize(sz);
 		if (!nr && preload) {
-			outputcc("lda T%d+%d", (unsigned) l->val2, v);
+			outputcc("lda T%d+%d", (unsigned) l->snum, v);
 			set_a_node(l);
 		}
 		while (count--)
-			output("%s T%d+%d", op, (unsigned) l->val2, v);
+			output("%s T%d+%d", op, (unsigned) l->snum, v);
 		if (!nr && !preload) {
-			outputcc("lda T%d+%d", (unsigned) l->val2, v);
+			outputcc("lda T%d+%d", (unsigned) l->snum, v);
 			set_a_node(l);
 		}
 		set16bit();
@@ -960,7 +964,6 @@ static unsigned pop_help_bool(struct node *n, const char *helper, unsigned size)
 static void squash_node(struct node *n, struct node *o)
 {
 	n->value = o->value;
-	n->val2 = o->val2;
 	n->snum = o->snum;
 	n->flags |= o->flags & (SIDEEFFECT | IMPURE);
 	free_node(o);
@@ -1115,7 +1118,7 @@ struct node *gen_rewrite_node(struct node *n)
 		if ((op == T_DEREF || op == T_DEREFPLUS) && r->op == T_LREF) {
 			/* At this point r->value is the offset for the local */
 			/* n->value is the offset for the ptr load */
-			r->val2 = n->value;		/* Save the offset so it is squashed in */
+			r->snum = n->value;		/* Save the offset so it is squashed in */
 			squash_right(n, T_LDEREF);	/* n->value becomes the local ref */
 			return n;
 		}
@@ -1123,7 +1126,7 @@ struct node *gen_rewrite_node(struct node *n)
 		if ((op == T_EQ || op == T_EQPLUS) && l->op == T_LREF) {
 			/* At this point r->value is the offset for the local */
 			/* n->value is the offset for the ptr load */
-			l->val2 = n->value;		/* Save the offset so it is squashed in */
+			l->snum = n->value;		/* Save the offset so it is squashed in */
 			squash_left(n, T_LEQ);	/* n->value becomes the local ref */
 			return n;
 		}
@@ -1184,7 +1187,6 @@ struct node *gen_rewrite_node(struct node *n)
 		n->op = T_CALLNAME;
 		n->snum = r->snum;
 		n->value = r->value;
-		n->val2 = r->val2;
 		n->flags |= (r->flags & (SIDEEFFECT | IMPURE));
 		free_node(r);
 		n->right = NULL;
@@ -1461,7 +1463,7 @@ void gen_space(unsigned value)
 
 void gen_text_data(struct node *n)
 {
-	output(".word T%d", n->val2);
+	output(".word T%d", n->snum);
 }
 
 void gen_literal(unsigned n)
@@ -1612,7 +1614,7 @@ unsigned gen_direct(struct node *n)
 	case T_CLEANUP:
 		if (BANK0)
 			gen_cleanup(r->value);
-		else if (n->val2) {
+		else if (n->snum) {
 			if (!(func_flags & F_VOIDRET))
 				move_a_x();
 			output("tya");
@@ -2846,9 +2848,9 @@ unsigned gen_node(struct node *n)
 		}
 		if (size == 4) {
 			if (n->op == T_LBREF) {
-				output("lda T%d+%u", n->val2, (unsigned)n->value + 2);
+				output("lda T%d+%u", n->snum, (unsigned)n->value + 2);
 				outputnc("sta @hireg");
-				outputcc("lda T%d+%u", n->val2, (unsigned)n->value);
+				outputcc("lda T%d+%u", n->snum, (unsigned)n->value);
 			} else {
 				const char *name = namestr(n->snum);
 				output("lda _%s+%d", name, (unsigned)n->value + 2);
@@ -2904,9 +2906,9 @@ unsigned gen_node(struct node *n)
 			if (!nr)
 				outputnc("pha");
 			if (n->op == T_LBSTORE) {
-				outputnc("sta T%d+%u", n->val2, (unsigned)n->value);
+				outputnc("sta T%d+%u", n->snum, (unsigned)n->value);
 				outputnc("lda @hireg");
-				output("sta T%d+%u", n->val2, (unsigned)n->value + 2);
+				output("sta T%d+%u", n->snum, (unsigned)n->value + 2);
 			} else {
 				const char *name = namestr(n->snum);
 				output("sta _%s+%d", name, (unsigned)n->value);
@@ -3004,15 +3006,15 @@ unsigned gen_node(struct node *n)
 		if (size > 2) {
 			if (nr) {
 				output("plx");
-				outputnc("sta %u,x", n->val2);
+				outputnc("sta %u,x", n->snum);
 				output("lda @hireg");
-				output("sta %u,x", n->val2 + 2);
+				output("sta %u,x", n->snum + 2);
 			} else {
 				output("plx");
-				output("sta %u,x", n->val2);
+				output("sta %u,x", n->snum);
 				outputnc("pha");
 				output("lda @hireg");
-				output("sta %u,x", n->val2 + 2);
+				output("sta %u,x", n->snum + 2);
 				outputcc("pla");
 			}
 			invalidate_x();
@@ -3021,7 +3023,7 @@ unsigned gen_node(struct node *n)
 		}
 		output("plx");
 		setsize(size);
-		outputnc("sta %u,x", n->val2);
+		outputnc("sta %u,x", n->snum);
 		set16bit();
 		invalidate_a();
 		invalidate_x();
@@ -3035,7 +3037,7 @@ unsigned gen_node(struct node *n)
 		return 1;
 	case T_LEQ:
 		/* Not used in BANK0 case */;
-		/* val2: offset of variable, value: offset on pointer */
+		/* snum: offset of variable, value: offset on pointer */
 		v += sp;
 		if (size <= 2) {
 			if (x_contains(n))
@@ -3058,16 +3060,16 @@ unsigned gen_node(struct node *n)
 		if (size <= 2) {
 			setsize(size);
 			if (size == 2)
-				outputcc("sta %d,x", n->val2);
+				outputcc("sta %d,x", n->snum);
 			else
-				outputnc("sta %d,x", n->val2);
+				outputnc("sta %d,x", n->snum);
 			set16bit();
 		} else {
 			if (!nr)
 				outputnc("pha");
-			outputnc("sta %d,x", n->val2 + sp);
+			outputnc("sta %d,x", n->snum + sp);
 			output("lda @hireg");
-			outputnc("sta %d,x", n->val2 + sp + 2);
+			outputnc("sta %d,x", n->snum + sp + 2);
 			if (!nr)
 				outputnc("pla");
 			invalidate_a();
@@ -3075,7 +3077,7 @@ unsigned gen_node(struct node *n)
 		return 1;
 	case T_LDEREF:
 		/* Not used in BANK0 case */
-		/* val2: offset of variable, value: offset on pointer */
+		/* snum: offset of variable, value: offset on pointer */
 		v += sp;
 		if (size <= 2) {
 			if (x_contains(n))
@@ -3097,9 +3099,9 @@ unsigned gen_node(struct node *n)
 		}
 		/* Now dereference */
 		if (size > 2) {
-			outputnc("lda %d,x", n->val2 + 2);
+			outputnc("lda %d,x", n->snum + 2);
 			outputnc("sta @hireg");
-			outputnc("lda %d,x", n->val2);
+			outputnc("lda %d,x", n->value);
 			/* Flags will not be valid because they are for
 			   both halves together */
 			invalidate_a();
@@ -3109,9 +3111,9 @@ unsigned gen_node(struct node *n)
 		   plus hardware I/O for optimizing opportunities */
 		setsize(size);
 		if (size == 2)
-			outputcc("lda %d,x", n->val2);
+			outputcc("lda %d,x", n->snum);
 		else
-			outputnc("lda %d,x", n->val2);
+			outputnc("lda %d,x", n->snum);
 		set16bit();
 		invalidate_a();
 		return 1;

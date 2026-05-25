@@ -173,7 +173,7 @@ struct node *function_call(register struct node *n)
 	   the boundary of a function call return */
 	n->type = type;
 	n = tree(T_CLEANUP, n, make_constant(argsize, UINT));
-	n->val2 = va;
+	n->snum = va;
 	return n;
 }
 

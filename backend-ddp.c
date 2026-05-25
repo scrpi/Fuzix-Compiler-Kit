@@ -114,7 +114,6 @@ static unsigned get_size(unsigned t)
 static void squash_node(struct node *n, struct node *o)
 {
 	n->value = o->value;
-	n->val2 = o->val2;
 	n->snum = o->snum;
 	free_node(o);
 }
@@ -159,7 +158,7 @@ struct node *gen_rewrite_node(register struct node *n)
 
 	/* Turn *local into  single node we can use indirection */
 	if (op == T_DEREF && r->op == T_LREF && s == 2) {
-		r->val2 = n->value;
+		r->snum = n->value;
 		squash_right(n, T_LDEREF);
 		return n;
 	}
@@ -375,7 +374,7 @@ static unsigned xmatch(unsigned op, register struct node *n, unsigned *off)
 	else
 		s = 255;
 
-	if (op != xnode.op || n->val2 != xnode.val2)
+	if (op != xnode.op || n->snum != xnode.snum)
 		return 0;
 	/* Same object but is it the same position */
 	v = *off - xnode.value / 2;	/* Working in words */
@@ -441,7 +440,7 @@ static unsigned make_x_point(struct node *n, unsigned *off, unsigned keep_a)
 	case T_LBREF:
 	case T_LBSTORE:
 		if (!xmatch(T_LABEL, n, &v)) {
-			printf("\tjst @loadx\n\t.addr T%u+%u\n", n->val2, v);
+			printf("\tjst @loadx\n\t.addr T%u+%u\n", n->snum, v);
 			xstate = T_LABEL;
 			memcpy(&xnode, n, sizeof(struct node));
 		}
@@ -516,7 +515,7 @@ static unsigned make_x(struct node *n, unsigned *off, unsigned keep_a)
 		return 1;
 	case T_LABEL:
 		if (!xmatch(T_LABEL, n, &v)) {
-			printf("\tjst @loadx\n\t.addr T%u+%u\n", n->val2, v);
+			printf("\tjst @loadx\n\t.addr T%u+%u\n", n->snum, v);
 			xstate = T_LABEL;
 			memcpy(&xnode, n, sizeof(struct node));
 		}
@@ -602,13 +601,13 @@ static unsigned make_a(struct node *n)
 		puts("\tadd @sp");
 		return 1;
 	case T_LABEL:
-		printf("\tjst @loadconst\n\t.addr T%u+%u\n", n->val2, v);
+		printf("\tjst @loadconst\n\t.addr T%u+%u\n", n->snum, v);
 		return 1;
 	case T_NAME:
 		printf("\tjst @loadconst\n\t.addr _%s+%u\n", namestr(n->snum), v);
 		return 1;
 	case T_LBREF:
-		printf("\tjst @loadconst\n\t.indirect T%u+%u\n", n->val2, v);
+		printf("\tjst @loadconst\n\t.indirect T%u+%u\n", n->snum, v);
 		return 1;
 	case T_NREF:
 		printf("\tjst @loadconst\n\t.indirect _%s+%u\n", namestr(n->snum), v);
@@ -640,9 +639,9 @@ static unsigned make_a_bp(struct node *n)
 	case T_LBSTORE:
 		puts("\tjst @loadconst");
 		if (s == 1)
-			printf("\t.byteptr T%u+%u\n", n->val2, v);
+			printf("\t.byteptr T%u+%u\n", n->snum, v);
 		else
-			printf("\t.addr T%u+%u\n", n->val2, v / 2);
+			printf("\t.addr T%u+%u\n", n->snum, v / 2);
 		return 1;
 	case T_NREF:
 	case T_NSTORE:
@@ -669,7 +668,7 @@ static void irs_via_x(struct node *l, unsigned v)
 	}
 	if (l->op == T_LABEL && !l->value) {
 		while(v--)
-			printf("\tirs T%u+%u\n\tnop\n", l->val2, lv);
+			printf("\tirs T%u+%u\n\tnop\n", l->snum, lv);
 		return;
 	}
 	make_x(l, &off, 0);
@@ -693,13 +692,13 @@ static unsigned op_direct(const char *op, struct node *n)
 		printf("\t%s =%u\n", op, v);
 		return 1;
 	case T_LABEL:
-		printf("\t%s =T%u+%u\n", op, n->val2, v / 2);
+		printf("\t%s =T%u+%u\n", op, n->snum, v / 2);
 		return 1;
 	case T_NAME:
 		printf("\t%s =_%s+%u\n", op, namestr(n->snum), v / 2);
 		return 1;
 	case T_LBREF:
-		printf("\t%s T%u+%u\n", op, n->val2, v / 2);
+		printf("\t%s T%u+%u\n", op, n->snum, v / 2);
 		return 1;
 	case T_NREF:
 		printf("\t%s _%s+%u\n", op, namestr(n->snum), v / 2);
@@ -942,9 +941,9 @@ void gen_space(unsigned value)
 void gen_text_data(struct node *n)
 {
 	if (is_bytepointer(n->type))
-		printf("\t.byteptr T%d\n", n->val2);
+		printf("\t.byteptr T%d\n", n->snum);
 	else
-		printf("\t.addr T%d\n", n->val2);
+		printf("\t.addr T%d\n", n->snum);
 }
 
 void gen_literal(unsigned n)
@@ -1037,7 +1036,7 @@ static void node_word(struct node *n)
 	if (n->op == T_NAME)
 		printf("_%s+%u\n", namestr(n->snum), v);
 	else if (n->op == T_LABEL)
-		printf("T%u+%u\n", n->val2, v);
+		printf("T%u+%u\n", n->snum, v);
 	else
 		error("nw");
 }
@@ -1564,7 +1563,7 @@ unsigned gen_shortcut(struct node *n)
 		if (s == 2) {
 			/* For now don't do offset ones */
 			if (r->op == T_LBREF && v == 0) {
-				printf("\tlda *T%u+%u\n", r->val2, v);
+				printf("\tlda *T%u+%u\n", r->snum, v);
 				return 1;
 			}
 			if (r->op == T_NREF && v == 0) {
@@ -1687,7 +1686,7 @@ unsigned gen_node(struct node *n)
 		return 1;
 	case T_LBREF:
 		if (s == 2 && v == 0) {
-			printf("\tlda T%u+%u\n", n->val2, v);
+			printf("\tlda T%u+%u\n", n->snum, v);
 			return 1;
 		}
 		if (make_x_point(n, &off, 0)) {

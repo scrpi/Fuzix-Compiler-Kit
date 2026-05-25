@@ -315,17 +315,17 @@ static char *addr_form(register struct node *r, unsigned off, unsigned s)
 		sprintf(addr, "_%s+%u%s", namestr(r->snum), v + off, pic_op);
 		return addr;
 	case T_LABEL:
-		sprintf(addr, "#%sT%u+%u", mod, r->val2, v + off);
+		sprintf(addr, "#%sT%u+%u", mod, r->snum, v + off);
 		return addr;
 	case T_LBSTORE:
-		sprintf(addr, "T%u+%u%s", r->val2, v + off, pic_op);
+		sprintf(addr, "T%u+%u%s", r->snum, v + off, pic_op);
 		return addr;
 	case T_LBREF:
-		sprintf(addr, "T%u+%u%s", r->val2, v + off, pic_op);
+		sprintf(addr, "T%u+%u%s", r->snum, v + off, pic_op);
 		return addr;
 	/* Only occurs on 6809 */
 	case T_RDEREF:
-		sprintf(addr, "%u,u", r->val2 + off);
+		sprintf(addr, "%u,u", r->snum + off);
 		return addr;
 	/* TODO: Can we do locals safely via ,s ?? */
 	default:
@@ -358,7 +358,7 @@ unsigned op8_on_node(struct node *r, const char *op, unsigned off)
 		printf("\t%sb %u,s\n", op, off + v + sp);
 		break;
 	case T_LDEREF:
-		if (r->val2)
+		if (r->snum)
 			return 0;
 		printf("\t%sb [%u,s]\n", op, off + v + sp);
 		break;
@@ -435,7 +435,7 @@ unsigned op16d_on_node(struct node *r, const char *op, const char *op2, unsigned
 		break;
 	case T_LDEREF:
 		/* Big endian */
-		if (r->val2)
+		if (r->snum)
 			return 0;
 		printf("\t%sd [%u,s]\n", op, off + v + sp);
 		break;
