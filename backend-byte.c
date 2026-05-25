@@ -228,7 +228,13 @@ static unsigned byte_convert(register struct node *n)
 	if (n->flags & (BYTEABLE | BYTEROOT)) {
 		if (!(n->flags & BYTETAIL) || (n->flags & BYTEROOT)) {
 			depth++;
-			if (!byte_convert(n->left) || !byte_convert(n->right)) {
+			/* We do the right side first. Our left sides get stacked and
+			   we would need to test before converting either side if we did
+			   left first. By doing right first we either end up with a word
+			   value with harmless bogus upper or a byte value but the left
+			   hand side will be correctly typed for the stacking if the right
+			   side fails to convert */
+			if (!byte_convert(n->right) || !byte_convert(n->left)) {
 				depth--;
 				return 0;
 			}
@@ -271,8 +277,8 @@ static void byte_walk_subtree(register struct node *n)
 {
 	if (n == NULL)
 		return;
-	byte_walk_subtree(n->left);
 	byte_walk_subtree(n->right);
+	byte_walk_subtree(n->left);
 	if (n->flags & BYTEROOT) {
 		depth = 0;
 		byte_convert(n);
