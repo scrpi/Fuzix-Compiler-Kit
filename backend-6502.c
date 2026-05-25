@@ -686,7 +686,7 @@ static unsigned can_bytecast(register struct node *n)
 	register struct node *r = n->right;
 	/* Can we eliminate the cast because we are only working in
 	   byte sized objects anyway ? */
-	if (n->type != T_CAST)
+	if (n->op != T_CAST)
 		return 0;
 	/* Can't reliably play games if it might have a whole subtree */
 	/* TODO: we can restrict this a fair bit more if we know
@@ -812,7 +812,7 @@ static int do_pri8hi(struct node *n, struct node *r, const char *op, void (*pre)
 		
 	/* We can fold in some simple casting */
 	/* FIXME: not clear this is safe (eg if using stx) */
-	if (r->type == T_CAST && !has_sideeffect(r->right)) {
+	if (r->op == T_CAST && !has_sideeffect(r->right)) {
 		if ((!PTR(r->type) && r->type != CINT && r->type != UINT) || r->right->type != UCHAR)
 			return 0;
 		/* We need to do it on 0 */
@@ -895,7 +895,7 @@ static int do_pri16(struct node *n, struct node *r, const char *op, void (*pre)(
 
 	/* We can fold in some simple casting */
 #if 0
-	if (n->type == T_CAST) {
+	if (n->op == T_CAST) {
 		if ((!PTR(n->type) && n->type != CINT && n->type != UINT) || r->type != UCHAR)
 			return 0;
 		load_x(0);
@@ -3490,7 +3490,9 @@ static unsigned gen_cast(struct node *n)
 	if (!IS_INTARITH(lt) || !IS_INTARITH(rt))
 		return 0;
 
-	/* No type casting needed as computing byte sized */
+	/* No type casting needed as computing byte sized and
+	   other half does not matter. One some processors we'd
+	   use this case to move between registers  */
 	if (n->flags & BYTEOP)
 		return 1;
 

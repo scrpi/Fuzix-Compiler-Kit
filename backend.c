@@ -1,4 +1,4 @@
-	/*
+/*
  *	This is the main block for the code generator. It provides the
  *	basic parsing functions to make life easy for the target code
  *	generator. A target is not required to use this, it can work the
@@ -122,9 +122,11 @@ unsigned cast_fold_safe(register unsigned op)
 /*
  *	Expression tree nodes
  */
-#define NUM_NODES 100
 
-static struct node node_table[NUM_NODES];
+/* Allow some for insertions - should be sufficient */
+#define EXTRA_NODES	10
+
+static struct node node_table[NUM_NODES + EXTRA_NODES];
 static struct node *nodes;
 
 struct node *new_node(void)
@@ -150,7 +152,7 @@ void init_nodes(void)
 {
 	register int i;
 	register struct node *n = node_table;
-	for (i = 0; i < NUM_NODES; i++)
+	for (i = 0; i < NUM_NODES + EXTRA_NODES; i++)
 		free_node(n++);
 }
 
@@ -716,7 +718,7 @@ void helper_type(register unsigned t, unsigned s)
  *	the rest.
  */
 
-static unsigned type_for_node(register struct node *n)
+unsigned type_for_node(register struct node *n)
 {
 	unsigned t = n->type;
 	register unsigned op = n->op;

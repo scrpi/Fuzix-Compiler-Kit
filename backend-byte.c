@@ -219,6 +219,7 @@ static unsigned options;
 
 static unsigned byte_convert(register struct node *n)
 {
+	register struct node *t;
 	if (n == NULL)
 		return 1;
 
@@ -234,8 +235,22 @@ static unsigned byte_convert(register struct node *n)
 			   value with harmless bogus upper or a byte value but the left
 			   hand side will be correctly typed for the stacking if the right
 			   side fails to convert */
-			if (!byte_convert(n->right) || !byte_convert(n->left)) {
+			if (!byte_convert(n->right)) {
 				depth--;
+				return 0;
+			}
+			if (!byte_convert(n->left)) {
+				depth--;
+				fprintf(stderr, "Conversion fixup n %04X l %p r %p\n", n->op, (void *)n->left, (void *)n->right);
+				/* We successfully converted the right but not the left. Fix this up with a
+				   cast */
+				t = new_node();
+				/* Upper does not matter so do simplest conversion */
+				t->right = n->right;
+				t->op = T_CAST;
+				/* Must compute the type before we finally insert the cast */
+				t->type = type_for_node(n);
+				n->right = t;
 				return 0;
 			}
 		}

@@ -12,6 +12,7 @@ extern struct node *new_node(void);
 extern void free_node(struct node *n);
 extern void init_nodes(void);
 
+extern unsigned type_for_node(register struct node *n);
 extern void do_helper(register struct node *n, const char *h, unsigned t, unsigned s);
 extern void helper(struct node *n, const char *h);
 extern void helper_s(struct node *n, const char *h);
