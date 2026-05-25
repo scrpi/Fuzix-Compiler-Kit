@@ -4129,6 +4129,14 @@ unsigned gen_node(struct node *n)
 		n->flags |= ISBOOL;
 		helper_sb(n, "cceq");
 		return 1;
+	/* Trivial byte converted forms */
+	case T_TILDE:
+		if (size == 1) {
+			output("eor #0xFF");
+			const_a_set(reg[R_A].value ^ 0xFF);
+			return 1;
+		}
+		break;
 	}
 	return 0;
 }
