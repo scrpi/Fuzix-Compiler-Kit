@@ -28,6 +28,7 @@
 #include <ctype.h>
 
 extern const char *peep_table[];  /* Processor specific optimization table */
+extern const char *not_table[];  /* Processor specific optimization table */
 
 /* Values all chosen so they multiply easily by addition.. */
 
@@ -58,9 +59,14 @@ static char debug;
  */
 static unsigned read_line(void)
 {
-	if(fgets(peep_buffer[peep_write], LINE_SIZE, stdin)) {
+	char *p = peep_buffer[peep_write];
+	if(fgets(p, LINE_SIZE, stdin)) {
+		p += strlen(p) - 1;
+		if (*p == '\n')
+			*p = 0;
 		peep_write = (peep_write + 1) & PEEP_MASK;
-		return 1; }
+		return 1;
+	}
 	return 0;
 }
 
@@ -80,10 +86,11 @@ static void write_line(void)
  *			-1	= Partial match
  *			n	= Full match ending at entry 'n'
  */
-static int compare(char *ptr, unsigned peep)
+static int compare(const char *ptr, unsigned peep)
 {
 	unsigned i, j;
-	register char *ptr1, *ptr2, *ptr3;
+	register const char *ptr1;
+	register char *ptr2, *ptr3;
 	register char c, d;
 #ifdef	LIMIT1
 	unsigned x;
@@ -149,42 +156,53 @@ static int compare(char *ptr, unsigned peep)
 
 /*
  * Exchange new code for old code in the peephole buffer.
+ *
+ * TODO: unlike the previous optimizer this one currently doesn't know how
+ * to kill blank lines, which is a problem for repeated rulesets that eliminate
+ * dead ops. Needs fixing as part of the move
  */
-static void exchange(unsigned old, char *ptr)
+static void exchange(unsigned old, const char *ptr)
 {
-	int i, j;
-	register char *ptr1, *ptr2, c;
+	unsigned i, j;
+	register const char *ptr1;
+	register char *ptr2;
+	char c;
 
 	/* if debugging, display instruction removed by optimizer */
 	if(debug) {
 		j = old & PEEP_MASK;
-		for(i=peep_read; i != j; i = (i+1) & PEEP_MASK)
-			fprintf(stdout,"Take: %s\n", peep_buffer[i]); }
-
-	ptr2 = peep_buffer[peep_read = (old + PEEP_MASK) & PEEP_MASK];
-	while((c = *ptr++) != 0) {
-		if(c & 0x80) {
-			ptr1 = symbols[c & SYMMASK];
-			if(c & SYMNOT) {	 		/* Notted symbol */
-				for(i=0; not_table[i]; ++i)
-					if (!strcmp(ptr1, not_table[i])) {
-						ptr1 = not_table[i ^ 0x01];
-						break;
+		for(i = peep_read; i != j; i = (i + 1) & PEEP_MASK)
+			fprintf(stdout,"Take: %s\n", peep_buffer[i]);
+	}
+	/* Delete line rule */
+	if (*ptr == '\377') {
+		ptr2 = peep_buffer[peep_read = (peep_read - 1) & PEEP_MASK];
+	} else {
+		ptr2 = peep_buffer[peep_read = (old + PEEP_MASK) & PEEP_MASK];
+		while((c = *ptr++) != 0) {
+			if(c & 0x80) {
+				ptr1 = symbols[c & SYMMASK];
+				if(c & SYMNOT) {	 		/* Notted symbol */
+					for(i=0; not_table[i]; ++i)
+						if (!strcmp(ptr1, not_table[i])) {
+							ptr1 = not_table[i ^ 0x01];
+							break;
+						}
 					}
-				}
-			while(*ptr1)
-				*ptr2++ = *ptr1++;
-		} else if(c == '\n') {
-			*ptr2 = 0;
-			ptr2 = peep_buffer[peep_read = (peep_read + (PEEP_SIZE-1)) % PEEP_SIZE];
-		} else
-			*ptr2++ = c;
+				while(*ptr1)
+					*ptr2++ = *ptr1++;
+			} else if(c == '\n') {
+				*ptr2 = 0;
+				ptr2 = peep_buffer[peep_read = (peep_read + (PEEP_SIZE-1)) % PEEP_SIZE];
+			} else
+				*ptr2++ = c;
+		}
 	}
 	*ptr2 = 0;
 
 	/* if debugging, display instruction given by the optimizer */
 	if(debug) {
-		for(i=peep_read; i != j; i = (i+1) & PEEP_MASK)
+		for(i = peep_read; i != j; i = (i + 1) & PEEP_MASK)
 			fprintf(stdout,"Give: %s\n", peep_buffer[i]);
 	}
 }
@@ -202,7 +220,7 @@ void usage(void)
 int main(int argc, char *argv[])
 {
 	int i, j;
-	register char *ptr;
+	register const char *ptr;
 
 	int opt;
 
@@ -212,7 +230,7 @@ int main(int argc, char *argv[])
 		else
 			usage();
 	}
-	if (optind <= argc)
+	if (optind < argc)
 		usage();		
 
 	for(;;) {
