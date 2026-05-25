@@ -143,7 +143,7 @@ static unsigned op_can_byte(register struct node *n)
 	if (op == T_PLUS || op == T_MINUS || op == T_STAR)
 		return BYTEABLE;
 	/* Logic operations */
-	if (op == T_AND || op == T_OR || op == T_HAT)
+	if (op == T_AND || op == T_OR || op == T_HAT || op == T_TILDE)
 		return BYTEABLE;
 	/* Left shift (but not right) */
 	if (op == T_LTLT)
