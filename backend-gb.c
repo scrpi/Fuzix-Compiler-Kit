@@ -226,8 +226,6 @@ static unsigned get_size(unsigned t)
 #define T_NSTORE	(T_USER+2)		/* Store to a C global/static */
 #define T_LREF		(T_USER+3)		/* Ditto for local */
 #define T_LSTORE	(T_USER+4)
-#define T_LBREF		(T_USER+5)		/* Ditto for labelled strings or local static */
-#define T_LBSTORE	(T_USER+6)
 #define T_BTST		(T_USER+7)		/* single bit testing */
 
 static void squash_node(struct node *n, struct node *o)
@@ -275,10 +273,10 @@ static unsigned is_simple(struct node *n)
 		return 0;
 
 	/* We can load these directly into a register */
-	if (op == T_CONSTANT || op == T_LABEL || op == T_NAME)
+	if (op == T_CONSTANT || op == T_NAME)
 		return 10;
 	/* We can load this directly into a register but may need xchg pairs */
-	if (op == T_NREF || op == T_LBREF)
+	if (op == T_NREF)
 		return 1;
 	return 0;
 }
@@ -320,18 +318,10 @@ struct node *gen_rewrite_node(struct node *n)
 			squash_right(n, T_NREF);
 			return n;
 		}
-		if (r->op == T_LABEL) {
-			squash_right(n, T_LBREF);
-			return n;
-		}
 	}
 	if (op == T_EQ) {
 		if (l->op == T_NAME) {
 			squash_left(n, T_NSTORE);
-			return n;
-		}
-		if (l->op == T_LABEL) {
-			squash_left(n, T_LBSTORE);
 			return n;
 		}
 		if (l->op == T_LOCAL || l->op == T_ARGUMENT) {
@@ -383,7 +373,7 @@ struct node *gen_rewrite_node(struct node *n)
 /* Export the C symbol */
 void gen_export(const char *name)
 {
-	printf("	.export _%s\n", name);
+	printf("	.export %s\n", name);
 }
 
 void gen_segment(unsigned segment)
@@ -410,7 +400,7 @@ void gen_segment(unsigned segment)
    gen_frame for the most part */
 void gen_prologue(const char *name)
 {
-	output("_%s:", name);
+	output("%s:", name);
 	unreachable = 0;
 }
 
@@ -593,7 +583,7 @@ void gen_case_data(unsigned tag, unsigned entry)
 
 void gen_data_label(const char *name, unsigned align)
 {
-	outputne("_%s:", name);
+	outputne("%s:", name);
 }
 
 void gen_space(unsigned value)
@@ -615,7 +605,7 @@ void gen_literal(unsigned n)
 
 void gen_name(struct node *n)
 {
-	outputne(".word _%s+%u", namestr(n->snum), WORD(n->value));
+	outputne(".word %s+%u", namestr(n->snum), WORD(n->value));
 }
 
 void gen_value(unsigned type, unsigned long value)
@@ -729,8 +719,7 @@ static unsigned access_direct(struct node *n)
 
 	/* We can direct access integer or smaller types that are constants
 	   global/static or string labels */
-	if (op != T_CONSTANT && op != T_NAME && op != T_LABEL &&
-		 op != T_NREF && op != T_LBREF && op != T_LREF)
+	if (op != T_CONSTANT && op != T_NAME && op != T_NREF && op != T_LREF)
 		 return 0;
 	if (!PTR(n->type) && (n->type & ~UNSIGNED) > CSHORT)
 		return 0;
@@ -745,8 +734,6 @@ static unsigned can_point_hl_at(struct node *n)
 	switch(n->op) {
 	case T_NREF:
 	case T_NSTORE:
-	case T_LBREF:
-	case T_LBSTORE:
 	case T_ARGUMENT:
 	case T_LOCAL:
 	case T_LREF:
@@ -765,11 +752,7 @@ static unsigned point_hl_at(struct node *n)
 	switch(n->op) {
 	case T_NREF:
 	case T_NSTORE:
-		outputne("ld hl,_%s+%u", namestr(n->snum), v);
-		break;
-	case T_LBREF:
-	case T_LBSTORE:
-		outputne("ld hl,T%u+%u", n->snum, v);
+		outputne("ld hl,%s+%u", namestr(n->snum), v);
 		break;
 	case T_ARGUMENT:
 		v += frame_len + argbase;
@@ -844,17 +827,13 @@ static unsigned load_r_with(const char *r, struct node *n)
 
 	switch(n->op) {
 	case T_NAME:
-		outputne("ld %s,_%s+%u", r, namestr(n->snum), v);
-		return 1;
-	case T_LABEL:
-		outputne("ld %s,T%u+%u", r, n->snum, v);
+		outputne("ld %s,%s+%u", r, namestr(n->snum), v);
 		return 1;
 	case T_CONSTANT:
 		/* We know this is not a long from the checks above */
 		outputne("ld %s,%u", r, v);
 		return 1;
 	case T_NREF:
-	case T_LBREF:
 		if (*r == 'b')
 			return 0;
 		point_hl_at(n);
@@ -882,8 +861,7 @@ static unsigned load_de_with(struct node *n)
 static unsigned can_load_hl_with(struct node *n)
 {
 	unsigned op = n->op;
-	if (op == T_LREF || op == T_NREF || op == T_LBREF ||
-	    op == T_NAME || op == T_LABEL || op == T_CONSTANT)
+	if (op == T_LREF || op == T_NREF || op == T_NAME || op == T_CONSTANT)
 	    	return 1;
 	return 0;
 }
@@ -905,10 +883,7 @@ static unsigned load_a_with(struct node *n, unsigned keep_hl)
 		outputne("ld a,%u", BYTE(v));
 		break;
 	case T_NREF:
-		outputne("ld a,(_%s+%u)", namestr(n->snum), v);
-		break;
-	case T_LBREF:
-		outputne("ld a,(T%u+%u)", n->snum, v);
+		outputne("ld a,(%s+%u)", namestr(n->snum), v);
 		break;
 	case T_LREF:
 		/* We don't want to trash HL as we may be doing an HL:A op */
@@ -946,7 +921,7 @@ static unsigned gen_twoop(const char *op, struct node *n, struct node *r, unsign
 	if (s > 2)
 		return 0;
 	/* Things you can't point HL at, so we call a differing helper */
-	if (r->op == T_CONSTANT || r->op == T_NAME || r->op == T_LABEL) {
+	if (r->op == T_CONSTANT || r->op == T_NAME) {
 		strcpy(opc, op);
 		strcat(opc, "con");
 		op = opc;
@@ -955,9 +930,7 @@ static unsigned gen_twoop(const char *op, struct node *n, struct node *r, unsign
 		if (r->op == T_CONSTANT)
 			outputne("ld hl,%u", WORD(r->value));
 		else if (r->op == T_NAME)
-			outputne("ld hl,_%s+%u", namestr(r->snum), WORD(r->value));
-		else if (r->op == T_LABEL)
-			outputne("ld hl,T%u+%u", r->snum, WORD(r->value));
+			outputne("ld hl,%s+%u", namestr(r->snum), WORD(r->value));
 		else if (can_point_hl_at(r)) {
 			if (point_hl_at(r) == 0)
 				error("cpha");
@@ -967,9 +940,7 @@ static unsigned gen_twoop(const char *op, struct node *n, struct node *r, unsign
 		if (r->op == T_CONSTANT)
 			outputne("ld l,%u", WORD(r->value));
 		else if (r->op == T_NAME)
-			outputne("ld l,<_%s+%u", namestr(r->snum), WORD(r->value));
-		else if (r->op == T_LABEL)
-			outputne("ld l,<T%u+%u", r->snum, WORD(r->value));
+			outputne("ld l,<%s+%u", namestr(r->snum), WORD(r->value));
 		else if (point_hl_at(r) == 0)
 			return 0;
 		/* For now byte ops are done A,(HL) which works nicely */
@@ -1225,16 +1196,10 @@ unsigned gen_direct(struct node *n)
 	case T_NSTORE:
 		if (s > 2)
 			return 0;
-		outputne("ld hl,_%s+%u", namestr(n->snum), v);
+		outputne("ld hl,%s+%u", namestr(n->snum), v);
 		store_via_hl(s);
 		/* TODO 4/8 for long etc */
 		return 0;
-	case T_LBSTORE:
-		if (s > 2)
-			return 0;
-		outputne("ld hl,T%u+%u", n->snum, v);
-		store_via_hl(s);
-		return 1;
 	case T_EQ:
 		/* We should flip this around in shortcut so the bits
 		   are in DE and then we could put the addr in HL */
@@ -1793,17 +1758,17 @@ static void perform_op_name(const char *op, const char *op2, unsigned s, unsigne
 {
 	unsigned v = WORD(n->value);
 	if (s == 1) {
-		outputne("ld a, <_%s+%u", namestr(n->snum), v);
+		outputne("ld a, <%s+%u", namestr(n->snum), v);
 		output("%s a,(hl)", op);
 		outputne("ld (hl),a");
 		return;
 	}
-	outputne("ld a, <_%s+%u", namestr(n->snum), v);
+	outputne("ld a, <%s+%u", namestr(n->snum), v);
 	output("%s a,(hl)", op);
 	outputne("ldi (hl),a");
 	if (nr)
 		output("ld e,a");
-	outputne("ld a, >_%s+%u", namestr(n->snum), v + 1);
+	outputne("ld a, >%s+%u", namestr(n->snum), v + 1);
 	output("%s a,(hl)", op2);
 	outputne("ld (hl),a");
 	if (nr)
@@ -1931,11 +1896,6 @@ static unsigned backop(struct node *n, const char *op, const char *os, unsigned 
 		if (r->op == T_NAME && s <= 2) {
 			load_hl_with(l);
 			perform_op_name(op, os, s, nr, t, r);
-			return 1;
-		}
-		if (r->op == T_LABEL && s <= 2) {
-			load_hl_with(l);
-			perform_op_label(op, os, s, nr, t, r);
 			return 1;
 		}
 		printf("; backop via codegen\n");
@@ -2167,17 +2127,7 @@ unsigned gen_node(struct node *n)
 		if (nr && !se)
 			return 1;
 		if (size == 1) {
-			outputne("ld a,(_%s+%u)", namestr(n->snum), v);
-			return 1;
-		}
-		point_hl_at(n);
-		load_via_hl('d', size);
-		return 1;
-	case T_LBREF:
-		if (nr && !se)
-			return 1;
-		if (size == 1) {
-			outputne("ld a,(T%u+%u)\n", n->snum, v);
+			outputne("ld a,(%s+%u)", namestr(n->snum), v);
 			return 1;
 		}
 		point_hl_at(n);
@@ -2198,16 +2148,8 @@ unsigned gen_node(struct node *n)
 		return gen_lref(v, size, 0);
 	case T_NSTORE:
 		if (size == 1)
-			outputne("ld (_%s+%u),a", namestr(n->snum), v);
+			outputne("ld (%s+%u),a", namestr(n->snum), v);
 		else {
-			point_hl_at(n);
-			store_via_hl(size);
-		}
-		return 1;
-	case T_LBSTORE:
-		if (size == 1) {
-			outputne("ld (T%u+%u),a", n->snum, v);
-		} else {
 			point_hl_at(n);
 			store_via_hl(size);
 		}
@@ -2231,7 +2173,7 @@ unsigned gen_node(struct node *n)
 		return 1;
 		/* Call a function by name */
 	case T_CALLNAME:
-		output("call _%s+%u", namestr(n->snum), v);
+		output("call %s+%u", namestr(n->snum), v);
 		return 1;
 	case T_EQ:
 		/* (TOS) = hl and (TOS) = a */
@@ -2252,11 +2194,6 @@ unsigned gen_node(struct node *n)
 	case T_FUNCCALL:
 		output("call __callde");
 		return 1;
-	case T_LABEL:
-		if (nr)
-			return 1;
-		/* Used for const strings and local static */
-		return load_de_with(n);
 	case T_CONSTANT:
 		if (nr)
 			return 1;

@@ -118,9 +118,9 @@ static unsigned is_simple(struct node *n)
 		return 10;
 	/* These are as easy but we also have some helpers that benefit
 	   most from right constant */
-	if (op == T_NAME || op == T_LABEL)
+	if (op == T_NAME)
 		return 9;
-	if (op == T_LBREF || op == T_NREF)
+	if (op == T_NREF)
 		return 9;
 	if (op == T_ARGUMENT || op == T_LOCAL)
 		return 9;
@@ -167,7 +167,7 @@ struct node *gen_rewrite_node(struct node *n)
 	}
 	/* Merge offset to object into a single direct reference */
 	if (op == T_PLUS && r->op == T_CONSTANT &&
-		(l->op == T_LOCAL || l->op == T_NAME || l->op == T_LABEL || l->op == T_ARGUMENT)) {
+		(l->op == T_LOCAL || l->op == T_NAME || l->op == T_ARGUMENT)) {
 		/* We don't care if the right offset is 16bit or 32 as we've
 		   got 16bit pointers */
 		printf(";merge right %x %lu+%lu\n",
@@ -310,19 +310,8 @@ struct node *gen_rewrite_node(struct node *n)
 		squash_right(n, T_NDEREF);	/* n->value becomes the local ref */
 		return n;
 	}
-	if (cpu_is_09 && n->value == 0 && (op == T_DEREF || op == T_DEREFPLUS) && r->op == T_LBREF) {
-		/* At this point r->value is the offset for the local */
-		/* n->value is the offset for the ptr load */
-		squash_right(n, T_LBDEREF);	/* n->value becomes the local ref */
-		return n;
-	}
 	if (cpu_is_09 && n->value == 0 && (op == T_EQ || op == T_EQPLUS) && l->op == T_NREF) {
 		squash_left(n, T_NEQ);		/* n->value becomes the local ref */
-		return n;
-	}
-	if (cpu_is_09 && n->value == 0 && (op == T_EQ || op == T_EQPLUS) && l->op == T_LBREF) {
-		l->snum = n->value;		/* Save the offset so it is squashed in */
-		squash_left(n, T_LBEQ);		/* n->value becomes the local ref */
 		return n;
 	}
 
@@ -345,10 +334,6 @@ struct node *gen_rewrite_node(struct node *n)
 				squash_right(n, T_NREF);
 				return n;
 			}
-			if (r->op == T_LABEL) {
-				squash_right(n, T_LBREF);
-				return n;
-			}
 			if (r->op == T_RREF) {
 				squash_right(n, T_RDEREF);
 				n->snum = 0;
@@ -358,10 +343,6 @@ struct node *gen_rewrite_node(struct node *n)
 		if (op == T_EQ) {
 			if (l->op == T_NAME) {
 				squash_left(n, T_NSTORE);
-				return n;
-			}
-			if (l->op == T_LABEL) {
-				squash_left(n, T_LBSTORE);
 				return n;
 			}
 			if (l->op == T_LOCAL || l->op == T_ARGUMENT) {
@@ -748,18 +729,10 @@ unsigned gen_uni_direct(struct node *n)
 			return 1;
 		}
 		return 0;
-	case T_LBEQ:
-		if (r->op == T_CONSTANT && r->value == 0 && nr) {
-			if (s == 1 && nr) {
-				printf("\tclr [T%u+%u]\n", n->snum, (unsigned)n->value);
-				return 1;
-			}
-		}
-		return 0;
 	case T_NEQ:
 		if (r->op == T_CONSTANT && r->value == 0 && nr) {
 			if (s == 1 && nr) {
-				printf("\tclr [_%s+%u]\n", namestr(n->snum), (unsigned)n->value);
+				printf("\tclr [%s+%u]\n", namestr(n->snum), (unsigned)n->value);
 				return 1;
 			}
 		}
@@ -767,7 +740,6 @@ unsigned gen_uni_direct(struct node *n)
 	/* Writes of 0 to an object we can use clr for providing the
 	   result is not then re-used */
 	case T_LSTORE:
-	case T_LBSTORE:
 	case T_NSTORE:
 		/* Optimizations for constants */
 		if (nr && r->op == T_CONSTANT && r->value == 0) {
@@ -871,8 +843,6 @@ static unsigned deref_op(unsigned op)
 		return T_NREF;
 	case T_LOCAL:
 		return T_LREF;
-	case T_LABEL:
-		return T_LBREF;
 	}
 	return 0;
 }
@@ -1019,25 +989,14 @@ unsigned memop_const(struct node *n, const char *op, unsigned nr, unsigned pre)
 		pre = 0;
 
 	switch(l->op) {
-	case T_LABEL:
-		if (pre == 1)
-			printf("ldb T%u+%u\n", l->snum, v);
-		sprintf(buf, "%s T%u+%u", op, l->snum, v);
-		repeated_op(ct, buf);
-		invalidate_mem();
-		if (pre == 2)
-			printf("ldb T%u+%u\n", l->snum, v);
-		if (pre)
-			invalidate_b();
-		return 1;
 	case T_NAME:
 		if (pre == 1)
-			printf("ldb _%s+%u\n", namestr(l->snum), v);
-		sprintf(buf, "%s _%s+%u", op, namestr(l->snum), v);
+			printf("ldb %s+%u\n", namestr(l->snum), v);
+		sprintf(buf, "%s %s+%u", op, namestr(l->snum), v);
 		repeated_op(ct, buf);
 		invalidate_mem();
 		if (pre == 2)
-			printf("ldb _%s+%u\n", namestr(l->snum), v);
+			printf("ldb %s+%u\n", namestr(l->snum), v);
 		if (pre)
 			invalidate_b();
 		return 1;
@@ -1081,13 +1040,8 @@ unsigned memop_shift(struct node *n, const char *op, const char *opu)
 	if (rv > 2 && opt < 2)
 		return 0;
 	switch(l->op) {
-	case T_LABEL:
-		sprintf(buf, "%s T%u+%u", op, l->snum, v);
-		repeated_op(r->value, buf);
-		invalidate_mem();
-		return 1;
 	case T_NAME:
-		sprintf(buf, "%s _%s+%u", op, namestr(l->snum), v);
+		sprintf(buf, "%s %s+%u", op, namestr(l->snum), v);
 		repeated_op(r->value, buf);
 		invalidate_mem();
 		return 1;
@@ -1562,7 +1516,7 @@ unsigned gen_node(struct node *n)
 	switch (n->op) {
 	case T_CALLNAME:
 		invalidate_all();
-		printf("\t%s _%s+%u\n", jsr_op, namestr(n->snum), v);
+		printf("\t%s %s+%u\n", jsr_op, namestr(n->snum), v);
 		return 1;
 	case T_DEREF:
 	case T_DEREFPLUS:
@@ -1630,7 +1584,6 @@ unsigned gen_node(struct node *n)
 			puts("\tstaa @hireg\n\tstab @hireg+1");
 		load_d_const(n->value);
 		return 1;
-	case T_LABEL:
 	case T_NAME:
 		if (s == 4) {
 			if (cpu_has_y)
@@ -1647,7 +1600,6 @@ unsigned gen_node(struct node *n)
 		/* Fall through */
 	case T_LREF:
 	case T_NREF:
-	case T_LBREF:
 		if (d_holds_node(n))
 			return 1;
 		if (write_opd(n, "ld", "ld", 0)) {
@@ -1671,7 +1623,6 @@ unsigned gen_node(struct node *n)
 		return 0;
 	case T_LSTORE:
 	case T_NSTORE:
-	case T_LBSTORE:
 		if (write_opd(n, "st", "st", 0)) {
 			invalidate_mem();
 			set_d_node(n);
@@ -1763,18 +1714,9 @@ unsigned gen_node(struct node *n)
 		/* Deref through a name. Only generated for the 6809
 		   and only when the object offset is 0 and size is 1 or 2 */
 		if (s == 1)
-			printf("\tldb [_%s + %u]\n", namestr(n->snum), v);
+			printf("\tldb [%s + %u]\n", namestr(n->snum), v);
 		else
-			printf("\tldd [_%s + %u]\n", namestr(n->snum), v);
-		invalidate_work();
-		return 1;
-	case T_LBDEREF:
-		/* Deref through a label. Only generated for the 6809
-		   and only when the object offset is 0 and size is 1 or 2 */
-		if (s == 1)
-			printf("\tldb [T%u + %u]\n", n->snum, v);
-		else
-			printf("\tldd [T%u + %u]\n", n->snum, v);
+			printf("\tldd [%s + %u]\n", namestr(n->snum), v);
 		invalidate_work();
 		return 1;
 	case T_RDEREF:
@@ -1822,15 +1764,9 @@ unsigned gen_node(struct node *n)
 		return 1;
 	case T_NEQ:
 		if (s == 1)
-			printf("\tstb [_%s + %u]\n", namestr(n->snum), v);
+			printf("\tstb [%s + %u]\n", namestr(n->snum), v);
 		else
-			printf("\tstd [_%s + %u]\n", namestr(n->snum), v);
-		return 1;
-	case T_LBEQ:
-		if (s == 1)
-			printf("\tstb [T%u + %u]\n", n->snum, v);
-		else
-			printf("\tstd [T%u + %u]\n", n->snum, v);
+			printf("\tstd [%s + %u]\n", namestr(n->snum), v);
 		return 1;
 	case T_LPLUS:	/* 6800 and -Os only */
 		gen_lplus(n, "");

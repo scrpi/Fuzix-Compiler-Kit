@@ -27,8 +27,6 @@
 #define T_NSTORE	(T_USER+2)		/* Store to a C global/static */
 #define T_LREF		(T_USER+3)		/* Ditto for local */
 #define T_LSTORE	(T_USER+4)
-#define T_LBREF		(T_USER+5)		/* Ditto for labelled strings or local static */
-#define T_LBSTORE	(T_USER+6)
 #define T_RREF		(T_USER+7)
 #define T_RSTORE	(T_USER+8)
 #define T_RDEREF	(T_USER+9)		/* *regptr */
@@ -95,9 +93,7 @@ static void gen_symref(struct node *n)
 	register unsigned op = n->op;
 	register unsigned v = n->value;
 	if (op == T_NREF || op == T_NSTORE || op == T_NAME)
-		printf("\t.word _%s+%u\n",  namestr(n->snum), v);
-	else if (op == T_LBREF || op == T_LBSTORE || op == T_LABEL)
-		printf("\t.word T%u+%u\n", n->snum, v);
+		printf("\t.word %s+%u\n",  namestr(n->snum), v);
 	else
 		error("gsr");
 }
@@ -304,12 +300,12 @@ static void load_r_name(unsigned r, struct node *n, unsigned off)
 	r_modify(r, 2);
 #ifdef SUPER8
 	if (!(r & 1)) {
-		printf("\tldw rr%u,#_%s+%u\n", r, c, off);
+		printf("\tldw rr%u,#%s+%u\n", r, c, off);
 		return;
 	}
 #endif
-	printf("\tld r%u,#>_%s+%u\n", r, c, off);
-	printf("\tld r%u,#<_%s+%u\n", r + 1, c, off);
+	printf("\tld r%u,#>%s+%u\n", r, c, off);
+	printf("\tld r%u,#<%s+%u\n", r + 1, c, off);
 }
 
 /* ?? should these be including n->value as well */
@@ -1358,14 +1354,8 @@ static void load_da(unsigned r, struct node *n)
 	if (n->op == T_NREF) {
 		const char *c = namestr(n->snum);
 		while(sz--) {
-			printf("\tlde r%u,_%s+%u\n",
+			printf("\tlde r%u,%s+%u\n",
 				r++, c, v++);
-		}
-	}
-	else if (n->op == T_LBREF) {
-		while(sz--) {
-			printf("\tlde r%u,T%u+%u\n",
-				r++, n->snum, v++);
 		}
 	}
 	else error("lda");
@@ -1404,14 +1394,8 @@ static void store_da(unsigned r, struct node *n)
 	if (n->op == T_NSTORE) {
 		const char *c = namestr(n->snum);
 		while(sz--) {
-			printf("\tlde _%s+%u, r%u\n",
+			printf("\tlde %s+%u, r%u\n",
 				c, v++, r++);
-		}
-	}
-	else if (n->op == T_LBSTORE) {
-		while(sz--) {
-			printf("\tlde T%u+%u,r%u\n",
-				n->snum, v++, r++);
 		}
 	}
 	else error("lda");
@@ -1460,9 +1444,6 @@ static unsigned load_direct(unsigned r, struct node *n, unsigned mm)
 	case T_NAME:
 		load_r_name(r, n, v);
 		return r;
-	case T_LABEL:
-		load_r_label(r, n, v);
-		return r;
 	case T_LREF:
 		/* Size shrink for all the op with local in r12/r13 stuff */
 		if (r == R_WORK && opt < 1) {
@@ -1492,28 +1473,6 @@ static unsigned load_direct(unsigned r, struct node *n, unsigned mm)
 			}
 		}
 		load_r_name(R_INDEX, n, v);
-		if (size == 1)
-			r++;
-		load_r_memr(r, R_INDEX, size);
-		return r;
-	case T_LBREF:
-#ifdef SUPER8
-		/* Load using lde _foo+n */
-		if (size <= 2 - optsize) {
-			load_da(r, n);
-			return r;
-		}
-#endif
-		if (optsize) {
-			if (size <= 2 && r == R_WORK) {
-				printf("\tcall __nref12_%d\n", size);
-				/* Until we track r14 objects other than local */
-				r_modify(R_WORK + size - 1, size);
-				gen_symref(n);
-				return 1;
-			}
-		}
-		load_r_label(R_INDEX, n, v);
 		if (size == 1)
 			r++;
 		load_r_memr(r, R_INDEX, size);
@@ -1601,9 +1560,9 @@ static unsigned is_simple(struct node *n)
 {
 	unsigned op = n->op;
 
-	if (op == T_CONSTANT || op == T_NAME || op == T_LABEL)
+	if (op == T_CONSTANT || op == T_NAME)
 		return 10;
-	if (op == T_NREF || op == T_LBREF)
+	if (op == T_NREF)
 		return 5;
 	if (op == T_LREF)
 		return 2;
@@ -1752,18 +1711,10 @@ struct node *gen_rewrite_node(struct node *n)
 			squash_right(n, T_NREF);
 			return n;
 		}
-		if (r->op == T_LABEL) {
-			squash_right(n, T_LBREF);
-			return n;
-		}
 	}
 	else if (op == T_EQ) {
 		if (l->op == T_NAME) {
 			squash_left(n, T_NSTORE);
-			return n;
-		}
-		if (l->op == T_LABEL) {
-			squash_left(n, T_LBSTORE);
 			return n;
 		}
 		if (l->op == T_LOCAL || l->op == T_ARGUMENT) {
@@ -1809,7 +1760,7 @@ struct node *gen_rewrite_node(struct node *n)
 /* Export the C symbol */
 void gen_export(const char *name)
 {
-	printf("	.export _%s\n", name);
+	printf("	.export %s\n", name);
 }
 
 void gen_segment(unsigned segment)
@@ -1837,7 +1788,7 @@ void gen_segment(unsigned segment)
 void gen_prologue(const char *name)
 {
 	unreachable = 0;
-	printf("_%s:\n", name);
+	printf("%s:\n", name);
 	invalidate_all();
 }
 
@@ -2079,7 +2030,7 @@ void gen_case_data(unsigned tag, unsigned entry)
 
 void gen_data_label(const char *name, unsigned align)
 {
-	printf("_%s:\n", name);
+	printf("%s:\n", name);
 }
 
 void gen_space(unsigned value)
@@ -2101,7 +2052,7 @@ void gen_literal(unsigned n)
 
 void gen_name(struct node *n)
 {
-	printf("\t.word _%s+%u\n", namestr(n->snum), WORD(n->value));
+	printf("\t.word %s+%u\n", namestr(n->snum), WORD(n->value));
 }
 
 void gen_value(unsigned type, unsigned long value)
@@ -2284,17 +2235,6 @@ unsigned gen_direct(struct node *n)
 		load_r_name(R_INDEX, n, v);
 		store_r_memr(R_AC, R_INDEX, size);
 		break;
-	case T_LBSTORE:
-#ifdef SUPER8
-		/* Store usign lde addr,rn */
-		if (size <= 2 - optsize) {
-			store_da(R_AC, n);
-			return 1;
-		}
-#endif
-		load_r_label(R_INDEX, n, v);
-		store_r_memr(R_AC, R_INDEX, size);
-		return 1;
 	case T_LSTORE:
 #ifdef SUPER8
 		if (size < 2 - optsize) {
@@ -2801,7 +2741,7 @@ static unsigned argstack_helper(struct node *n, unsigned sz)
 		}
 		/* is it worth using __pushl for anything evaluated ? */
 	}
-	if (optsize && (n->op == T_CONSTANT || n->op == T_LABEL || n->op == T_NAME)) {
+	if (optsize && (n->op == T_CONSTANT || n->op == T_NAME)) {
 		if (sz == 2) {
 			r_modify(14, 2);
 			if (n->op == T_CONSTANT) {
@@ -2944,7 +2884,7 @@ unsigned gen_shortcut(struct node *n)
 	if (n->op == T_CALLNAME) {
 		gen_fcall(l);
 		invalidate_all();
-		printf("\tcall _%s+%d\n", namestr(n->snum), (unsigned)n->value);
+		printf("\tcall %s+%d\n", namestr(n->snum), (unsigned)n->value);
 		return 1;
 	}
 	/* We don't know if the result has set the condition flags
@@ -3028,7 +2968,7 @@ unsigned gen_shortcut(struct node *n)
 		store_r_memr(R_AC, R_INDEX, size);	/* Moves the pointer on as a side effect */
 		return 1;
 	}
-	if (optsize && (n->op == T_NSTORE || n->op == T_LBSTORE) && r->op == T_CONSTANT) {
+	if (optsize && n->op == T_NSTORE && r->op == T_CONSTANT) {
 		if (r->value == 0) {
 			printf("\tcall __nstore_%d_0\n", size);
 			set_ac_node(n);
@@ -3278,26 +3218,6 @@ unsigned gen_node(struct node *n)
 		load_r_memr(R_AC, R_INDEX, size);
 		set_ac_node(n);
 		return 1;
-	case T_LBREF:
-#ifdef SUPER8
-		if (size < 2 - optsize) {
-			load_da(R_AC, n);
-			return 1;
-		}
-#endif
-		if (optsize) {
-			printf("\tcall __nref_%d\n", size);
-			/* Until we track r14 objects other than local */
-			set_ac_node(n);
-			r_modify(R_AC, size);
-			r_modify(R_WORK,4);
-			gen_symref(n);
-			return 1;
-		}
-		load_r_label(R_INDEX, n, v);
-		load_r_memr(R_AC, R_INDEX, size);
-		set_ac_node(n);
-		return 1;
 	case T_LREF:
 		/* We are loading something then not using it, and it's local
 		   so can go away */
@@ -3359,24 +3279,6 @@ unsigned gen_node(struct node *n)
 		store_r_memr(R_AC, R_INDEX, size);
 			set_ac_node(n);
 		return 1;
-	case T_LBSTORE:
-#ifdef SUPER8
-		if (size <= 2 - optsize) {
-			store_da(R_AC, n);
-			return 1;
-		}
-#endif
-		if (optsize) {
-			printf("\tcall __nstore_%d\n", size);
-			set_ac_node(n);
-			r_modify(R_WORK,4);
-			gen_symref(n);
-			return 1;
-		}
-		load_r_label(R_INDEX, n, v);
-		store_r_memr(R_AC, R_INDEX, size);
-		set_ac_node(n);
-		return 1;
 	case T_LSTORE:
 #ifdef SUPER8
 		if (size <= 2 - optsize) {
@@ -3399,7 +3301,7 @@ unsigned gen_node(struct node *n)
 		/* Call a function by name */
 	case T_CALLNAME:
 		invalidate_all();
-		printf("\tcall _%s+%u\n", namestr(n->snum), v);
+		printf("\tcall %s+%u\n", namestr(n->snum), v);
 		return 1;
 	case T_EQ:
 		pop_rr(R_INDEX);
@@ -3435,12 +3337,6 @@ unsigned gen_node(struct node *n)
 		invalidate_all();
 		/* Rather than mess with indirection use a helper */
 		printf("\tcall __jmpr2\n");
-		return 1;
-	case T_LABEL:
-		if (nr)
-			return 1;
-		load_r_label(R_AC, n, v);
-		set_ac_node(n);
 		return 1;
 	case T_CONSTANT:
 		if (nr)

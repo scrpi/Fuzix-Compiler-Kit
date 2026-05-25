@@ -14,7 +14,7 @@
 /* Export the C symbol */
 void gen_export(const char *name)
 {
-	printf("	.export _%s\n", name);
+	printf("	.export %s\n", name);
 }
 
 void gen_segment(unsigned segment)
@@ -41,7 +41,7 @@ void gen_segment(unsigned segment)
    gen_frame for the most part */
 void gen_prologue(const char *name)
 {
-	printf("_%s:\n", name);
+	printf("%s:\n", name);
 	unreachable = 0;
 }
 
@@ -300,7 +300,7 @@ void gen_case_data(unsigned tag, unsigned entry)
 
 void gen_data_label(const char *name, unsigned align)
 {
-	printf("_%s:\n", name);
+	printf("%s:\n", name);
 }
 
 void gen_space(unsigned value)
@@ -324,7 +324,7 @@ void gen_literal(unsigned n)
 
 void gen_name(struct node *n)
 {
-	printf("\t.word _%s+%u\n", namestr(n->snum), WORD(n->value));
+	printf("\t.word %s+%u\n", namestr(n->snum), WORD(n->value));
 }
 
 void gen_value(unsigned type, unsigned long value)

@@ -126,7 +126,6 @@
 #define T_CONSTANT	0x1201		/* A numeric value */
 #define T_NAME		0x1202		/* name/offset for global or static */
 #define T_LOCAL		0x1203		/* name/offset for auto */
-#define T_LABEL		0x1204		/* address of a literal */
 #define T_ARGUMENT	0x1205		/* name/offset for argument */
 #define T_DEREF		0x1206		/* *foo (as T_STAR is multiply) */
 #define T_ADDROF	0x1207		/* &lval (as T_AND is boolean and) */

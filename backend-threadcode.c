@@ -22,8 +22,6 @@ static unsigned big_endian;	/* Machine word endianness */
 #define T_NSTORE	(T_USER+2)		/* Store to a C global/static */
 #define T_LREF		(T_USER+3)		/* Ditto for local */
 #define T_LSTORE	(T_USER+4)
-#define T_LBREF		(T_USER+5)		/* Ditto for labelled strings or local static */
-#define T_LBSTORE	(T_USER+6)
 
 static void squash_node(struct node *n, struct node *o)
 {
@@ -80,18 +78,10 @@ struct node *gen_rewrite_node(struct node *n)
 				squash_right(n, T_NREF);
 				return n;
 			}
-			if (r->op == T_LABEL) {
-				squash_right(n, T_LBREF);
-				return n;
-			}
 		}
 		if (op == T_EQ) {
 			if (l->op == T_NAME) {
 				squash_left(n, T_NSTORE);
-				return n;
-			}
-			if (l->op == T_LABEL) {
-				squash_left(n, T_LBSTORE);
 				return n;
 			}
 			if (l->op == T_LOCAL || l->op == T_ARGUMENT) {
@@ -126,7 +116,7 @@ struct node *gen_rewrite_node(struct node *n)
 /* Export the C symbol */
 void gen_export(const char *name)
 {
-	printf("	.export _%s\n", name);
+	printf("	.export %s\n", name);
 }
 
 void gen_segment(unsigned s)
@@ -151,7 +141,7 @@ void gen_segment(unsigned s)
 
 void gen_prologue(const char *name)
 {
-	printf("_%s:\n", name);
+	printf("%s:\n", name);
 }
 
 /* Generate the stack frame */
@@ -248,7 +238,7 @@ void gen_helpclean(struct node *n)
 
 void gen_data_label(const char *name, unsigned align)
 {
-	printf("_%s:\n", name);
+	printf("%s:\n", name);
 }
 
 void gen_space(unsigned value)
@@ -269,7 +259,7 @@ void gen_literal(unsigned n)
 
 void gen_name(struct node *n)
 {
-	printf("\t.word _%s+%d\n", namestr(n->snum), WORD(n->value));
+	printf("\t.word %s+%d\n", namestr(n->snum), WORD(n->value));
 }
 
 void gen_value(unsigned type, unsigned long value)
@@ -430,11 +420,7 @@ unsigned gen_node(struct node *n)
 	switch(n->op) {
 	case T_NREF:
 		helper(n, "nref");
-		printf("\t.word _%s+%d\n", namestr(n->snum), v);
-		return 1;
-	case T_LBREF:
-		helper(n, "lbref");
-		printf("\t.word T%ds+%d\n", n->snum, v);
+		printf("\t.word %s+%d\n", namestr(n->snum), v);
 		return 1;
 	case T_LREF:
 		if (nr)
@@ -444,11 +430,7 @@ unsigned gen_node(struct node *n)
 		return 1;
 	case T_NSTORE:
 		helper(n, "nstore");
-		printf("\t.word _%s+%d\n", namestr(n->snum), v);
-		return 1;
-	case T_LBSTORE:
-		helper(n, "lbstore");
-		printf("\t.word T%ds+%d\n", n->snum, v);
+		printf("\t.word %s+%d\n", namestr(n->snum), v);
 		return 1;
 	case T_LSTORE:
 		helper(n, "lstore");
@@ -456,7 +438,7 @@ unsigned gen_node(struct node *n)
 		return 1;
 	case T_CALLNAME:
 		helper(n, "callfn");
-		printf("\t.word _%s+%d\n", namestr(n->snum), v);
+		printf("\t.word %s+%d\n", namestr(n->snum), v);
 		return 1;
 	case T_ARGUMENT:
 		/* Turn argument into local effectively */

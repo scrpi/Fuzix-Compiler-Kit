@@ -8,16 +8,12 @@
 #define T_NSTORE	(T_USER+2)	/* Store to a C global/static */
 #define T_LREF		(T_USER+3)	/* Ditto for local */
 #define T_LSTORE	(T_USER+4)
-#define T_LBREF		(T_USER+5)	/* Ditto for labelled strings or local static */
-#define T_LBSTORE	(T_USER+6)
 #define T_DEREFPLUS	(T_USER+7)
 #define T_EQPLUS	(T_USER+8)
 #define T_LDEREF	(T_USER+9)	/* *local + offset */
 #define T_LEQ		(T_USER+10)	/* *local + offset = n */
 #define T_NDEREF	(T_USER+11)	/* *(name + offset) */
-#define T_LBDEREF	(T_USER+12)	/* *(name + offset) */
 #define T_NEQ		(T_USER+13)	/* *(name + offset) = n */
-#define T_LBEQ		(T_USER+14)	/* *(label + offset) = n */
 #define T_RREF		(T_USER+15)
 #define T_RSTORE	(T_USER+16)
 #define T_RDEREF	(T_USER+17)	/* *regptr */

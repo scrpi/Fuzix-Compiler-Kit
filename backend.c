@@ -1,4 +1,4 @@
-/*
+	/*
  *	This is the main block for the code generator. It provides the
  *	basic parsing functions to make life easy for the target code
  *	generator. A target is not required to use this, it can work the
@@ -12,6 +12,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <ctype.h>
+#include <string.h>
 
 #include "symtab.h"
 #include "compiler.h"
@@ -53,11 +54,19 @@ static void xread(int fd, void *buf, int len)
 static struct name names[NCACHE_SIZE];
 static struct name *nhead;
 static unsigned max_name;
+static char lbuf[18] = "_";
 
 char *namestr(register unsigned n)
 {
 	register struct name *np = nhead;
 	register struct name *prev = NULL;
+
+	/* 0xC000-0xFFFF are anonymous labels (locally declared static) and
+	   0x8000-0xBFFF are actual symbol names */
+	if (n >= 0xC000) {
+		snprintf(lbuf + 1, 16, "T%u", n & 0x3FFF);
+		return lbuf + 1;
+	}
 	while (np) {
 		if (np->id == n) {
 			if (prev) {
@@ -65,7 +74,8 @@ char *namestr(register unsigned n)
 				np->next = nhead;
 				nhead = np;
 			}
-			return np->name;
+			strcpy(lbuf + 1, np->name);
+			return lbuf;
 		}
 		prev = np;
 		np = np->next;
@@ -75,7 +85,8 @@ char *namestr(register unsigned n)
 		error("seeksym");
 	xread(sym_fd, prev, sizeof(struct name));
 	prev->next = NULL;
-	return prev->name;
+	strcpy(lbuf + 1, prev->name);
+	return lbuf;
 }
 
 static void init_name_cache(void)
@@ -324,7 +335,6 @@ static char *getopname(int op) {
 		case 0x1201: return("T_CONSTANT");
 		case 0x1202: return("T_NAME");
 		case 0x1203: return("T_LOCAL");
-		case 0x1204: return("T_LABEL");
 		case 0x1205: return("T_ARGUMENT");
 		case 0x1206: return("T_DEREF");
 		case 0x1207: return("T_ADDROF");
@@ -642,9 +652,6 @@ void process_data(void)
 	case T_PAD:
 		gen_space(n->value);
 		break;
-	case T_LABEL:
-		gen_text_data(n);
-		break;
 	case T_NAME:
 		gen_name(n);
 		break;
@@ -908,11 +915,6 @@ void make_node(register struct node *n)
 	case T_CLEANUP:
 		/* Should never occur except direct */
 		error("tclu");
-		break;
-	case T_LABEL:
-		helper(n, "const");
-		/* Used for const strings */
-		gen_text_data(n);
 		break;
 	case T_CAST:
 		helper_s(n, "cast");

@@ -126,8 +126,6 @@ static unsigned get_stack_size(unsigned t)
 #define T_NSTORE	(T_USER+2)		/* Store to a C global/static */
 #define T_LREF		(T_USER+3)		/* Ditto for local */
 #define T_LSTORE	(T_USER+4)
-#define T_LBREF		(T_USER+5)		/* Ditto for labelled strings or local static */
-#define T_LBSTORE	(T_USER+6)
 
 static void squash_node(struct node *n, struct node *o)
 {
@@ -215,18 +213,10 @@ struct node *gen_rewrite_node(register struct node *n)
 				squash_right(n, T_NREF);
 				return n;
 			}
-			if (r->op == T_LABEL) {
-				squash_right(n, T_LBREF);
-				return n;
-			}
 		}
 		if (op == T_EQ) {
 			if (l->op == T_NAME) {
 				squash_left(n, T_NSTORE);
-				return n;
-			}
-			if (l->op == T_LABEL) {
-				squash_left(n, T_LBSTORE);
 				return n;
 			}
 			if (l->op == T_LOCAL || l->op == T_ARGUMENT) {
@@ -266,7 +256,7 @@ struct node *gen_rewrite_node(register struct node *n)
 /* Export the C symbol */
 void gen_export(const char *name)
 {
-	printf("	.export _%s\n", name);
+	printf("	.export %s\n", name);
 }
 
 void gen_segment(unsigned s)
@@ -308,7 +298,7 @@ static unsigned load_constant(unsigned ac, unsigned v)
 void gen_prologue(const char *name)
 {
 	unreachable = 0;
-	printf("_%s:\n", name);
+	printf("%s:\n", name);
 }
 
 static void repeated_op(unsigned n, char *op)
@@ -558,7 +548,7 @@ void gen_helpclean(register struct node *n)
 
 void gen_data_label(const char *name, unsigned align)
 {
-	printf("_%s:\n", name);
+	printf("%s:\n", name);
 }
 
 void gen_space(unsigned value)
@@ -584,9 +574,9 @@ void gen_literal(unsigned n)
 void gen_name(struct node *n)
 {
 	if (is_bytepointer(n->type))
-		printf("\t.byteptr _%s+%d\n", namestr(n->snum), WORD(n->value));
+		printf("\t.byteptr %s+%d\n", namestr(n->snum), WORD(n->value));
 	else
-		printf("\t.word _%s+%d\n", namestr(n->snum), WORD(n->value));
+		printf("\t.word %s+%d\n", namestr(n->snum), WORD(n->value));
 }
 
 /* FIXME: we will need to add .byte and alignment padding to the
@@ -841,10 +831,8 @@ static unsigned can_load_ac(struct node *n)
 	case T_LOCAL:
 	case T_LREF:
 	case T_NAME:
-	case T_LABEL:
 	case T_CONSTANT:
 	case T_NREF:
-	case T_LBREF:
 		return 1;
 	}
 	return 0;
@@ -948,24 +936,13 @@ static unsigned load_ac(unsigned ac, register struct node *n)
 	case T_NAME:
 		printf("\tjsr @__const%u,0\n", ac);
 		if (is_bytepointer(n->type))
-			printf("\t.byteptr _%s+%u\n", namestr(n->snum), v);
+			printf("\t.byteptr %s+%u\n", namestr(n->snum), v);
 		else
-			printf("\t.word _%s+%u\n", namestr(n->snum), v);
-		return 1;
-	case T_LABEL:
-		printf("\tjsr @__const%u,0\n", ac);
-		if (is_bytepointer(n->type))
-			printf("\t.byteptr T%u+%u\n", n->snum, v);
-		else
-			printf("\t.word T%u+%u\n", n->snum, v);
+			printf("\t.word %s+%u\n", namestr(n->snum), v);
 		return 1;
 	case T_NREF:/* Refs are always word at this point */
 		printf("\tjsr @__iconst%u\n", ac);
-		printf("\t.word _%s+%u\n", namestr(n->snum), v);
-		return 1;
-	case T_LBREF:
-		printf("\tjsr @__iconst%u\n", ac);
-		printf("\t.word T%u+%u\n", n->snum, v);
+		printf("\t.word %s+%u\n", namestr(n->snum), v);
 		return 1;
 	}
 	printf(";couldnt shortcut %x\n", n->op);
@@ -1018,9 +995,7 @@ static void node_word(struct node *n)
 	else
 		printf("\t.word ");
 	if (n->op == T_NAME)
-		printf("_%s+%u\n", namestr(n->snum), v);
-	else if (n->op == T_LABEL)
-		printf("T%u+%u\n", n->snum, v);
+		printf("%s+%u\n", namestr(n->snum), v);
 	else
 		error("nw");
 }
@@ -1043,7 +1018,7 @@ static unsigned const_condop(struct node *n, char *o, char *uo)
 		return 2;
 #endif
 	/* Constant didn't work, but we there are other wins */
-	if (n->op != T_NAME && n->op != T_LABEL && n->op != T_CONSTANT)
+	if (n->op != T_NAME && n->op != T_CONSTANT)
 		return 0;
 	helper(n, o);
 	node_word(n);
@@ -1706,7 +1681,7 @@ unsigned gen_node(struct node *n)
 	switch(n->op) {
 	case T_CALLNAME:
 		printf("\tjsr @1,1\n");
-		printf("\t.word _%s+%u\n", namestr(n->snum), v);
+		printf("\t.word %s+%u\n", namestr(n->snum), v);
 		return 1;
 	case T_FUNCCALL:
 		printf("\tsta 1,__tmp,0\n");
@@ -1724,18 +1699,17 @@ unsigned gen_node(struct node *n)
 	case T_NAME:
 		if (cpu >= 100 && !is_bytepointer(n->type)) {
 			v = n->value;
-			printf("\telef 1,_%s+%u,0\n", namestr(n->snum), v);
+			printf("\telef 1,%s+%u,0\n", namestr(n->snum), v);
 			/* Are these cases possible or will it always cast ? */
 			if (s == 4)
 				wipe_hireg();
 			return 1;
 		}
-	case T_LABEL:
 		if (nr)
 			return 1;
 		v = n->value;
 		if (cpu >= 100 && !is_bytepointer(n->type)) {
-			printf("\telef 1,T%u+%u,0\n", n->snum, v);
+			printf("\telef 1,_%s+%u,0\n", namestr(n->snum), v);
 			if (s == 4)
 				wipe_hireg();
 			return 1;
@@ -1745,29 +1719,15 @@ unsigned gen_node(struct node *n)
 			printf("\tjsr @__const1l,0\n");
 		node_word(n);
 		return 1;
-	case T_LBREF:
-		if (nr)
-			return 1;
-		if (cpu >= 100) {
-			if (s > 1) {
-				v = n->value;
-				printf("\telda 1, T%u+%u\n", n->snum, v);
-				if (s == 4) {
-					printf("\telda 0, T%u+%u\n", n->snum, v + 1);
-					store_hireg(0);
-				}
-				return 1;
-			}
-		}
 	case T_NREF:
 		/* Same logic but actual value */
 		v = n->value;
 		if (cpu >= 100) {
 			if (s > 1) {
 				v = n->value;
-				printf("\telda 1, _%s+%u\n", namestr(n->snum), v);
+				printf("\telda 1, %s+%u\n", namestr(n->snum), v);
 				if (s == 4) {
-					printf("\telda 0, _%s+%u\n", namestr(n->snum), v + 1);
+					printf("\telda 0, %s+%u\n", namestr(n->snum), v + 1);
 					store_hireg(0);
 				}
 				return 1;
@@ -1777,10 +1737,7 @@ unsigned gen_node(struct node *n)
 			printf("\tjsr @__iconst1,0\n");
 		else
 			printf("\tjsr @__iconst1l,0\n");
-		if (n->op == T_NREF)
-			printf("\t.word _%s+%u\n", namestr(n->snum), v);
-		else
-			printf("\t.word T%u+%u\n", n->snum, v);
+		printf("\t.word %s+%u\n", namestr(n->snum), v);
 		return 1;
 	case T_NSTORE:
 		if (cpu >= 100) {
@@ -1788,37 +1745,20 @@ unsigned gen_node(struct node *n)
 				v = n->value;
 				if (s == 4) {
 					load_hireg(0);
-					printf("\testa 0, _%s+%u\n", namestr(n->snum), v);
-					printf("\testa 1, _%s+%u\n", namestr(n->snum), v + 1);
+					printf("\testa 0, %s+%u\n", namestr(n->snum), v);
+					printf("\testa 1, %s+%u\n", namestr(n->snum), v + 1);
 				} else
-					printf("\testa 1, _%s+%u\n", namestr(n->snum), v);
+					printf("\testa 1, %s+%u\n", namestr(n->snum), v);
 				return 1;
 			}
 		}
-	case T_LBSTORE:
 		/* Same logic but store  */
 		v = n->value;
-		if (cpu >= 100) {
-			if (s > 1) {
-				v = n->value;
-				if (s == 4) {
-					load_hireg(0);
-					printf("\testa , T%u+%u\n", n->snum, v);
-					printf("\testa 1, T%u+%u\n", n->snum, v + 1);
-				}
-				else
-					printf("\testa 1, T%u+%u\n", n->snum, v);
-				return 1;
-			}
-		}
 		if (s == 2)
 			printf("\tjsr @__sconst1,0\n");
 		else
 			printf("\tjsr @__sconst1l,0\n");
-		if (n->op == T_NSTORE)
-			printf("\t.word _%s+%u\n", namestr(n->snum), v);
-		else
-			printf("\t.word T%u+%u\n", n->snum, v);
+		printf("\t.word %s+%u\n", namestr(n->snum), v);
 		return 1;
 	case T_ARGUMENT:
 		if (nr)

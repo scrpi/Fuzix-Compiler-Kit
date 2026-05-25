@@ -79,10 +79,8 @@ static unsigned get_label(void)
 
 #define T_CALLNAME	(T_USER+0)		/* Function call by name */
 #define T_NREF		(T_USER+1)		/* Load of C global/static */
-#define T_LBREF		(T_USER+2)		/* Ditto for labelled strings or local static */
 #define T_LREF		(T_USER+3)		/* Ditto for local */
 #define T_NSTORE	(T_USER+4)		/* Store to a C global/static */
-#define T_LBSTORE	(T_USER+5)
 #define T_LSTORE	(T_USER+6)
 
 /* Chance to rewrite the tree from the top rather than none by node
@@ -127,9 +125,9 @@ static unsigned is_simple(struct node *n)
 	/* We want constants on the right above all other items */
 	if (op == T_CONSTANT)
 		return 10;
-	if (op == T_LOCAL || op == T_ARGUMENT || op == T_NAME || op == T_LABEL)
+	if (op == T_LOCAL || op == T_ARGUMENT || op == T_NAME)
 		return 9;
-	if (op == T_LREF || op == T_LBREF || op == T_NREF)
+	if (op == T_LREF || op == T_NREF)
 		return 8;
 	return 0;
 }
@@ -168,17 +166,9 @@ struct node *gen_rewrite_node(struct node *n)
 			squash_right(n, T_NREF);
 			return n;
 		}
-		if (r->op == T_LABEL) {
-			squash_right(n, T_LBREF);
-			return n;
-		}
 	} else if (op == T_EQ) {
 		if (l->op == T_NAME) {
 			squash_left(n, T_NSTORE);
-			return n;
-		}
-		if (l->op == T_LABEL) {
-			squash_left(n, T_LBSTORE);
 			return n;
 		}
 		if (l->op == T_LOCAL || l->op == T_ARGUMENT) {
@@ -226,7 +216,7 @@ struct node *gen_rewrite_node(struct node *n)
 /* Export the C symbol */
 void gen_export(const char *name)
 {
-	printf("	.export _%s\n", name);
+	printf("	.export %s\n", name);
 }
 
 void gen_segment(unsigned s)
@@ -252,7 +242,7 @@ void gen_segment(unsigned s)
 void gen_prologue(const char *name)
 {
 	unreachable = 0;
-	printf("_%s:\n", name);
+	printf("%s:\n", name);
 }
 
 /* Generate the stack frame */
@@ -361,7 +351,7 @@ void gen_helpclean(struct node *n)
 
 void gen_data_label(const char *name, unsigned align)
 {
-	printf("_%s:\n", name);
+	printf("%s:\n", name);
 }
 
 void gen_space(unsigned value)
@@ -382,7 +372,7 @@ void gen_literal(unsigned n)
 
 void gen_name(struct node *n)
 {
-	printf("\t.word _%s+%d\n", namestr(n->snum), WORD(n->value));
+	printf("\t.word %s+%d\n", namestr(n->snum), WORD(n->value));
 }
 
 void gen_value(unsigned type, unsigned long value)
@@ -461,14 +451,9 @@ unsigned op_direct(struct node *r, unsigned size, const char *op, const char *op
 		return 1;
 	case T_NREF:
 		name = namestr(r->snum);
-		printf("\t%s %s,_%s+%u\n", op, lr, name, v);
+		printf("\t%s %s,%s+%u\n", op, lr, name, v);
 		if (size == 4)
-			printf("\t%s dx,_%s+%u\n", op2, name, v + 2);
-		return 1;
-	case T_LBREF:
-		printf("\t%s %s,[T%u+%u]\n", op, lr, r->snum, v);
-		if (size == 4)
-			printf("\t%s dx,[T%u+%u]\n", op2, r->snum, v + 2);
+			printf("\t%s dx,%s+%u\n", op2, name, v + 2);
 		return 1;
 	case T_LREF:
 		printf("\t%s %s,[bp + %u]\n", op, lr, v);
@@ -478,19 +463,10 @@ unsigned op_direct(struct node *r, unsigned size, const char *op, const char *op
 	case T_NAME:
 		name = namestr(r->snum);
 		if (size == 1) {
-			printf("\t%s al,<_%s+%u\n", op, name, v);
+			printf("\t%s al,<%s+%u\n", op, name, v);
 			return 1;
 		}
-		printf("\t%s ax,_%s+%u\n", op, name, v);
-		if (size == 4)
-		 	printf("\t%s dx,0\n", op2);
-		return 1;
-	case T_LABEL:
-		if (size == 1) {
-			printf("\t%s al,T%u+%u\n", op, r->snum, v);
-			return 1;
-		}
-		printf("\t%s ax,T%u+%u\n", op, r->snum, v);
+		printf("\t%s ax,%s+%u\n", op, name, v);
 		if (size == 4)
 		 	printf("\t%s dx,0\n", op2);
 		return 1;
@@ -623,11 +599,9 @@ unsigned can_load_reg(struct node *n)
 	switch(n->op) {
 	case T_CONSTANT:
 	case T_NAME:
-	case T_LABEL:
 	case T_LOCAL:
 	case T_ARGUMENT:
 	case T_LREF:
-	case T_LBREF:
 	case T_NREF:
 		return 1;
 	}
@@ -642,10 +616,7 @@ void load_reg(const char *reg, struct node *n)
 		printf("\tmov %s,%u\n", reg, v);
 		break;
 	case T_NAME:
-		printf("\tmov %s,_%s+%u\n", reg, namestr(n->snum), v);
-		break;
-	case T_LABEL:
-		printf("\tmov %s,T%u+%u\n", reg, n->snum, v);
+		printf("\tmov %s,%s+%u\n", reg, namestr(n->snum), v);
 		break;
 	case T_ARGUMENT:
 		v += argbase + frame_len;
@@ -655,11 +626,8 @@ void load_reg(const char *reg, struct node *n)
 	case T_LREF:
 		printf("\tmov %s,[bp + %u]\n", reg, v);
 		break;
-	case T_LBREF:
-		printf("\tmov %s,[T%u+%u]\n", reg, n->snum, v);
-		break;
 	case T_NREF:
-		printf("\tmov %s,[_%s+%u]\n", reg, namestr(n->snum), v);
+		printf("\tmov %s,[%s+%u]\n", reg, namestr(n->snum), v);
 		break;
 	}
 }
@@ -996,7 +964,7 @@ unsigned gen_node(struct node *n)
 
 	switch(n->op) {
 	case T_CALLNAME:
-		printf("\tcall _%s+%u\n", namestr(n->snum), v);
+		printf("\tcall %s+%u\n", namestr(n->snum), v);
 		return 1;
 	case T_FUNCCALL:
 		printf("\tmov bx,ax\n");
@@ -1011,44 +979,23 @@ unsigned gen_node(struct node *n)
 			return 1;
 		printf("\tlea ax,[bp + %u]\n", v);
 		return 1;
-	case T_LABEL:
-		if (nr)
-			return 1;
-		printf("\tmov ax,T%u+%u\n", n->snum, v);
-		return 1;
 	case T_NAME:
 		if (nr)
 			return 1;
-		printf("\tmov ax,_%s+%u\n", namestr(n->snum), v);
+		printf("\tmov ax,%s+%u\n", namestr(n->snum), v);
 		return 1;
 	case T_NREF:
 		name = namestr(n->snum);
 		switch(size) {
 		case 1:
-			printf("\tmov al,_%s+%u\n", name, v);
+			printf("\tmov al,%s+%u\n", name, v);
 			return 1;
 		case 2:
-			printf("\tmov ax,_%s+%u\n", name, v);
+			printf("\tmov ax,%s+%u\n", name, v);
 			return 1;
 		case 4:
-			printf("\tmov ax,_%s+%u\n", name, v);
-			printf("\tmov dx,_%s+%u\n", name, v +2);
-			return 1;
-		}
-		break;
-	case T_LBREF:
-		if (nr)
-			return 1;
-		switch(size) {
-		case 1:
-			printf("\tmov al,T%u+%u\n", n->snum, v);
-			return 1;
-		case 2:
-			printf("\tmov ax,T%u+%u\n", n->snum, v);
-			return 1;
-		case 4:
-			printf("\tmov ax,T%u+%u\n", n->snum, v);
-			printf("\tmov dx,T%u+%u\n", n->snum, v +2);
+			printf("\tmov ax,%s+%u\n", name, v);
+			printf("\tmov dx,%s+%u\n", name, v +2);
 			return 1;
 		}
 		break;
@@ -1073,29 +1020,14 @@ unsigned gen_node(struct node *n)
 		name = namestr(n->snum);
 		switch(size) {
 		case 1:
-			printf("\tmov _%s+%u, al\n", name, v);
+			printf("\tmov %s+%u, al\n", name, v);
 			return 1;
 		case 2:
-			printf("\tmov _%s+%u, ax\n", name, v);
+			printf("\tmov %s+%u, ax\n", name, v);
 			return 1;
 		case 4:
-			printf("\tmov _%s+%u, ax\n", name, v);
-			printf("\tmov _%s+%u, dx\n", name, v + 2);
-			return 1;
-		}
-		break;
-	case T_LBSTORE:
-		/* TODO direct const forms */
-		switch(size) {
-		case 1:
-			printf("\tmov T%u+%u, al\n", n->snum, v);
-			return 1;
-		case 2:
-			printf("\tmov T%u+%u, ax\n", n->snum, v);
-			return 1;
-		case 4:
-			printf("\tmov T%u+%u, ax\n", n->snum, v);
-			printf("\tmov T%u+%u, dx\n", n->snum, v + 2);
+			printf("\tmov %s+%u, ax\n", name, v);
+			printf("\tmov %s+%u, dx\n", name, v + 2);
 			return 1;
 		}
 		break;

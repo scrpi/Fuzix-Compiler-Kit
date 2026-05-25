@@ -50,8 +50,7 @@ void put_typed_data(struct node *n)
 		op = n->op;
 	}
 	out_block("%[", 2);
-	if (op != T_CASELABEL && op != T_PAD && op != T_LABEL &&
-		op != T_NAME && op != T_CONSTANT)
+	if (op != T_CASELABEL && op != T_PAD && op != T_NAME && op != T_CONSTANT)
 		notconst();
 	n->type = t;
 	out_block(n, sizeof(struct node));

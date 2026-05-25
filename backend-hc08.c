@@ -51,8 +51,6 @@ static uint8_t hx_live;		/* Set when H:X holds a pointer rather than X:A
 #define T_NSTORE	(T_USER+2)		/* Store to a C global/static */
 #define T_LREF		(T_USER+3)		/* Ditto for local */
 #define T_LSTORE	(T_USER+4)
-#define T_LBREF		(T_USER+5)		/* Ditto for labelled strings or local static */
-#define T_LBSTORE	(T_USER+6)
 #define T_RREF		(T_USER+7)
 #define T_RSTORE	(T_USER+8)
 #define T_RDEREF	(T_USER+9)		/* *regptr */
@@ -218,16 +216,12 @@ static void set_hx_node(struct node *n)
 	case T_NSTORE:
 		op = T_NREF;
 		break;
-	case T_LBSTORE:
-		op = T_LBREF;
-		break;
 	case T_LSTORE:
 		op = T_LREF;
 		break;
 	case T_NAME:
 	case T_CONSTANT:
 	case T_NREF:
-	case T_LBREF:
 	case T_LREF:
 	case T_LOCAL:
 	case T_ARGUMENT:
@@ -270,16 +264,12 @@ static void set_xa_node(struct node *n)
 	case T_NSTORE:
 		op = T_NREF;
 		break;
-	case T_LBSTORE:
-		op = T_LBREF;
-		break;
 	case T_LSTORE:
 		op = T_LREF;
 		break;
 	case T_NAME:
 	case T_CONSTANT:
 	case T_NREF:
-	case T_LBREF:
 	case T_LREF:
 	case T_LOCAL:
 	case T_ARGUMENT:
@@ -321,16 +311,12 @@ static void set_a_node(struct node *n)
 	case T_NSTORE:
 		op = T_NREF;
 		break;
-	case T_LBSTORE:
-		op = T_LBREF;
-		break;
 	case T_LSTORE:
 		op = T_LREF;
 		break;
 	case T_NAME:
 	case T_CONSTANT:
 	case T_NREF:
-	case T_LBREF:
 	case T_LREF:
 	case T_LOCAL:
 	case T_ARGUMENT:
@@ -508,23 +494,17 @@ static int do_pri8(struct node *n, const char *op, void (*pre)(struct node *__n)
 	}
 
 	switch(n->op) {
-	case T_LABEL:
-		pre(n);
-		output("%s #<T%d+%d", op,  n->snum, v);
-		return 1;
 	case T_NAME:
 		pre(n);
 		name = namestr(n->snum);
-		output("%s #<_%s+%d", op,  name, v);
+		output("%s #<%s+%d", op,  name, v);
 		return 1;
 	case T_CONSTANT:
 		/* These had the right squashed into them */
 	case T_LREF:
 	case T_NREF:
-	case T_LBREF:
 	case T_LSTORE:
 	case T_NSTORE:
-	case T_LBSTORE:
 		/* These had the right squashed into them */
 		r = n;
 		break;
@@ -551,12 +531,7 @@ static int do_pri8(struct node *n, const char *op, void (*pre)(struct node *__n)
 	case T_NSTORE:
 		pre(n);
 		name = namestr(r->snum);
-		output("%s _%s+%d", op,  name, (unsigned)r->value + bias);
-		return 1;
-	case T_LBSTORE:
-	case T_LBREF:
-		pre(n);
-		output("%s T%d+%d", op,  r->snum, (unsigned)r->value + bias);
+		output("%s %s+%d", op,  name, (unsigned)r->value + bias);
 		return 1;
 	/* If we add registers
 	case T_RREF:
@@ -586,23 +561,17 @@ static int do_pri8hi(struct node *n, const char *op, void (*pre)(struct node *__
 		r = n->right;
 	}
 	switch(n->op) {
-	case T_LABEL:
-		pre(n);
-		output("%s #>T%d+%d", op,  n->snum, v);
-		return 1;
 	case T_NAME:
 		pre(n);
 		name = namestr(n->snum);
-		output("%s #_%s+%d", op,  name, v);
+		output("%s #%s+%d", op,  name, v);
 		return 1;
 	case T_CONSTANT:
 		/* These had the right squashed into them */
 	case T_LREF:
 	case T_NREF:
-	case T_LBREF:
 	case T_LSTORE:
 	case T_NSTORE:
-	case T_LBSTORE:
 		/* These had the right squashed into them */
 		r = n;
 		break;
@@ -631,12 +600,7 @@ static int do_pri8hi(struct node *n, const char *op, void (*pre)(struct node *__
 	case T_NSTORE:
 		pre(n);
 		name = namestr(r->snum);
-		output("%s _%s+%d", op,  name, v);
-		return 1;
-	case T_LBSTORE:
-	case T_LBREF:
-		pre(n);
-		output("%s T%d+%d", op,  r->snum, v);
+		output("%s %s+%d", op,  name, v);
 		return 1;
 	/* If we add registers
 	case T_RREF:
@@ -666,26 +630,18 @@ static int do_pri16(struct node *n, const char *op, void (*pre)(struct node *__n
 	}
 
 	switch(n->op) {
-	case T_LABEL:
-		use_xa(11);
-		pre(n);
-		output("%sa #<T%d+%d", op,  n->snum, v);
-		output("%sx #>T%d+%d", op,  n->snum, v >> 8);
-		return 1;
 	case T_NAME:
 		use_xa(12);
 		pre(n);
 		name = namestr(n->snum);
-		output("%sa #<_%s+%d", op,  name, v);
-		output("%sx #>_%s+%d", op,  name, v >> 8);
+		output("%sa #<%s+%d", op,  name, v);
+		output("%sx #>%s+%d", op,  name, v >> 8);
 		return 1;
 	case T_LOCAL:
 	case T_LREF:
 	case T_NREF:
-	case T_LBREF:
 	case T_LSTORE:
 	case T_NSTORE:
-	case T_LBSTORE:
 	case T_CONSTANT:
 		/* These had the right squashed into them */
 		r = n;
@@ -729,15 +685,8 @@ static int do_pri16(struct node *n, const char *op, void (*pre)(struct node *__n
 		use_xa(15);
 		name = namestr(r->snum);
 		pre(n);
-		output("%sa _%s+%d", op,  name, (unsigned)r->value);
-		output("%sx _%s+%d", op,  name, ((unsigned)r->value) + 1);
-		return 1;
-	case T_LBSTORE:
-	case T_LBREF:
-		use_xa(16);
-		pre(n);
-		output("%sa T%d+%d", op,  r->snum, (unsigned)r->value);
-		output("%sx T%d+%d", op,  r->snum, ((unsigned)r->value) + 1);
+		output("%sa %s+%d", op,  name, (unsigned)r->value);
+		output("%sx %s+%d", op,  name, ((unsigned)r->value) + 1);
 		return 1;
 	/* If we add registers
 	case T_RREF:
@@ -757,24 +706,17 @@ static int do_hxpri16(struct node *n, const char *op, void (*pre)(struct node *_
 	unsigned v = n->value;
 
 	switch(n->op) {
-	case T_LABEL:
-		pre(n);
-		output("%shx #T%d+%d", op,  n->snum, v);
-		hx_live = 1;
-		return 1;
 	case T_NAME:
 		pre(n);
 		name = namestr(n->snum);
-		output("%shx #_%s+%d", op,  name, v);
+		output("%shx #%s+%d", op,  name, v);
 		hx_live = 1;
 		return 1;
 	case T_LOCAL:
 	case T_LREF:
 	case T_NREF:
-	case T_LBREF:
 	case T_LSTORE:
 	case T_NSTORE:
-	case T_LBSTORE:
 	case T_CONSTANT:
 		/* These had the right squashed into them */
 		r = n;
@@ -1079,33 +1021,17 @@ static int leftop_memc(struct node *n, const char *op)
 	case T_NAME:
 		name = namestr(l->snum);
 		while(count--) {
-			output("%s _%s+%d", op, name, v + 1);
+			output("%s %s+%d", op, name, v + 1);
 			if (sz == 2) {
 				output("beq X%d", ++xlabel);
-				output("%s _%s+%d", op, name, v);
+				output("%s %s+%d", op, name, v);
 				label("X%d", xlabel);
 			}
 		}
 		if (!nr) {
-			output("lda _%s+%d", name, v + 1);
+			output("lda %s+%d", name, v + 1);
 			if (sz == 2)
-				output("ldx _%s+%d", name, v);
-			hx_live = 0;
-		}
-		return 1;
-	case T_LABEL:
-		while(count--) {
-			output("%s T%d+%d", op, (unsigned)l->snum, v + 1);
-			if (sz == 2) {
-				output("beq X%d", ++xlabel);
-				output("%s T%d+%d", op, (unsigned)l->snum, v);
-				label("X%d", xlabel);
-			}
-		}
-		if (nr == 1) {
-			output("lda T%d+%d", (unsigned)l->snum, v + 1);
-			if (sz == 2)
-				output("ldx T%d+%d", (unsigned)l->snum, v);
+				output("ldx %s+%d", name, v);
 			hx_live = 0;
 		}
 		return 1;
@@ -1193,10 +1119,10 @@ static unsigned is_simple(struct node *n)
 		return 0;
 
 	/* We can use these directly with primary operators on A */
-	if (op == T_CONSTANT || op == T_LABEL || op == T_NAME || (op == T_LREF && n->value < 255))
+	if (op == T_CONSTANT || op == T_NAME || (op == T_LREF && n->value < 255))
 		return 10;
 	/* Can go via @tmp */
-	if (op == T_NREF || op == T_LBREF)
+	if (op == T_NREF)
 		return 1;
 	/* Hard */
 	return 0;
@@ -1221,12 +1147,10 @@ static unsigned term_via_hx(struct node *n)
 	/* These can be done either way */
 	case T_NAME:
 	case T_CONSTANT:
-	case T_LABEL:
 	/* These would be nice to do but we'll always generate them via
 	   X:A at the moment */
 	case T_LREF:
 	case T_NREF:
-	case T_LBREF:
 		return 1;
 	}
 	return 0;
@@ -1302,18 +1226,10 @@ struct node *gen_rewrite_node(struct node *n)
 				squash_right(n, T_NREF);
 				return n;
 			}
-			if (r->op == T_LABEL) {
-				squash_right(n, T_LBREF);
-				return n;
-			}
 		}
 		if (op == T_EQ) {
 			if (l->op == T_NAME) {
 				squash_left(n, T_NSTORE);
-				return n;
-			}
-			if (l->op == T_LABEL) {
-				squash_left(n, T_LBSTORE);
 				return n;
 			}
 			if (l->op == T_LOCAL || l->op == T_ARGUMENT) {
@@ -1377,7 +1293,7 @@ struct node *gen_rewrite_node(struct node *n)
 /* Export the C symbol */
 void gen_export(const char *name)
 {
-	output(".export _%s\n", name);
+	output(".export %s\n", name);
 }
 
 void gen_segment(unsigned s)
@@ -1402,7 +1318,7 @@ void gen_segment(unsigned s)
 
 void gen_prologue(const char *name)
 {
-	printf("_%s:\n", name);
+	printf("%s:\n", name);
 	unreachable = 0;
 	invalidate_regs();
 }
@@ -1526,7 +1442,7 @@ void gen_helpclean(struct node *n)
 
 void gen_data_label(const char *name, unsigned align)
 {
-	label("_%s", name);
+	label("%s", name);
 }
 
 void gen_space(unsigned value)
@@ -1547,7 +1463,7 @@ void gen_literal(unsigned n)
 
 void gen_name(struct node *n)
 {
-	output(".word _%s+%d", namestr(n->snum), WORD(n->value));
+	output(".word %s+%d", namestr(n->snum), WORD(n->value));
 }
 
 void gen_value(unsigned type, unsigned long value)
@@ -2271,7 +2187,6 @@ unsigned do_gen_node(struct node *n)
 		}
 		/* Fall through */
 	case T_NREF:
-	case T_LBREF:
 		if (nr && !se)
 			return 1;
 		if (is_byte && !se) {
@@ -2300,7 +2215,6 @@ unsigned do_gen_node(struct node *n)
 		/* FIXME: need to do 4 byte forms ?? */
 		return 0;
 	case T_NSTORE:
-	case T_LBSTORE:
 	case T_LSTORE:
 		/* If value is in HX then for byte just flip X into A */
 		if (size == 1 && hx_live == 1) {
@@ -2331,7 +2245,7 @@ unsigned do_gen_node(struct node *n)
 		return 0;
 	case T_CALLNAME:
 		invalidate_regs();
-		output("jsr _%s+%d", namestr(n->snum), n->value);
+		output("jsr %s+%d", namestr(n->snum), n->value);
 		return 1;
 	case T_EQ:
 		/* store XA in top of stack addr  .. ugly. We want to end
@@ -2409,13 +2323,7 @@ unsigned do_gen_node(struct node *n)
 		return 1;
 	case T_NAME:
 		if (hx) {
-			output("ldhx #_%s+%u\n", namestr(n->snum), v);
-			hx_live = 1;
-			return 1;
-		}
-	case T_LABEL:
-		if (hx) {
-			output("ldhx #T%u+%u\n", n->snum, v);
+			output("ldhx #%s+%u\n", namestr(n->snum), v);
 			hx_live = 1;
 			return 1;
 		}

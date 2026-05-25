@@ -225,7 +225,7 @@ static unsigned access_direct(register struct node *n)
 	 /* For now we only do word sized lrefs FIXME */
 	if (op == T_LREF && get_size(n->type) == 2 && n->value + sp < 253)
 		return 1;
-	if (op != T_CONSTANT && op != T_NAME && op != T_LABEL && op != T_NREF && op != T_LBREF && op != T_REG && op != T_RREF && op != T_RDEREF)
+	if (op != T_CONSTANT && op != T_NAME && op != T_NREF && op != T_REG && op != T_RREF && op != T_RDEREF)
 		return 0;
 	if (!PTR(n->type) && (n->type & ~UNSIGNED) > CSHORT)
 		return 0;
@@ -245,10 +245,7 @@ static unsigned load_r_with(register const char *rp, register struct node *n)
 
 	switch(n->op) {
 	case T_NAME:
-		printf("\tld %s,_%s+%u\n", rp, namestr(n->snum), v);
-		return 1;
-	case T_LABEL:
-		printf("\tld %s,T%u+%u\n", rp, n->snum, v);
+		printf("\tld %s,%s+%u\n", rp, namestr(n->snum), v);
 		return 1;
 	case T_CONSTANT:
 		/* We know this is not a long from the checks above */
@@ -256,13 +253,9 @@ static unsigned load_r_with(register const char *rp, register struct node *n)
 		return 1;
 	case T_NREF:
 		/* We know it is int or pointer */
-		printf("\tld %s,(_%s+%u)\n", rp, namestr(n->snum), v);
+		printf("\tld %s,(%s+%u)\n", rp, namestr(n->snum), v);
 		return 1;
 		break;
-	/* TODO: fold together cleanly with NREF */
-	case T_LBREF:
-		printf("\tld %s,(T%u+%u)\n", rp, n->snum, v);
-		return 1;
 	case T_RREF:
 		/* Assumes that BC isn't corrupted yet so is already the right value. Use
 		   this quirk with care */
@@ -313,10 +306,7 @@ static unsigned load_a_with(register struct node *n)
 		printf("\tld a,0x%x\n", BYTE(n->value));
 		break;
 	case T_NREF:
-		printf("\tld a,(_%s+%u)\n", namestr(n->snum), WORD(n->value));
-		break;
-	case T_LBREF:
-		printf("\tld a,(T%u+%u)\n", n->snum, WORD(n->value));
+		printf("\tld a,(%s+%u)\n", namestr(n->snum), WORD(n->value));
 		break;
 	case T_RREF:
 		/* TODO: ix/iy (can they happen ? */
@@ -782,7 +772,7 @@ unsigned gen_direct(register struct node *n)
 			return 0;
 		if (s == 1)
 			printf("\tld a,l\n");
-		printf("\tld (_%s+%u),", namestr(n->snum), WORD(n->value));
+		printf("\tld (%s+%u),", namestr(n->snum), WORD(n->value));
 			return 1;
 		if (s == 1)
 			printf("a\n");
@@ -790,17 +780,6 @@ unsigned gen_direct(register struct node *n)
 			printf("hl\n");
 		/* TODO 4/8 for long etc */
 		return 0;
-	case T_LBSTORE:
-		if (s > 2)
-			return 0;
-		if (s == 1)
-			printf("\tld a,l\n");
-		printf("\tld (T%u+%u), ", n->snum, v);
-		if (s == 1)
-			printf("a\n");
-		else
-			printf("hl\n");
-		return 1;
 	case T_RSTORE:
 		load_regvar(n->value, s);
 		return 1;
@@ -1439,7 +1418,6 @@ unsigned gen_shortcut(register struct node *n)
 		return 1;
 	}
 	/* Re-order assignments we can do the simple way */
-	/* TODO: LBSTORE */
 	if (n->op == T_NSTORE && s <= 2) {
 		/* Handle const nr specially */
 		if (s == 1 && r->op == T_CONSTANT && (n->flags & NORETURN)) {
@@ -1451,9 +1429,9 @@ unsigned gen_shortcut(register struct node *n)
 		}
 		/* Expression result is now in HL or A or both as needed */
 		if (s == 1)
-			printf("\tld (_%s+%u), a\n", namestr(n->snum), WORD(n->value));
+			printf("\tld (%s+%u), a\n", namestr(n->snum), WORD(n->value));
 		else
-			printf("\tld (_%s+%u), hl\n", namestr(n->snum), WORD(n->value));
+			printf("\tld (%s+%u), hl\n", namestr(n->snum), WORD(n->value));
 		return 1;
 	}
 	/* Locals we can do on some later processors, Z80 is doable but messy - so not worth it */
@@ -1779,7 +1757,6 @@ unsigned gen_shortcut(register struct node *n)
 		}
 		fprintf(stderr, "unfixed regleft on %04X\n", n->op);
 	}
-	/* ?? LBSTORE TODO */
 	return 0;
 }
 
@@ -1864,26 +1841,13 @@ unsigned gen_node(register struct node *n)
 			return 1;
 		name = namestr(n->snum);
 		if (size == 1)
-			printf("\tld a,(_%s+%u)\n\tld l,a\n", name, v);
+			printf("\tld a,(%s+%u)\n\tld l,a\n", name, v);
 		else {
 			if (size == 4) {
-				printf("\tld hl,(_%s+%u)\n"
+				printf("\tld hl,(%s+%u)\n"
 				       "\tld (__hireg),hl\n", name, v + 2);
 			}
-			printf("\tld hl,(_%s+%u)\n", name, v);
-		}
-		return 1;
-	case T_LBREF:
-		if (nr && !se)
-			return 1;
-		if (size == 1)
-			printf("\tld a,(T%u+%u)\n\tld l,a\n", n->snum, v);
-		else {
-			if (size == 4) {
-				printf("\tld hl, (T%u+%u)\n"
-				       "\tld (__hireg),hl\n", n->snum, v + 2);
-			}
-			printf("\tld hl,(T%u+%u)\n", n->snum, v);
+			printf("\tld hl,(%s+%u)\n", name, v);
 		}
 		return 1;
 	case T_LREF:
@@ -1910,23 +1874,13 @@ unsigned gen_node(register struct node *n)
 		name = namestr(n->snum);
 		if (size == 1) {
 			printf("\tld a,l\n"
-			       "\tld (_%s+%u),", name, v);
+			       "\tld (%s+%u),", name, v);
 			return 1;
 		}
 		printf("\tld (%s+%u), hl\n", name, v);
 		if (size == 4)
 			printf("\tld de,(__hireg)\nld (%s+%u),de\n",
 				name, v + 2);
-		return 1;
-	case T_LBSTORE:
-		if (size == 1) {
-			printf("\tld a,l\n\tld (T%u+%u),a\n", n->snum, v);
-			return 1;
-		}
-		printf("\tld (T%u+%u),hl\n", n->snum, v);
-		if (size == 4)
-			printf("\tld de,(__hireg)\n\tld (T%u+%u),de\n",
-				n->snum, v + 2);
 		return 1;
 	case T_LSTORE:
 /*		printf(";L sp %u spval %u %s(%ld)\n", sp, spval, namestr(n->snum), n->value); */
@@ -1991,7 +1945,7 @@ unsigned gen_node(register struct node *n)
 	case T_CALLNAME:
 		if (cpufeat & 1)
 			printf("\tpush af\n");
-		printf("\tcall _%s+%u\n", namestr(n->snum), v);
+		printf("\tcall %s+%u\n", namestr(n->snum), v);
 		if (cpufeat & 1)
 			printf("\tpop af\n");
 		return 1;
@@ -2064,10 +2018,6 @@ unsigned gen_node(register struct node *n)
 		   table so the function has a valid 16bit "address". callhl must live in common */
 		printf("\tcall __callhl\n");
 		return 1;
-	case T_LABEL:
-		/* Used for const strings and local static */
-		printf("\tld hl,T%u+%u\n", n->snum, v);
-		return 1;
 	case T_CONSTANT:
 		switch(size) {
 		case 4:
@@ -2082,8 +2032,7 @@ unsigned gen_node(register struct node *n)
 		}
 		break;
 	case T_NAME:
-		printf("\tld hl,");
-		printf("_%s+%u\n", namestr(n->snum), v);
+		printf("\tld hl, %s+%u\n", namestr(n->snum), v);
 		return 1;
 	case T_ARGUMENT:
 		v += frame_len + argbase;

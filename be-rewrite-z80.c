@@ -107,10 +107,10 @@ static unsigned is_simple(struct node *n)
 	if (!PTR(n->type) && (n->type & ~UNSIGNED) > CSHORT)
 		return 0;
 	/* We can load these directly into a register */
-	if (op == T_CONSTANT || op == T_LABEL || op == T_NAME || op == T_REG)
+	if (op == T_CONSTANT || op == T_NAME || op == T_REG)
 		return 10;
 	/* We can load this directly into a register but it may be a byte longer */
-	if (op == T_NREF || op == T_LBREF)
+	if (op == T_NREF)
 		return 9;
 	if (op == T_RREF || op == T_RDEREF)
 		return 5;
@@ -245,7 +245,7 @@ struct node *gen_rewrite_node(register struct node *n)
 	}
 	/* Merge offset to object into a  single direct reference */
 	if (op == T_PLUS && r->op == T_CONSTANT &&
-		(l->op == T_LOCAL || l->op == T_NAME || l->op == T_LABEL || l->op == T_ARGUMENT)) {
+		(l->op == T_LOCAL || l->op == T_NAME || l->op == T_ARGUMENT)) {
 		/* We don't care if the right offset is 16bit or 32 as we've
 		   got 16bit pointers */
 		l->value += r->value;
@@ -270,10 +270,6 @@ struct node *gen_rewrite_node(register struct node *n)
 				squash_right(n, T_NREF);
 				return n;
 			}
-			if (r->op == T_LABEL) {
-				squash_right(n, T_LBREF);
-				return n;
-			}
 			if (r->op == T_RREF) {
 				squash_right(n, T_RDEREF);
 				n->snum = 0;
@@ -283,10 +279,6 @@ struct node *gen_rewrite_node(register struct node *n)
 		if (op == T_EQ) {
 			if (l->op == T_NAME) {
 				squash_left(n, T_NSTORE);
-				return n;
-			}
-			if (l->op == T_LABEL) {
-				squash_left(n, T_LBSTORE);
 				return n;
 			}
 			if (l->op == T_LOCAL || l->op == T_ARGUMENT) {

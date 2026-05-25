@@ -154,7 +154,7 @@ static unsigned op_can_byte(register struct node *n)
 	/* References must be done (logically at least) for the full width because
 	   there might be side effects. Backends can be smarter with the BYTETAIL
 	   info */
-	if (op == T_NAME || op == T_LABEL || op == T_LOCAL || op == T_DEREF)
+	if (op == T_NAME || op == T_LOCAL || op == T_DEREF)
 		return BYTETAIL;
 	/* Boolean results : can produce byte results but subtrees unchanged */
 	if (op == T_LT || op == T_GT || op == T_LTEQ || op == T_GTEQ) {

@@ -69,8 +69,6 @@
 #define T_NSTORE	(T_USER+2)		/* Store to a C global/static */
 #define T_LREF		(T_USER+3)		/* Ditto for local */
 #define T_LSTORE	(T_USER+4)
-#define T_LBREF		(T_USER+5)		/* Ditto for labelled strings or local static */
-#define T_LBSTORE	(T_USER+6)
 #define T_DEREFPLUS	(T_USER+7)		/* *(thing + offset) */
 #define T_LDEREF	(T_USER+8)		/* *local + offset */
 #define T_LEQ		(T_USER+9)		/* *local + offset = n*/
@@ -189,16 +187,11 @@ static unsigned map_op(register unsigned op)
 		op = T_LREF;
 	case T_LREF:
 		break;
-	case T_LBSTORE:
-		op = T_LBREF;
-	case T_LBREF:
-		break;
 	case T_NSTORE:
 		op = T_NREF;
 	case T_NREF:
 		break;
 	case T_NAME:
-	case T_LABEL:
 	case T_LOCAL:
 		break;
 	case T_CONSTANT:
@@ -288,7 +281,7 @@ static void invalidate_all(void)
 
 static void flush_writeback(void)
 {
-	/* TODO: need to wipe NREF/LBREF etc */
+	/* TODO: need to wipe NREF etc */
 	invalidate_all();
 }
 
@@ -377,10 +370,6 @@ static unsigned find_ref(register struct node *n)
 		op = T_LREF;
 	case T_LREF:
 		break;
-	case T_LBSTORE:
-		op = T_LBREF;
-	case T_LBREF:
-		break;
 	case T_NSTORE:
 		op = T_NREF;
 	case T_NREF:
@@ -450,11 +439,11 @@ static unsigned is_simple(struct node *n)
 		return 0;
 
 	/* We can load these directly into a register */
-	if (op == T_CONSTANT || op == T_LABEL || op == T_NAME)
+	if (op == T_CONSTANT || op == T_NAME)
 		return 10;
 	/* We can load this directly into a register but may need a
 	   pointer register */
-	if (op == T_NREF || op == T_LBREF)
+	if (op == T_NREF)
 		return 1;
 	return 0;
 }
@@ -541,18 +530,10 @@ struct node *gen_rewrite_node(struct node *n)
 			squash_right(n, T_NREF);
 			return n;
 		}
-		if (r->op == T_LABEL) {
-			squash_right(n, T_LBREF);
-			return n;
-		}
 	}
 	if (op == T_EQ) {
 		if (l->op == T_NAME) {
 			squash_left(n, T_NSTORE);
-			return n;
-		}
-		if (l->op == T_LABEL) {
-			squash_left(n, T_LBSTORE);
 			return n;
 		}
 		if (l->op == T_LOCAL || l->op == T_ARGUMENT) {
@@ -595,7 +576,7 @@ struct node *gen_rewrite_node(struct node *n)
 /* Export the C symbol */
 void gen_export(const char *name)
 {
-	printf("	.export _%s\n", name);
+	printf("	.export %s\n", name);
 }
 
 void gen_segment(unsigned s)
@@ -620,7 +601,7 @@ void gen_segment(unsigned s)
 
 void gen_prologue(const char *name)
 {
-	printf("_%s:\n", name);
+	printf("%s:\n", name);
 	unreachable = 0;
 }
 
@@ -823,7 +804,7 @@ void gen_helpclean(struct node *n)
 
 void gen_data_label(const char *name, unsigned align)
 {
-	printf("_%s:\n", name);
+	printf("%s:\n", name);
 }
 
 void gen_space(unsigned value)
@@ -844,7 +825,7 @@ void gen_literal(unsigned n)
 
 void gen_name(struct node *n)
 {
-	printf("\t.word _%s+%d\n", namestr(n->snum), WORD(n->value));
+	printf("\t.word %s+%d\n", namestr(n->snum), WORD(n->value));
 }
 
 void gen_value(unsigned type, unsigned long value)
@@ -1143,7 +1124,6 @@ static unsigned can_make_ptr_ref(struct node *n)
 	switch(n->op) {
 	case T_CONSTANT:
 	case T_NAME:
-	case T_LABEL:
 	case T_ARGUMENT:
 	case T_LOCAL:
 		return 1;
@@ -1170,12 +1150,8 @@ static unsigned make_ptr_ref(struct node *n, unsigned off)
 		ref_op = T_NREF;
 		break;
 	case T_NAME:
-		printf("\tld p2,=_%s+%u\n", namestr(n->snum), v);
+		printf("\tld p2,=%s+%u\n", namestr(n->snum), v);
 		ref_op = T_NREF;
-		break;
-	case T_LABEL:
-		printf("\tld p2,=T%u+%u\n", n->snum, v);
-		ref_op = T_LBREF;
 		break;
 	case T_ARGUMENT:
 		v += ARGBASE + frame_len;
@@ -1222,9 +1198,7 @@ static unsigned can_make_src_ref(struct node *n)
 	switch(n->op) {
 	case T_CONSTANT:
 	case T_NAME:
-	case T_LABEL:
 	case T_NREF:
-	case T_LBREF:
 	case T_LREF:
 		return 1;
 	default:
@@ -1237,9 +1211,7 @@ static unsigned can_make_dst_ref(struct node *n)
 	switch(n->op) {
 	case T_CONSTANT:
 	case T_NAME:
-	case T_LABEL:
 	case T_NSTORE:
-	case T_LBSTORE:
 	case T_LSTORE:
 		return 1;
 	default:
@@ -1259,7 +1231,6 @@ static unsigned ref_needs_p2(struct node *n)
 			break;
 		/* fall through */
 	case T_NAME:
-	case T_LABEL:
 	case T_CONSTANT:
 		return 0;
 	}
@@ -1287,20 +1258,14 @@ static unsigned make_ref(struct node *n, unsigned keep_ea)
 		ref_value = n->value;
 		return 1;
 	case T_NAME:
-		snprintf(ref_buf, sizeof(ref_buf), "=%%s_%s+%u+%%u", namestr(n->snum), v);
-		return 1;
-	case T_LABEL:
-		snprintf(ref_buf, sizeof(ref_buf), "=%%sT%u+%u+%%u", n->snum, v);
+		snprintf(ref_buf, sizeof(ref_buf), "=%%s%s+%u+%%u", namestr(n->snum), v);
 		return 1;
 	case T_ARGUMENT:
 	case T_LOCAL:
 		/* Local is complicated */
 		return 0;
 	case T_NREF:
-		printf("\tld p2,=_%s+%u\n", namestr(n->snum), v);
-		break;
-	case T_LBREF:
-		printf("\tld p2,=T%u+%u\n", n->snum, v);
+		printf("\tld p2,=%s+%u\n", namestr(n->snum), v);
 		break;
 	case T_LREF:
 		/* Simple lref */
@@ -1369,7 +1334,6 @@ static void do_op8(const char *op, unsigned off)
 	printf("\t%s a,", op);
 	switch(ref_op) {
 	case T_NAME:
-	case T_LABEL:
 		if (off > 1)
 			puts("=0");
 		else if (off == 1)
@@ -1379,7 +1343,6 @@ static void do_op8(const char *op, unsigned off)
 		break;
 	case T_LREF:
 	case T_NREF:
-	case T_LBREF:
 		printf(ref_buf, off);
 		break;
 	case T_CONSTANT:
@@ -1404,7 +1367,6 @@ static void do_op16(const char *op, unsigned off, unsigned s)
 
 	switch(ref_op) {
 	case T_NAME:
-	case T_LABEL:
 		if (off == 2)
 			printf("=0");
 		else
@@ -1412,7 +1374,6 @@ static void do_op16(const char *op, unsigned off, unsigned s)
 		break;
 	case T_LREF:
 	case T_NREF:
-	case T_LBREF:
 	case T_LOCAL:
 	case T_ARGUMENT:
 		printf(ref_buf, off);
@@ -2282,7 +2243,6 @@ unsigned gen_node(struct node *n)
 		   the same */
 	case T_LREF:
 	case T_NREF:
-	case T_LBREF:
 		/* Kill unused ref if non volatile */
 		if (nr && !se)
 			return 1;
@@ -2295,7 +2255,6 @@ unsigned gen_node(struct node *n)
 			set_ea_node(n);
 		return 1;
 	case T_NSTORE:
-	case T_LBSTORE:
 	case T_LSTORE:
 		/* Already is ? */
 		if (!se && is_ea_node(n))
@@ -2309,7 +2268,7 @@ unsigned gen_node(struct node *n)
 	case T_CALLNAME:
 		flush_writeback();
 		invalidate_all();
-		printf("\tjsr _%s+%d\n", namestr(n->snum), v);
+		printf("\tjsr %s+%d\n", namestr(n->snum), v);
 		return 1;
 	case T_EQ:
 		n->value = 0;
@@ -2398,7 +2357,6 @@ unsigned gen_node(struct node *n)
 	case T_CONSTANT:
 		if (is_byte)
 			sz = 1;
-	case T_LABEL:
 	case T_NAME:
 		if (nr)
 			return 1;

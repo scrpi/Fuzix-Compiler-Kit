@@ -67,7 +67,7 @@ static unsigned argbase;	/* Argument offset in current function */
 /* Export the C symbol */
 void gen_export(const char *name)
 {
-	printf("	.export _%s\n", name);
+	printf("	.export %s\n", name);
 }
 
 void gen_segment(unsigned s)
@@ -93,7 +93,7 @@ void gen_segment(unsigned s)
 void gen_prologue(const char *name)
 {
 	unreachable = 0;
-	printf("_%s:\n", name);
+	printf("%s:\n", name);
 }
 
 /* Generate the stack frame */
@@ -217,7 +217,7 @@ void gen_case_data(unsigned tag, unsigned entry)
 
 void gen_data_label(const char *name, unsigned align)
 {
-	printf("_%s:\n", name);
+	printf("%s:\n", name);
 }
 
 void gen_space(unsigned value)
@@ -238,7 +238,7 @@ void gen_literal(unsigned n)
 
 void gen_name(struct node *n)
 {
-	printf("\t.word _%s+%u\n", namestr(n->snum), WORD(n->value));
+	printf("\t.word %s+%u\n", namestr(n->snum), WORD(n->value));
 }
 
 void gen_value(unsigned type, unsigned long value)
@@ -376,8 +376,6 @@ void gen_helpclean(struct node *n)
 #define T_NSTORE	(T_USER+2)		/* Store to a C global/static */
 #define T_LREF		(T_USER+3)		/* Ditto for local */
 #define T_LSTORE	(T_USER+4)
-#define T_LBREF		(T_USER+5)		/* Ditto for labelled strings or local static */
-#define T_LBSTORE	(T_USER+6)
 
 static void squash_node(struct node *n, struct node *o)
 {
@@ -416,10 +414,10 @@ static unsigned is_simple(struct node *n)
 		return 0;
 
 	/* We can load these directly into a register */
-	if (op == T_CONSTANT || op == T_LABEL || op == T_NAME)
+	if (op == T_CONSTANT || op == T_NAME)
 		return 10;
 	/* We can these directly into a register */
-	if (op == T_NREF || op == T_LBREF)
+	if (op == T_NREF)
 		return 10;
 	/* We can these into A in two */
 	if (op == T_LOCAL || op == T_ARGUMENT)
@@ -469,18 +467,10 @@ struct node *gen_rewrite_node(struct node *n)
 				squash_right(n, T_NREF);
 				return n;
 			}
-			if (r->op == T_LABEL) {
-				squash_right(n, T_LBREF);
-				return n;
-			}
 		}
 		if (op == T_EQ) {
 			if (l->op == T_NAME) {
 				squash_left(n, T_NSTORE);
-				return n;
-			}
-			if (l->op == T_LABEL) {
-				squash_left(n, T_LBSTORE);
 				return n;
 			}
 			if (l->op == T_LOCAL || l->op == T_ARGUMENT) {
@@ -549,10 +539,7 @@ unsigned op_into_r(char r, struct node *n, unsigned s, const char *b, const char
 
 	switch(n->op) {
 	case T_NAME:
-		printf("\tld%c _%s+%u\n", r, namestr(n->snum), v);
-		break;
-	case T_LABEL:
-		printf("\tld%c T%u+%u\n", r, n->snum, v);
+		printf("\tld%c %s+%u\n", r, namestr(n->snum), v);
 		break;
 	case T_ARGUMENT:
 		v += argbase + frame_len;
@@ -603,15 +590,9 @@ unsigned op_into_r(char r, struct node *n, unsigned s, const char *b, const char
 		break;	
 	case T_NREF:
 		if (s == 1)
-			printf("\tld%cb (_%s+%u)\n", r, namestr(n->snum), v);
+			printf("\tld%cb (%s+%u)\n", r, namestr(n->snum), v);
 		else
-			printf("\tld%c (_%s+%u)\n", r, namestr(n->snum), v);
-		break;
-	case T_LBREF:
-		if (s == 1)
-			printf("\tld%cb (T%u+%u)\n", r, n->snum, v);
-		else
-			printf("\tld%c (T%u+%u)\n", r, n->snum, v);
+			printf("\tld%c (%s+%u)\n", r, namestr(n->snum), v);
 		break;
 	default:
 		return 0;
@@ -629,13 +610,11 @@ unsigned can_op_into_r(char r, struct node *n, unsigned s)
 
 	switch(n->op) {
 	case T_NAME:
-	case T_LABEL:
 	case T_ARGUMENT:
 	case T_LOCAL:
 	case T_CONSTANT:
 	case T_LREF:
 	case T_NREF:
-	case T_LBREF:
 		return 1;
 	}
 	return 0;
@@ -708,13 +687,11 @@ unsigned can_load_reg(struct node *n, unsigned s)
 		return 0;
 	switch(n->op) {
 	case T_NAME:
-	case T_LABEL:
 	case T_ARGUMENT:
 	case T_LOCAL:
 	case T_CONSTANT:
 	case T_LREF:
 	case T_NREF:
-	case T_LBREF:
 		return 1;
 	default:
 		return 0;
@@ -1316,35 +1293,20 @@ unsigned gen_node(struct node *n)
 			return 1;
 		}
 		return 0;
-	case T_LABEL:
-		printf("\tldb T%u+%u\n", n->snum, v);
-		return 1;
-	case T_LBREF:
-		if (s == 1)
-			printf("\tldbb (T%u+%u)\n", n->snum, v);
-		else
-			printf("\tldb (T%u+%u)\n", n->snum, v);
-		return 1;
-	case T_LBSTORE:
-		if (s == 1)
-			printf("\tstbb (T%u+%u)\n", n->snum, v);
-		else
-			printf("\tstb (T%u+%u)\n", n->snum, v);
-		return 1;
 	case T_NAME:
-		printf("\tldb _%s+%u\n", namestr(n->snum), v);
+		printf("\tldb %s+%u\n", namestr(n->snum), v);
 		return 1;
 	case T_NREF:
 		if (s == 1)
-			printf("\tldbb (_%s+%u)\n", namestr(n->snum), v);
+			printf("\tldbb (%s+%u)\n", namestr(n->snum), v);
 		else
-			printf("\tldb (_%s+%u)\n", namestr(n->snum), v);
+			printf("\tldb (%s+%u)\n", namestr(n->snum), v);
 		return 1;
 	case T_NSTORE:
 		if (s == 1)
-			printf("\tstbb (_%s+%u)\n", namestr(n->snum), v);
+			printf("\tstbb (%s+%u)\n", namestr(n->snum), v);
 		else
-			printf("\tstb (_%s+%u)\n", namestr(n->snum), v);
+			printf("\tstb (%s+%u)\n", namestr(n->snum), v);
 		return 1;
 	case T_ARGUMENT:
 		v += argbase + frame_len;
@@ -1415,7 +1377,7 @@ unsigned gen_node(struct node *n)
 		}
 		break;
 	case T_CALLNAME:
-		printf("\tjsr _%s+%u\n", namestr(n->snum), v);
+		printf("\tjsr %s+%u\n", namestr(n->snum), v);
 		return 1;
 	case T_FUNCCALL:
 		printf("\tjsr (b)\n");

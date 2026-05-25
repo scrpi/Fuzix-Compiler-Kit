@@ -308,20 +308,11 @@ static char *addr_form(register struct node *r, unsigned off, unsigned s)
 		sprintf(addr, "#%s%u", mod, v + off);
 		return addr;
 	case T_NAME:
-		sprintf(addr, "#%s_%s+%u", mod, namestr(r->snum), v + off);
+		sprintf(addr, "#%s%s+%u", mod, namestr(r->snum), v + off);
 		return addr;
 	case T_NSTORE:
 	case T_NREF:
-		sprintf(addr, "_%s+%u%s", namestr(r->snum), v + off, pic_op);
-		return addr;
-	case T_LABEL:
-		sprintf(addr, "#%sT%u+%u", mod, r->snum, v + off);
-		return addr;
-	case T_LBSTORE:
-		sprintf(addr, "T%u+%u%s", r->snum, v + off, pic_op);
-		return addr;
-	case T_LBREF:
-		sprintf(addr, "T%u+%u%s", r->snum, v + off, pic_op);
+		sprintf(addr, "%s+%u%s", namestr(r->snum), v + off, pic_op);
 		return addr;
 	/* Only occurs on 6809 */
 	case T_RDEREF:
@@ -338,7 +329,7 @@ static char *addr_form(register struct node *r, unsigned off, unsigned s)
 unsigned can_load_d_nox(struct node *n, unsigned off)
 {
 	register unsigned op = n->op;
-	if (op == T_CONSTANT || op == T_NAME || op == T_LABEL || op == T_NREF || op == T_LBREF)
+	if (op == T_CONSTANT || op == T_NAME || op == T_NREF)
 		return 1;
 	return 0;
 }
@@ -362,12 +353,9 @@ unsigned op8_on_node(struct node *r, const char *op, unsigned off)
 			return 0;
 		printf("\t%sb [%u,s]\n", op, off + v + sp);
 		break;
-	case T_LBSTORE:
 	case T_NSTORE:
 		store = 1;
 	case T_CONSTANT:
-	case T_LBREF:
-	case T_LABEL:
 	case T_NREF:
 	case T_NAME:
 		printf("\t%sb %s\n", op, addr_form(r, off, 1));
@@ -401,11 +389,8 @@ unsigned op16_on_node(struct node *r, const char *op, const char *op2, unsigned 
 		printf("\t%sa #>%u\n", op, (v + off) & 0xFFFF);
 		printf("\t%sb #<%u\n", op2, (v + off) & 0xFFFF);
 		break;
-	case T_LBSTORE:
 	case T_NSTORE:
 		store = 1;
-	case T_LBREF:
-	case T_LABEL:
 	case T_NREF:
 	case T_NAME:
 		printf("\t%sa %s\n", op, addr_form(r, off, 1));
@@ -439,12 +424,9 @@ unsigned op16d_on_node(struct node *r, const char *op, const char *op2, unsigned
 			return 0;
 		printf("\t%sd [%u,s]\n", op, off + v + sp);
 		break;
-	case T_LBSTORE:
 	case T_NSTORE:
 		store = 1;
 	case T_CONSTANT:
-	case T_LBREF:
-	case T_LABEL:
 	case T_NREF:
 	case T_NAME:
 		printf("\t%sd %s\n", op, addr_form(r, off, 2));
@@ -468,12 +450,9 @@ unsigned op16y_on_node(struct node *r, const char *op, unsigned off)
 	case T_LREF:
 		printf("\t%sy %u,s\n", op, v + off + sp);
 		break;
-	case T_LBSTORE:
 	case T_NSTORE:
 		invalidate_mem();
 	case T_CONSTANT:
-	case T_LBREF:
-	case T_LABEL:
 	case T_NREF:
 	case T_NAME:
 		printf("\t%sy %s\n", op, addr_form(r, off, 2));
@@ -518,8 +497,6 @@ unsigned write_uni_op(register struct node *r, const char *op, unsigned off)
 			printf("\t%s %u,s\n", op, v + off + 1);
 		printf("\t%s %u,s\n", op, v + off);
 		break;
-	case T_LBSTORE:
-	case T_LBREF:
 	case T_NSTORE:
 	case T_NREF:
 		printf("\t%s %s\n", op, addr_form(r, off, 1));
@@ -688,10 +665,8 @@ unsigned can_load_r_simple(struct node *r, unsigned off)
 	case T_LOCAL:
 	case T_LREF:
 	case T_CONSTANT:
-	case T_LBREF:
 	case T_NREF:
 	case T_NAME:
-	case T_LABEL:
 	case T_RREF:
 	case T_RDEREF:
 		return 1;
@@ -708,10 +683,8 @@ unsigned can_load_r_with(struct node *r, unsigned off)
 	case T_LOCAL:
 	case T_LREF:
 	case T_CONSTANT:
-	case T_LBREF:
 	case T_NREF:
 	case T_NAME:
-	case T_LABEL:
 	case T_RREF:
 	case T_RDEREF:
 		return 1;
@@ -742,8 +715,6 @@ static unsigned load_r_with(char reg, struct node *r, unsigned off)
 		printf("\tld%c %u,s\n", reg, v + sp);
 		break;
 	case T_CONSTANT:
-	case T_LBREF:
-	case T_LABEL:
 	case T_NREF:
 	case T_NAME:
 	case T_RDEREF:

@@ -34,8 +34,6 @@
 #define T_NSTORE	(T_USER+2)		/* Store to a C global/static */
 #define T_LREF		(T_USER+3)		/* Ditto for local */
 #define T_LSTORE	(T_USER+4)
-#define T_LBREF		(T_USER+5)		/* Ditto for labelled strings or local static */
-#define T_LBSTORE	(T_USER+6)
 #define T_RREF		(T_USER+7)
 #define T_RSTORE	(T_USER+8)
 #define T_RDEREF	(T_USER+9)		/* *regptr */
@@ -112,16 +110,11 @@ unsigned map_op(register unsigned op)
 		op = T_LREF;
 	case T_LREF:
 		break;
-	case T_LBSTORE:
-		op = T_LBREF;
-	case T_LBREF:
-		break;
 	case T_NSTORE:
 		op = T_NREF;
 	case T_NREF:
 		break;
 	case T_NAME:
-	case T_LABEL:
 	case T_LOCAL:
 		break;
 	/* Don't do other matches for now */
@@ -191,7 +184,6 @@ static void writeflush(struct node *n)
 	switch(n->op) {
 	case T_NREF:
 	case T_LREF:
-	case T_LBREF:
 		n->op = 0xFFFF;	/* invalidate for matches */
 		break;
 	}
@@ -583,10 +575,10 @@ static unsigned is_simple(struct node *n)
 		return 0;
 
 	/* We can load these directly into a register */
-	if (op == T_CONSTANT || op == T_LABEL || op == T_NAME)
+	if (op == T_CONSTANT || op == T_NAME)
 		return 10;
 	/* We can load this directly into a register but may need xchg pairs */
-	if (op == T_NREF || op == T_LBREF)
+	if (op == T_NREF)
 		return 1;
 	return 0;
 }
@@ -651,18 +643,10 @@ struct node *gen_rewrite_node(struct node *n)
 				squash_right(n, T_NREF);
 				return n;
 			}
-			if (r->op == T_LABEL) {
-				squash_right(n, T_LBREF);
-				return n;
-			}
 		}
 		if (op == T_EQ) {
 			if (l->op == T_NAME) {
 				squash_left(n, T_NSTORE);
-				return n;
-			}
-			if (l->op == T_LABEL) {
-				squash_left(n, T_LBSTORE);
 				return n;
 			}
 			if (l->op == T_LOCAL || l->op == T_ARGUMENT) {
@@ -709,7 +693,7 @@ struct node *gen_rewrite_node(struct node *n)
 /* Export the C symbol */
 void gen_export(const char *name)
 {
-	opcode(".export _%s", name);
+	opcode(".export %s", name);
 }
 
 void gen_segment(unsigned segment)
@@ -737,7 +721,7 @@ void gen_segment(unsigned segment)
    gen_frame for the most part */
 void gen_prologue(const char *name)
 {
-	opcode(":_%s:", name);
+	opcode(":%s:", name);
 	unreachable = 0;
 	invalidate_all();
 }
@@ -984,7 +968,7 @@ void gen_case_data(unsigned tag, unsigned entry)
 
 void gen_data_label(const char *name, unsigned align)
 {
-	opcode(":_%s:", name);
+	opcode(":%s:", name);
 }
 
 void gen_space(unsigned value)
@@ -1006,7 +990,7 @@ void gen_literal(unsigned n)
 
 void gen_name(struct node *n)
 {
-	opcode(".word _%s+%u", namestr(n->snum), WORD(n->value));
+	opcode(".word %s+%u", namestr(n->snum), WORD(n->value));
 }
 
 void gen_value(unsigned type, unsigned long value)
@@ -1187,8 +1171,7 @@ static unsigned access_direct(struct node *n)
 	/* We can direct access integer or smaller types that are constants
 	   global/static or string labels */
 	/* TODO group the user ones together for a range check ? */
-	if (op != T_CONSTANT && op != T_NAME && op != T_LABEL &&
-		 op != T_NREF && op != T_LBREF && op != T_RREF)
+	if (op != T_CONSTANT && op != T_NAME && op != T_NREF && op != T_RREF)
 		 return 0;
 	if (!PTR(n->type) && (n->type & ~UNSIGNED) > CSHORT)
 		return 0;
@@ -1199,7 +1182,7 @@ static unsigned access_direct_b(struct node *n)
 {
 	/* We can't access as much via B directly because we've got no easy xchg with b */
 	/* TODO: if we want BC we need to know if BC currently holds the reg var */
-	if (n->op != T_CONSTANT && n->op != T_NAME && n->op != T_LABEL && n->op != T_REG)
+	if (n->op != T_CONSTANT && n->op != T_NAME && n->op != T_REG)
 		return 0;
 	if (!PTR(n->type) && (n->type & ~UNSIGNED) > CSHORT)
 		return 0;
@@ -1220,10 +1203,7 @@ static unsigned load_r_with(const char r, struct node *n)
 
 	switch(n->op) {
 	case T_NAME:
-		opcode("lxi %c,_%s+%u", r, namestr(n->snum), v);
-		return 1;
-	case T_LABEL:
-		opcode("lxi %c,T%u+%u", r, n->snum, v);
+		opcode("lxi %c,%s+%u", r, namestr(n->snum), v);
 		return 1;
 	case T_CONSTANT:
 		/* We know this is not a long from the checks above */
@@ -1234,30 +1214,13 @@ static unsigned load_r_with(const char r, struct node *n)
 		if (r == 'b')
 			return 0;
 		else if (r == 'h') {
-			opcode("lhld _%s+%u", name, v);
+			opcode("lhld %s+%u", name, v);
 			set_hl_node(n);
 			return 1;
 		} else if (r == 'd') {
 			/* We know it is int or pointer */
 			op_xchg();
-			opcode("lhld _%s+%u", name, v);
-			set_hl_node(n);
-			op_xchg();
-			return 1;
-		}
-		break;
-	/* TODO: fold together cleanly with NREF */
-	case T_LBREF:
-		if (r == 'b')
-			return 0;
-		else if (r == 'h') {
-			opcode("lhld T%u+%u", n->snum, v);
-			set_hl_node(n);
-			return 1;
-		} else if (r == 'd') {
-			/* We know it is int or pointer */
-			op_xchg();
-			opcode("lhld T%u+%u", n->snum, v);
+			opcode("lhld %s+%u", name, v);
 			set_hl_node(n);
 			op_xchg();
 			return 1;
@@ -1323,10 +1286,7 @@ static unsigned load_a_with(struct node *n)
 		load_a(BYTE(n->value));
 		break;
 	case T_NREF:
-		opcode("lda _%s+%u", namestr(n->snum), WORD(n->value));
-		break;
-	case T_LBREF:
-		opcode("lda T%u+%u", n->snum, WORD(n->value));
+		opcode("lda %s+%u", namestr(n->snum), WORD(n->value));
 		break;
 	case T_RREF:
 		opcode("mov a,c");
@@ -1632,19 +1592,9 @@ unsigned gen_direct(struct node *n)
 		/* FIXME: opcode */
 		if (s == 1) {
 			opcode("mov a,l");
-			opcode("sta _%s+%u", namestr(n->snum), WORD(n->value));
+			opcode("sta %s+%u", namestr(n->snum), WORD(n->value));
 		} else
-			opcode("shld _%s+%u", namestr(n->snum), WORD(n->value));
-		set_hl_node(n);
-		return 1;
-	case T_LBSTORE:
-		if (s > 2)
-			return 0;
-		if (s == 1) {
-			opcode("mov a,l");
-			opcode("sta T%u+%u", n->snum, v);
-		} else
-			opcode("shld T%u+%u", n->snum, v);
+			opcode("shld %s+%u", namestr(n->snum), WORD(n->value));
 		set_hl_node(n);
 		return 1;
 	case T_RSTORE:
@@ -2093,22 +2043,10 @@ unsigned gen_shortcut(struct node *n)
 		codegen_lr(r);
 		/* Expression result is now in HL */
 		if (s == 2)
-			opcode("shld _%s+%u", namestr(n->snum), WORD(n->value));
+			opcode("shld %s+%u", namestr(n->snum), WORD(n->value));
 		else {
 			opcode("mov a,l");
-			opcode("sta _%s+%u", namestr(n->snum), WORD(n->value));
-		}
-		set_hl_node(n);
-		return 1;
-	}
-	if (n->op == T_LBSTORE && s <= 2) {
-		codegen_lr(r);
-		/* Expression result is now in HL */
-		if (s == 2)
-			opcode("shld T%u+%u", n->snum, WORD(n->value));
-		else {
-			opcode("mov a,l");
-			opcode("sta T%u+%u", n->snum, WORD(n->value));
+			opcode("sta %s+%u", namestr(n->snum), WORD(n->value));
 		}
 		set_hl_node(n);
 		return 1;
@@ -2228,7 +2166,6 @@ unsigned gen_shortcut(struct node *n)
 		}
 	}
 	/* TODO XOR */
-	/* ?? LBSTORE */
 	/* Register targetted ops. These are totally different to the normal EQ ops because
 	   we don't have an address we can push and then do a memory op */
 	if (l && l->op == T_REG) {
@@ -2511,46 +2448,20 @@ unsigned gen_node(struct node *n)
 			}
 		}
 		if (size == 1) {
-			opcode("lda _%s+%u", namestr(n->snum), v);
+			opcode("lda %s+%u", namestr(n->snum), v);
 			opcode("mov l,a");
 			set_hl_node(n);
 		} else if (size == 2) {
-			opcode("lhld _%s+%u", namestr(n->snum), v);
+			opcode("lhld %s+%u", namestr(n->snum), v);
 			set_hl_node(n);
 			return 1;
 		} else if (size == 4) {
-			opcode("lhld _%s+%u", namestr(n->snum), v + 2);
+			opcode("lhld %s+%u", namestr(n->snum), v + 2);
 			opcode("shld __hireg");
-			opcode("lhld _%s+%u", namestr(n->snum), v);
+			opcode("lhld %s+%u", namestr(n->snum), v);
 			set_hl_node(n);
 		} else
 			error("nrb");
-		return 1;
-	case T_LBREF:
-		if (!se) {
-			if (nr)
-				return 1;
-			if (hl_contains(n))
-				return 1;
-			if (bc_contains(n)) {
-				hl_from_reg(n, size);
-				return 1;
-			}
-		}
-		if (size == 1) {
-			opcode("lda T%u+%u", n->snum, v);
-			opcode("mov l,a");
-			set_hl_node(n);
-		} else if (size == 2) {
-			opcode("lhld T%u+%u", n->snum, v);
-			set_hl_node(n);
-		} else if (size == 4) {
-			opcode("lhld T%u+%u", n->snum, v + 2);
-			opcode("shld __hireg");
-			opcode("lhld T%u+%u", n->snum, v);
-			set_hl_node(n);
-		} else
-			error("lbrb");
 		return 1;
 	case T_LREF:
 		/* We are loading something then not using it, and it's local
@@ -2604,32 +2515,9 @@ unsigned gen_node(struct node *n)
 		}
 		if (size == 1) {
 			opcode("mov a,l");
-			opcode("sta _%s+%u", namestr(n->snum), v);
+			opcode("sta %s+%u", namestr(n->snum), v);
 		} else
-			opcode("shld _%s+%u", namestr(n->snum), v);
-		set_hl_node(n);
-		return 1;
-	case T_LBSTORE:
-		if (!se) {
-			if (nr)
-				return 1;
-			if (hl_contains(n))
-				return 1;
-		}
-		if (size == 4) {
-			opcode("shld T%u+%u", n->snum, v);
-			op_xchg();
-			opcode("lhld __hireg");
-			opcode("shld T%u+%u",	n->snum, v + 2);
-			op_xchg();
-			set_hl_node(n);
-			return 1;
-		}
-		if (size == 1) {
-			opcode("mov a,l");
-			opcode("sta T%u+%u", n->snum, v);
-		} else
-			opcode("shld T%u+%u", n->snum, v);
+			opcode("shld %s+%u", namestr(n->snum), v);
 		set_hl_node(n);
 		return 1;
 	case T_LSTORE:
@@ -2741,7 +2629,7 @@ unsigned gen_node(struct node *n)
 		return 1;
 		/* Call a function by name */
 	case T_CALLNAME:
-		opcode("call _%s+%u", namestr(n->snum), v);
+		opcode("call %s+%u", namestr(n->snum), v);
 		invalidate_all();
 		return 1;
 	case T_EQ:
@@ -2822,14 +2710,6 @@ unsigned gen_node(struct node *n)
 		opcode("call __callhl");
 		invalidate_all();
 		return 1;
-	case T_LABEL:
-		/* ?? Do we need to clear hireg on size 4 for label/name etc */
-		if (nr)
-			return 1;
-		/* Used for const strings and local static */
-		opcode("lxi h,T%u+%u", n->snum, v);
-		set_hl_node(n);
-		return 1;
 	case T_CONSTANT:
 		if (nr)
 			return 1;
@@ -2850,7 +2730,7 @@ unsigned gen_node(struct node *n)
 	case T_NAME:
 		if (nr)
 			return 1;
-		opcode("lxi h, _%s+%u", namestr(n->snum), v);
+		opcode("lxi h, %s+%u", namestr(n->snum), v);
 		set_hl_node(n);
 		return 1;
 	case T_LOCAL:

@@ -20,8 +20,6 @@
 #define T_NSTORE	(T_USER+2)		/* Store to a C global/static */
 #define T_LREF		(T_USER+3)		/* Ditto for local */
 #define T_LSTORE	(T_USER+4)
-#define T_LBREF		(T_USER+5)		/* Ditto for labelled strings or local static */
-#define T_LBSTORE	(T_USER+6)
 #define T_RREF		(T_USER+7)
 #define T_RSTORE	(T_USER+8)
 #define T_RDEREF	(T_USER+9)		/* *regptr */

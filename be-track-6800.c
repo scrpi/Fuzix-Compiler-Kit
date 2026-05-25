@@ -60,7 +60,6 @@ void invalidate_mem(void)
 	/* If memory changes it might be an alias to the value cached in AB */
 	switch(d_node.op) {
 	case T_LREF:
-	case T_LBREF:
 	case T_NREF:
 		d_valid = 0;
 	}
@@ -73,9 +72,6 @@ void set_d_node(struct node *n)
 	case T_LSTORE:
 		d_node.op = T_LREF;
 		break;
-	case T_LBSTORE:
-		d_node.op = T_LBREF;
-		break;
 	case T_NSTORE:
 		d_node.op = T_NREF;
 		break;
@@ -83,10 +79,8 @@ void set_d_node(struct node *n)
 		d_node.op = T_RREF;
 		break;
 	case T_NREF:
-	case T_LBREF:
 	case T_LREF:
 	case T_NAME:
-	case T_LABEL:
 	case T_LOCAL:
 	case T_ARGUMENT:
 		break;
@@ -104,9 +98,6 @@ void set_d_node_ptr(struct node *n)
 	switch(d_node.op) {
 	case T_NAME:
 		d_node.op = T_NREF;
-		break;
-	case T_LABEL:
-		d_node.op = T_LBREF;
 		break;
 	case T_ARGUMENT:
 		d_node.value += argbase + frame_len;

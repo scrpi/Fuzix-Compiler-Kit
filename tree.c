@@ -109,8 +109,8 @@ struct node *make_symbol(register struct symbol *s)
 
 	switch(S_STORAGE(s->infonext)) {
 	case S_LSTATIC:
-		n->op = T_LABEL;
-		n->snum = s->data.offset;
+		n->op = T_NAME;
+		n->snum = s->data.offset | 0xC000;
 		n->value = 0;
 		break;
 	case S_AUTO:
@@ -143,11 +143,12 @@ struct node *make_symbol(register struct symbol *s)
 	return n;
 }
 
+/* Makes a label for an anonymous string */
 struct node *make_label(unsigned label)
 {
 	register struct node *n = new_node();
-	n->op = T_LABEL;
-	n->snum = label;
+	n->op = T_NAME;
+	n->snum = label | 0xC000;
 	n->value = 0;
 	n->flags = 0;
 #ifdef TARGET_CHAR_UNSIGNED
@@ -169,11 +170,9 @@ unsigned is_constname(register struct node *n)
 	/* The address of a symbol is a link time constant so can go in initializers */
 	/* A dereferenced form however is not */
 	/* Locals are not a fixed address */
-	if (n->op == T_NAME && (n->flags & LVAL))
-		return 1;
 	/* A label is also fixed by the linker so constant, thus we can fix
 	   up stuff like "hello" + 3 */
-	if (n->op == T_LABEL && (n->flags & LVAL))
+	if (n->op == T_NAME && (n->flags & LVAL))
 		return 1;
 	return is_constant(n);
 }
@@ -551,7 +550,7 @@ struct node *constify(register struct node *n)
 	if (op == T_CAST) {
 		if (r->op == T_CONSTANT && IS_INTORPTR(r->type))
 			return replace_constant(n, n->type, r->value);
-		if (IS_INTORPTR(n->type) && (r->op == T_NAME || r->op == T_LABEL)) {
+		if (IS_INTORPTR(n->type) && r->op == T_NAME) {
 			/* Not a straight copy for byte pointer machines */
 			if (target_remove_cast(n, r)) {
 				r->type = n->type;

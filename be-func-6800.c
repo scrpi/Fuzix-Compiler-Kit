@@ -34,7 +34,7 @@ unsigned unreachable;		/* Code following an unconditional jump */
 /* Export the C symbol */
 void gen_export(const char *name)
 {
-	printf("	.export _%s\n", name);
+	printf("	.export %s\n", name);
 }
 
 void gen_segment(unsigned s)
@@ -61,7 +61,7 @@ void gen_prologue(const char *name)
 {
 	unreachable = 0;
 	invalidate_all();
-	printf("_%s:\n", name);
+	printf("%s:\n", name);
 }
 
 /* Generate the stack frame */
@@ -223,7 +223,7 @@ void gen_helpclean(struct node *n)
 
 void gen_data_label(const char *name, unsigned align)
 {
-	printf("_%s:\n", name);
+	printf("%s:\n", name);
 }
 
 void gen_space(unsigned value)
@@ -244,7 +244,7 @@ void gen_literal(unsigned n)
 
 void gen_name(struct node *n)
 {
-	printf("\t.word _%s+%d\n", namestr(n->snum), WORD(n->value));
+	printf("\t.word %s+%d\n", namestr(n->snum), WORD(n->value));
 }
 
 void gen_value(unsigned type, unsigned long value)
