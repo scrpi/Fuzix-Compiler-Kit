@@ -1507,6 +1507,7 @@ static unsigned oplogic(unsigned size, unsigned lt)
 
 	if (ref_op != T_CONSTANT) {
 		op8(l->op, size, 0);
+		invalidate_a();
 		return 1;
 	}
 	v = ref_constant(0, 2);
