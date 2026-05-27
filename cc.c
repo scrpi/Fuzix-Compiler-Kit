@@ -147,6 +147,7 @@ const char *z80feat[] = {
 	"noiy",
 	NULL
 };
+const char *def8080_32[] = { "__8080__", "__LARGE__", NULL };
 
 const char *defz180[] = { "__z80__", "__z180__", NULL };
 const char *defbyte[] = { "__byte__", NULL };
@@ -232,6 +233,8 @@ struct cpu_table cpu_rules[] = {
 	{ "ddp516", "316", ".ddp", "libddp.a", "ddp", defddp516, ldddp, "516", 0, NULL },
 	{ "tms7000", "7000", ".7000", "libtms7000.a", "tms7000", deftms7000, ldtms7000, "7000", 0, NULL },
 	{ "hc08", "hc08", ".hc08", "libhc08.a", "hc08", defhc08, ldhc08, "8", 0, NULL },
+	/* TODO: will need a different linker option for 32bit */
+	{ "8080:32", "8080-32", ".8080-32", "lib8080-32.a", "8080-32", def8080_32, ld8080, "8080" , 0, NULL},
 	{ NULL }
 };
 

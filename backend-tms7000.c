@@ -32,6 +32,12 @@
 #include "compiler.h"
 #include "backend.h"
 
+/*
+ *	So the generic backend knows how to re-type pointers
+ */
+
+unsigned target_ptr = UINT;
+
 #define BYTE(x)		(((unsigned)(x)) & 0xFF)
 #define WORD(x)		(((unsigned)(x)) & 0xFFFF)
 

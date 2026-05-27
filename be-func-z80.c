@@ -10,6 +10,7 @@
 #include "backend.h"
 #include "backend-z80.h"
 
+unsigned target_ptr = UINT;
 
 /* Export the C symbol */
 void gen_export(const char *name)

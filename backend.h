@@ -77,3 +77,5 @@ extern unsigned cast_fold_safe(unsigned op);
 #define MAX_SEG		3
 
 extern unsigned func_flags;
+
+extern unsigned target_ptr;

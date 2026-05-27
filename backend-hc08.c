@@ -30,6 +30,12 @@
 #define BYTE(x)		(((unsigned)(x)) & 0xFF)
 #define WORD(x)		(((unsigned)(x)) & 0xFFFF)
 
+/*
+ *	So the generic backend knows how to re-type pointers
+ */
+
+unsigned target_ptr = UINT;
+
 #define USE_HX		0x0080
 
 /*

@@ -7,6 +7,7 @@ all: Preprocessor cc cc0 \
      cc2.6502 cc2.z8 cc2.super8 cc2.1802 cc2.6800 cc2.6809 \
      cc2.8070 cc2.8086 \
      cc2.ee200 cc2.nova cc2.ddp cc2.7000 cc2.hc08 cc2.gb \
+     cc1.8080-32 cc2.8080-32 \
      copt fmake \
      support6303 support6502 support65c816 support6800 support6803 \
      support6809 support68hc11 support8070 support8080 support8085 supportz80 \
@@ -18,11 +19,11 @@ bootstuff: Preprocessor cc cc0 \
      cc1.8080 cc1.z80 cc1.thread cc1.byte cc1.6502 \
      cc1.65c816 cc1.z8 cc1.super8 cc1.1802 cc1.6800 cc1.6809 \
      cc1.8070 cc1.8086 cc1.ee200 cc1.nova cc1.ddp cc1.7000 \
-     cc1.hc08 cc1.gb \
+     cc1.hc08 cc1.gb cc1.8080-32 \
      cc2 cc2.8080 cc2.z80 cc2.65c816 cc2.thread \
      cc2.6502 cc2.z8 cc2.super8 cc2.1802 cc2.6800 cc2.6809 \
      cc2.8070 cc2.8086 cc2.ee200 cc2.nova cc2.ddp cc2.7000 \
-     cc2.hc08 cc2.gb \
+     cc2.hc08 cc2.gb cc2.8080-32 \
      copt fmake
 
 .PHONY: support6303 support6502 support65c816 support6800 support6803 \
@@ -58,6 +59,7 @@ OBJS18 = backend.o backend-ddp.o
 OBJS19 = backend.o backend-tms7000.o
 OBJS20 = backend.o backend-hc08.o backend-byte.o
 OBJS21 = backend.o backend-gb.o backend-byte.o
+OBJS22 = backend.o backend-8080-32.o
 
 CFLAGS = -Wall -pedantic -g3 -DLIBPATH="\"$(CCROOT)/lib\"" -DBINPATH="\"$(CCROOT)/bin\""
 
@@ -146,6 +148,9 @@ cc1.hc08:$(OBJS1) target-hc08.o
 cc1.gb:$(OBJS1) target-gb.o
 	gcc -g3 $(OBJS1) target-gb.o -o cc1.gb
 
+cc1.8080-32:$(OBJS1) target-8080-32.o
+	gcc -g3 $(OBJS1) target-8080-32.o -o cc1.8080-32
+
 cc2:	$(OBJS2)
 	gcc -g3 $(OBJS2) -o cc2
 
@@ -202,6 +207,9 @@ cc2.hc08:	$(OBJS20)
 
 cc2.gb:		$(OBJS21)
 	gcc -g3 $(OBJS21) -o cc2.gb
+
+cc2.8080-32:	$(OBJS22)
+	gcc -g3 $(OBJS22) -o cc2.8080-32
 
 support6303:
 	(cd support6303; make)
@@ -280,6 +288,7 @@ clean:
 	rm -f cc1.7000 cc2.7000
 	rm -f cc1.hc08 cc2.hc08
 	rm -f cc1.gb cc2.gb
+	rm -f cc1.8080-32 cc2.8080-32
 	rm -f *~ *.o
 	(cd support6303; make clean)
 	(cd support6502; make clean)
@@ -389,7 +398,7 @@ bootinst:
 	cp cc1.thread $(CCROOT)/lib
 	cp cc2.thread $(CCROOT)/lib
 	cp rules.thread $(CCROOT)/lib
-	# Z8
+	# Z8 (Testing)
 	mkdir -p $(CCROOT)/lib/z8
 	mkdir -p $(CCROOT)/lib/z8/include/
 	cp cc1.z8 $(CCROOT)/lib
@@ -430,7 +439,7 @@ bootinst:
 	cp cc1.ddp $(CCROOT)/lib
 	cp cc2.ddp $(CCROOT)/lib
 	cp rules.ddp $(CCROOT)/lib
-	# TMS7000 (Early testing)
+	# TMS7000 (Testing)
 	mkdir -p $(CCROOT)/lib/tms7000
 	mkdir -p $(CCROOT)/lib/tms7000/include/
 	cp lorder7000 $(CCROOT)/bin/lorder7000
@@ -444,13 +453,20 @@ bootinst:
 	cp cc1.hc08 $(CCROOT)/lib
 	cp cc2.hc08 $(CCROOT)/lib
 	cp rules.hc08 $(CCROOT)/lib
-	# Gameboy (Prototype)
+	# Gameboy (Alpha)
 	mkdir -p $(CCROOT)/lib/gb
 	mkdir -p $(CCROOT)/lib/gb/include/
 	cp lordergb $(CCROOT)/bin/lordergb
 	cp cc1.gb $(CCROOT)/lib
 	cp cc2.gb $(CCROOT)/lib
 	cp rules.gb $(CCROOT)/lib
+	# 8080 32bit (Experimental)
+	mkdir -p $(CCROOT)/lib/8080-32
+	mkdir -p $(CCROOT)/lib/8080-32/include/
+#	cp lorder32 $(CCROOT)/bin/lorder32
+	cp cc1.8080-32 $(CCROOT)/lib
+	cp cc2.8080-32 $(CCROOT)/lib
+#	cp rules.8080-32 $(CCROOT)/lib
 
 #
 #	Install the support libraries

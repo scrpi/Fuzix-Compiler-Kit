@@ -64,6 +64,12 @@
 #define BYTE(x)		(((unsigned)(x)) & 0xFF)
 #define WORD(x)		(((unsigned)(x)) & 0xFFFF)
 
+/*
+ *	So the generic backend knows how to re-type pointers
+ */
+
+unsigned target_ptr = UINT;
+
 #define T_NREF		(T_USER)		/* Load of C global/static */
 #define T_CALLNAME	(T_USER+1)		/* Function call by name */
 #define T_NSTORE	(T_USER+2)		/* Store to a C global/static */

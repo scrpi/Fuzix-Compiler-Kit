@@ -13,6 +13,11 @@
  *	- Rewrite ops that are dad sp; call helper to helper_sp
  *	- Optimise push constant long ?
  *	- More reg vars by using memory fixed addresses ?
+ *
+ *	Large model experiment
+ *	- Need to optimise some more cases
+ *	- Should spot pointer types in large mode and do 16bit maths on the low word
+ *	  only as oppose to a huge model behaviour where all PTR maths is expensive
  */
 #include <stdio.h>
 #include <stdint.h>
@@ -21,6 +26,12 @@
 #include <stdarg.h>
 #include "compiler.h"
 #include "backend.h"
+
+#ifdef LARGE_MODEL
+#define PTRTYPE		ULONG
+#else
+#define PTRTYPE		USHORT
+#endif
 
 #define BYTE(x)		(((unsigned)(x)) & 0xFF)
 #define WORD(x)		(((unsigned)(x)) & 0xFFFF)
@@ -50,6 +61,11 @@ static unsigned argbase;	/* Argument offset in current function */
 static unsigned unreachable;	/* Code following an unconditional jump */
 static unsigned func_cleanup;	/* Zero if we can just ret out */
 static unsigned label;		/* Used to hand out local labels in the form X%u */
+
+/*
+ *	So the generic backend knows how to re-type pointers
+ */
+unsigned target_ptr = PTRTYPE;
 
 /*
  *	Delayed ops
@@ -512,7 +528,7 @@ static void ldsi_hl(unsigned v)
 static unsigned get_size(unsigned t)
 {
 	if (PTR(t))
-		return 2;
+		t = PTRTYPE;
 	if (t == CSHORT || t == USHORT)
 		return 2;
 	if (t == CCHAR || t == UCHAR)
@@ -573,6 +589,10 @@ static unsigned is_simple(struct node *n)
 	/* Multi-word objects are never simple */
 	if (!PTR(n->type) && (n->type & ~UNSIGNED) > CSHORT)
 		return 0;
+#ifdef LARGE_MODEL
+	if (PTR(n->type))
+		return 0;
+#endif
 
 	/* We can load these directly into a register */
 	if (op == T_CONSTANT || op == T_NAME)
@@ -627,7 +647,11 @@ struct node *gen_rewrite_node(struct node *n)
 		return n;
 	}
 	/* Rewrite references into a load operation */
+#ifdef LARGE_MODEL
+	if (nt == CCHAR || nt == UCHAR || nt == CSHORT || nt == USHORT) {
+#else
 	if (nt == CCHAR || nt == UCHAR || nt == CSHORT || nt == USHORT || PTR(nt)) {
+#endif
 		if (op == T_DEREF) {
 			if (r->op == T_LOCAL || r->op == T_ARGUMENT) {
 				if (r->op == T_ARGUMENT)
@@ -996,10 +1020,8 @@ void gen_name(struct node *n)
 void gen_value(unsigned type, unsigned long value)
 {
 	unsigned w = WORD(value);
-	if (PTR(type)) {
-		opcode(".word %u", w);
-		return;
-	}
+	if (PTR(type))
+		type = PTRTYPE;
 	switch (type) {
 	case CCHAR:
 	case UCHAR:
@@ -1173,6 +1195,10 @@ static unsigned access_direct(struct node *n)
 	/* TODO group the user ones together for a range check ? */
 	if (op != T_CONSTANT && op != T_NAME && op != T_NREF && op != T_RREF)
 		 return 0;
+#ifdef LARGE_MODEL
+	if (PTR(n->type))
+		return 0;
+#endif
 	if (!PTR(n->type) && (n->type & ~UNSIGNED) > CSHORT)
 		return 0;
 	return 1;
@@ -1184,10 +1210,23 @@ static unsigned access_direct_b(struct node *n)
 	/* TODO: if we want BC we need to know if BC currently holds the reg var */
 	if (n->op != T_CONSTANT && n->op != T_NAME && n->op != T_REG)
 		return 0;
+#ifdef LARGE_MODEL
+	if (PTR(n->type))
+		return 0;
+#endif
 	if (!PTR(n->type) && (n->type & ~UNSIGNED) > CSHORT)
 		return 0;
 	return 1;
 }
+
+#ifdef LARGE_MODEL
+/* Switch to bank A */
+static void set_bank(void)
+{
+	flush_writeback();
+	opcode("call __bankswitch");	/* We can peephole this for each target */
+}
+#endif
 
 /*
  *	Get something that passed the access_direct check into de. Could
@@ -1203,6 +1242,10 @@ static unsigned load_r_with(const char r, struct node *n)
 
 	switch(n->op) {
 	case T_NAME:
+#ifdef LARGE_MODEL
+		opcode("lxi %c,^%s+%u", r, namestr(n->snum), v);
+		opcode("shld __hireg");
+#endif
 		opcode("lxi %c,%s+%u", r, namestr(n->snum), v);
 		return 1;
 	case T_CONSTANT:
@@ -1214,6 +1257,10 @@ static unsigned load_r_with(const char r, struct node *n)
 		if (r == 'b')
 			return 0;
 		else if (r == 'h') {
+#ifdef LARGE_MODEL
+			opcode("lda ^%s+%u", name, v);
+			set_bank();
+#endif
 			opcode("lhld %s+%u", name, v);
 			set_hl_node(n);
 			return 1;
@@ -1605,6 +1652,10 @@ unsigned gen_direct(struct node *n)
 		/* We have to avoid the right being an LREF because we need
 		   HL and DE to resolve that sometimes, and the overhead
 		   is worse than push/pop the non shortcut way */
+#ifdef LARGE_MODEL
+		opcode("lda __hireg");
+		set_bank();
+#endif
 		if (cpu == 8085 && s == 2 && r->op != T_LREF) {
 			op_xchg();
 			if (load_hl_with(r) == 0)
@@ -2391,9 +2442,9 @@ static unsigned gen_cast(struct node *n)
 	unsigned ls;
 
 	if (PTR(rt))
-		rt = USHORT;
+		rt = PTRTYPE;
 	if (PTR(lt))
-		lt = USHORT;
+		lt = PTRTYPE;
 
 	/* Floats and stuff handled by helper */
 	if (!IS_INTARITH(lt) || !IS_INTARITH(rt))
@@ -2447,6 +2498,10 @@ unsigned gen_node(struct node *n)
 				return 1;
 			}
 		}
+#ifdef LARGE_MODEL
+		opcode("mvi a,^%s+%u", namestr(n->snum), v);
+		set_bank();
+#endif
 		if (size == 1) {
 			opcode("lda %s+%u", namestr(n->snum), v);
 			opcode("mov l,a");
@@ -2503,6 +2558,10 @@ unsigned gen_node(struct node *n)
 			if (hl_contains(n))
 				return 1;
 		}
+#ifdef LARGE_MODEL
+		opcode("mvi a,^%s+%u", namestr(n->snum), v);
+		set_bank();
+#endif
 		if (size == 4) {
 			opcode("shld %s+%u", namestr(n->snum), v);
 			op_xchg();
@@ -2634,7 +2693,12 @@ unsigned gen_node(struct node *n)
 		return 1;
 	case T_EQ:
 		flush_writeback();
+		/* TODO: large model forms of these */
+#ifdef LARGE_MODEL
+		return 0;
+#else
 		if (size == 2) {
+			/* TODO large model */
 			if (cpu == 8085) {
 				opcode("pop d");
 				invalidate_de();
@@ -2651,6 +2715,7 @@ unsigned gen_node(struct node *n)
 			return 1;
 		}
 		if (size == 1) {
+			/* TODO: large model */
 			opcode("pop d");
 			invalidate_de();
 			op_xchg();
@@ -2659,9 +2724,11 @@ unsigned gen_node(struct node *n)
 				op_xchg();
 			return 1;
 		}
+#endif
 		break;
 	case T_RDEREF:
 		/* RREFs on 8080 will always be byte pointers */
+		/* No need to worry about large mode as large mode pointers don't fit in BC */
 		if (nr && !se)
 			return 1;
 		opcode("ldax b");
@@ -2673,6 +2740,11 @@ unsigned gen_node(struct node *n)
 	case T_DEREF:
 		if (nr && !se)
 			return 1;
+#ifdef LARGE_MODEL
+		/* TODO: track current bank */
+		opcode("lda __hireg");
+		set_bank();
+#endif
 		if (size == 2) {
 			if (cpu == 8085) {
 				op_xchg();
@@ -2730,6 +2802,10 @@ unsigned gen_node(struct node *n)
 	case T_NAME:
 		if (nr)
 			return 1;
+#ifdef LARGE_MODEL
+		opcode("lxi h, ^%s+%u", namestr(n->snum), v);
+		opcode("shld __hireg");
+#endif
 		opcode("lxi h, %s+%u", namestr(n->snum), v);
 		set_hl_node(n);
 		return 1;
@@ -2738,6 +2814,10 @@ unsigned gen_node(struct node *n)
 			return 1;
 		v += sp;
 /*		printf(";LO sp %u spval %u %s(%ld)\n", sp, spval, namestr(n->snum), n->value); */
+#ifdef LARGE_MODEL
+		opcode("lxi h,0");
+		opcode("shld __hireg");
+#endif
 		ldsi_hl(v);
 		set_hl_node(n);
 		return 1;
@@ -2746,6 +2826,10 @@ unsigned gen_node(struct node *n)
 			return 1;
 		v += frame_len + argbase + sp;
 /*		printf(";AR sp %u spval %u %s(%ld)\n", sp, spval, namestr(n->snum), n->value); */
+#ifdef LARGE_MODEL
+		opcode("lxi h,0");
+		opcode("shld __hireg");
+#endif
 		ldsi_hl(v);
 		set_hl_node(n);
 		return 1;

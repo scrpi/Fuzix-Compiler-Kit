@@ -10,6 +10,8 @@
 #include "backend.h"
 #include "backend-6800.h"
 
+unsigned target_ptr = UINT;	/* Until we tackle 6809 large model */
+
 unsigned cpu_has_d;		/* 16bit ops and 'D' are present */
 unsigned cpu_has_xgdx;		/* XGDX is present */
 unsigned cpu_has_abx;		/* ABX is present */

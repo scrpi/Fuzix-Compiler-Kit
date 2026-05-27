@@ -675,7 +675,7 @@ void process_data(void)
 void helper_type(register unsigned t, unsigned s)
 {
 	if (PTR(t))
-		t = USHORT;
+		t = target_ptr;
 	switch (t) {
 	case UCHAR:
 		if (s)

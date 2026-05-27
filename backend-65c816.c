@@ -99,6 +99,12 @@
 #define WORD(x)		(((unsigned)(x)) & 0xFFFF)
 
 /*
+ *	So the generic backend knows how to re-type pointers
+ */
+
+unsigned target_ptr = UINT;
+
+/*
  *	State for the current function
  */
 static unsigned frame_len;	/* Number of bytes of stack frame */

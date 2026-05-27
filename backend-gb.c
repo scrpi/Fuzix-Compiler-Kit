@@ -22,6 +22,12 @@
 #define BYTE(x)		(((unsigned)(x)) & 0xFF)
 #define WORD(x)		(((unsigned)(x)) & 0xFFFF)
 
+/*
+ *	So the generic backend knows how to re-type pointers
+ */
+
+unsigned target_ptr = UINT;
+
 #define ARGBASE	2	/* Bytes between arguments and locals if no reg saves */
 
 /* Check if a single bit is set or clear */
