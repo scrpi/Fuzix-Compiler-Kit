@@ -119,6 +119,9 @@
 #define T_STRING	0x1105
 /* End marker for strings (mostly a dummy for convenience) */
 #define T_STRING_END	0x1106
+/* Long long types - not yet implemented */
+#define T_LONGLONGVAL	0x1107
+#define T_ULONGLONGVAL	0x1108
 
 /* Encodings that are used internally for nodes but have no actual equivalent
    token */

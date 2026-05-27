@@ -64,11 +64,27 @@ struct node *constant_node(void)
 	case T_FLOATVAL:
 		t = FLOAT;
 		break;
+	case T_LONGLONGVAL:
+		t = CLONGLONG;
+		break;
+	case T_ULONGLONGVAL:
+		t = ULONGLONG;
+		break;
 	default:
 		error("invalid value");
 		t = CINT;
 		break;
 	}
+#ifdef WITH_INDIRECTED
+	/* If the type is too big to sensibly trundle around in registers */
+	/* TODO: might be useful for long with some targets */
+	if (label = target_indirected(token)) {
+		n = make_label(label);
+		n->type = t;
+		next_token();
+		return n;
+	}
+#endif
 	n = make_constant(token_value, t);
 	next_token();
 	return n;
