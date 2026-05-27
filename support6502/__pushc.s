@@ -30,6 +30,7 @@ __pushc:
 	sta	(@sp),y
 	rts
 l1:
+	ldy	#0
 	dec	@sp+1
 	dec	@sp
 	sta	(@sp),y
