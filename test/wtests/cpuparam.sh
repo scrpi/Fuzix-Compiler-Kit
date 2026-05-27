@@ -105,9 +105,9 @@ case "x"$1 in
 		break
 		;;
 	xsm83)
-		CPU=gb
-		LINK=ldgb
-		LIB=gb
+		CPU=sm83
+		LINK=ldsm83
+		LIB=sm83
 		LINKOPT=-C0
 		EMU="emusm83"
 		break

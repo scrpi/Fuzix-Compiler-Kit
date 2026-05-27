@@ -1,4 +1,4 @@
-all: libgb.a crt0.o
+all: libsm83.a crt0.o
 
 OBJ = workspace.o \
       __bool.o __castc_.o __pop.o __eqop.o \
@@ -30,14 +30,14 @@ OBJ = workspace.o \
       __ccltf.o __ccnef.o __divf.o __minusf.o __mulf.o __plusf.o __eqopf.o
 
 .s.o:
-	fcc -mgb -c $<
+	fcc -msm83 -c $<
 
 .c.o:
-	fcc -mgb -O -c $<
+	fcc -msm83 -O -c $<
 
-libgb.a: $(OBJ)
-	rm -f libgb.a
-	ar qc libgb.a `../lorder8080 $(OBJ) | tsort`
+libsm83.a: $(OBJ)
+	rm -f libsm83.a
+	ar qc libsm83.a `../lorder8080 $(OBJ) | tsort`
 
 clean:
 	rm -f *.o *.a *~

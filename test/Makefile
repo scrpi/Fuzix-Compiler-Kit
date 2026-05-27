@@ -134,7 +134,7 @@ testcrt0_nova3.o: testcrt0_nova3.s
 	fcc -mnova3 -c testcrt0_nova3.s
 
 testcrt0_sm83.o: testcrt0_sm83.s
-	fcc -mgb -c testcrt0_sm83.s
+	fcc -msm83 -c testcrt0_sm83.s
 
 testcrt0_tms7000.o: testcrt0_tms7000.s
 	fcc -mtms7000 -c testcrt0_tms7000.s

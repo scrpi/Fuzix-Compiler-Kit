@@ -2,34 +2,34 @@ all: Preprocessor cc cc0 \
      cc1.8080 cc1.z80 cc1.thread cc1.byte cc1.6502 \
      cc1.65c816 cc1.z8 cc1.1802 cc1.6800 cc1.6809 \
      cc1.8070 cc1.8086 \
-     cc1.ee200 cc1.nova cc1.ddp cc1.7000 cc1.hc08 cc1.gb \
+     cc1.ee200 cc1.nova cc1.ddp cc1.7000 cc1.hc08 cc1.sm83 \
      cc2 cc2.8080 cc2.z80 cc2.65c816 cc2.thread \
      cc2.6502 cc2.z8 cc2.super8 cc2.1802 cc2.6800 cc2.6809 \
      cc2.8070 cc2.8086 \
-     cc2.ee200 cc2.nova cc2.ddp cc2.7000 cc2.hc08 cc2.gb \
+     cc2.ee200 cc2.nova cc2.ddp cc2.7000 cc2.hc08 cc2.sm83 \
      cc1.8080-32 cc2.8080-32 \
      copt fmake \
      support6303 support6502 support65c816 support6800 support6803 \
      support6809 support68hc11 support8070 support8080 support8085 supportz80 \
      supportz8 supportsuper8 supportee200 supportnova supportnova3 supporttms7000 \
-     supportgb \
+     supportsm83 \
      test
 
 bootstuff: Preprocessor cc cc0 \
      cc1.8080 cc1.z80 cc1.thread cc1.byte cc1.6502 \
      cc1.65c816 cc1.z8 cc1.super8 cc1.1802 cc1.6800 cc1.6809 \
      cc1.8070 cc1.8086 cc1.ee200 cc1.nova cc1.ddp cc1.7000 \
-     cc1.hc08 cc1.gb cc1.8080-32 \
+     cc1.hc08 cc1.sm83 cc1.8080-32 \
      cc2 cc2.8080 cc2.z80 cc2.65c816 cc2.thread \
      cc2.6502 cc2.z8 cc2.super8 cc2.1802 cc2.6800 cc2.6809 \
      cc2.8070 cc2.8086 cc2.ee200 cc2.nova cc2.ddp cc2.7000 \
-     cc2.hc08 cc2.gb cc2.8080-32 \
+     cc2.hc08 cc2.sm83 cc2.8080-32 \
      copt fmake
 
 .PHONY: support6303 support6502 support65c816 support6800 support6803 \
 	support6809 support68hc11 support8070 support8080 support8085 \
 	supportsuper8 supportz8 supportz80 supportee200 supportnova \
-	supportnova3 supporttms7000 supportgb test Preprocessor fmake
+	supportnova3 supporttms7000 supportsm83 test Preprocessor fmake
 
 CCROOT ?=/opt/fcc/
 
@@ -58,7 +58,7 @@ OBJS17 = backend.o be-codegen-6800.o be-track-6800.o be-code-6809.o be-func-6800
 OBJS18 = backend.o backend-ddp.o
 OBJS19 = backend.o backend-tms7000.o
 OBJS20 = backend.o backend-hc08.o backend-byte.o
-OBJS21 = backend.o backend-gb.o backend-byte.o
+OBJS21 = backend.o backend-sm83.o backend-byte.o
 OBJS22 = backend.o backend-8080-32.o
 
 CFLAGS = -Wall -pedantic -g3 -DLIBPATH="\"$(CCROOT)/lib\"" -DBINPATH="\"$(CCROOT)/bin\""
@@ -145,8 +145,8 @@ cc1.7000:$(OBJS1) target-tms7000.o
 cc1.hc08:$(OBJS1) target-hc08.o
 	gcc -g3 $(OBJS1) target-hc08.o -o cc1.hc08
 
-cc1.gb:$(OBJS1) target-gb.o
-	gcc -g3 $(OBJS1) target-gb.o -o cc1.gb
+cc1.sm83:$(OBJS1) target-sm83.o
+	gcc -g3 $(OBJS1) target-sm83.o -o cc1.sm83
 
 cc1.8080-32:$(OBJS1) target-8080-32.o
 	gcc -g3 $(OBJS1) target-8080-32.o -o cc1.8080-32
@@ -205,8 +205,8 @@ cc2.7000:	$(OBJS19)
 cc2.hc08:	$(OBJS20)
 	gcc -g3 $(OBJS20) -o cc2.hc08
 
-cc2.gb:		$(OBJS21)
-	gcc -g3 $(OBJS21) -o cc2.gb
+cc2.sm83:		$(OBJS21)
+	gcc -g3 $(OBJS21) -o cc2.sm83
 
 cc2.8080-32:	$(OBJS22)
 	gcc -g3 $(OBJS22) -o cc2.8080-32
@@ -244,8 +244,8 @@ support8085:
 supportee200:
 	(cd supportee200; make)
 
-supportgb:
-	(cd supportgb; make)
+supportsm83:
+	(cd supportsm83; make)
 
 supportnova:
 	(cd supportnova; make)
@@ -287,7 +287,7 @@ clean:
 	rm -f cc1.ddp cc2.ddp
 	rm -f cc1.7000 cc2.7000
 	rm -f cc1.hc08 cc2.hc08
-	rm -f cc1.gb cc2.gb
+	rm -f cc1.sm83 cc2.sm83
 	rm -f cc1.8080-32 cc2.8080-32
 	rm -f *~ *.o
 	(cd support6303; make clean)
@@ -300,7 +300,7 @@ clean:
 	(cd support8070; make clean)
 	(cd support8080; make clean)
 	(cd supportee200; make clean)
-	(cd supportgb; make clean)
+	(cd supportsm83; make clean)
 	(cd supportnova; make clean)
 	(cd supportnova3; make clean)
 	(cd supportsuper8; make clean)
@@ -454,12 +454,12 @@ bootinst:
 	cp cc2.hc08 $(CCROOT)/lib
 	cp rules.hc08 $(CCROOT)/lib
 	# Gameboy (Alpha)
-	mkdir -p $(CCROOT)/lib/gb
-	mkdir -p $(CCROOT)/lib/gb/include/
-	cp lordergb $(CCROOT)/bin/lordergb
-	cp cc1.gb $(CCROOT)/lib
-	cp cc2.gb $(CCROOT)/lib
-	cp rules.gb $(CCROOT)/lib
+	mkdir -p $(CCROOT)/lib/sm83
+	mkdir -p $(CCROOT)/lib/sm83/include/
+	cp lordersm83 $(CCROOT)/bin/lordersm83
+	cp cc1.sm83 $(CCROOT)/lib
+	cp cc2.sm83 $(CCROOT)/lib
+	cp rules.sm83 $(CCROOT)/lib
 	# 8080 32bit (Experimental)
 	mkdir -p $(CCROOT)/lib/8080-32
 	mkdir -p $(CCROOT)/lib/8080-32/include/
@@ -531,10 +531,10 @@ libinst:
 	cp supportz80/include/*.h $(CCROOT)/lib/z80/include/
 	cp supportz80/libz80.a $(CCROOT)/lib/z80/libz80.a
 	ar cq $(CCROOT)/lib/z80/libc.a
-	cp supportgb/crt0.o $(CCROOT)/lib/gb/
-	cp supportgb/include/*.h $(CCROOT)/lib/gb/include/
-	cp supportgb/libgb.a $(CCROOT)/lib/gb/libgb.a
-	ar cq $(CCROOT)/lib/gb/libc.a
+	cp supportsm83/crt0.o $(CCROOT)/lib/sm83/
+	cp supportsm83/include/*.h $(CCROOT)/lib/sm83/include/
+	cp supportsm83/libsm83.a $(CCROOT)/lib/sm83/libsm83.a
+	ar cq $(CCROOT)/lib/sm83/libc.a
 
 #
 #	Build the tools then install them
