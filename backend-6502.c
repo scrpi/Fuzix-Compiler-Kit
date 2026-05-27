@@ -740,7 +740,7 @@ static int do_pri8(struct node *n, struct node *r, const char *op, void (*pre)(s
 		return 1;
 	case T_REG:
 		pre(n);
-		output("%s #reg%u", op, v);
+		output("%s #@reg%u", op, v);
 		return 1;
 	case T_CONSTANT:
 		pre(n);
@@ -832,7 +832,7 @@ static int do_pri8hi(struct node *n, struct node *r, const char *op, void (*pre)
 		return 1;
 	case T_REG:
 		pre(n);
-		output("%s #>reg%u", op, v);
+		output("%s #0", op);
 		return 1;
 	case T_CONSTANT:
 		pre(n);
@@ -917,8 +917,8 @@ static int do_pri16(struct node *n, struct node *r, const char *op, void (*pre)(
 		return 1;
 	case T_REG:
 		pre(n);
-		output("%sa #<reg%u", op,  v);
-		output("%sx #>reg%u", op,  v);
+		output("%sa #@reg%u", op,  v);
+		output("%sx #0", op);
 		return 1;
 	case T_CONSTANT:
 		pre(n);
@@ -2711,6 +2711,20 @@ unsigned gen_direct(struct node *n)
 		}
 		/* Complex on both sides. Do these the hard way. Not as bad
 		   as it seems as these are not common */
+		return 0;
+	case T_RSTORE:
+		/* Particularly regvar = 0; is common */
+		if (r->op == T_CONSTANT && s == 2 && BYTE(v) == BYTE(v >> 8) && nr) {
+			if (BYTE(v) == 0 && cpu != NMOS_6502) {
+				output("stz @reg%u", n->snum);
+				output("stz @reg%u+1", n->snum);
+				return 1;
+			}
+			load_a(BYTE(v));
+			output("sta @reg%u", n->snum);
+			output("sta @reg%u+1", n->snum);
+			return 1;
+		}
 		return 0;
 	case T_AND:
 		/* There are some cases we can deal with */
