@@ -2,6 +2,7 @@
 ;	Cast char or int to long or unsigned long
 ;
 	.export __castc_l
+	.export __castc_ul
 	.export __cast_l
 	.export __cast_ul
 
