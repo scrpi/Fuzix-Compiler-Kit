@@ -12,7 +12,7 @@ all: Preprocessor cc cc0 \
      support6303 support6502 support65c816 support6800 support6803 \
      support6809 support68hc11 support8070 support8080 support8085 supportz80 \
      supportz8 supportsuper8 supportee200 supportnova supportnova3 supporttms7000 \
-     supportsm83 \
+     supportsm83 support8080-32 \
      test
 
 bootstuff: Preprocessor cc cc0 \
@@ -29,7 +29,8 @@ bootstuff: Preprocessor cc cc0 \
 .PHONY: support6303 support6502 support65c816 support6800 support6803 \
 	support6809 support68hc11 support8070 support8080 support8085 \
 	supportsuper8 supportz8 supportz80 supportee200 supportnova \
-	supportnova3 supporttms7000 supportsm83 test Preprocessor fmake
+	supportnova3 supporttms7000 supportsm83 support8080-32 \
+	test Preprocessor fmake
 
 CCROOT ?=/opt/fcc/
 
@@ -237,6 +238,9 @@ support8070:
 
 support8080:
 	(cd support8080; make)
+
+support8080-32:
+	(cd support8080-32; make)
 
 support8085:
 	(cd support8085; make)

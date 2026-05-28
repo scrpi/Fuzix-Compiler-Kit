@@ -1,7 +1,6 @@
 /*
  *	Things to improve
  *	- Improve initialized variable generation in stack frame creation
- *	- Do we want a single "LBREF or NREF name print" function
  *	- Optimize xor 0xff with cpl ?
  *	- Inline load and store of long to static/global/label (certainly for -O2)
  *	- See if we can think down support routines that use the retaddr patching (ideally
@@ -1085,7 +1084,7 @@ unsigned gen_lref(unsigned v, unsigned size, unsigned to_de)
 	/* The 8085 has LDSI and LHLX so we can fast access anything up to
 	   255 bytes from SP. However we end up trashing DE in doing so. For
 	   now don't use this for DE loads, look at saving stuff later TODO */
-	if (cpu == 8085 && v <= 255 && !to_de) {
+	if (cpu == 8085 && v <= 255 && !to_de && size < 4) {
 		opcode("ldsi %u", v);
 		invalidate_de();
 		if (size == 2)
@@ -1126,6 +1125,16 @@ unsigned gen_lref(unsigned v, unsigned size, unsigned to_de)
 		opcode("lhlx");
 		return 1;
 	}
+	if (cpu == 8085 && size == 4 && !to_de) {
+		load_hl_spoff(v + 2);
+		op_xchg();
+		opcode("lhlx");
+		opcode("shld __hireg");
+		dcx_d();
+		dcx_d();
+		opcode("lhx");
+		return 1;
+	}
 	/* Word load is long winded on 8080 but if the user asked for it */
 	/* This also gets used for 8085 as a fallback for the DE case */
 	if (size == 2 && opt > 2) {
@@ -1144,15 +1153,20 @@ unsigned gen_lref(unsigned v, unsigned size, unsigned to_de)
 	   the DE case. The 8085 has only a word helper and for both the
 	   word helper has it use HL and DE. Those cases go via stack */
 	if (to_de && (cpu == 8085 || v >= 253))
-		return 0;	/* Go via stack */
+		return 0;
 
 	/* Via helper magic for compactness on 8080 */
 	if (size == 1)
 		name = "ldbyte";
 	else if (size == 2)
 		name = "ldword";
-	else
-		return 0;	/* Can't happen currently but trap it */
+	else if (size == 4)  {
+		if (to_de)
+			error("quad_de");
+		opcode("call __ldquad");
+		opcode(".word %u", v + 2);
+		return 1;
+	}
 	/* We do a call so the stack offset is two bigger */
 	if (to_de)
 		op_xchg();
@@ -1221,10 +1235,34 @@ static unsigned access_direct_b(struct node *n)
 
 #ifdef LARGE_MODEL
 /* Switch to bank A */
-static void set_bank(void)
+static void set_bank_node(struct node *n)
 {
 	flush_writeback();
+	switch(n->op) {
+	case T_NREF:
+		opcode("lda ^%s+%u", namestr(n->snum), WORD(n->value));
+		break;
+	case T_LREF:		/* Locals live in common space on stack */
+		break;
+	default:
+		error("bad sb");
+	}
 	opcode("call __bankswitch");	/* We can peephole this for each target */
+}
+
+/* TODO: track when bank is still hireg */
+static void set_bank_hireg(void)
+{
+	flush_writeback();
+	opcode("call __hrbankswitch");
+}
+#else
+static void set_bank_node(struct node *n)
+{
+}
+
+static void set_bank_hireg(void)
+{
 }
 #endif
 
@@ -1257,10 +1295,7 @@ static unsigned load_r_with(const char r, struct node *n)
 		if (r == 'b')
 			return 0;
 		else if (r == 'h') {
-#ifdef LARGE_MODEL
-			opcode("lda ^%s+%u", name, v);
-			set_bank();
-#endif
+			set_bank_node(n);
 			opcode("lhld %s+%u", name, v);
 			set_hl_node(n);
 			return 1;
@@ -1652,10 +1687,7 @@ unsigned gen_direct(struct node *n)
 		/* We have to avoid the right being an LREF because we need
 		   HL and DE to resolve that sometimes, and the overhead
 		   is worse than push/pop the non shortcut way */
-#ifdef LARGE_MODEL
-		opcode("lda __hireg");
-		set_bank();
-#endif
+		set_bank_hireg();
 		if (cpu == 8085 && s == 2 && r->op != T_LREF) {
 			op_xchg();
 			if (load_hl_with(r) == 0)
@@ -1881,6 +1913,7 @@ unsigned gen_direct(struct node *n)
 	case T_PLUSEQ:
 		invalidate_hl();
 		if (s == 1) {
+			set_bank_hireg();
 			if (r->op == T_CONSTANT && r->value < 4 && nr)
 				repeated_op("inr m", r->value);
 			else {
@@ -1894,6 +1927,7 @@ unsigned gen_direct(struct node *n)
 			return 1;
 		}
 		if (s == 2 && nr && r->op == T_CONSTANT && (r->value & 0x00FF) == 0) {
+			set_bank_hireg();
 			inx_h();
 			if ((r->value >> 8) < 4) {
 				repeated_op("inr m", r->value >> 8);
@@ -1911,6 +1945,7 @@ unsigned gen_direct(struct node *n)
 	case T_MINUSEQ:
 		invalidate_hl();
 		if (s == 1) {
+			set_bank_hireg();
 			/* Shortcut for small 8bit values */
 			if (r->op == T_CONSTANT && r->value < 4 && (n->flags & NORETURN)) {
 				repeated_op("dcr m", r->value);
@@ -1946,6 +1981,7 @@ unsigned gen_direct(struct node *n)
 		if (s == 1) {
 			if (load_a_with(r) == 0)
 				return 0;
+			set_bank_hireg();
 			opcode("ana m");
 			opcode("mov m,a");
 			if (!(n->flags & NORETURN))
@@ -1958,6 +1994,7 @@ unsigned gen_direct(struct node *n)
 		if (s == 1) {
 			if (load_a_with(r) == 0)
 				return 0;
+			set_bank_hireg();
 			opcode("ora m");
 			opcode("mov m,a");
 			if (!(n->flags & NORETURN))
@@ -1970,6 +2007,7 @@ unsigned gen_direct(struct node *n)
 		if (s == 1) {
 			if (load_a_with(r) == 0)
 				return 0;
+			set_bank_hireg();
 			opcode("xra m");
 			opcode("mov m,a");
 			if (!(n->flags & NORETURN))
@@ -2138,7 +2176,7 @@ unsigned gen_shortcut(struct node *n)
 			return 1;
 		return 0;
 	}
-	/* Assignment to *BC, byte pointer always */
+	/* Assignment to *BC, byte pointer always. Never happens on LARGE model */
 	if (n->op == T_REQ) {
 		unsigned in_l = 0;
 		/* Try and get the value into A */
@@ -2500,7 +2538,7 @@ unsigned gen_node(struct node *n)
 		}
 #ifdef LARGE_MODEL
 		opcode("mvi a,^%s+%u", namestr(n->snum), v);
-		set_bank();
+		set_bank_node(n);
 #endif
 		if (size == 1) {
 			opcode("lda %s+%u", namestr(n->snum), v);
@@ -2537,6 +2575,28 @@ unsigned gen_node(struct node *n)
 			set_hl_node(n);
 			return 1;
 		}
+		/* This one isn't allowed to fail but can for quad bytes so we need our own
+		   special handler */
+		if (optsize) {
+			opcode("call __ldquad");
+			opcode(".word %u", v + 2);
+			invalidate_de();
+			set_hl_node(n);
+			return 1;
+		} else {
+			load_hl_spoff(v + 3);
+			opcode("mov d,m");
+			dcx_h();
+			opcode("mov e,m");
+			op_xchg();
+			opcode("shld __hireg");
+			op_xchg();
+			opcode("mov d.m");
+			dcx_h();
+			opcode("mov e,m");
+			op_xchg();
+			return 1;
+		}
 		return 0;
 	case T_RREF:
 		if (nr)
@@ -2558,10 +2618,7 @@ unsigned gen_node(struct node *n)
 			if (hl_contains(n))
 				return 1;
 		}
-#ifdef LARGE_MODEL
-		opcode("mvi a,^%s+%u", namestr(n->snum), v);
-		set_bank();
-#endif
+		set_bank_node(n);
 		if (size == 4) {
 			opcode("shld %s+%u", namestr(n->snum), v);
 			op_xchg();
@@ -2603,7 +2660,17 @@ unsigned gen_node(struct node *n)
 		if (cpu == 8085 && v <= 255) {
 			opcode("ldsi %u", v);
 			invalidate_de();
-			if (size == 2)
+			if (size == 4) {
+				opcode("shlx");
+				inx_d();
+				inx_d();
+				if (!nr)
+					op_pushhl();
+				opcode("lhld __hireg");
+				opcode("shlx");
+				if (!nr)
+					op_pophl();
+			} else if (size == 2)
 				opcode("shlx");
 			else {
 				opcode("mov a,l");
@@ -2666,9 +2733,34 @@ unsigned gen_node(struct node *n)
 			name = "stbyte";
 		else if (size == 2)
 			name = "stword";
-		/* FIXME */
-		else
-			return 0;
+		else {
+			if (optsize) {
+				opcode("call __stquad");
+				opcode(".word %u", v + 2);
+				invalidate_de();
+				set_hl_node(n);
+				return 1;
+			}
+			if (!nr)
+				op_pushhl();
+			op_xchg();
+			load_hl_spoff(v);
+			opcode("mov m,e");
+			inx_h();
+			opcode("mov m,e");
+			inx_h();
+			op_xchg();
+			opcode("lhld __hireg");
+			op_xchg();
+			opcode("mov m,e");
+			inx_h();
+			opcode("mov m,d");
+			if (!nr)
+				op_pophl();
+			invalidate_de();
+			set_hl_node(n);
+			return 1;
+		}
 		/* Like load the helper is offset by two because of the
 		   stack */
 		if (v < 24)
@@ -2740,11 +2832,7 @@ unsigned gen_node(struct node *n)
 	case T_DEREF:
 		if (nr && !se)
 			return 1;
-#ifdef LARGE_MODEL
-		/* TODO: track current bank */
-		opcode("lda __hireg");
-		set_bank();
-#endif
+		set_bank_hireg();
 		if (size == 2) {
 			if (cpu == 8085) {
 				op_xchg();
