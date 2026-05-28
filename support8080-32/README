@@ -1,0 +1,14 @@
+32bit large mode 8080
+
+User needs to provide set_bank helper
+
+
+At the moment the assumptions are
+
+- All eq ops are 32bit
+- All DE short cut ops the caller has set the bank correctly
+
+We need to add near forms of the EQ helpers (ie the 8080 versions) and spot ops with a left
+of LOCAL or ARGUMENT as we know those are near (stack based). That needs the compiler adjusting
+to know about this first.
+
