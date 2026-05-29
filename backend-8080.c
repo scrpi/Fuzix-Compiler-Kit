@@ -9,7 +9,8 @@
  *	- Consider tracking DE v SP for LDSI stuff on 8085 ?
  *	- Not clear xthl is worth using for the number of times its the wrong
  *	  choice as we needed the value ?
- *	- Rewrite ops that are dad sp; call helper to helper_sp
+ *	- Rewrite ops that are dad sp; blah; call helper to helper_sp
+ *	  (notably the deops ought to be a good target)
  *	- Optimise push constant long ?
  *	- More reg vars by using memory fixed addresses ?
  *	- Look at eq helpers specifically for locals (ld de,offset; call helper)
@@ -20,12 +21,9 @@
  *	Large model experiment
  *	- Need to optimise some more cases
  *	- Should spot pointer types in large mode and do 16bit maths on the low word
- *	  only as oppose to a huge model behaviour where all PTR maths is expensive
- *	- deops need to know if its an eqop and set the bank before calling (so we can
- *	  avoid bank setting in LOCAL/ARGUMENT case)
- *	- We avoid bank switching on LREF/LSTORE but we need to spot and generate "near"
- *	  versions of the main EQ ops for cases of *EQ (LOCAL, ) and *EQ(ARGUMENT, ) as we
- *	  know they are in the common space.
+ *	  only as oppose to a huge model behaviour where all PTR maths is expensive (esp
+ *	  for ++/-- type ops as they are common on pointers and with a local pointer its
+ *	  a huge performance win)
  */
 #include <stdio.h>
 #include <stdint.h>
@@ -1447,16 +1445,19 @@ static void bc_to_reg(unsigned s)
 static unsigned gen_deop(const char *op, struct node *n, struct node *r, unsigned sign)
 {
 	unsigned s = get_size(n->type);
-	if (s > 2)
+	if (s > 2 && !LPTR(n->type))
 		return 0;
-	if (s == 2) {
+	if (s != 1) {
 		if (load_de_with(r) == 0)
 			return 0;
 	} else {
 		if (load_a_with(r) == 0)
 			return 0;
 	}
-	if (sign)
+	/* This needs review for all ops - the eq case is clearer */
+	if (LPTR(n->type))
+		do_helper(n, op, UINT, sign);
+	else if (sign)
 		helper_s(n, op);
 	else
 		helper(n, op);
@@ -1469,9 +1470,13 @@ static unsigned gen_deop(const char *op, struct node *n, struct node *r, unsigne
 static unsigned gen_eqdeop(const char *op, struct node *n, struct node *r, unsigned sign)
 {
 	unsigned s = get_size(n->type);
-	if (s > 2)
+	/* It's ok to do eq ops on half of a value for large model as pointers don't
+	   go out of bank and we are low word first. We can even do volatiles because
+	   nothing in the C standard says whether those ops touch each byte or in what
+	   order */
+	if (s > 2 && !LPTR(n->type))
 		return 0;
-	if (s == 2) {
+	if (s != 1) {
 		if (load_de_with(r) == 0)
 			return 0;
 		/* Ok it will work, set the bank correctly */
@@ -1485,8 +1490,12 @@ static unsigned gen_eqdeop(const char *op, struct node *n, struct node *r, unsig
 			error("eqdeop");
 	}
 	/* As the pointer is in HL and the bits are in DE or A nothing is stacked so we don't have
-	   to do any magic because we awitched bank */
-	if (sign)
+	   to do any magic because we switched bank */
+	/* We are doing an operation on pointers (eg char *p; p++;). We can do this operation in
+	   UINT form for large mode as large mode pointers don't extend out of range */
+	if (LPTR(n->type))
+		do_helper(n, op, UINT, sign);
+	else if (sign)
 		helper_s(n, op);
 	else
 		helper(n, op);
