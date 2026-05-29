@@ -12,11 +12,20 @@
  *	- Rewrite ops that are dad sp; call helper to helper_sp
  *	- Optimise push constant long ?
  *	- More reg vars by using memory fixed addresses ?
+ *	- Look at eq helpers specifically for locals (ld de,offset; call helper)
+ *	- Is the extra cost worth the big speed up for changing the lref/store stuff
+ *	  to use ld l,n or ld hl,n call rather than the trailing byte/word so we can
+ *	  just dad sp ?
  *
  *	Large model experiment
  *	- Need to optimise some more cases
  *	- Should spot pointer types in large mode and do 16bit maths on the low word
  *	  only as oppose to a huge model behaviour where all PTR maths is expensive
+ *	- deops need to know if its an eqop and set the bank before calling (so we can
+ *	  avoid bank setting in LOCAL/ARGUMENT case)
+ *	- We avoid bank switching on LREF/LSTORE but we need to spot and generate "near"
+ *	  versions of the main EQ ops for cases of *EQ (LOCAL, ) and *EQ(ARGUMENT, ) as we
+ *	  know they are in the common space.
  */
 #include <stdio.h>
 #include <stdint.h>
@@ -28,8 +37,10 @@
 
 #ifdef LARGE_MODEL
 #define PTRTYPE		ULONG
+#define LPTR(x)		PTR(x)
 #else
 #define PTRTYPE		USHORT
+#define LPTR(x)		0
 #endif
 
 #define BYTE(x)		(((unsigned)(x)) & 0xFF)
@@ -48,6 +59,9 @@
 #define T_RSTORE	(T_USER+8)
 #define T_RDEREF	(T_USER+9)		/* *regptr */
 #define T_REQ		(T_USER+10)		/* *regptr */
+
+/* Flag we set on some ops when we can do them without bank switches */
+#define NEAR 0x8000
 
 static unsigned get_size(unsigned t);
 
@@ -647,7 +661,8 @@ struct node *gen_rewrite_node(struct node *n)
 	}
 	/* Rewrite references into a load operation */
 #ifdef LARGE_MODEL
-	if (nt == CCHAR || nt == UCHAR || nt == CSHORT || nt == USHORT) {
+	/* TODO: tidy - isn't this != FLOAT ?? */
+	if (nt == CCHAR || nt == UCHAR || nt == CSHORT || nt == USHORT || PTR(nt) || nt == CLONG|| nt == ULONG) {
 #else
 	if (nt == CCHAR || nt == UCHAR || nt == CSHORT || nt == USHORT || PTR(nt)) {
 #endif
@@ -1163,8 +1178,8 @@ unsigned gen_lref(unsigned v, unsigned size, unsigned to_de)
 	else if (size == 4)  {
 		if (to_de)
 			error("quad_de");
+		load_hl(v + 5);	 /* 2 for call and want to point to high byte */
 		opcode("call __ldquad");
-		opcode(".word %u", v + 2);
 		return 1;
 	}
 	/* We do a call so the stack offset is two bigger */
@@ -1237,6 +1252,10 @@ static unsigned access_direct_b(struct node *n)
 /* Switch to bank A */
 static void set_bank_node(struct node *n)
 {
+	/* We know the pointer in question is near */
+	if (n->flags & NEAR)
+		return;
+
 	flush_writeback();
 	switch(n->op) {
 	case T_NREF:
@@ -1251,8 +1270,10 @@ static void set_bank_node(struct node *n)
 }
 
 /* TODO: track when bank is still hireg */
-static void set_bank_hireg(void)
+static void set_bank_hireg(struct node *n)
 {
+	if (n->flags & NEAR)
+		return;
 	flush_writeback();
 	opcode("call __hrbankswitch");
 }
@@ -1261,7 +1282,7 @@ static void set_bank_node(struct node *n)
 {
 }
 
-static void set_bank_hireg(void)
+static void set_bank_hireg(struct node *n)
 {
 }
 #endif
@@ -1280,10 +1301,6 @@ static unsigned load_r_with(const char r, struct node *n)
 
 	switch(n->op) {
 	case T_NAME:
-#ifdef LARGE_MODEL
-		opcode("lxi %c,^%s+%u", r, namestr(n->snum), v);
-		opcode("shld __hireg");
-#endif
 		opcode("lxi %c,%s+%u", r, namestr(n->snum), v);
 		return 1;
 	case T_CONSTANT:
@@ -1360,12 +1377,28 @@ static unsigned load_hl_with(struct node *n)
 	return 0;
 }
 
+static unsigned can_load_a_with(struct node *n)
+{
+	switch(n->op) {
+	case T_CONSTANT:
+	case T_NREF:
+	case T_RREF:
+	case T_LREF:
+	case T_NAME:
+		return 1;
+	}
+	return 0;
+}
+
 static unsigned load_a_with(struct node *n)
 {
 	switch(n->op) {
 	case T_CONSTANT:
 		/* We know this is not a long from the checks above */
 		load_a(BYTE(n->value));
+		break;
+	case T_NAME:
+		opcode("mvi a,<%s+%u", namestr(n->snum), WORD(n->value));
 		break;
 	case T_NREF:
 		opcode("lda %s+%u", namestr(n->snum), WORD(n->value));
@@ -1423,6 +1456,36 @@ static unsigned gen_deop(const char *op, struct node *n, struct node *r, unsigne
 		if (load_a_with(r) == 0)
 			return 0;
 	}
+	if (sign)
+		helper_s(n, op);
+	else
+		helper(n, op);
+	return 1;
+}
+
+/* Split this from gen_deop as we want to tackle large mode pointers differently on eqops
+   where we can keep the pointer in HL, the data in DE and optionally the bank in __hireg. */
+
+static unsigned gen_eqdeop(const char *op, struct node *n, struct node *r, unsigned sign)
+{
+	unsigned s = get_size(n->type);
+	if (s > 2)
+		return 0;
+	if (s == 2) {
+		if (load_de_with(r) == 0)
+			return 0;
+		/* Ok it will work, set the bank correctly */
+		set_bank_hireg(n);
+	} else {
+		if (can_load_a_with(r) == 0)
+			return 0;
+		set_bank_hireg(n);
+		/* Bank switch ate A */
+		if (load_a_with(r) == 0)
+			error("eqdeop");
+	}
+	/* As the pointer is in HL and the bits are in DE or A nothing is stacked so we don't have
+	   to do any magic because we awitched bank */
 	if (sign)
 		helper_s(n, op);
 	else
@@ -1687,7 +1750,7 @@ unsigned gen_direct(struct node *n)
 		/* We have to avoid the right being an LREF because we need
 		   HL and DE to resolve that sometimes, and the overhead
 		   is worse than push/pop the non shortcut way */
-		set_bank_hireg();
+		set_bank_hireg(n);
 		if (cpu == 8085 && s == 2 && r->op != T_LREF) {
 			op_xchg();
 			if (load_hl_with(r) == 0)
@@ -1715,12 +1778,10 @@ unsigned gen_direct(struct node *n)
 		return 0;
 	case T_PLUS:
 		/* Zero should be eliminated in cc1 FIXME */
-		printf(";T_PLUS hlvalid %u hlvalue %u\n",
-			hl_valid, hl_value);
 		if (r->op == T_CONSTANT) {
 			if (v == 0)
 				return 1;
-			if (v < 4 && s <= 2) {
+			if (v < 4 && (s <= 2 || LPTR(n->type))) {
 				if (s == 1) {
 					repeated_op("inr l", v);
 					modify_hl((hl_value & 0xFF00) +
@@ -1731,14 +1792,24 @@ unsigned gen_direct(struct node *n)
 				}
 				return 1;
 			}
-			if (s <= 2) {
+			if ((s == 2 || LPTR(n->type)) && (v == 0x0100 || v == 0x0200 || v == 0x0300)) {
+				repeated_op("inr h", BYTE(v >> 8));
+				modify_hl(v);
+				return 1;
+			}
+			if ((s == 2 || LPTR(n->type)) && (v == 0xFF00 || v == 0xFE00 || v == 0xFD00)) {
+				repeated_op("dcr h", BYTE(v >> 8));
+				modify_hl(v);
+				return 1;
+			}
+			if (s <= 2 || LPTR(n->type)) {
 				load_de(v);
 				dad_de();
 				return 1;
 			}
 		}
 		invalidate_hl();
-		if (s <= 2) {
+		if (s <= 2 || LPTR(n->type)) {
 			/* LHS is in HL at the moment, end up with the result in HL */
 			if (s == 1) {
 				if (load_a_with(r) == 0)
@@ -1752,7 +1823,7 @@ unsigned gen_direct(struct node *n)
 				invalidate_hl();
 				return 1;
 			}
-			if (s > 2 || load_de_with(r) == 0)
+			if (load_de_with(r) == 0)
 				return 0;
 			set_de_node(r);
 			opcode("dad d");
@@ -1761,6 +1832,7 @@ unsigned gen_direct(struct node *n)
 		}
 		return 0;
 	case T_MINUS:
+		/* TODO - do 32bit pointer large mode ops on the word only */
 		if (r->op == T_CONSTANT) {
 			if (v == 0)
 				return 1;
@@ -1772,9 +1844,21 @@ unsigned gen_direct(struct node *n)
 				modify_hl(-v);
 				return 1;
 			}
-			load_de(WORD(65536 - v));
-			dad_de();
-			return 1;
+			if ((s == 2 || LPTR(n->type)) && (v == 0x0100 || v == 0x0200 || v == 0x0300)) {
+				repeated_op("dcr h", BYTE(v >> 8));
+				modify_hl(-v);
+				return 1;
+			}
+			if ((s == 2 || LPTR(n->type)) && (v == 0xFF00 || v == 0xFE00 || v == 0xFD00)) {
+				repeated_op("inr h", BYTE(v>> 8));
+				modify_hl(-v);
+				return 1;
+			}
+			if (s <= 2 || LPTR(n->type)) {
+				load_de(WORD(65536 - v));
+				dad_de();
+				return 1;
+			}
 		}
 		/* load into de then ld a,e sub l ld l,a ld a,d sbc h ld h,s
 		   so 6 + load bytes */
@@ -1809,7 +1893,7 @@ unsigned gen_direct(struct node *n)
 		}
 		/* Inlined it's 6 + the de load (~5), out of line it's
 		   4 + the HL load (~3) */
-		if (s == 2 && load_de_with(r)) {
+		if ((LPTR(n->type) || s == 2) && load_de_with(r)) {
 			set_de_node(r);
 			opcode("mov a,l");
 			opcode("sub e");
@@ -1835,21 +1919,28 @@ unsigned gen_direct(struct node *n)
 				gen_fast_mul(s, r->value);
 				return 1;
 			}
+			if (LPTR(n->type) && can_fast_mul(2, r->value)) {
+				gen_fast_mul(2, r->value);
+				return 1;
+			}
 		}
 		return gen_deop("mulde", n, r, 0);
 	case T_SLASH:
-		if (r->op == T_CONSTANT && s <= 2) {
-			if (n->type & UNSIGNED) {
-				if (gen_fast_udiv(s, v))
-					return 1;
-			} else {
-				if (gen_fast_div(s, v))
-					return 1;
+		if (r->op == T_CONSTANT) {
+			if (s <= 2) {
+				if (n->type & UNSIGNED) {
+					if (gen_fast_udiv(s, v))
+						return 1;
+					else if (gen_fast_div(s, v))
+						return 1;
+				}
 			}
 		}
 		return gen_deop("divde", n, r, 1);
 	case T_PERCENT:
 		if (r->op == T_CONSTANT && (n->type & UNSIGNED)) {
+			if (s <= 2 && gen_fast_remainder(s, r->value))
+				return 1;
 			if (s <= 2 && gen_fast_remainder(s, r->value))
 				return 1;
 		}
@@ -1913,7 +2004,7 @@ unsigned gen_direct(struct node *n)
 	case T_PLUSEQ:
 		invalidate_hl();
 		if (s == 1) {
-			set_bank_hireg();
+			set_bank_hireg(n);
 			if (r->op == T_CONSTANT && r->value < 4 && nr)
 				repeated_op("inr m", r->value);
 			else {
@@ -1927,7 +2018,7 @@ unsigned gen_direct(struct node *n)
 			return 1;
 		}
 		if (s == 2 && nr && r->op == T_CONSTANT && (r->value & 0x00FF) == 0) {
-			set_bank_hireg();
+			set_bank_hireg(n);
 			inx_h();
 			if ((r->value >> 8) < 4) {
 				repeated_op("inr m", r->value >> 8);
@@ -1938,14 +2029,14 @@ unsigned gen_direct(struct node *n)
 			opcode("mov m,a");
 			return 1;
 		}
-		return gen_deop("pluseqde", n, r, 0);
+		return gen_eqdeop("pluseqde", n, r, 0);
 	case T_MINUSMINUS:
 		if (!(n->flags & NORETURN))
 			return 0;
 	case T_MINUSEQ:
 		invalidate_hl();
 		if (s == 1) {
-			set_bank_hireg();
+			set_bank_hireg(n);
 			/* Shortcut for small 8bit values */
 			if (r->op == T_CONSTANT && r->value < 4 && (n->flags & NORETURN)) {
 				repeated_op("dcr m", r->value);
@@ -1975,46 +2066,46 @@ unsigned gen_direct(struct node *n)
 			}
 			return 1;
 		}
-		return gen_deop("minuseqde", n, r, 0);
+		return gen_eqdeop("minuseqde", n, r, 0);
 	case T_ANDEQ:
 		invalidate_hl();
 		if (s == 1) {
 			if (load_a_with(r) == 0)
 				return 0;
-			set_bank_hireg();
+			set_bank_hireg(n);
 			opcode("ana m");
 			opcode("mov m,a");
 			if (!(n->flags & NORETURN))
 				opcode("mov l,a");
 			return 1;
 		}
-		return gen_deop("andeqde", n, r, 0);
+		return gen_eqdeop("andeqde", n, r, 0);
 	case T_OREQ:
 		invalidate_hl();
 		if (s == 1) {
 			if (load_a_with(r) == 0)
 				return 0;
-			set_bank_hireg();
+			set_bank_hireg(n);
 			opcode("ora m");
 			opcode("mov m,a");
 			if (!(n->flags & NORETURN))
 				opcode("mov l,a");
 			return 1;
 		}
-		return gen_deop("oreqde", n, r, 0);
+		return gen_eqdeop("oreqde", n, r, 0);
 	case T_HATEQ:
 		invalidate_hl();
 		if (s == 1) {
 			if (load_a_with(r) == 0)
 				return 0;
-			set_bank_hireg();
+			set_bank_hireg(n);
 			opcode("xra m");
 			opcode("mov m,a");
 			if (!(n->flags & NORETURN))
 				opcode("mov l,a");
 			return 1;
 		}
-		return gen_deop("xoreqde", n, r, 0);
+		return gen_eqdeop("xoreqde", n, r, 0);
 	}
 	return 0;
 }
@@ -2077,6 +2168,83 @@ static void reg_logic(struct node *n, unsigned s, unsigned op, const char *i)
 		hl_from_reg(n, s);
 	}
 }
+
+#ifdef LARGE_MODEL
+
+static unsigned can_do_near(struct node *n)
+{
+	struct node *l = n->left;
+	struct node *r = n->right;
+	unsigned op = n->op;
+
+	/* Locals are near pointered as they are on the stack */
+	if (op == T_LSTORE || op == T_LREF)
+		return 1;
+	/* += and friends can be done near if they reference a local or argument */
+	if (op == T_PLUSEQ || op == T_MINUSEQ || op == T_SLASHEQ || op == T_STAREQ ||
+		op == T_HATEQ || op == T_OREQ || op == T_ANDEQ || op == T_PERCENTEQ ||
+		op == T_EQ || op == T_PLUSPLUS || op == T_MINUSMINUS || op == T_SHLEQ ||
+		op == T_SHREQ) {
+		if (l->op == T_LOCAL || l->op == T_ARGUMENT)
+			return 1;
+		/* We end up with stuff like PLUSEQ (PLUS (LOCAL, THING), *) when we
+		   have ++ on struct elements so catch it too as it's not uncommon */
+		if (l->op == T_PLUS && (l->left->op == T_LOCAL || l->left->op == T_ARGUMENT))
+			return 1;
+	}
+	if (op == T_DEREF && (r->op == T_LOCAL || r->op == T_ARGUMENT))
+		return 1;
+	if (op == T_DEREF && r->op == T_PLUS && (r->left->op == T_LOCAL || r->left->op == T_ARGUMENT))
+		return 1;
+	/* There are probably other cases we can do near but this will do for the moment */
+	return 0;
+}
+
+static unsigned near_eqop(struct node *n, const char *op, unsigned sign)
+{
+	if (!(n->flags & NEAR))
+		return 0;
+	/* Left side is word stacked, HL has the right side */
+	if (sign)
+		helper_s(n, op);
+	else
+		helper(n, op);
+	return 1;
+}
+
+/* The subtree is either a direct address or the addition of stuff to a direct address. Convert
+   accordingly */
+static void wordify_subtree(struct node *n)
+{
+	struct node *r = n->right;
+	struct node *c;
+
+	if (n->op != T_PLUS) {
+		/* LOCAL or ARGUMENT. Turn pointer into a near type and done */
+		n->type = USHORT;
+		return;
+	}
+	n->left->type = USHORT;
+	/* PLUS we have to do a bit more work because the right subtree could be
+	   anything and will need dealing with */
+	/* Usual case - integer stuff cast to long type before addition to far pointer. Other
+	   common case right is a constant. Right cannot be a float without a cast */
+	if (r->op == T_CAST || r->op == T_CONSTANT) {
+		r->type = USHORT;
+		return;
+	}	
+	/* Right side needs actual thinking. Add a cast. We ought to look at doing better
+	   with this and subtrees of PLUS and MUL because of arrays TODO */
+	c = new_node();
+	c->op = T_CAST;
+	c->type = USHORT;	/* Turn whatever was there into an integer type */
+	c->right = r;
+	n->right = c;
+}
+
+#endif
+
+	
 /*
  *	Allow the code generator to short cut any subtrees it can directly
  *	generate.
@@ -2130,6 +2298,7 @@ unsigned gen_shortcut(struct node *n)
 	/* Re-order assignments we can do the simple way */
 	if (n->op == T_NSTORE && s <= 2) {
 		codegen_lr(r);
+		set_bank_node(n);
 		/* Expression result is now in HL */
 		if (s == 2)
 			opcode("shld %s+%u", namestr(n->snum), WORD(n->value));
@@ -2254,6 +2423,36 @@ unsigned gen_shortcut(struct node *n)
 			return 1;
 		}
 	}
+#ifdef LARGE_MODEL	
+	if (can_do_near(n)) {
+		printf(";near %04x\n", n->op);
+		n->flags |= NEAR;
+		switch(n->op) {
+		/* These have the left hand side as a pointer we can turn into a word
+		   usually */
+		case T_PLUSPLUS:
+		case T_MINUSMINUS:
+		case T_PLUSEQ:
+		case T_MINUSEQ:
+		case T_SLASHEQ:
+		case T_STAREQ:
+		case T_HATEQ:
+		case T_OREQ:
+		case T_ANDEQ:
+		case T_PERCENTEQ:
+		case T_SHLEQ:
+		case T_SHREQ:
+		case T_EQ:
+			wordify_subtree(n->left);
+			break;
+		/* And this one is the right */
+		case T_DEREF:
+			wordify_subtree(n->right);
+			break;
+		/* LSTORE/LREF need no adjustment */
+		}
+	}
+#endif
 	/* TODO XOR */
 	/* Register targetted ops. These are totally different to the normal EQ ops because
 	   we don't have an address we can push and then do a memory op */
@@ -2578,8 +2777,8 @@ unsigned gen_node(struct node *n)
 		/* This one isn't allowed to fail but can for quad bytes so we need our own
 		   special handler */
 		if (optsize) {
+			load_hl(v + 5);	/* 2 for call, 3 so we point to high byte */
 			opcode("call __ldquad");
-			opcode(".word %u", v + 2);
 			invalidate_de();
 			set_hl_node(n);
 			return 1;
@@ -2735,8 +2934,8 @@ unsigned gen_node(struct node *n)
 			name = "stword";
 		else {
 			if (optsize) {
+				load_de(v + 2);
 				opcode("call __stquad");
-				opcode(".word %u", v + 2);
 				invalidate_de();
 				set_hl_node(n);
 				return 1;
@@ -2787,8 +2986,9 @@ unsigned gen_node(struct node *n)
 		flush_writeback();
 		/* TODO: large model forms of these */
 #ifdef LARGE_MODEL
-		return 0;
-#else
+		if (!(n->flags & NEAR))
+			return 0;
+#endif
 		if (size == 2) {
 			/* TODO large model */
 			if (cpu == 8085) {
@@ -2816,6 +3016,9 @@ unsigned gen_node(struct node *n)
 				op_xchg();
 			return 1;
 		}
+		/* Handle near assignments with the left word sized on stack */
+#ifdef LARGE_MODEL		
+		return near_eqop(n, "nearassign", 0);
 #endif
 		break;
 	case T_RDEREF:
@@ -2832,7 +3035,7 @@ unsigned gen_node(struct node *n)
 	case T_DEREF:
 		if (nr && !se)
 			return 1;
-		set_bank_hireg();
+		set_bank_hireg(n);
 		if (size == 2) {
 			if (cpu == 8085) {
 				op_xchg();
@@ -2891,32 +3094,26 @@ unsigned gen_node(struct node *n)
 		if (nr)
 			return 1;
 #ifdef LARGE_MODEL
-		opcode("lxi h, ^%s+%u", namestr(n->snum), v);
-		opcode("shld __hireg");
+		if (size == 4) {
+			opcode("lxi h, ^%s+%u", namestr(n->snum), v);
+			opcode("shld __hireg");
+		}
 #endif
 		opcode("lxi h, %s+%u", namestr(n->snum), v);
 		set_hl_node(n);
 		return 1;
+	case T_ARGUMENT:
+		v += frame_len + argbase;
 	case T_LOCAL:
 		if (nr)
 			return 1;
 		v += sp;
 /*		printf(";LO sp %u spval %u %s(%ld)\n", sp, spval, namestr(n->snum), n->value); */
 #ifdef LARGE_MODEL
-		opcode("lxi h,0");
-		opcode("shld __hireg");
-#endif
-		ldsi_hl(v);
-		set_hl_node(n);
-		return 1;
-	case T_ARGUMENT:
-		if (nr)
-			return 1;
-		v += frame_len + argbase + sp;
-/*		printf(";AR sp %u spval %u %s(%ld)\n", sp, spval, namestr(n->snum), n->value); */
-#ifdef LARGE_MODEL
-		opcode("lxi h,0");
-		opcode("shld __hireg");
+		if (size == 4) {
+			opcode("lxi h,0");
+			opcode("shld __hireg");
+		}
 #endif
 		ldsi_hl(v);
 		set_hl_node(n);
@@ -2939,7 +3136,40 @@ unsigned gen_node(struct node *n)
 			invalidate_hl();
 			return 1;
 		}
+		/* TODO: for pointers allow this in large not huge mode as pointer wraps are meh */
 		break;
+#ifdef LARGE_MODEL	
+	/* We have to handle these in large mode for our optimisation cases */
+	/* Check if the left side is 2 byte and we need to use the short fast helpers */
+	case T_PLUSPLUS:
+		if (!nr)
+			return near_eqop(n, "nearpplus", 0);
+		/* Fall through */
+	case T_PLUSEQ:
+		return near_eqop(n, "nearpluseq", 0);
+	case T_MINUSMINUS:
+		if (!nr)
+			return near_eqop(n, "nearmminus", 0);
+		/* Fall through */
+	case T_MINUSEQ:
+		return near_eqop(n, "nearminuseq", 0);
+	case T_SLASHEQ:
+		return near_eqop(n, "neardiveq", 1);
+	case T_STAREQ:
+		return near_eqop(n, "nearmuleq", 0);
+	case T_HATEQ:
+		return near_eqop(n, "nearxoreq", 0);
+	case T_OREQ:
+		return near_eqop(n, "nearoreq", 0);
+	case T_ANDEQ:
+		return near_eqop(n, "nearandeq", 0);
+	case T_SHLEQ:
+		return near_eqop(n, "nearshleq", 0);
+	case T_SHREQ:
+		return near_eqop(n, "nearshreq", 1);
+	case T_PERCENTEQ:
+		return near_eqop(n, "nearremeq", 1);
+#endif
 	}
 	return 0;
 }
