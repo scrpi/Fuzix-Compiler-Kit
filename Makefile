@@ -80,6 +80,8 @@ $(OBJS3): $(INC1) $(INC2)
 
 backend-super8.o: backend-super8.c backend-z8.c
 
+backend-8080-32.o: backend-8080.c
+
 Preprocessor:
 	(cd Preprocessor; make)
 
