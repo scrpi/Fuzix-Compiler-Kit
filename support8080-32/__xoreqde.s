@@ -1,10 +1,18 @@
 ;
-;		(HL) &= DE
+;	(HL) ^= DE
 ;
-			.export __xoreqde
-			.setcpu 8080
-			.code
+	.export __xoreqde
+	.export __nearxoreq
+	.setcpu 8080
 
+	.code
+
+__nearxoreq:
+	;	TOS is pointer, HL is data
+	xchg
+	pop	h
+	xthl
+	;	HL is now pointer, DE is data
 __xoreqde:
 	mov	a,m
 	xra	e
