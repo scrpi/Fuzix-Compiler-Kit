@@ -124,7 +124,6 @@ static unsigned unreachable;	/* Code following an unconditional jump */
 static unsigned xlabel;		/* Internal backend generated branches */
 static unsigned argbase;	/* Track shift between arguments and stack */
 static unsigned nregs;		/* Number of stacked registers */
-static unsigned stack_byte;	/* True if we need to push the left as a byte */
 
 /*
  *	Node types we create in rewriting rules
@@ -2268,11 +2267,6 @@ unsigned gen_push(struct node *n)
 {
 	unsigned s = get_stack_size(n->type);
 
-	if (stack_byte) {
-		printf("; stack as byte for later byteop\n");
-		s = 1;
-	}
-
 	sp += s;
 	/* These don't invalidate registers and set Y to 0, so handle them
 	   directly */
@@ -2620,11 +2614,6 @@ unsigned gen_direct(struct node *n)
 
 	if (r)
 		v = r->value;
-
-	/* Hack whilst we work out the right way to handle this */
-	stack_byte = (n->left->flags & (BYTETAIL | BYTECAST)) == (BYTETAIL | BYTECAST);
-	if (stack_byte)
-		printf("; left side was word operation but done for byte value\n");
 
 	switch(n->op) {
 	/* Clean up is special and must be handled directly. It also has the
@@ -3621,12 +3610,9 @@ unsigned gen_node(struct node *n)
 
 	/* Function call arguments are special - they are removed by the
 	   act of call/return and reported via T_CLEANUP */
-	if (n->left && n->op != T_ARGCOMMA && n->op != T_FUNCCALL && n->op != T_CALLNAME) {
-		if ((n->left->flags & (BYTETAIL|BYTECAST)) == (BYTETAIL|BYTECAST))
-			sp--;
-		else
-			sp -= get_stack_size(n->left->type);
-	}
+	if (n->left && n->op != T_ARGCOMMA && n->op != T_FUNCCALL && n->op != T_CALLNAME)
+		sp -= get_stack_size(n->left->type);
+
 	switch(n->op) {
 	/* FIXME: need to do 4 byte forms */
 	case T_LREF:
