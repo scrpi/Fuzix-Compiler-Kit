@@ -11,7 +11,7 @@
 
 __l_eqeqtmpc:
 __l_eqeqtmpuc:
-	jsr	__ytmp
+	jsr	__ytmpc
 	jmp	__eqeqtmpc
 __cceqc:
 __ccequc:

@@ -11,7 +11,7 @@
 
 __l_netmpc:
 __l_netmpuc:
-	jsr __ytmp
+	jsr __ytmpc
 	jmp __netmpc
 __ccnec:
 __ccneuc:
