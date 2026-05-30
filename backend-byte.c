@@ -112,10 +112,6 @@ static unsigned cast_lr(struct node *n)
 /* Returns true if this operation produces a valid lower byte if done on
    a larger sized value. That is if it's subtree can also be done in byte
    mode
-   0: Can't change
-   1: Can change
-   2: Can change - can be root of a byte tree
-   3: can be the tail of a byte tree only
  */
 
 static unsigned op_can_byte(register struct node *n)
@@ -137,6 +133,8 @@ static unsigned op_can_byte(register struct node *n)
 		   we can just use the low 8bits */
 		if (b)
 			return BYTEROOT | BYTEABLE;
+		/* ?? are we also a byte tail because thge cast will deal
+		   with larger types below */
 		return BYTEABLE;
 	}
 	/* Mathematical operations */
@@ -149,12 +147,12 @@ static unsigned op_can_byte(register struct node *n)
 	if (op == T_LTLT)
 		return BYTEABLE;
 	/* Constants */
-	if (op == T_CONSTANT)
-		return BYTEABLE | BYTETAIL;
+	if (op == T_CONSTANT || op == T_LOCAL || op == T_NAME)
+		return BYTEABLE;
 	/* References must be done (logically at least) for the full width because
 	   there might be side effects. Backends can be smarter with the BYTETAIL
 	   info */
-	if (op == T_NAME || op == T_LOCAL || op == T_DEREF)
+	if (op == T_DEREF)
 		return BYTETAIL;
 	/* Boolean results : can produce byte results but subtrees unchanged */
 	if (op == T_LT || op == T_GT || op == T_LTEQ || op == T_GTEQ) {
@@ -208,14 +206,32 @@ static void label_byteable(register struct node *n)
 	if (n->right) {
 		/* A few operations the one child node can be done in byte
 		   form in some cases */
-		if (op_is_byteright(n))
-			n->right->flags |= BYTEROOT;
+/*		if (op_is_byteright(n))
+			n->right->flags |= BYTEROOT; FIXME - this confuses the size setting */
 		label_byteable(n->right);
 	}
 }
 
 static unsigned depth;
 static unsigned options;
+
+static void insert_cast(register struct node *n)
+{
+	register struct node *t;
+
+	/* Already byte sized ? - sign does not matter in the byteify cases */
+	if ((n->type & ~UNSIGNED) == CCHAR)
+		return;
+
+	t = new_node();
+	memcpy(t, n, sizeof(struct node));
+	n->left = NULL;
+	n->right = t;
+	n->op = T_CAST;
+	n->type &= UNSIGNED;
+	n->type |= CCHAR;
+	n->flags = BYTEABLE;
+}
 
 static unsigned byte_convert(register struct node *n)
 {
@@ -240,16 +256,20 @@ static unsigned byte_convert(register struct node *n)
 				return 0;
 			}
 			if (!byte_convert(n->left)) {
+				unsigned type = type_for_node(n);
 				depth--;
 				/* We successfully converted the right but not the left. Fix this up with a
 				   cast */
-				t = new_node();
-				/* Upper does not matter so do simplest conversion */
-				t->right = n->right;
-				t->op = T_CAST;
-				/* Must compute the type before we finally insert the cast */
-				t->type = type_for_node(n);
-				n->right = t;
+				if (n->right->type != type) {
+					t = new_node();
+					/* Upper does not matter so do simplest conversion */
+					t->right = n->right;
+					t->op = T_CAST;
+					/* Must compute the type before we finally insert the cast */
+					t->type = type;
+					n->right = t;
+					t->flags = 0x8000;
+				}
 				return 0;
 			}
 		}
@@ -259,10 +279,13 @@ static unsigned byte_convert(register struct node *n)
 			n->flags |= BYTEOP;
 		/* If we walked through a byteroot then the thing we walked through is
 		   no longer a BYTEROOT and should just run as a byteop */
+		/* ?? n->flags &= ~BYTEROOT; */
 		/* BYTEROOT ops must do the action full size on byteop children
 		   so preserve n->type in that case */
 		if ((options & BTF_RELABEL) && !(n->flags & (BYTEROOT|BYTETAIL)))
 			n->type = CCHAR | (n->type & UNSIGNED);
+		else
+			insert_cast(n);
 /*        if (depth != 0)
             n->flags &= ~BYTEROOT; */
 		/* Recursively mark out the BYTEOP tree */
@@ -273,11 +296,14 @@ static unsigned byte_convert(register struct node *n)
 	   !x which requires x is fully evaluated but whose result irrespective of the
 	   type of x can be properly resolved in byte form */
 	if (n->flags & BYTETAIL) {
-		n->flags &= ~BYTEROOT;
-		n->flags |= BYTECAST;	/* Our node can be handled specially but not
+#if 0
+		t->flags &= ~BYTEROOT;
+		t->flags |= BYTECAST;	/* Our node can be handled specially but not
 					   auto converted as size matters for the op not
 					   the result */
-		/* Type is preserved because we do the things normally on the
+#endif
+		insert_cast(n);
+		/* Type of base op preserved because we do the things normally on the
 		   sub ops but 8bit result going up */
 		return 1;
 	}
