@@ -2322,7 +2322,7 @@ unsigned gen_node(struct node *n)
 			printf("\tadd ea,=%u\n", v);
 			invalidate_ea();
 			load_ptr_ea(2);
-			make_ref_p2(0);
+			make_ref_p2(n->snum);
 			op16("ld", 2, O_LOAD, 1);
 			xch_ea_p2();
 		}
