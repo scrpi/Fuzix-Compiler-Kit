@@ -8,7 +8,7 @@ __or:
 	ld	hl,sp+2
 	call	__bor2op
 	pop	hl
-	pop	de
+	pop	af
 	jp	(hl)
 
 __bor2op:

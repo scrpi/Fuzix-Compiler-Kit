@@ -8,7 +8,7 @@ __band:
 	ld	hl,sp+2
 	call	__band2op
 	pop	hl
-	pop	de
+	pop	af
 	jp	(hl)
 
 __band2op:

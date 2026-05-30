@@ -8,7 +8,7 @@ __xor:
 	ld	hl,sp+2
 	call	__bxor2op
 	pop	hl
-	pop	de
+	pop	af
 	jp	(hl)
 
 __bxor2op:
