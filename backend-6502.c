@@ -4017,9 +4017,9 @@ unsigned gen_node(struct node *n)
 			helper(n, "not");
 		return 1;
 	case T_BOOL:
+		n->flags |= ISBOOL;
 		if (r->flags & ISBOOL)
 			return 1;
-		n->flags |= ISBOOL;
 		if (size == 1 || (n->flags & BYTEABLE)) {
 			tax();	/* Set the Z flag */
 			output("beq X%u", ++xlabel);
