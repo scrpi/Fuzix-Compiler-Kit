@@ -138,9 +138,9 @@ static void outputinv(const char *p, ...)
 static void hl_from_sp(unsigned off)
 {
 	if (off < 128)
-		output("ld hl, sp+%u", off);
+		output("ld hl,sp+%u", off);
 	else {
-		outputne("ld hl, %u", off);
+		outputne("ld hl,%u", off);
 		output("add hl,sp");
 	}
 }
@@ -823,6 +823,24 @@ static void store_via_hl(unsigned s)
 	}
 }
 
+static void store_via_hl_const(struct node *r)
+{
+	unsigned v = r->value;
+	unsigned s = get_size(r->type);
+
+	outputne("ld (hl),%u", BYTE(v));
+	if (s >= 2) {
+		outputne("inc hl");
+		outputne("ld (hl),%u", BYTE(v >> 8));
+	}
+	if (s == 4) {
+		outputne("inc hl");
+		outputne("ld (hl),%u", BYTE(r->value >> 16));
+		outputne("inc hl");
+		outputne("ld (hl),%u", BYTE(r->value >> 24));
+	}
+}
+
 /*
  *	Get something that passed the access_direct check into a reg. Could
  *	we merge this with the similar hl one in the main table ?
@@ -1200,12 +1218,17 @@ unsigned gen_direct(struct node *n)
 		sp -= v;
 		return 1;
 	case T_NSTORE:
-		if (s > 2)
+		if (s > 2 && optsize)
 			return 0;
 		outputne("ld hl,%s+%u", namestr(n->snum), v);
 		store_via_hl(s);
-		/* TODO 4/8 for long etc */
-		return 0;
+		return 1;
+	case T_LSTORE:
+		if (s > 2 && optsize)
+			return 0;
+		hl_from_sp(v);
+		store_via_hl(s);
+		return 1;
 	case T_EQ:
 		/* We should flip this around in shortcut so the bits
 		   are in DE and then we could put the addr in HL */
@@ -1214,17 +1237,7 @@ unsigned gen_direct(struct node *n)
 		/* TODO: we can do the same as CONSTANT for name/label */
 		if (r->op == T_CONSTANT && nr) {
 			load_hl_de();
-			outputne("ld (hl),%u", BYTE(v));
-			if (s == 2) {
-				outputne("inc hl");
-				outputne("ld (hl),%u", BYTE(v >> 8));
-			}
-			if (s == 4) {
-				outputne("inc hl");
-				outputne("ld (hl),%u", BYTE(r->value >> 16));
-				outputne("inc hl");
-				outputne("ld (hl),%u", BYTE(r->value >> 24));
-			}
+			store_via_hl_const(r);
 			return 1;
 		}
 		/* TODO: once flipped we can sensibly handle all the other
@@ -2014,6 +2027,14 @@ unsigned gen_shortcut(struct node *n)
 		helper(n, "not");
 		ccvalid = CC_VALID;
 		return 1;
+	case T_LSTORE:
+		/* The common foo = const case we want to shortcut */
+		if (nr && r->op == T_CONSTANT) {
+			hl_from_sp(n->value);
+			store_via_hl_const(r);
+			return 1;
+		}
+		return 0;
 	/* EQ ops are best done backwards in many cases */
 	case T_ANDEQ:
 		return backop(n, "and", "and", 1, nr);
