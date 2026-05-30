@@ -206,8 +206,13 @@ static void label_byteable(register struct node *n)
 	if (n->right) {
 		/* A few operations the one child node can be done in byte
 		   form in some cases */
-/*		if (op_is_byteright(n))
+#if 0
+	/* This isn't safe as we might end up with stuff in the wrong register, instead it'll
+	   force a cast later which is fine
+		if (op_is_byteright(n))
 			n->right->flags |= BYTEROOT; FIXME - this confuses the size setting */
+#endif
+
 		label_byteable(n->right);
 	}
 }
@@ -242,7 +247,7 @@ static unsigned byte_convert(register struct node *n)
 	/* If this node can be done in byte form then check if the
 	   subnodes down to the point the bottom of the tree, or to
 	   a point it doesn't matter can */
-	if (n->flags & (BYTEABLE | BYTEROOT)) {
+	if (n->flags & (BYTEABLE | BYTEROOT | NORETURN)) {
 		if (!(n->flags & BYTETAIL) || (n->flags & BYTEROOT)) {
 			depth++;
 			/* We do the right side first. Our left sides get stacked and
