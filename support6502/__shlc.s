@@ -3,23 +3,31 @@
 ;
 	.export __shlc
 	.export __lstmpc
+	.export __l_ltltc
 
-;	TOS >> XA
-__shlc:
-	jsr	__poptmpc
-;	tmp >> XA
+__l_ltltc:
+	pha
+	lda	(@sp),y
+	sta	@tmp
+	pla
+;	tmp << A
 __lstmpc:
 	ldy	#0
-	;	(TOS) << XA
 	and	#7
 	beq	nowork
+	;  A << X
 	tax
-	lda	(@tmp),y
+	lda	@tmp
 loop:
 	asl	a
 	dex
 	bne	loop
 	rts
 nowork:
-	lda	(@tmp),y
+	lda	@tmp
 	rts
+;	TOS << A
+__shlc:
+	jsr	__poptmpc
+	; tmp << A
+	jmp	__lstmpc
