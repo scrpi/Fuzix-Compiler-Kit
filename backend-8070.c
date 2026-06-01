@@ -1210,12 +1210,10 @@ static unsigned make_ptr_ref(struct node *n, unsigned off)
 		/* We'd like to do something like this but we need our
 		   callers to be smarter to do this. Need to look at *= and
 		   friends again later TODO */
-#if 0
 		if (v < 128 - sz) {
 			snprintf(ref_buf, sizeof(ref_buf), "%u+%%u,p1", v);
 			return 1;
 		}
-#endif		
 		xch_ea_p2();
 		load_ea_ptr(1);
 		printf("\tadd ea,=%u\n", v);
@@ -2120,7 +2118,8 @@ unsigned gen_shortcut(struct node *n)
 		switch (n->op) {
 		case T_PLUSPLUS:
 		case T_PLUSEQ:
-			if (r->type == T_CONSTANT) {
+			/* TODO: cover all const forms */
+			if (r->op == T_CONSTANT) {
 				puts("\tld ea,p3");
 				printf("\tadd ea,=%u\n", WORD(v));
 			} else {
@@ -2136,7 +2135,8 @@ unsigned gen_shortcut(struct node *n)
 			return 1;
 		case T_MINUSMINUS:
 		case T_MINUSEQ:
-			if (r->type == T_CONSTANT) {
+			/* TODO: cover all const forms */
+			if (r->op == T_CONSTANT) {
 				puts("\tld ea,p3");
 				printf("\tsub ea,=%u\n", WORD(v));
 			} else {
@@ -2244,8 +2244,8 @@ unsigned gen_shortcut(struct node *n)
 			return 0;
 		/* Can be done via mpy ea, t */
 		make_ptr_ref(l, 0);
-		make_ref_p2(0);
-		if (s == 16)
+//		make_ref_p2(0);
+		if (s == 1)
 			load_ea(2,0);
 		op16("ld", s, O_LOAD, 1);
 		if (!gen_fast_mul(s, r->value)) {
