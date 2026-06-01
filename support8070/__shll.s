@@ -40,14 +40,11 @@ next:
 	dld a,:__tmp
 	bnz loop
 nowork:
-	pop p2	; return
-	pop ea	; low
-	ld t,ea
-	pop ea	; high
+	ld ea,4,p1
 	st ea,:__hireg
-	ld ea,t
-	push p2
+	ld ea,2,p1
 	ret
+
 slide16:
 	ld ea,2,p1
 	st ea,4,p1
@@ -67,9 +64,6 @@ bytes:
 	bra final
 
 __shleql:
-	pop p3
-	pop p2
-	push p3
 	push p2
 	ld t,ea
 	ld ea,2,p2
@@ -78,7 +72,8 @@ __shleql:
 	push ea
 	ld ea,t
 	jsr __shll
-	; Will have popped the arg
+	pop p2
+	pop p2
 	pop p2
 	st ea,0,p2
 	ld t,ea

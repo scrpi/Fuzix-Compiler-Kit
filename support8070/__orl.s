@@ -13,8 +13,4 @@ __orl:
 	xch a,e
 	st ea,:__hireg
 	ld ea,t
-	pop p3
-	pop p2
-	pop p2
-	push p3
 	ret

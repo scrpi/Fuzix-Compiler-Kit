@@ -24,15 +24,10 @@ borrow_hi:
 	bz true
 false:
 	ld ea,=0
-out:
-	pop p3
-	pop p2
-	pop p2
-	push p3
 	ret
 true:
 	ld ea,=1
-	bra out
+	ret
 
 check_low:
 	ld ea,2,p1

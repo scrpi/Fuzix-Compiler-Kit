@@ -14,15 +14,10 @@ outc:
 	bp false		; Borrow bit so clear means false
 true:
 	ld ea,=1
-out:
-	pop p2
-	pop p3
-	pop p3
-	push p2
 	ret
 false:
 	ld ea,=0
-	bra out
+	ret
 
 test_low:
 	ld ea,2,p1

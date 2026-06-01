@@ -1,11 +1,10 @@
 	.export __andeql
 
+;	UNUSED
+
 ;	(TOS.L) & hireg:ea
 
 __andeql:
-	pop p3
-	pop p2		; P2 points to our target
-	push p3
 	and a,0,p2
 	xch a,e
 	and a,1,p2

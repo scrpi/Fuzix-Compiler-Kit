@@ -15,10 +15,6 @@ subexit:
 	sub ea,:__hireg	; high half
 	st ea,:__hireg
 	pop ea		; result
-	pop p2		; return
-	pop p3
-	pop p3
-	push p2
 	ret		; and return
 skip:
 	ld ea,6,p1

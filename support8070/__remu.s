@@ -67,9 +67,6 @@ skip:
 	pop a		; count
 	pop ea		; working
 	pop p2		; divisor
-	pop p3		; return
-	pop p2		; argument
-	push p3
 	ret
 ;
 ;	Some division we can use the div op for but only some 8(
@@ -83,40 +80,30 @@ __divu:
 	push ea		; build a new frame
 	ld ea,t
 	jsr __remu
+	pop p2		; discard frame
 	ld ea,t		; division result
-	pop p3		; frame we built
-	pop p2		; return
-	pop p3		; argument
-	push p2
+	pop p2		; frame we built
 	ret
 hw_ok:
 	xch a,e
 	ld t,ea
 	ld ea,2,p1
 	div ea,t
-	pop p2
-	pop p3
-	push p2
 	ret
 
 __remequ:
-	pop p3
-	pop p2
-	push p3
 	ld t,ea
 	ld ea,0,p2
 	push p2
 	push ea
 	ld ea,t
 	jsr __remu
+	pop p2		; discard frame
 	pop p2
 	st ea,0,p2
 	ret
 
 __remequc:
-	pop p3
-	pop p2
-	push p3
 	ld t,ea
 	ld ea,=0
 	ld a,0,p2
@@ -128,13 +115,11 @@ __remequc:
 	xch a,e
 	jsr __remu
 	pop p2
+	pop p2
 	st a,0,p2
 	ret
 
 __divequ:
-	pop p3
-	pop p2
-	push p3
 	ld t,ea
 	ld ea,0,p2
 	push p2
@@ -142,13 +127,11 @@ __divequ:
 	ld ea,t
 	jsr __divu
 	pop p2
+	pop p2
 	st ea,0,p2
 	ret
 
 __divequc:
-	pop p3
-	pop p2
-	push p3
 	ld t,ea
 	ld ea,=0
 	ld a,0,p2
@@ -159,6 +142,7 @@ __divequc:
 	ld a,=0
 	xch a,e
 	jsr __divu
+	pop p2
 	pop p2
 	st a,0,p2
 	ret

@@ -36,29 +36,29 @@ mods32x32:
 
 
 negcheck:
-	ld	p3,ea
-	ld	a,3,p3			; sign byte
+	ld	p2,ea
+	ld	a,3,p2			; sign byte
 	bp	pve			; no work
 	xor	a,=0xFF
-	st	a,3,p3
-	ld	a,2,p3
+	st	a,3,p2
+	ld	a,2,p2
 	xor	a,=0xFF
-	st	a,2,p3
-	ld	ea,0,p3
+	st	a,2,p2
+	ld	ea,0,p2
 	xor	a,=0xFF
-	st	a,0,p3
+	st	a,0,p2
 	xch	a,e
 	xor	a,=0xFF
-	st	a,1,p3
+	st	a,1,p2
 	xch	a,e
 	;	Complement done, now do the + 1
 	add	ea,=1
-	st	ea,0,p3
+	st	ea,0,p2
 	ld	a,s
 	bp	nocarry
-	ld	ea,2,p3
+	ld	ea,2,p2
 	add	ea,=1
-	st	ea,2,p3
+	st	ea,2,p2
 nocarry:
 	ild	a,:__tmp2
 pve:
@@ -69,27 +69,22 @@ __divl:
 	ld ea,:__hireg
 	push ea
 	ld ea,t
-	push ea
+	push ea				; stack working value
 	jsr divs32x32
-	pop p3
-	pop p3
+	pop p2				; clear working balue
+	pop p2
 	; Stack now holds return and result above
-	pop p3
-	pop ea
-	ld t,ea
-	pop ea
+	ld ea,4,p1
 	st ea,:__hireg
 
 	ld a,:__tmp2
 	and a,=1
 	bz noneg
-	push p3
-	ld ea,t
+	ld ea,2,p1
 	jsr __negatel
 	ret
 noneg:
-	ld ea,t
-	push p3
+	ld ea,2,p1
 	ret
 
 __reml:
@@ -108,95 +103,73 @@ __reml:
 nonegr:
 	ld ea,t
 remout:
-	pop p3
-	pop p3
-	; Result is in hireg/ea
-	pop p2	; return
-	pop p3
-	pop p3
-	push p2
+	pop p2
+	pop p2
 	ret
 
 __diveql:
 	;	2,p1 is the tos, build a working frame for the
 	; 	divide call
 	st ea,:__tmp
-	ld ea,2,p1
-	ld p3,ea
-	ld ea,2,p3
+	ld ea,2,p2
 	push ea
-	ld ea,0,p3
+	ld ea,0,p2
 	push ea
-	push ea		; Dummy
+	push p2		; Pointer
 	ld ea,:__hireg
 	push ea
 	ld ea,:__tmp
 	push ea
 	jsr divs32x32
-
+	pop p2		; discard stacked
+	pop p2
+	pop p2		; pointer back
 	ld a,:__tmp2
 	and a,=1	; signs differed (1 negation)
 	bnz negdiv
 
-	ld ea,12,p1	; Pointer to write back
-	ld p3,ea
-	
-	pop p2
-	pop p2		; discard divisor
-	pop p2		; and dummy
-	pop p2		; low half
-	pop ea		; high half
+	ld ea,4,p1
 	st ea,:__hireg
-	st ea,2,p3
-	ld ea,p2	; get low half back
-	st ea,0,p3	; and save it
-	pop p2		; return
-	pop p3		; discard argument ptr
-	push p2
+	st ea,2,p2	; save high
+	ld ea,2,p1
+	st ea,0,p2	; and save it
 	ret
 
 negdiv:
-	ld ea,12,p1
-	ld p3,ea
 	pop p2
 	pop p2
-	pop p2
-	pop p2		; low half
-	pop ea		; high half
+	pop p2		; pointer back
+	ld ea,4,p1
 	st ea,:__hireg
-	ld ea,p2	; low half into EA
+	ld ea,2,p1
 	jsr __negatel
-	st ea,0,p3
+	st ea,0,p2
 	ld t,ea
 	ld ea,:__hireg
-	st ea,2,p3
+	st ea,2,p2
 	ld ea,t
-	pop p2
-	pop p3
-	push p2
 	ret
 
 __remeql:
-	;	2,p1 is the tos, build a working frame for the
+	;	Build a working frame for the
 	; 	divide call
 	st ea,:__tmp
-	ld ea,2,p1
-	ld p3,ea
-	ld ea,2,p3
+	ld ea,2,p2
 	push ea
-	ld ea,0,p3
+	ld ea,0,p2
 	push ea
-	push ea		; Dummy
+	push p2		; pointer
 	ld ea,:__hireg
 	push ea
 	ld ea,:__tmp
 	push ea
 	jsr mods32x32
+	pop p2
+	pop p2
+	pop p2		; pointer back
 
 	; return is in hireg:ea
 	ld t,ea
-	ld ea,12,p1	; pointer to working var
-	ld p3,ea
 	ld a,:__tmp2
 	bz nochange
 	ld ea,t
@@ -205,17 +178,9 @@ __remeql:
 nochange:
 	ld ea,t
 out:
-	st ea,0,p3
+	st ea,0,p2
 	ld ea,:__hireg
-	st ea,2,p3
+	st ea,2,p2
 	ld ea,t
-	pop p2
-	pop p2		; discard divisor
-	pop p2		; and dummy
-	pop p2		; and dividend
-	pop p2
-	pop p2		; return
-	pop p3		; discard argument ptr
-	push p2
 	ret
 

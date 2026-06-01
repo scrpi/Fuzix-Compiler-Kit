@@ -42,14 +42,11 @@ loop:
 	dld a,:__tmp
 	bnz loop
 nowork:
-	pop p2	; return
-	pop ea	; low
-	ld t,ea
-	pop ea	; high
+	ld ea,4,p1
 	st ea,:__hireg
-	ld ea,t
-	push p2
+	ld ea,2,p1
 	ret
+
 slide16:
 	ld ea,4,p1
 	st ea,2,p1
@@ -127,10 +124,9 @@ bytes_m:
 	st a,5,p1
 	bra final_m
 
+; (p2) >>= hireg:EA
+
 __shrequl:
-	pop p3
-	pop p2
-	push p3
 	push p2
 	ld t,ea
 	ld ea,2,p2
@@ -139,7 +135,8 @@ __shrequl:
 	push ea
 	ld ea,t
 	jsr __shrul
-	; Will have popped the arg
+	pop p2
+	pop p2
 	pop p2
 	st ea,0,p2
 	ld t,ea
@@ -149,9 +146,6 @@ __shrequl:
 	ret
 
 __shreql:
-	pop p3
-	pop p2
-	push p3
 	push p2
 	ld t,ea
 	ld ea,2,p2
@@ -160,7 +154,10 @@ __shreql:
 	push ea
 	ld ea,t
 	jsr __shrl
-	; Will have popped the arg
+	; discard working
+	pop p2
+	pop p2
+	; get pointer back
 	pop p2
 	st ea,0,p2
 	ld t,ea

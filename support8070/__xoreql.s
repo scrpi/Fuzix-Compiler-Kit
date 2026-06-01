@@ -1,11 +1,10 @@
 	.export __xoreql
 
-;	(TOS.L) & hireg:ea
+;	UNUSED
+
+;	(p2) & hireg:ea
 
 __xoreql:
-	pop p3
-	pop p2		; P2 points to our target
-	push p3
 	xor a,0,p2
 	xch a,e
 	xor a,1,p2

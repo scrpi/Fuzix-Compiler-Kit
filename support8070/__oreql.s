@@ -2,10 +2,9 @@
 
 ;	(TOS.L) & hireg:ea
 
+;	UNUSED
+
 __oreql:
-	pop p3
-	pop p2		; P2 points to our target
-	push p3
 	or a,0,p2
 	xch a,e
 	or a,1,p2

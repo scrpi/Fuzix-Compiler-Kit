@@ -69,10 +69,6 @@ no_add:
 	st	ea,:__hireg
 	xch	ea,p2		; Low word into EA
 	pop	p2		; drop saved low word
-	pop	p3		; Return
-	pop	p2		; Drop argument
-	pop	p2
-	push	p3		; And done
 	ret
 
 nocarry1:
@@ -85,28 +81,25 @@ nocarry3:
 	ld	ea,2,p1
 	bra	cdone3
 ;
-;	(*TOS) *= hireg:ea
+;	(p2) *= hireg:ea
 ;
 __muleql:
-	st	ea,:__tmp
-	ld	ea,2,p1
-	xch	ea,p3
-	; P3 now the pointer
-	push	p3		; save working ptr
-	ld	ea,2,p3
+	; P2 now the pointer
+	push	p2		; save working ptr
+	ld	ea,2,p2
 	push	ea
-	ld	ea,0,p3
+	ld	ea,0,p2
 	push	ea
 	ld	ea,:__tmp
 	jsr	__mull
-	; This took the argument off the stack
-	pop	p3
-	st	ea,0,p3
+	;	Clean up argument
+	pop	p2
+	pop	p2
+	;	Recover working pointer
+	pop	p2
+	st	ea,0,p2
 	ld	t,ea
 	ld	ea,:__hireg
-	st	ea,2,p3
+	st	ea,2,p2
 	ld	ea,t
-	pop	p2
-	pop	p3		; drop address argument
-	push	p2
 	ret

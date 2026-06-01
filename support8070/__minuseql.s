@@ -1,12 +1,9 @@
 ;
-;	(TOS) - hireg:ea
+;	(p2) - hireg:ea
 ;
 	.export __minuseql
 
 __minuseql:
-	pop p3
-	pop p2
-	push p3
 	st ea,:__tmp
 	ld ea,0,p2
 	sub ea,:__tmp

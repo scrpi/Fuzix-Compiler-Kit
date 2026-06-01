@@ -25,15 +25,10 @@ positive:
 	bnz false	; S = 0 O = 1
 true:
 	ld ea,=1
-out:
-	pop p3
-	pop p2
-	pop p2
-	push p3
 	ret
 false:
 	ld ea,=0
-	bra out
+	ret
 
 check_low:
 	ld ea,2,p1

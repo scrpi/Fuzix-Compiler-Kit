@@ -1,11 +1,10 @@
 	.export __pluseqc
 
-;	(TOS.B) += A
+;	(p2) += A
+;	UNUSED
+
 
 __pluseqc:
-	pop	p2
-	pop	p3
-	push	p2
-	add	a,0,p3
-	st	a,0,p3
+	add	a,0,p2
+	st	a,0,p2
 	ret

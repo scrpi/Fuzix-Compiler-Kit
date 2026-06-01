@@ -1,14 +1,10 @@
 ;
-;	(TOS) << EA
+;	(p2) << EA
 ;
 	.export __shreq
 	.export __shrequ
 
 __shrequ:
-	pop p3
-	pop p2
-	push p3
-
 	and a,=15
 	bz nowork
 
@@ -30,10 +26,6 @@ nowork:
 	ret
 
 __shreq:
-	pop p3
-	pop p2
-	push p3
-
 	and a,=15
 	bz nowork
 

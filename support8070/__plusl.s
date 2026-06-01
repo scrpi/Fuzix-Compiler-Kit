@@ -6,6 +6,7 @@
 __plusl:
 	add ea,2,p1
 	st ea,2,p1
+	ld t,ea
 	ld a,s
 	bp skip		; carry ?
 	ld ea,4,p1
@@ -13,10 +14,7 @@ __plusl:
 addexit:
 	add ea,:__hireg
 	st ea,:__hireg
-	pop p2
-	pop ea
-	pop p3
-	push p2
+	ld ea,t
 	ret		; and return
 skip:
 	ld ea,4,p1

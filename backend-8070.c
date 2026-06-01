@@ -44,12 +44,6 @@
  *	  like sub ea,blah jsr bool/bang ?
  *	- Enable register variables with p3 (and maybe one day T) - needs p3
  *	  use in helpers cleaning up first
- *	- Would it make more sense to use p3 as hireg
- *		We can xch ea,p3 when working on halves
- *		We can ld p3,=foo (but not indexed forms)
- *		If we track p3 as upper value we can also do stuff
- *		like ld p3,ea ld ea,p3 for half words, and we can >> 16 << 16
- *		similarly
  */
 #include <stdio.h>
 #include <stdint.h>
@@ -367,7 +361,7 @@ void load_ea_t(void)
 
 /* Also need a find_ptr that turns LSTORE/LREF to LOCAL etc so we can look
    for the object pointer itself to optimise stuff like ld ea,T%u into
-   ld ea,p3 */
+   ld ea,p2 */
 static unsigned find_ref(register struct node *n)
 {
 	unsigned op = n->op;
@@ -664,6 +658,15 @@ void gen_cleanup(unsigned size, unsigned save)
 	}
 }
 
+static void discard_words(unsigned s)
+{
+	printf(";discard words %u\n", s);
+	s = (s + 1) >> 1;
+	while(s--)
+		puts("\tpop p2");
+	invalidate_ptr(2);
+}
+
 /* TODO: no void save / restore EA or return in a P reg or T .. decisions */
 void gen_epilogue(unsigned size, unsigned argsize)
 {
@@ -802,6 +805,11 @@ void gen_helpclean(struct node *n)
 		gen_cleanup(s, 1);
 		/* Caution - for future optimizations:
 		   C style ops that are ISBOOL didn't set the bool flags */
+	} else if (n->left) {
+		s = get_size(n->left->type);
+		/* Clean up from the caller side so we avoid the difficult
+		   8070 stack manipuations */
+		discard_words(s);
 	}
 	/* E must be 0 as EA = 0/1 */
 	if (n->flags & ISBOOL)
@@ -1024,14 +1032,6 @@ static void repeated_op(const char *op, unsigned n)
 		puts(op);
 }
 
-static void discard_words(unsigned s)
-{
-	printf(";discard words %u\n", s);
-	s = (s + 1) >> 1;
-	while(s--)
-		puts("\tpop p2");
-	invalidate_ptr(2);
-}
 
 /* TODO:
    For 8bit:
@@ -1562,6 +1562,30 @@ static unsigned helper_stack(struct node *n, const char *op, unsigned t)
 	make_ref_tmp();
 	op16("st", s, O_STORE, 0);
 	puts("\tpop ea");
+	gen_helpcall(n);
+	printf("%s", op);
+	helper_type(t, t & UNSIGNED);
+	gen_helptail(n);
+	putchar('\n');
+	return 1;
+}
+
+static void pop_p2(void)
+{
+	puts("\tpop p2");
+	invalidate_ptr(2);
+}
+
+/*
+ *	Helpers where it's better to pop a pointer and keep the right in EA.
+ *	Mostly this is += style operations
+ */
+static unsigned helper_eq(struct node *n, const char *op, unsigned t)
+{
+	/* Float operations are called C style */
+	if (n->type == T_FLOAT || (n->right && n->right->type == FLOAT))
+		return 0;
+	pop_p2();
 	gen_helpcall(n);
 	printf("%s", op);
 	helper_type(t, t & UNSIGNED);
@@ -2207,12 +2231,6 @@ static unsigned gen_cast(struct node *n)
 	return 1;
 }
 
-static void pop_p2(void)
-{
-	puts("\tpop p2");
-	invalidate_ptr(2);
-}
-
 unsigned logic_ptr_op(unsigned sz, unsigned n, unsigned nr)
 {
 	pop_p2();
@@ -2494,9 +2512,13 @@ unsigned gen_node(struct node *n)
 		return 0;
 
 	/* eq operations, turn what we can into tmpops for speed */
+	case T_PLUSPLUS:
+		if (!nr)
+			return helper_eq(n, "postinc", n->type & ~UNSIGNED);
+		/* Fall through */
 	case T_PLUSEQ:
 		if (sz > 2)
-			return 0;
+			return helper_eq(n, "pluseq", n->type & ~UNSIGNED);
 		pop_p2();
 		/* EA holds the value, p2 the ptr */
 		make_ref_p2(0);
@@ -2504,9 +2526,13 @@ unsigned gen_node(struct node *n)
 		op16("st", sz, O_STORE, nr);
 		invalidate_ea();
 		return 1;
+	case T_MINUSMINUS:
+		if (!nr)
+			return helper_eq(n, "postdec", n->type & ~UNSIGNED);
+		/* Fall through */
 	case T_MINUSEQ:
 		if (sz > 2)
-			return 0;
+			return helper_eq(n, "minuseq", n->type & ~UNSIGNED);
 		pop_p2();
 		/* This one is backwards so trickier */
 		make_ref_tmp();
@@ -2537,17 +2563,15 @@ unsigned gen_node(struct node *n)
 			op16("st", 1, O_STORE, nr);
 			return 1;
 		}
-		if (helper_stack(n, "muleqtmp", n->type))
-			return 1;
-		return 0;
+		return helper_eq(n, "muleq", n->type & ~UNSIGNED);
 	case T_SLASHEQ:
-/*		if (helper_stack(n, "diveqtmp", n->type))
-			return 1; */
-		return 0;
+		return helper_eq(n, "diveq", n->type);
 	case T_PERCENTEQ:
-/*		if (helper_stack(n, "modeqtmp", n->type))
-			return 1;*/
-		return 0;
+		return helper_eq(n, "remeq", n->type);
+	case T_SHLEQ:
+		return helper_eq(n, "shleq", n->type & ~UNSIGNED);
+	case T_SHREQ:
+		return helper_eq(n, "shreq", n->type);
 	/* TOS is the pointer, EA is the value */
 	/* TODO: logic fallbacks ? */
 	case T_ANDEQ:

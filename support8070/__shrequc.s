@@ -7,10 +7,8 @@
 __shrequc:
 	and a,=7	; wrap by bit count
 	ld e,a
-	pop p2		; return
-	pop p3		; ptr
 	bz noshift
-	ld a,0,p3
+	ld a,0,p2
 pve:
 	xch a,e
 loop:
@@ -21,22 +19,18 @@ loop:
 	bnz loop
 out:
 	xch a,e
-	st a,0,p3
-	push p2
+	st a,0,p2
 	ret
 
 noshift:
-	ld a,0,p3
-	push p2
+	ld a,0,p2
 	ret
 
 __shreqc:
 	and a,=7
 	ld e,a
-	pop p2
-	pop p3
 	bz noshift
-	ld a,0,p3
+	ld a,0,p2
 	bp pve
 ;
 ;	Need to keep setting top bit

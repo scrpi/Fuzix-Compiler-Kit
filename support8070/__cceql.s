@@ -13,11 +13,7 @@ __cceql:
 	bnz false
 	ld ea,=1
 out:
-	pop p3
-	pop p2
-	pop p2
-	push p3
 	ret
 false:
 	ld ea,=0
-	bra out
+	ret

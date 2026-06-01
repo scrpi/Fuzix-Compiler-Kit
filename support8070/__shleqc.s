@@ -4,10 +4,6 @@
 	.export __shleqc
 
 __shleqc:
-	pop p3
-	pop p2
-	push p3
-
 	and a,=7
 	bz nowork
 
