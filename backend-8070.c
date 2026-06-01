@@ -73,6 +73,10 @@ unsigned target_ptr = UINT;
 #define T_LDEREF	(T_USER+8)		/* *local + offset */
 #define T_LEQ		(T_USER+9)		/* *local + offset = n*/
 #define T_EQPLUS	(T_USER+10)		/* *(ac + n) = m */
+#define T_RREF		(T_USER+11)
+#define T_RSTORE	(T_USER+12)
+#define T_RDEREF	(T_USER+13)		/* *regptr */
+#define T_REQ		(T_USER+14)		/* *regptr */
 
 static void load_ptr_ea(unsigned n);
 static void load_ea_ptr(unsigned n);
@@ -86,6 +90,7 @@ static void load_ea_ptr(unsigned n);
  */
 static unsigned frame_len;	/* Number of bytes of stack frame */
 static unsigned sp;		/* Stack pointer offset tracking */
+static unsigned argbase;	/* Argument offset in current function */
 static unsigned unreachable;	/* Track unreachable code state */
 static unsigned func_cleanup;	/* Zero if we can just ret out */
 static unsigned label;		/* Used for local branches */
@@ -190,6 +195,10 @@ static unsigned map_op(register unsigned op)
 	case T_NSTORE:
 		op = T_NREF;
 	case T_NREF:
+		break;
+	case T_RSTORE:
+		op = T_RREF;
+	case T_RREF:
 		break;
 	case T_NAME:
 	case T_LOCAL:
@@ -374,6 +383,10 @@ static unsigned find_ref(register struct node *n)
 		op = T_NREF;
 	case T_NREF:
 		break;
+	case T_RSTORE:
+		op = T_RREF;
+	case T_RREF:
+		break;
 	default:
 		return 0;
 	}
@@ -493,11 +506,25 @@ struct node *gen_rewrite_node(struct node *n)
 		squash_right(n, T_LDEREF);	/* n->value becomes the local ref */
 		return n;
 	}
+	if ((op == T_DEREF || op == T_DEREFPLUS) && r->op == T_RREF) {
+		/* At this point r->value is the offset for the local */
+		/* n->value is the offset for the ptr load */
+		r->snum = n->value;		/* Save the offset so it is squashed in */
+		squash_right(n, T_RDEREF);	/* n->value becomes the local ref */
+		return n;
+	}
 	if ((op == T_EQ || op == T_EQPLUS) && l->op == T_LREF) {
 		/* At this point r->value is the offset for the local */
 		/* n->value is the offset for the ptr load */
 		l->snum = n->value;		/* Save the offset so it is squashed in */
 		squash_left(n, T_LEQ);	/* n->value becomes the local ref */
+		return n;
+	}
+	if ((op == T_EQ || op == T_EQPLUS) && l->op == T_RREF) {
+		/* At this point r->value is the offset for the local */
+		/* n->value is the offset for the ptr load */
+		l->snum = n->value;		/* Save the offset so it is squashed in */
+		squash_left(n, T_REQ);	/* n->value becomes the local ref */
 		return n;
 	}
 	/* Need to adapt the make_ptr_ref can_make_ptr_ref functions to
@@ -522,12 +549,16 @@ struct node *gen_rewrite_node(struct node *n)
 	if (op == T_DEREF) {
 		if (r->op == T_LOCAL || r->op == T_ARGUMENT) {
 			if (r->op == T_ARGUMENT)
-				r->value += ARGBASE + frame_len;
+				r->value += argbase + frame_len;
 			squash_right(n, T_LREF);
 			return n;
 		}
 		if (r->op == T_NAME) {
 			squash_right(n, T_NREF);
+			return n;
+		}
+		if (r->op == T_REG) {
+			squash_right(n, T_RREF);
 			return n;
 		}
 	}
@@ -538,8 +569,12 @@ struct node *gen_rewrite_node(struct node *n)
 		}
 		if (l->op == T_LOCAL || l->op == T_ARGUMENT) {
 			if (l->op == T_ARGUMENT)
-				l->value += ARGBASE + frame_len;
+				l->value += argbase + frame_len;
 			squash_left(n, T_LSTORE);
+			return n;
+		}
+		if (l->op == T_REG) {
+			squash_left(n, T_RSTORE);
 			return n;
 		}
 	}
@@ -617,6 +652,12 @@ void gen_frame(unsigned size, unsigned aframe)
 	else
 		func_cleanup = 0;
 
+	argbase = ARGBASE;
+	if (func_flags & F_REG(1)) {
+		puts("\tpush p3");
+		argbase += 2;
+	}
+
 	/* For ease of cleanup just leave a padding byte */
 	if (size & 1) {
 		size++;
@@ -656,6 +697,8 @@ void gen_cleanup(unsigned size, unsigned save)
 		invalidate_ptr(2);
 		size -= 2;
 	}
+	if (func_flags & F_REG(1))
+		puts("\tpop p3");
 }
 
 static void discard_words(unsigned s)
@@ -1160,7 +1203,7 @@ static unsigned make_ptr_ref(struct node *n, unsigned off)
 		ref_op = T_NREF;
 		break;
 	case T_ARGUMENT:
-		v += ARGBASE + frame_len;
+		v += argbase + frame_len;
 	case T_LOCAL:
 		ref_op = T_LREF;
 		v += sp;
@@ -1219,6 +1262,7 @@ static unsigned can_make_dst_ref(struct node *n)
 	case T_NAME:
 	case T_NSTORE:
 	case T_LSTORE:
+	case T_RSTORE:
 		return 1;
 	default:
 		return 0;
@@ -1309,6 +1353,12 @@ static void make_ref_p2(unsigned off)
 {
 	ref_op = T_NREF;
 	snprintf(ref_buf, sizeof(ref_buf), "%u+%%u,p2", off);
+}
+
+static void make_ref_p3(unsigned off)
+{
+	ref_op = T_NREF;
+	snprintf(ref_buf, sizeof(ref_buf), "%u+%%u,p3", off);
 }
 
 static void make_ref_tmp(void)
@@ -1651,7 +1701,7 @@ static void s_lt_const(unsigned s)
 	}
 	invalidate_a();
 	if (optsize) {
-		if (s == 1) 
+		if (s == 1)
 			puts("\tjsr __signed8comp");
 		else
 			puts("\tjsr __signedcomp");
@@ -2063,6 +2113,46 @@ unsigned gen_shortcut(struct node *n)
 	if (unreachable)
 		return 1;
 
+	/* There is no address for a register so handle eq ops directly. We know the
+	   object is a pointer so that makes life simpler */
+	if (l && l->op == T_REG) {
+		unsigned v = r->value;
+		switch (n->op) {
+		case T_PLUSPLUS:
+		case T_PLUSEQ:
+			if (r->type == T_CONSTANT) {
+				puts("\tld ea,p3");
+				printf("\tadd ea,=%u\n", WORD(v));
+			} else {
+				codegen_lr(r);
+				puts("\tst ea,:__tmp");
+				puts("\tld ea,p3");
+				puts("\tadd ea,:__tmp");
+			}
+			if (n->op == T_PLUSPLUS)
+				puts("\txch ea,p3");
+			else
+				puts("\tld p3,ea");
+			return 1;
+		case T_MINUSMINUS:
+		case T_MINUSEQ:
+			if (r->type == T_CONSTANT) {
+				puts("\tld ea,p3");
+				printf("\tsub ea,=%u\n", WORD(v));
+			} else {
+				codegen_lr(r);
+				puts("\tst ea,:__tmp");
+				puts("\tld ea,p3");
+				puts("\tsub ea,:__tmp");
+			}
+			if (n->op == T_PLUSPLUS)
+				puts("\txch ea,p3");
+			else
+				puts("\tld p3,ea");
+			return 1;
+		}
+	}
+
 	switch(n->op) {
 	/* The comma operator discards the result of the left side, then
 	   evaluates the right. Avoid pushing/popping and generating stuff
@@ -2290,6 +2380,14 @@ unsigned gen_node(struct node *n)
 		if (op16("st", sz, O_STORE, nr))
 			set_ea_node(n);
 		return 1;
+	case T_RREF:
+		puts("\tld ea,p3");
+		set_ea_node(n);
+		return 1;
+	case T_RSTORE:
+		puts("\tld p3,ea");
+		set_ea_node(n);
+		return 1;
 	case T_CALLNAME:
 		flush_writeback();
 		invalidate_all();
@@ -2321,6 +2419,16 @@ unsigned gen_node(struct node *n)
 		make_ref_p2(v);
 		op16("ld", sz, O_LOAD, nr);
 		/* TODO node track */
+		invalidate_ea();
+		return 1;
+	case T_RDEREF:
+		if (nr && !se)
+			return 1;
+		if (!se && is_byte)
+			sz = 1;
+		make_ref_p3(n->snum);
+		if (op16("ld", sz, O_LOAD, nr))	
+			set_ea_node(n);
 		invalidate_ea();
 		return 1;
 	case T_LDEREF:
@@ -2373,6 +2481,12 @@ unsigned gen_node(struct node *n)
 		/* TODO node track */
 		invalidate_ea();
 		return 1;
+	case T_REQ:
+		make_ref_p3(n->snum);
+		op16("st", sz, O_LOAD, nr);
+		invalidate_ea();
+		/* TODO node track */
+		return 1;
 	case T_FUNCCALL:
 		flush_writeback();
 		invalidate_all();
@@ -2390,7 +2504,7 @@ unsigned gen_node(struct node *n)
 		set_ea_node(n);
 		return 1;
 	case T_ARGUMENT:
-		v += frame_len + ARGBASE;
+		v += frame_len + argbase;
 	case T_LOCAL:
 		if (nr)
 			return 1;

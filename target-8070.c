@@ -92,11 +92,18 @@ unsigned target_type_remap(unsigned type)
 	return type;
 }
 
+static unsigned reg;
+
 unsigned target_register(unsigned type, unsigned storage)
 {
+	if (PTR(type) && reg == 0) {
+		reg = 1;
+		return 1;
+	}
 	return 0;
 }
 
 void target_reginit(void)
 {
+	reg = 0;
 }
