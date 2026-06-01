@@ -697,8 +697,6 @@ void gen_cleanup(unsigned size, unsigned save)
 		invalidate_ptr(2);
 		size -= 2;
 	}
-	if (func_flags & F_REG(1))
-		puts("\tpop p3");
 }
 
 static void discard_words(unsigned s)
@@ -724,6 +722,8 @@ void gen_epilogue(unsigned size, unsigned argsize)
 	if (unreachable)
 		return;
 	gen_cleanup(size, !x);
+	if (func_flags & F_REG(1))
+		puts("\tpop p3");
 	printf("\tret\n");
 	unreachable = 1;
 }

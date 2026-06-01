@@ -96,8 +96,13 @@ static unsigned reg;
 
 unsigned target_register(unsigned type, unsigned storage)
 {
-	if (PTR(type) && reg == 0) {
+	if (0 && PTR(type) && reg == 0) {
 		reg = 1;
+		/* Tell the backend */
+		if (storage == S_AUTO)
+			func_flags |= F_REG(1);
+		else
+			arg_flags |= F_REG(1);
 		return 1;
 	}
 	return 0;
