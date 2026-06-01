@@ -487,8 +487,8 @@ struct node *gen_rewrite_node(struct node *n)
 			n->value = 0;	/* So we can treat deref/derefplus together */
 		if (r->op == T_PLUS) {
 			off = n->value + r->right->value;
-			/* FIXME: 127 or 125 if size 4 */
-			if (r->right->op == T_CONSTANT && off < 127) {
+			/* Could do 128 - size ? */
+			if (r->right->op == T_CONSTANT && off <= 124) {
 				n->op = T_DEREFPLUS;
 				free_node(r->right);
 				n->right = r->left;
@@ -534,7 +534,8 @@ struct node *gen_rewrite_node(struct node *n)
 			n->value = 0;	/* So we can treat deref/derefplus together */
 		if (l->op == T_PLUS) {
 			off = n->value + l->right->value;
-			if (l->right->op == T_CONSTANT && off < 127) {
+			/* Again could do 128-size ? */
+			if (l->right->op == T_CONSTANT && off <= 124) {
 				n->op = T_EQPLUS;
 				free_node(l->right);
 				n->left = l->left;
@@ -2132,6 +2133,7 @@ unsigned gen_shortcut(struct node *n)
 				puts("\txch ea,p3");
 			else
 				puts("\tld p3,ea");
+			invalidate_ea();
 			return 1;
 		case T_MINUSMINUS:
 		case T_MINUSEQ:
@@ -2149,6 +2151,7 @@ unsigned gen_shortcut(struct node *n)
 				puts("\txch ea,p3");
 			else
 				puts("\tld p3,ea");
+			invalidate_ea();
 			return 1;
 		}
 	}
