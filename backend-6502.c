@@ -937,13 +937,12 @@ static int do_pri16(struct node *n, struct node *r, const char *op, void (*pre)(
 		return 1;
 	case T_LREF:
 		v += sp;
+		pre(n);
 		if (optsize && v < 255 && strcmp(op, "ld") == 0) {
-			pre(n);
 			gen_gloy(v);
 			return 1;
 		}
 		if (v < 255) {
-			pre(n);
 			load_y(v + 1);
 			invalidate_a();
 			output("%sa (@sp),y", op);
@@ -973,9 +972,9 @@ static int do_pri16(struct node *n, struct node *r, const char *op, void (*pre)(
 		output("lda (@tmp2),y");
 		return 1;
 	case T_LSTORE:
+		pre(n);
 		v += sp;
 		if (v < 255) {
-			pre(n);
 			if (v == 0 && direct_za(op))
 				output("%sa (@sp)", op);
 			else {
