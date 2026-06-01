@@ -22,18 +22,22 @@
  *	  can be used in many ways (eg folding together *x++)
  *
  *	TODO:
+ *	- Debug p2 tracking as it's often not getting stuff
+ *	- Track ea as both node and constant especially for intializers
+ *		(eg it messes up local1 = 0; local2 = 0)
  *	- Fold together all the condition helpers for byte/word
  *	- Rewrite x++ and --x forms to use autoindexing
  *	- Byte sized ++/-- optimizations
  *	   (in particular using E as a save reg for bytesized -- to avoid tmp)
  *	- Shift >> or << 16 optimization (and maybe >=16 as it's then a
- *	  standard sized shift if we set up right for >> unsigned)
+ *	  standard sized shift if we set up right for >> unsigned) (copy big shifts trick from
+ *	  6502)
  *	- Implement register tracking (in progress)
  *		Need to do pointer tracking an EA node tracking for ptr
  *		and word sized refs.
  *		Need to enable LREF/LSTORE etc for dword
  *		Constant tracking needs putting back
- *	- Optimised pushing for args (push long, push lref)
+ *	- Optimised pushing for args (push long, push lref, push reg, use pli)
  *	- Spot the *foo++ case and build a p2 based ++ op for it
  *		ld p2,1,p1 ; st ea,@2,p2; st p2,1,p1 etc
  *		ld p2,1,p1 ; add ea,@2,p2; st p2,1,p1 etc
@@ -42,8 +46,6 @@
  *	- Peepholes
  *	- Can we do some equality type comparisons better inline with something
  *	  like sub ea,blah jsr bool/bang ?
- *	- Enable register variables with p3 (and maybe one day T) - needs p3
- *	  use in helpers cleaning up first
  */
 #include <stdio.h>
 #include <stdint.h>
