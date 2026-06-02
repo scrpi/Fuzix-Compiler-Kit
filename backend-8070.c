@@ -2100,6 +2100,20 @@ unsigned gen_uni_direct(struct node *n)
 	return 0;
 }
 
+static void gen_const_postop(const char *op, unsigned s, unsigned keep, unsigned v)
+{
+	op16("ld", s, O_LOAD, 1);
+	if (keep)
+		load_t_ea();
+	if (s == 2)
+		printf("\t%s ea, =%u\n", op, WORD(v));
+	else
+		printf("\t%s a, =%u\n", op, BYTE(v));
+	op16("st", s, O_STORE, 1);
+	if (keep)
+		load_ea_t();
+}
+
 /*
  *	Allow the code generator to shortcut trees it knows
  */
@@ -2169,33 +2183,13 @@ unsigned gen_shortcut(struct node *n)
 		codegen_lr(r);
 		return 1;
 	case T_PLUSPLUS:	/* Always constant right */
-		if (s > 2 || make_ptr_ref(l, 0) == 0)
-			return 0;
-		op16("ld", s, O_LOAD, 1);
-		if (!nr)
-			load_t_ea();
-		if (s == 2)
-			printf("\tadd ea, =%u\n", WORD(r->value));
-		else
-			printf("\tadd a, =%u\n", BYTE(r->value));
-		op16("st", s, O_STORE, 1);
-		if (!nr)
-			load_ea_t();
-		return 1;
-	case T_MINUSMINUS:	/* Always constant right */
-		if (s > 2 || make_ptr_ref(l, 0) == 0)
-			return 0;
-		op16("ld", s, O_LOAD, 1);
-		if (!nr)
-			load_t_ea();
-		if (s == 2)
-			printf("\tadd ea, =%u\n", WORD(-r->value));
-		else
-			printf("\tadd a, =%u\n", BYTE(-r->value));
-		op16("st", s, O_STORE, 1);
-		if (!nr)
-			load_ea_t();
-		return 1;
+		if (!nr) {
+			if (s > 2 || make_ptr_ref(l, 0) == 0)
+				return 0;
+			gen_const_postop("add", s, 1, r->value);
+			return 1;
+		}
+		/* Fall through */
 	case T_PLUSEQ:
 		/* Use increment and load */
 		if (s == 1 && r->op == T_CONSTANT && BYTE(r->value) == 1) {
@@ -2206,6 +2200,11 @@ unsigned gen_shortcut(struct node *n)
 		}
 		if (s > 2 || can_make_ptr_ref(l) == 0)
 			return 0;
+		if (r->op == T_CONSTANT) {
+			make_ptr_ref(l, 0);
+			gen_const_postop("add", s, 0, r->value);
+			return 1;
+		}
 		/* If the right is easy then use the gen_direct path */
 		if (can_make_src_ref(r))
 			return 0;
@@ -2216,6 +2215,14 @@ unsigned gen_shortcut(struct node *n)
 		if (!nr)
 			set_ea_node(n);
 		return 1;
+	case T_MINUSMINUS:	/* Always constant right */
+		if (!nr) {
+			if (s > 2 || make_ptr_ref(l, 0) == 0)
+				return 0;
+			gen_const_postop("sub", s, 1, r->value);
+			return 1;
+		}
+		/* Fall through */
 	case T_MINUSEQ:
 		if (s == 1 && r->op == T_CONSTANT && BYTE(r->value) == 1) {
 			if (make_ptr_ref(l, 0)) {
@@ -2223,8 +2230,13 @@ unsigned gen_shortcut(struct node *n)
 				return 1;
 			}
 		}
-		if (s != 2 || can_make_ptr_ref(l) == 0)
+		if (s > 2 || can_make_ptr_ref(l) == 0)
 			return 0;
+		if (r->op == T_CONSTANT) {
+			make_ptr_ref(l, 0);
+			gen_const_postop("sub", s, 0, r->value);
+			return 1;
+		}
 		/* If the right is easy then use the gen_direct path */
 		if (can_make_src_ref(r))
 			return 0;
@@ -2488,7 +2500,7 @@ unsigned gen_node(struct node *n)
 		return 1;
 	case T_REQ:
 		make_ref_p3(n->snum);
-		op16("st", sz, O_LOAD, nr);
+		op16("st", sz, O_STORE, nr);
 		invalidate_ea();
 		/* TODO node track */
 		return 1;
