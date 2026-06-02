@@ -86,11 +86,12 @@ nocarry3:
 __muleql:
 	; P2 now the pointer
 	push	p2		; save working ptr
-	ld	ea,2,p2
+	ld	t,ea		; save low of working
+	ld	ea,2,p2		; high word
 	push	ea
-	ld	ea,0,p2
+	ld	ea,0,p2		; low word
 	push	ea
-	ld	ea,:__tmp
+	ld	ea,t		; get low word back
 	jsr	__mull
 	;	Clean up argument
 	pop	p2
