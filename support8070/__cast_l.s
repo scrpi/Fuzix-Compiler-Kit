@@ -7,11 +7,13 @@
 	.export __castu_l
 	.export __castu_ul
 	.export __castc_u
+	.export __castc_ul
 	.export __castuc_u
 	.export __castuc_l
 	.export __castuc_ul
 
 __castc_l:
+__castc_ul:
 	bp __castuc_l
 	xch a,e
 	ld a,=0xFF
