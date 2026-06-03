@@ -812,8 +812,8 @@ static int do_pri8hi(struct node *n, struct node *r, const char *op, void (*pre)
 	const char *name;
 	unsigned v;
 
-	printf(";pri8hi node %04X right %04X op %s\n",
-		n->op, r->op, op);
+/*	printf(";pri8hi node %04X right %04X op %s\n",
+		n->op, r->op, op); */
 		
 	/* We can fold in some simple casting */
 	/* FIXME: not clear this is safe (eg if using stx) */
@@ -968,7 +968,7 @@ static int do_pri16(struct node *n, struct node *r, const char *op, void (*pre)(
 		load_y(1);
 		output("lda (@tmp2),y");
 		tax();
-		output("dey");
+		load_y(0);
 		output("lda (@tmp2),y");
 		return 1;
 	case T_LSTORE:
@@ -1000,7 +1000,7 @@ static int do_pri16(struct node *n, struct node *r, const char *op, void (*pre)(
 		load_y(1);
 		txa();
 		output("sta (@tmp2),y");
-		output("dey");
+		load_y(0);
 		output("lda @tmp");
 		output("sta (@tmp2),y");
 		return 1;
@@ -1469,7 +1469,6 @@ static unsigned try_via_x(struct node *n, const char *op, void (*pre)(struct nod
 		return 0;
 	if (do_pri8(n, r, op, pre) == 0)
 		return 0;
-	printf(";try via x\n");
 	output("pha");
 	txa();
 	/* We can't have do_pri8hi fail here if we've done the low
