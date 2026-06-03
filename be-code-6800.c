@@ -497,6 +497,11 @@ unsigned make_local_ptr(unsigned off, unsigned rlim)
 	if (off <= rlim)
 		return off;
 
+	if (cpu_has_xgdx && off - rlim > 5) {
+		printf("\txgdx\n\taddd #%u\n\txgdx\n", off);
+		x_fpoff -= off;
+		return 0;
+	}
 	/* It is cheaper to inx than mess around with calls for smaller
 	   values - 7 or 5 if no save needed */
 	if (off - rlim < 7) {
