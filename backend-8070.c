@@ -1859,10 +1859,12 @@ unsigned gen_direct(struct node *n)
 		if (ref_needs_p2(r)) {
 			printf(";eqplus direct need p2\n");
 			puts("\tpush ea");
+			sp += 2;
 			make_ref(r, 0);
 			op16("ld", s, O_LOAD, 1);
 			set_ea_node(r);
 			puts("\tpop p2");
+			sp -= 2;
 			invalidate_ptr(2);
 		} else {
 			printf(";eqplus direct not p2\n");
