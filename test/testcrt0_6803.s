@@ -5,6 +5,7 @@ start:
 	clr	@zero
 	ldd	#1
 	std	@one
+	lds	#$FDFF
 	jsr	_main
 	; return and exit (value is in XA)
 	stab	$FEFF
