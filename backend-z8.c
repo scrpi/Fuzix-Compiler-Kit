@@ -786,6 +786,8 @@ static void rshift_r(unsigned r, unsigned size, unsigned l, unsigned uns)
 	if (l == 0)
 		return;
 	if (uns) {
+		/* TODO optimise the final stages of these for bigger shifts
+		   when most of the work was a move */
 		/* These can only occur for 32bit shift */
 		if (l == 24) {
 			load_r_r(r + 3, r);
@@ -803,9 +805,9 @@ static void rshift_r(unsigned r, unsigned size, unsigned l, unsigned uns)
 				load_r_r(r + 1, r);
 				load_r_constb(r, 0);
 			} else {
-				load_r_r(r + 1, r);
-				load_r_r(r + 2, r + 1);
 				load_r_r(r + 3, r + 2);
+				load_r_r(r + 2, r + 1);
+				load_r_r(r + 1, r);
 				load_r_constb(r, 0);
 			}
 			return;
@@ -1265,6 +1267,7 @@ static void lshift_r(unsigned r, unsigned size, unsigned l)
 			load_r_r(r + 1, r + 2);
 			load_r_r(r + 2, r + 3);
 			load_r_const(r + 3, 0, 1);
+			l -= 8;
 		}
 	} else if (size == 2) {
 		if (l >= 8) {
@@ -2188,7 +2191,7 @@ static unsigned gen_fast_udiv(unsigned r, unsigned s, unsigned long n)
 	if (n & (n - 1))
 		return 0;
 	rshift_r(r, s, ilog2(n), 0);
-	return 0;
+	return 1;
 }
 
 static unsigned gen_fast_remainder(unsigned r, unsigned s, unsigned long n)
