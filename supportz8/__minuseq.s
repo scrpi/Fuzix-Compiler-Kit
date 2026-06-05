@@ -16,12 +16,12 @@ __minuseq:
 	incw rr14
 
 	lde r12,@rr14
-	sub r3,r12
-	lde @rr14,r3
+	sub r12,r3
+	lde @rr14,r12
 	decw rr14
 
 	lde r12,@rr14
-	sbc r2,r12
-	lde @rr14,r2
+	sbc r12,r2
+	lde @rr14,r12
 
 	ret
