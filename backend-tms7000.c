@@ -2275,7 +2275,7 @@ unsigned gen_direct(struct node *n)
 		return 0;
 	/* TODO: inline reg compares, also look at reg on left compare optimizations later */
 	case T_EQEQ:
-		if (r->op == T_CONSTANT && n->type != FLOAT) {
+		if (r->op == T_CONSTANT && r->type != FLOAT) {
 			if (v == 0)
 				helper(n, "cceqconst0");
 			else if (v < 256) {
@@ -2298,7 +2298,7 @@ unsigned gen_direct(struct node *n)
 	/* The const form helpers do the reverse compare so we use the opposite one */
 	case T_GTEQ:
 		/* FIXME different sizes can be done better */
-		if (r->op == T_CONSTANT && n->type != FLOAT) {
+		if (r->op == T_CONSTANT && r->type != FLOAT) {
 			/* Quick way to do the classic signed >= 0 */
 			if (v == 0 && !u) {
 				load_r_constb(0,0);
@@ -2333,7 +2333,7 @@ unsigned gen_direct(struct node *n)
 		}
 		return 0;
 	case T_GT:
-		if (r->op == T_CONSTANT && n->type != FLOAT) {
+		if (r->op == T_CONSTANT && r->type != FLOAT) {
 			if (v == 0)
 				helper_s(n, "ccltconst0");
 			else if (v < 256) {
@@ -2354,7 +2354,7 @@ unsigned gen_direct(struct node *n)
 		}
 		return 0;
 	case T_LTEQ:
-		if (r->op == T_CONSTANT && n->type != FLOAT) {
+		if (r->op == T_CONSTANT && r->type != FLOAT) {
 			if (v == 0)
 				helper_s(n, "ccgteqconst0");
 			else if (v < 256) {
@@ -2375,7 +2375,7 @@ unsigned gen_direct(struct node *n)
 		}
 		return 0;
 	case T_LT:
-		if (r->op == T_CONSTANT && n->type != FLOAT) {
+		if (r->op == T_CONSTANT && r->type != FLOAT) {
 			/* Quick way to do the classic signed < 0 */
 			if (v == 0 && !u) {
 				/* Get sign into r0. Should shortcut this
@@ -2410,7 +2410,7 @@ unsigned gen_direct(struct node *n)
 		}
 		return 0;
 	case T_BANGEQ:
-		if (r->op == T_CONSTANT && n->type != FLOAT) {
+		if (r->op == T_CONSTANT && r->type != FLOAT) {
 			if (v == 0)
 				helper(n, "ccneconst0");
 			else if (v < 256) {
@@ -3371,36 +3371,36 @@ unsigned gen_node(struct node *n)
 	/* Use helpers for now */
 #if 0
 	case T_EQEQ:
-		if (n->type == T_FLOAT)
+		if (r->type == T_FLOAT)
 			return 0;
 		pop_compare(size, "nz");
 		n->flags |= ISBOOL;
 		return 1;
 	case T_BANGEQ:
-		if (n->type == T_FLOAT)
+		if (r->type == T_FLOAT)
 			return 0;
 		pop_compare(size, "z");
 		n->flags |= ISBOOL;
 		return 1;
 	case T_LT:
-		if (n->type == T_FLOAT)
+		if (r->type == T_FLOAT)
 			return 0;
 		pop_compare(size, u ? "uge" : "ge");
 		n->flags |= ISBOOL;
 		return 1;
 	case T_LTEQ:
-		if (n->type == T_FLOAT)
+		if (r->type == T_FLOAT)
 			return 0;
 		pop_compare(size, u ? "ugt" : "gt");
 		n->flags |= ISBOOL;
 	case T_GT:
-		if (n->type == T_FLOAT)
+		if (r->type == T_FLOAT)
 			return 0;
 		pop_compare(size, u ? "ule" : "le");
 		n->flags |= ISBOOL;
 		return 1;
 	case T_GTEQ:
-		if (n->type == T_FLOAT)
+		if (r->type == T_FLOAT)
 			return 0;
 		pop_compare(size, u ? "ult" : "lt");
 		n->flags |= ISBOOL;
