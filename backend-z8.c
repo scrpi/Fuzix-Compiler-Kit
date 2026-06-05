@@ -786,6 +786,17 @@ static void rshift_r(unsigned r, unsigned size, unsigned l, unsigned uns)
 	if (l == 0)
 		return;
 	if (uns) {
+		if (l == 31) {
+			/* Common case. Should generalise > 24 case */
+			load_r_r(r + 3, r);
+			load_r_constw(r, 0);
+			load_r_constb(r, 0);
+			/* Get the bit we care about into bit 0 */
+			printf("\trl r%u\n", r + 3);
+			/* Mask */
+			printf("\tand r%u,1\n", r + 3);
+			return;
+		}
 		/* TODO optimise the final stages of these for bigger shifts
 		   when most of the work was a move */
 		/* These can only occur for 32bit shift */
@@ -2393,7 +2404,7 @@ unsigned gen_direct(struct node *n)
 		return 0;
 	/* TODO: inline reg compares, also look at reg on left compare optimizations later */
 	case T_EQEQ:
-		if (r->op == T_CONSTANT && n->type != FLOAT) {
+		if (r->op == T_CONSTANT && r->type != FLOAT) {
 			if (v == 0)
 				helper(n, "cceqconst0");
 			else if (v < 256) {
@@ -2415,7 +2426,7 @@ unsigned gen_direct(struct node *n)
 		return 0;
 	/* The const form helpers do the reverse compare so we use the opposite one */
 	case T_GTEQ:
-		if (r->op == T_CONSTANT && n->type != FLOAT) {
+		if (r->op == T_CONSTANT && r->type != FLOAT) {
 			/* Quick way to do the classic signed >= 0 */
 			if (v == 0 && !u) {
 				test_sign(R_AC, size);
@@ -2446,7 +2457,7 @@ unsigned gen_direct(struct node *n)
 		}
 		return 0;
 	case T_GT:
-		if (r->op == T_CONSTANT && n->type != FLOAT) {
+		if (r->op == T_CONSTANT && r->type != FLOAT) {
 			if (v == 0)
 				helper_s(n, "ccltconst0");
 			else if (v < 256) {
@@ -2467,7 +2478,7 @@ unsigned gen_direct(struct node *n)
 		}
 		return 0;
 	case T_LTEQ:
-		if (r->op == T_CONSTANT && n->type != FLOAT) {
+		if (r->op == T_CONSTANT && r->type != FLOAT) {
 			if (v == 0)
 				helper_s(n, "ccgteqconst0");
 			else if (v < 256) {
@@ -2488,7 +2499,7 @@ unsigned gen_direct(struct node *n)
 		}
 		return 0;
 	case T_LT:
-		if (r->op == T_CONSTANT && n->type != FLOAT) {
+		if (r->op == T_CONSTANT && r->type != FLOAT) {
 			/* Quick way to do the classic signed < 0 */
 			if (v == 0 && !u) {
 				/* FIXME: tied to accumulator proper atm */
@@ -2519,7 +2530,7 @@ unsigned gen_direct(struct node *n)
 		}
 		return 0;
 	case T_BANGEQ:
-		if (r->op == T_CONSTANT && n->type != FLOAT) {
+		if (r->op == T_CONSTANT && r->type != FLOAT) {
 			if (v == 0)
 				helper(n, "ccneconst0");
 			else if (v < 256) {
@@ -3188,6 +3199,7 @@ static unsigned gen_cast(struct node *n)
 
 unsigned gen_node(struct node *n)
 {
+	struct node *r = n->right;
 	unsigned size = get_size(n->type);
 	unsigned v;
 	unsigned nr = n->flags & NORETURN;
@@ -3483,13 +3495,15 @@ unsigned gen_node(struct node *n)
 		mono_r(R_AC, size, "com");
 		return 1;
 	case T_NEGATE:
+		if (r->type == T_FLOAT)
+			return 0;
 		mono_r(R_AC, size, "com");
 		add_r_const(R_AC, 1, size);
 		return 1;
 	case T_BOOL:
-		if (n->right->type == FLOAT)
+		if (r->type == FLOAT)
 			return 0;
-		if (n->right->flags & ISBOOL)
+		if (r->flags & ISBOOL)
 			return 1;
 		/* Until we do cc only */
 		if (!optsize) {
@@ -3499,11 +3513,11 @@ unsigned gen_node(struct node *n)
 		}
 		return 0;
 	case T_BANG:
-		if (n->right->type == FLOAT)
+		if (r->type == FLOAT)
 			return 0;
 		/* Until we do cc only. Also if right is bool can do
 		   a simple xor */
-		if (n->right->flags & ISBOOL) {
+		if (r->flags & ISBOOL) {
 			n->flags |= ISBOOL;
 			op_r_c(3, 1, "xor");
 			return 1;
@@ -3517,36 +3531,36 @@ unsigned gen_node(struct node *n)
 	/* Use helpers for now */
 #if 0
 	case T_EQEQ:
-		if (n->type == T_FLOAT)
+		if (r->type == T_FLOAT)
 			return 0;
 		pop_compare(size, "nz");
 		n->flags |= ISBOOL;
 		return 1;
 	case T_BANGEQ:
-		if (n->type == T_FLOAT)
+		if (r->type == T_FLOAT)
 			return 0;
 		pop_compare(size, "z");
 		n->flags |= ISBOOL;
 		return 1;
 	case T_LT:
-		if (n->type == T_FLOAT)
+		if (r->type == T_FLOAT)
 			return 0;
 		pop_compare(size, u ? "uge" : "ge");
 		n->flags |= ISBOOL;
 		return 1;
 	case T_LTEQ:
-		if (n->type == T_FLOAT)
+		if (r->type == T_FLOAT)
 			return 0;
 		pop_compare(size, u ? "ugt" : "gt");
 		n->flags |= ISBOOL;
 	case T_GT:
-		if (n->type == T_FLOAT)
+		if (r->type == T_FLOAT)
 			return 0;
 		pop_compare(size, u ? "ule" : "le");
 		n->flags |= ISBOOL;
 		return 1;
 	case T_GTEQ:
-		if (n->type == T_FLOAT)
+		if (r->type == T_FLOAT)
 			return 0;
 		pop_compare(size, u ? "ult" : "lt");
 		n->flags |= ISBOOL;
@@ -3641,7 +3655,7 @@ unsigned gen_node(struct node *n)
 		while(--x) {
 			rr_decw(R_INDEX);
 			load_r_memr(R_WORK, R_INDEX, 1);
-			op_r_r(R_WORK, x, "sbc");
+			op_r_r(R_WORK, v, "sbc");
 			invalidate_ac();
 			load_r_r(v--, R_WORK);
 		}
