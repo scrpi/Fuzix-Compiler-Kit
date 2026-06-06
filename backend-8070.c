@@ -2161,7 +2161,7 @@ static void argstack(struct node *n)
 		invalidate_ptr(2);
 		sp += 4;
 		return;
-	case T_REG:
+	case T_RREF:
 		puts("\tpush p3");
 		sp += 2;
 		return;
