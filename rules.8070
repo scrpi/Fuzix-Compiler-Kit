@@ -7,3 +7,30 @@
 	ld p2,=%1
 =
 	pli p2,=%1
+
+# Merge logic and size extension (need to look at byte stuff more)
+# Low & constant with word
+	xch a,e
+	ld a,=0
+	xch a,e
+	and a,=%1
+	xch a,e
+	and a,=0
+	xch a,e
+=
+	and a,=%1
+	xch a,e
+	and a,=0
+	xch a,e
+
+# Bool of and of low half
+	and a,=%1
+	xch a,e
+	and a,=0
+	xch a,e
+	or a,e
+=
+	and a,=%1
+	xch a,e
+	and a,=0
+	xch a,e
