@@ -1852,16 +1852,13 @@ unsigned gen_direct(struct node *n)
 	case T_EQPLUS:
 		/* TODO: want to fold the add ea,= into the ref offset
 		   ideally, but need to adjust helpers for that */
-		printf(";eqplus consider r->op = %04X\n", r->op);
 		if (can_make_src_ref(r) == 0)
 			return 0;
-		printf(";eqplus direct\n");
 		if (WORD(n->value)) {
 			printf("\tadd ea,=%u\n", WORD(n->value));
 			adjust_ea(WORD(n->value));
 		}
 		if (ref_needs_p2(r)) {
-			printf(";eqplus direct need p2\n");
 			puts("\tpush ea");
 			sp += 2;
 			make_ref(r, 0);
@@ -1871,7 +1868,6 @@ unsigned gen_direct(struct node *n)
 			sp -= 2;
 			invalidate_ptr(2);
 		} else {
-			printf(";eqplus direct not p2\n");
 			invalidate_ea();
 			invalidate_ptr(2);
 			xch_ea_p2();
@@ -1879,7 +1875,6 @@ unsigned gen_direct(struct node *n)
 			op16("ld", s, O_LOAD, 1);
 			set_ea_node(r);
 		}
-		printf(";eqplus assign\n");
 		flush_writeback();
 		make_ref_p2(0);
 		op16("st", s, O_STORE, nr);
@@ -2169,10 +2164,8 @@ static void argstack(struct node *n)
 		/* TODO: should check if EA already holds node n */
 		/* Worth optimising long lref pushes */
 		v += sp;
-		if (s != 4 || v > 125) {
-			printf(";didn't lref push optimise s %u v %u\n", s, v);
+		if (s != 4 || v > 125)
 			break;
-		}
 		printf("\tld ea,%u,p1\n", v + 2);
 		puts("\tpush ea");
 		/* +2 again as we moved the stack pointer down */
@@ -2423,9 +2416,7 @@ unsigned gen_shortcut(struct node *n)
 	case T_EQPLUS:
 		/* Handle the case of simple=complex */
 		if (can_make_ptr_ref(l)) {
-			printf(";eqplus short\n");
 			codegen_lr(r);
-			printf(";eqplus short l\n");
 			make_ptr_ref(l, WORD(n->value));
 			op16("st", s, O_STORE, nr);
 			return 1;
@@ -2541,7 +2532,6 @@ unsigned gen_node(struct node *n)
 	case T_EQ:
 		n->value = 0;
 	case T_EQPLUS:
-		printf(";eqplus hard\n");
 		/* *TOS = (hireg:)EA */
 		off = WORD(n->value);
 		pop_p2();
