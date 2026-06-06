@@ -2117,14 +2117,14 @@ static void argstack(struct node *n)
 	case T_LOCAL:
 		v += sp;
 		if (s == 2) {
+			load_ea_ptr(1);
 			if (v) {
-				load_ea_ptr(1);
 				printf("\tadd ea,=%u\n", v);
 				invalidate_ea();
 				load_ptr_ea(2);
-				puts("\tpush p2");
-			} else
-				puts("\tpush p1");
+			}
+			/* Can't push p1 alas */
+			puts("\tpush p2");
 			sp += 2;
 			return;
 		}
