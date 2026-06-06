@@ -824,6 +824,9 @@ void gen_helpcall(struct node *n)
 {
 	/* Check both N and right because we handle casts to/from float in
 	   C call format */
+	/* Would be nice to optimise the right side stacking but we've done it before
+	   we know we should be looking. Thus some float helpers go via :hireg
+	   when they need not */
 	if (c_style(n))
 		gen_push(n->right);
 	flush_writeback();
@@ -2102,6 +2105,113 @@ unsigned gen_uni_direct(struct node *n)
 	return 0;
 }
 
+static void argstack(struct node *n)
+{
+	unsigned s = get_stack_size(n->type);
+	unsigned os = get_size(n->type);
+	unsigned v = WORD(n->value);
+	/* Stack using p2 as we can then use pli effectively as a peephole */
+	switch(n->op) {
+	case T_ARGUMENT:
+		v += argbase + frame_len;
+	case T_LOCAL:
+		v += sp;
+		if (s == 2) {
+			if (v) {
+				load_ea_ptr(1);
+				printf("\tadd ea,=%u\n", v);
+				invalidate_ea();
+				load_ptr_ea(2);
+				puts("\tpush p2");
+			} else
+				puts("\tpush p1");
+			sp += 2;
+			return;
+		}
+		break;
+	case T_NAME:
+		if (s == 2) {
+			printf("\tld p2,=%s+%u\n", namestr(n->snum), v);
+			puts("\tpush p2");
+			invalidate_ptr(2);
+			sp += 2;
+			return;
+		}
+		break;
+	case T_CONSTANT:
+		if (os == 1) {
+			load_ea(1, v);
+			gen_push(n);
+			return;
+		}
+		if (s == 2) {
+			printf("\tld p2,=%u\n", v);
+			puts("\tpush p2");
+			invalidate_ptr(2);
+			sp += 2;
+			return;
+		}
+		/* Avoid going via hireg */
+		printf("\tld p2,=%u\n", WORD(n->value >> 16));
+		puts("\tpush p2");
+		if (WORD(n->value >> 16) != v)
+			printf("\tld p2,=%u\n", v);
+		puts("\tpush p2");
+		invalidate_ptr(2);
+		sp += 4;
+		return;
+	case T_REG:
+		puts("\tpush p3");
+		sp += 2;
+		return;
+	case T_LREF:
+		/* TODO: should check if EA already holds node n */
+		/* Worth optimising long lref pushes */
+		v += sp;
+		if (s != 4 || v > 125) {
+			printf(";didn't lref push optimise s %u v %u\n", s, v);
+			break;
+		}
+		printf("\tld ea,%u,p1\n", v + 2);
+		puts("\tpush ea");
+		/* +2 again as we moved the stack pointer down */
+		printf("\tld ea,%u,p1\n", v + 2);
+		puts("\tpush ea");
+		invalidate_ea();
+		sp += 4;
+		return;
+	}
+	/* TODO: Should check if can find node in EA or P2 */
+	/* Otherwise generate the argument subtree and then stack it */
+	codegen_lr(n);
+	gen_push(n);
+}
+
+/* We handle function arguments specially as we both push them to a different
+   stack and optimize them. The tree looks like this
+
+                 FUNCCALL|CALLNAME
+                  /
+	       ARGCOMMA
+	        /    \
+	      ...    EXPR
+	      /
+	    ARG
+ */
+static void gen_fcall(struct node *n)
+{
+	if (n == NULL)
+		return;
+	if (n->op == T_ARGCOMMA) {
+		/* Recurse down arguments and stack then on the way up */
+		gen_fcall(n->left);
+		argstack(n->right);
+	} else {
+		argstack(n);
+	}
+	/* Final node done */
+}
+
 static void gen_const_postop(const char *op, unsigned s, unsigned keep, unsigned v)
 {
 	op16("ld", s, O_LOAD, 1);
@@ -2183,6 +2293,21 @@ unsigned gen_shortcut(struct node *n)
 		codegen_lr(l);
 		r->flags |= (n->flags & NORETURN);
 		codegen_lr(r);
+		return 1;
+	case T_FUNCCALL:
+		/* Generate and stack all the arguments */
+		gen_fcall(l);
+		/* Generate the address of the function */
+		codegen_lr(r);
+		flush_writeback();
+		invalidate_all();
+		puts("\tjsr __callea\n");
+		return 1;
+	case T_CALLNAME:
+		gen_fcall(l);
+		flush_writeback();
+		invalidate_all();
+		printf("\tjsr %s+%d\n", namestr(n->snum), WORD(n->value));
 		return 1;
 	case T_PLUSPLUS:	/* Always constant right */
 		if (!nr) {
