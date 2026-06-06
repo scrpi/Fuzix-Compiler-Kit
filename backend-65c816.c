@@ -1192,9 +1192,11 @@ void gen_frame(unsigned size, unsigned argsize)
 	frame_len = size;
 	arg_len = argsize;
 
-	/* TODO BANK0 do we align odd frame sizes as we have no DES */
 	if (size == 0)
 		return;
+
+	if (BANK0 && (size & 1))
+		size++;
 
 	sp = 0;
 	/* Maybe shortcut some common values ? */
@@ -1258,10 +1260,11 @@ void gen_epilogue(unsigned size, unsigned argsize)
 	if (func_flags & F_VOIDRET)
 		cost -= 2;
 	assume16bit();
-	if (BANK0)
-		/* TODO sort out stack padding */
+	if (BANK0) {
+		if (size & 1)
+			size++;
 		gen_cleanup(size);
-	else {
+	} else {
 		/* Use the helper for small cases */
 		if (optsize && size > 3 && size < 12) {
 			outputnc("jmp __fnexit%d", size);
@@ -1302,7 +1305,7 @@ unsigned gen_exit(const char *tail, unsigned n)
 		outputnc("rts");
 		unreachable = 1;
 		return 1;
-	} else if (frame_len + arg_len <= 9) {
+	} else if (!BANK0 && frame_len + arg_len <= 9) {
 		outputnc("jmp __fnexit%d", frame_len + arg_len);
 		unreachable = 1;
 		return 1;
