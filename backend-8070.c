@@ -37,7 +37,6 @@
  *		and word sized refs.
  *		Need to enable LREF/LSTORE etc for dword
  *		Constant tracking needs putting back
- *	- Optimised pushing for args (push long, push lref, push reg, use pli)
  *	- Spot the *foo++ case and build a p2 based ++ op for it
  *		ld p2,1,p1 ; st ea,@2,p2; st p2,1,p1 etc
  *		ld p2,1,p1 ; add ea,@2,p2; st p2,1,p1 etc
@@ -46,6 +45,8 @@
  *	- Peepholes
  *	- Can we do some equality type comparisons better inline with something
  *	  like sub ea,blah jsr bool/bang ?
+ *	- With -Os swap ld ea,=0 with ld ea,:zero and consider same for pointers
+ *	  (saves a byte a time and occurs a lot)
  */
 #include <stdio.h>
 #include <stdint.h>
