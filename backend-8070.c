@@ -47,6 +47,9 @@
  *	  like sub ea,blah jsr bool/bang ?
  *	- With -Os swap ld ea,=0 with ld ea,:zero and consider same for pointers
  *	  (saves a byte a time and occurs a lot)
+ *	- Optimise nr long local = long local
+ *	- Shortcut some helpers for longs to use argument stack helper
+ *	- Why do we have cases generating sub ea,=0 or a,e ? (FIXED ?)
  */
 #include <stdio.h>
 #include <stdint.h>
@@ -1786,7 +1789,8 @@ static unsigned gen_eq_op(struct node *n, unsigned eq, unsigned is_byte)
 		return 0;
 	if (!make_ref(r, 1))
 		return 0;
-	op16("sub", s, O_MODIFY, r->value);
+	if (r->value)
+		op16("sub", s, O_MODIFY, r->value);
 	invalidate_ea();
 	if (s == 2)
 		puts("\tor a,e\n");
