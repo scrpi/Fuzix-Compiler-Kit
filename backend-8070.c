@@ -1789,7 +1789,7 @@ static unsigned gen_eq_op(struct node *n, unsigned eq, unsigned is_byte)
 		return 0;
 	if (!make_ref(r, 1))
 		return 0;
-	if (r->value)
+	if (r->op != T_CONSTANT || r->value)
 		op16("sub", s, O_MODIFY, r->value);
 	invalidate_ea();
 	if (s == 2)
@@ -2566,7 +2566,7 @@ unsigned gen_node(struct node *n)
 		if (!se && is_byte)
 			sz = 1;
 		make_ref_p3(n->snum);
-		if (op16("ld", sz, O_LOAD, nr))	
+		if (op16("ld", sz, O_LOAD, nr))
 			set_ea_node(n);
 		invalidate_ea();
 		return 1;
