@@ -143,8 +143,10 @@ static unsigned a_valid;
 static unsigned e_valid;
 static unsigned t_valid;
 static unsigned ea_valid;
+static unsigned ea_w_valid;
 static unsigned hireg_valid;
 static struct node ea_node;
+static struct node ea_w_node;
 static struct node t_node;
 static struct node p_node[2];	/* P2 and P3 */
 static unsigned p_valid[2];
@@ -166,6 +168,7 @@ static void invalidate_ea(void)
 	e_valid = 0;
 	a_valid = 0;
 	ea_valid = 0;
+	ea_w_valid = 0;
 }
 
 static void set_a(uint8_t n)
@@ -173,6 +176,7 @@ static void set_a(uint8_t n)
 	a_valid = 1;
 	a_value = n;
 	ea_valid = 0;
+	ea_w_valid = 0;
 }
 
 static void set_e(uint8_t n)
@@ -180,6 +184,7 @@ static void set_e(uint8_t n)
 	e_valid = 1;
 	e_value = n;
 	ea_valid = 0;
+	ea_w_valid = 0;
 }
 
 static void set_ea(unsigned n)
@@ -189,6 +194,8 @@ static void set_ea(unsigned n)
 	a_value = n;
 	e_value = n >> 8;
 	ea_valid = 0;	/* No valid node */
+	ea_w_valid = 0;
+	printf(";set ea constant %x\n", n);
 }
 
 static unsigned map_op(register unsigned op)
@@ -218,26 +225,62 @@ static unsigned map_op(register unsigned op)
 	return op;
 }
 
+/* FIXME: if size > 2 then don't set valid */
 static void set_ea_node(struct node *n)
 {
 	a_valid = 0;
 	e_valid = 0;
+	/* T_CONSTANT forms set the value in the reg for tracking too */
+	if (n->op == T_CONSTANT)
+		set_ea(n->value);
 	ea_valid = 1;
 	memcpy(&ea_node, n, sizeof(ea_node));
 	ea_node.op = map_op(ea_node.op);
-//	printf(";set_ea_node from %02X to %02X\n", n->op, ea_node.op);
+	printf(";set_ea_node from %04X to %04X (val %lu)\n", n->op, ea_node.op, ea_node.value);
+}
+
+/* We track the last store of EA as it means that EA is both the loaded
+   old value *and* the existing value at the same time. This matters to
+   optimise some initializer patterns */
+static void set_ea_w_node(struct node *n)
+{
+	ea_w_valid = 1;
+	memcpy(&ea_w_node, n, sizeof(ea_w_node));
+	ea_w_node.op = map_op(ea_w_node.op);
+	printf(";set_ea_w_node from %04X to %04X (val %lu)\n", n->op, ea_w_node.op, ea_w_node.value);
+}
+
+/* n is the thing that points to what we hold. So names become an nref
+   labels/arguments should become an lref */
+static void set_ea_w_ptr(struct node *n)
+{
+	unsigned op = 0;
+	if (n->op == T_NAME)
+		op = T_NREF;
+	/* TODO T_LABEL, T_ARGUMENT */
+	if (op == 0)
+		return;
+	ea_w_valid = 1;
+	memcpy(&ea_w_node, n, sizeof(ea_w_node));
+	ea_w_node.op = map_op(ea_w_node.op);
+	printf(";set_ea_w_node from %04X to %04X (val %lu)\n", n->op, ea_w_node.op, ea_w_node.value);
 }
 
 static unsigned is_ea_node(register struct node *n)
 {
 	unsigned op;
-	if (ea_valid == 0)
-		return 0;
 	op = map_op(n->op);
-//	printf(";is_ea_node op %04X node op %04X, val %08lX, node val %08lX\n",
-//		op, ea_node.op, n->value, ea_node.value);
-	if (ea_node.op == op && ea_node.value == n->value &&
+	if (ea_valid)
+		printf(";is_ea_node op %04X node op %04X, val %08lX, node val %08lX\n",
+			op, ea_node.op, n->value, ea_node.value);
+	if (ea_valid && ea_node.op == op && ea_node.value == n->value &&
 		ea_node.type == n->type && ea_node.snum == n->snum)
+		return 1;
+	if (ea_w_valid)
+		printf(";is_ea_node(w) op %04X node op %04X, val %08lX, node val %08lX\n",
+			op, ea_w_node.op, n->value, ea_w_node.value);
+	if (ea_w_valid && ea_w_node.op == op && ea_w_node.value == n->value &&
+		ea_w_node.type == n->type && ea_w_node.snum == n->snum)
 		return 1;
 	return 0;
 }
@@ -246,6 +289,7 @@ static void adjust_a(unsigned n)
 {
 	a_value += n;
 	ea_valid = 0;
+	ea_w_valid = 0;
 }
 
 static void adjust_ea(unsigned n)
@@ -260,6 +304,7 @@ static void adjust_ea(unsigned n)
 	   ea_node.value += n;
 	   */
 	ea_valid = 0;	/* For now just mark it not a valid node value */
+	ea_w_valid = 0;
 }
 
 static void set_t(unsigned n)
@@ -291,19 +336,43 @@ static void invalidate_all(void)
 	p_valid[0] = 0;
 	p_valid[1] = 0;
 	invalidate_ea();
-//	printf(";invalidate all\n");
+	printf(";invalidate all\n");
 }
 
-static void flush_writeback(void)
+/* Things we track that are in memory and therefore cease to be valid
+   if a write occurs. We could be finer grained when we know exactly
+   what we write */
+static unsigned is_mem_ref(struct node *n)
 {
-	/* TODO: need to wipe NREF etc */
-	invalidate_all();
+	if (n->op == T_NREF || n->op == T_LREF)
+		return 1;
+	/* Other cached things like constants don't invalidate */
+	return 0;
+}
+
+static void flush_writeback(struct node *n)
+{
+	/* n is the thing we are writing too. We'll make smarter use
+	   of that later on */
+	if (t_valid == 2 && is_mem_ref(&t_node))
+		t_valid = 0;
+	if (p_valid[0] && is_mem_ref(p_node))
+		p_valid[0] = 0;
+	if (p_valid[1] && is_mem_ref(p_node + 1))
+		p_valid[1] = 0;
+	if (ea_valid && is_mem_ref(&ea_node))
+		ea_valid = 0;
+	if (ea_w_valid && is_mem_ref(&ea_w_node))
+		ea_w_valid = 0;
+	printf(";invalidate all\n");
 }
 
 static unsigned ea_is(unsigned v)
 {
-	v &= 0xFFFF;
-	if (a_valid && e_valid && a_value == (v & 0xFF) && e_value == (v >> 8))
+	v = WORD(v);
+	printf("; ea is %02X%02X (%u %u), v %04X\n",
+		e_value, a_value, e_valid, a_valid, v);
+	if (a_valid && e_valid && a_value == BYTE(v) && e_value == BYTE(v >> 8))
 		return 1;
 	return 0;
 }
@@ -377,6 +446,9 @@ void load_ea_t(void)
 /* Also need a find_ptr that turns LSTORE/LREF to LOCAL etc so we can look
    for the object pointer itself to optimise stuff like ld ea,T%u into
    ld ea,p2 */
+/* FIXME: we need a way to report and handle the fact that p2 might well
+   be pointing part way into the object we want and within the offset
+   range. */
 static unsigned find_ref(register struct node *n)
 {
 	unsigned op = n->op;
@@ -414,6 +486,23 @@ static void set_ptr_ref(unsigned p, struct node *n)
 		p_valid[p] = 1;
 		memcpy(p_node + p, n, sizeof(struct node));
 	}
+}
+
+static void flush_refs(struct node *n)
+{
+	unsigned r;
+	/* Can we hold refs to this ? */
+	if (n->op != T_NREF && n->op != T_LREF)
+		return;
+	/* Clear from p2/p3 */
+	r = find_ref(n);
+	if (r)
+		invalidate_ptr(r);
+	/* Clear from EA or EA_W */
+	if (n->op == ea_node.op && n->snum == ea_node.snum)
+		invalidate_ea();
+	if (n->op == ea_w_node.op && n->snum == ea_w_node.snum)
+		ea_w_valid = 0;
 }
 
 /*
@@ -758,7 +847,7 @@ void gen_jump(const char *tail, unsigned n)
 {
 	if (unreachable)
 		return;
-	flush_writeback();
+	flush_writeback(NULL);
 	printf("\tjmp L%d%s\n", n, tail);
 	unreachable = 1;
 }
@@ -767,7 +856,7 @@ void gen_jfalse(const char *tail, unsigned n)
 {
 	if (unreachable)
 		return;
-	flush_writeback();
+	flush_writeback(NULL);
 	printf("\tjz L%d%s\n", n, tail);
 }
 
@@ -775,13 +864,13 @@ void gen_jtrue(const char *tail, unsigned n)
 {
 	if (unreachable)
 		return;
-	flush_writeback();
+	flush_writeback(NULL);
 	printf("\tjnz L%d%s\n", n, tail);
 }
 
 void gen_switch(unsigned n, unsigned type)
 {
-	flush_writeback();
+	flush_writeback(NULL);
 	invalidate_all();
 	printf("\tld p2,=Sw%d\n", n);
 	printf("\tjmp __switch");
@@ -800,6 +889,7 @@ void gen_case_label(unsigned tag, unsigned entry)
 {
 	printf("Sw%d_%d:\n", tag, entry);
 	unreachable = 0;
+	invalidate_all();
 }
 
 void gen_case_data(unsigned tag, unsigned entry)
@@ -833,7 +923,7 @@ void gen_helpcall(struct node *n)
 	   when they need not */
 	if (c_style(n))
 		gen_push(n->right);
-	flush_writeback();
+	flush_writeback(NULL);
 	invalidate_all();
 	printf("\tjsr __");
 }
@@ -1452,10 +1542,11 @@ static void do_op16(const char *op, unsigned off, unsigned s)
 	putchar('\n');
 }
 
+/* Need to optimise the invalidation here, an EQ through a pointer does
+   need invalidation as we don't know what we hit but the other cases
+   do not */
 static unsigned op16(const char *op, unsigned size, unsigned ldst, unsigned nr)
 {
-	if (ldst == O_STORE)
-		flush_writeback();
 	if (ldst == O_LOAD) {
 		if (size == 4) {
 			do_op16(op, 2, 2);
@@ -1601,7 +1692,10 @@ static unsigned eqlogic(register struct node *n, unsigned s, unsigned lt)
 		make_ptr_ref(n->left, 0);
 		/* Do the op between EA and the pointer */
 		oplogic(s, lt);
-		op16("st", s, O_STORE, (n->flags & NORETURN));
+		/* TODO: want to flush refs indirect from NAME  LOCAL etc */
+		flush_writeback(n->left);
+		if (op16("st", s, O_STORE, (n->flags & NORETURN)))
+			set_ea_w_ptr(n->left);
 		return 1;
 	}
 	return 0;
@@ -1620,6 +1714,7 @@ static unsigned helper_stack(struct node *n, const char *op, unsigned t)
 	make_ref_tmp();
 	op16("st", s, O_STORE, 0);
 	puts("\tpop ea");
+	/* Will flush stuff */
 	gen_helpcall(n);
 	printf("%s", op);
 	helper_type(t, t & UNSIGNED);
@@ -1879,9 +1974,10 @@ unsigned gen_direct(struct node *n)
 			op16("ld", s, O_LOAD, 1);
 			set_ea_node(r);
 		}
-		flush_writeback();
+		flush_writeback(NULL);
 		make_ref_p2(0);
-		op16("st", s, O_STORE, nr);
+		if (op16("st", s, O_STORE, nr))
+			set_ea_w_ptr(n->left);
 		return 1;
 	case T_PLUS:
 		if (s > 2)
@@ -2055,11 +2151,13 @@ unsigned gen_direct(struct node *n)
 		make_ref_constant(v);
 		op16("add", s, O_MODIFY, 1);
 		make_ref_p2(0);
+		flush_writeback(n->left);
 		op16("st", s, O_STORE, nr);
 		if (!nr) {
 			make_ref_constant(v);
 			load_ea_t();
 		}
+		/* EA isn't the resulting value it is the old one */
 		invalidate_ea();
 		return 1;
 	case T_ANDEQ:
@@ -2089,7 +2187,7 @@ unsigned gen_direct(struct node *n)
 		oplogic(s, op);
 		make_ref_p2(0);
 		if (op16("st", s, O_STORE, nr))
-			set_ea_node(n->left);
+			set_ea_w_ptr(n->left);
 		return 1;
 	}
 	return 0;
@@ -2210,7 +2308,7 @@ static void gen_fcall(struct node *n)
 	/* Final node done */
 }
 
-static void gen_const_postop(const char *op, unsigned s, unsigned keep, unsigned v)
+static void gen_const_postop(struct node *n, const char *op, unsigned s, unsigned keep, unsigned v)
 {
 	op16("ld", s, O_LOAD, 1);
 	if (keep)
@@ -2219,7 +2317,9 @@ static void gen_const_postop(const char *op, unsigned s, unsigned keep, unsigned
 		printf("\t%s ea, =%u\n", op, WORD(v));
 	else
 		printf("\t%s a, =%u\n", op, BYTE(v));
-	op16("st", s, O_STORE, 1);
+	flush_writeback(n->left);
+	if (op16("st", s, O_STORE, 1))
+		set_ea_w_ptr(n->left);
 	if (keep)
 		load_ea_t();
 }
@@ -2259,6 +2359,7 @@ unsigned gen_shortcut(struct node *n)
 				puts("\txch ea,p3");
 			else
 				puts("\tld p3,ea");
+			/* TODO: for += we can track ea */
 			invalidate_ea();
 			return 1;
 		case T_MINUSMINUS:
@@ -2277,6 +2378,7 @@ unsigned gen_shortcut(struct node *n)
 				puts("\txch ea,p3");
 			else
 				puts("\tld p3,ea");
+			/* TODO: for -= we can track ea */
 			invalidate_ea();
 			return 1;
 		}
@@ -2297,13 +2399,13 @@ unsigned gen_shortcut(struct node *n)
 		gen_fcall(l);
 		/* Generate the address of the function */
 		codegen_lr(r);
-		flush_writeback();
+		flush_writeback(NULL);
 		invalidate_all();
 		puts("\tjsr __callea\n");
 		return 1;
 	case T_CALLNAME:
 		gen_fcall(l);
-		flush_writeback();
+		flush_writeback(NULL);
 		invalidate_all();
 		printf("\tjsr %s+%d\n", namestr(n->snum), WORD(n->value));
 		return 1;
@@ -2311,7 +2413,7 @@ unsigned gen_shortcut(struct node *n)
 		if (!nr) {
 			if (s > 2 || make_ptr_ref(l, 0) == 0)
 				return 0;
-			gen_const_postop("add", s, 1, r->value);
+			gen_const_postop(n, "add", s, 1, r->value);
 			return 1;
 		}
 		/* Fall through */
@@ -2320,6 +2422,9 @@ unsigned gen_shortcut(struct node *n)
 		if (s == 1 && r->op == T_CONSTANT && BYTE(r->value) == 1) {
 			if (make_ptr_ref(l, 0)) {
 				op8("ild", 1, 1);
+				flush_writeback(n->left);
+				if (n->op == T_PLUSEQ)
+					set_ea_w_ptr(n->left);
 				return 1;
 			}
 		}
@@ -2327,7 +2432,7 @@ unsigned gen_shortcut(struct node *n)
 			return 0;
 		if (r->op == T_CONSTANT) {
 			make_ptr_ref(l, 0);
-			gen_const_postop("add", s, 0, r->value);
+			gen_const_postop(n, "add", s, 0, r->value);
 			return 1;
 		}
 		/* If the right is easy then use the gen_direct path */
@@ -2336,15 +2441,15 @@ unsigned gen_shortcut(struct node *n)
 		codegen_lr(r);		/* Value to add */
 		make_ptr_ref(l, 0);
 		op16("add", s, O_MODIFY, 1);
-		op16("st", s, O_STORE, nr);
-		if (!nr)
-			set_ea_node(n);
+		flush_writeback(n->left);
+		if (op16("st", s, O_STORE, nr) && !nr)
+			set_ea_w_ptr(n->left);
 		return 1;
 	case T_MINUSMINUS:	/* Always constant right */
 		if (!nr) {
 			if (s > 2 || make_ptr_ref(l, 0) == 0)
 				return 0;
-			gen_const_postop("sub", s, 1, r->value);
+			gen_const_postop(n, "sub", s, 1, r->value);
 			return 1;
 		}
 		/* Fall through */
@@ -2352,6 +2457,9 @@ unsigned gen_shortcut(struct node *n)
 		if (s == 1 && r->op == T_CONSTANT && BYTE(r->value) == 1) {
 			if (make_ptr_ref(l, 0)) {
 				op8("dld", 1, 1);
+				flush_writeback(n->left);
+				if (n->op == T_MINUSEQ)
+					set_ea_w_ptr(n->left);
 				return 1;
 			}
 		}
@@ -2359,7 +2467,7 @@ unsigned gen_shortcut(struct node *n)
 			return 0;
 		if (r->op == T_CONSTANT) {
 			make_ptr_ref(l, 0);
-			gen_const_postop("sub", s, 0, r->value);
+			gen_const_postop(n, "sub", s, 0, r->value);
 			return 1;
 		}
 		/* If the right is easy then use the gen_direct path */
@@ -2373,9 +2481,9 @@ unsigned gen_shortcut(struct node *n)
 		make_ref_tmp();
 		op16("sub", s, O_MODIFY, 1);
 		make_ptr_ref(l, 0);
-		op16("st", s, O_STORE, nr);
-		if (!nr)
-			set_ea_node(n);
+		flush_writeback(n->left);
+		if (op16("st", s, O_STORE, nr) && !nr)
+			set_ea_w_ptr(n->left);
 		return 1;
 	case T_STAREQ:
 		if (s > 2 || can_make_ptr_ref(l) == 0)
@@ -2397,7 +2505,9 @@ unsigned gen_shortcut(struct node *n)
 			invalidate_t();
 			load_ea_t();
 		}
-		op16("st", s, O_STORE, nr);
+		flush_writeback(n->left);
+		if (op16("st", s, O_STORE, nr))
+			set_ea_w_ptr(n->left);
 		return 1;
 	case T_MINUS:
 		if (nr && !se)
@@ -2422,7 +2532,9 @@ unsigned gen_shortcut(struct node *n)
 		if (can_make_ptr_ref(l)) {
 			codegen_lr(r);
 			make_ptr_ref(l, WORD(n->value));
+			flush_writeback(NULL);
 			op16("st", s, O_STORE, nr);
+			/* Should set based on ptr in case is EQ NREF etc */
 			return 1;
 		}
 		break;
@@ -2461,12 +2573,16 @@ static unsigned gen_cast(struct node *n)
 	return 1;
 }
 
-unsigned logic_ptr_op(unsigned sz, unsigned n, unsigned nr)
+unsigned logic_ptr_op(struct node *n, unsigned sz, unsigned v, unsigned nr)
 {
 	pop_p2();
 	make_ref_p2(0);
-	oplogic(sz, n);
-	op16("st", sz, O_STORE, nr);
+	oplogic(sz, v);
+	/* TODO flush should depend on ptr some how. Maybe we need a
+	   make_ref_p2_w() that invalidates if needed */
+	flush_writeback(n->left);
+	if (op16("st", sz, O_STORE, nr))
+		set_ea_w_ptr(n->left);
 	return 1;
 }
 
@@ -2516,9 +2632,9 @@ unsigned gen_node(struct node *n)
 			return 1;
 		if (make_ref(n, 1) == 0)
 			return 0;
-		flush_writeback();
+		flush_refs(n);
 		if (op16("st", sz, O_STORE, nr))
-			set_ea_node(n);
+			set_ea_w_node(n);
 		return 1;
 	case T_RREF:
 		puts("\tld ea,p3");
@@ -2529,7 +2645,7 @@ unsigned gen_node(struct node *n)
 		set_ea_node(n);
 		return 1;
 	case T_CALLNAME:
-		flush_writeback();
+		flush_writeback(NULL);
 		invalidate_all();
 		printf("\tjsr %s+%d\n", namestr(n->snum), v);
 		return 1;
@@ -2540,7 +2656,11 @@ unsigned gen_node(struct node *n)
 		off = WORD(n->value);
 		pop_p2();
 		make_ref_p2(off);
-		flush_writeback();
+		/* TODO: handle pointer with offset properly */
+		if(off)
+			flush_writeback(NULL);
+		else
+			flush_writeback(n->left);
 		op16("st", sz, O_STORE, nr);
 		return 1;
 	case T_DEREF:
@@ -2552,13 +2672,12 @@ unsigned gen_node(struct node *n)
 			return 1;
 		if (!se && is_byte)
 			sz = 1;
-		/* Might be able to be smarter here */
-		flush_writeback();
+		flush_writeback(n->right);
 		load_ptr_ea(2);
 		make_ref_p2(v);
-		op16("ld", sz, O_LOAD, nr);
-		/* TODO node track */
 		invalidate_ea();
+		if (op16("ld", sz, O_LOAD, nr))
+			set_ea_w_ptr(n->right);
 		return 1;
 	case T_RDEREF:
 		if (nr && !se)
@@ -2614,7 +2733,7 @@ unsigned gen_node(struct node *n)
 			load_ptr_ea(2);	/* P2 is our pointer */
 		}
 		load_ea_t();
-		flush_writeback();
+		flush_writeback(NULL);
 		make_ref_p2(n->snum);
 		op16("st", sz, O_STORE, nr);
 		/* TODO node track */
@@ -2623,11 +2742,10 @@ unsigned gen_node(struct node *n)
 	case T_REQ:
 		make_ref_p3(n->snum);
 		op16("st", sz, O_STORE, nr);
-		invalidate_ea();
 		/* TODO node track */
 		return 1;
 	case T_FUNCCALL:
-		flush_writeback();
+		flush_writeback(NULL);
 		invalidate_all();
 		/* EA holds the function ptr */
 		puts("\tjsr __callea\n");
@@ -2635,6 +2753,10 @@ unsigned gen_node(struct node *n)
 	case T_CONSTANT:
 		if (is_byte)
 			sz = 1;
+		if (nr)
+			return 1;
+		load_ea(sz, v);
+		return 1;
 	case T_NAME:
 		if (nr)
 			return 1;
@@ -2776,8 +2898,9 @@ unsigned gen_node(struct node *n)
 		/* EA holds the value, p2 the ptr */
 		make_ref_p2(0);
 		op16("add", sz, O_MODIFY, 1);
-		op16("st", sz, O_STORE, nr);
-		invalidate_ea();
+		/* TODO writeback flush */
+		if (op16("st", sz, O_STORE, nr) && n->op == T_PLUSEQ)
+			set_ea_w_ptr(n->left);
 		return 1;
 	case T_MINUSMINUS:
 		if (!nr)
@@ -2796,8 +2919,9 @@ unsigned gen_node(struct node *n)
 		make_ref_tmp();
 		op16("sub", sz, O_MODIFY, 1);
 		make_ref_p2(0);
-		op16("st", sz, O_STORE, nr);
-		invalidate_ea();
+		/* TODO writeback flush */
+		if (op16("st", sz, O_STORE, nr) && n->op == T_MINUSEQ)
+			set_ea_w_ptr(n->left);
 		return 1;
 	case T_STAREQ:
 		/* We can do byte sized muleq fast. Constant
@@ -2813,7 +2937,9 @@ unsigned gen_node(struct node *n)
 			invalidate_ea();
 			invalidate_t();
 			load_ea_t();
-			op16("st", 1, O_STORE, nr);
+			/* TODO writeback flush */
+			if (op16("st", 1, O_STORE, nr))
+				set_ea_w_ptr(n->left);
 			return 1;
 		}
 		return helper_eq(n, "muleq", n->type & ~UNSIGNED);
@@ -2828,11 +2954,11 @@ unsigned gen_node(struct node *n)
 	/* TOS is the pointer, EA is the value */
 	/* TODO: logic fallbacks ? */
 	case T_ANDEQ:
-		return logic_ptr_op(sz, 0, nr);
+		return logic_ptr_op(n, sz, 0, nr);
 	case T_OREQ:
-		return logic_ptr_op(sz, 1, nr);
+		return logic_ptr_op(n, sz, 1, nr);
 	case T_HATEQ:
-		return logic_ptr_op(sz, 2, nr);
+		return logic_ptr_op(n, sz, 2, nr);
 	/* Conditions */
 	case T_EQEQ:
 		if (cc_helper_stack(n, "cceqtmp"))
