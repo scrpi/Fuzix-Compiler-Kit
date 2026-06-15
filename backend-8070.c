@@ -233,6 +233,8 @@ static void set_ea_node(struct node *n)
 	if (n->op == T_CONSTANT)
 		set_ea(n->value);
 	ea_valid = 1;
+	/* We reloaded it, so the write alias is broken */
+	ea_w_valid = 0;
 	memcpy(&ea_node, n, sizeof(ea_node));
 	ea_node.op = map_op(ea_node.op);
 	printf(";set_ea_node from %04X to %04X (val %lu)\n", n->op, ea_node.op, ea_node.value);
@@ -292,21 +294,31 @@ static unsigned is_ea_node(register struct node *n)
 
 static void adjust_a(unsigned n)
 {
-	a_value += n;
-	ea_valid = 0;
-	ea_w_valid = 0;
+	if (a_valid ==  1)
+		a_value += n;
+	else {
+		a_valid = 0;
+		ea_valid = 0;
+		ea_w_valid = 0;
+	}
 }
 
 static void adjust_ea(unsigned n)
 {
 	unsigned t = a_value + BYTE(n);
-	a_value = t;
-	e_value += BYTE(n >> 8);
-	if (t & 0x0100)
-		e_value++;
+
+	if (a_valid == 1 && e_valid == 1) {
+		a_value = t;
+		e_value += BYTE(n >> 8);
+		if (t & 0x0100)
+			e_value++;
+	} else {
+		a_valid = 0;
+		e_valid = 0;
+	}
 	/* Review - can we do this safely and combine with an
 	   awareness of moving the EA pointer around without reload ?
-	   ea_node.value += n;
+	   ea_node.value += n; (will need a lot of other checks
 	   */
 	ea_valid = 0;	/* For now just mark it not a valid node value */
 	ea_w_valid = 0;
@@ -1090,7 +1102,7 @@ static void load_ea(unsigned sz, unsigned long v)
 		if (a_valid && vw == a_value)
 			return;
 		if (e_valid && vw == e_value)
-			puts("ld a,e");
+			puts("\tld a,e");
 		else
 			printf("\tld a,=%ld\n", v & 0xFF);
 		set_a(vw);
@@ -1135,6 +1147,24 @@ static void load_e(unsigned v)
 	else
 		printf("\txch a,e\n\tld a,=%u\n\txch a,e\n", v);
 	set_e(v);
+}
+
+static void load_e_a(void)
+{
+	puts("\tld e,a");
+	if (a_valid == 1)
+		set_e(a_value);
+	else
+		invalidate_ea();
+}
+
+static void or_a_e(void)
+{
+	puts("\tor a,e");
+	if (e_valid == 1 && a_valid == 1)
+		set_a(a_value | e_value);
+	else
+		invalidate_ea();
 }
 
 /* Track exchanges we use */
@@ -1776,24 +1806,28 @@ static unsigned op16_direct(struct node *n, const char *op, unsigned size, unsig
 /* True if EA >= const */
 static void uns_gteq_const(unsigned s)
 {
+	printf(";uns_gteq_const %u\n", s);
 	op16("sub", s, O_MODIFY, 1);
-	invalidate_ea();
-
 	if (ref_op == T_CONSTANT) {
 		if (s == 2)
 			adjust_ea(WORD(-ref_value));
 		else
 			adjust_a(BYTE(-ref_value));
-	}
+	} else
+		invalidate_ea();
+
 	if (optsize) {
 		puts("\tjsr __unsignedcomp");
+		invalidate_ea();
 		set_e(0);
 	} else {
 		/* Now play games to get borrow flag */
 		load_ea(2, 0);
 		puts("\trrl a");/* Borrow is now top bit of A */
 		puts("\tsl ea");/* Into low bit of E */
+		invalidate_ea();
 		xch_a_e();	/* Into low bit of A */
+		set_e(0);
 	}
 	invalidate_a();
 }
@@ -1801,6 +1835,7 @@ static void uns_gteq_const(unsigned s)
 /* True if sign != overflow flag, that is if EA < const */
 static void s_lt_const(unsigned s)
 {
+	printf(";s_lt_const %u\n", s);
 	op16("sub", s, O_MODIFY, 1);
 	invalidate_ea();
 	if (ref_op == T_CONSTANT) {
@@ -1823,6 +1858,7 @@ static void s_lt_const(unsigned s)
 		puts("\tsl a");		/* O is in top bit */
 		puts("\txor a,e");	/* O xor sign of result */
 		puts("\tsl ea");	/* And shuffle into EA as 0/1 */
+		invalidate_ea();
 		load_ea(1, 0);
 		xch_a_e();
 		puts("\tand a,=1");
@@ -1874,6 +1910,7 @@ static unsigned gen_gtlt_op(struct node *n, unsigned z, unsigned gt, unsigned is
 			s_lt_const(s);
 			if (gt)
 				puts("\txor a,=1");
+			load_e(0);
 		}
 	}
 	n->flags |= ISBOOL;
@@ -1895,7 +1932,9 @@ static unsigned gen_eq_op(struct node *n, unsigned eq, unsigned is_byte)
 		op16("sub", s, O_MODIFY, r->value);
 	invalidate_ea();
 	if (s == 2)
-		puts("\tor a,e\n");
+		or_a_e();
+	else
+		load_e_a();
 	printf("\tbz X%u\n", ++label);
 	load_ea(2,1);
 	printf("X%u:\n", label);
@@ -1910,7 +1949,8 @@ void shift_left(unsigned s, unsigned v)
 {
 	if (v >= 8) {
 		v -= 8;
-		puts("\tld e,a\n\tld a,=0");
+		load_e_a();
+		load_ea(1, 0);
 	}
 	if (s == 1) {
 		repeated_op("\tsl a", v);
@@ -2226,10 +2266,9 @@ static void argstack(struct node *n)
 			if (v) {
 				printf("\tadd ea,=%u\n", v);
 				invalidate_ea();
-				load_ptr_ea(2);
 			}
 			/* Can't push p1 alas */
-			puts("\tpush p2");
+			puts("\tpush ea");
 			sp += 2;
 			return;
 		}
@@ -2858,6 +2897,7 @@ unsigned gen_node(struct node *n)
 			puts("\txor a,=1");
 			/* Can't be a pointer as is bool */
 			a_value ^= 1;
+			invalidate_a();
 			return 1;
 		}
 		n->flags |= ISBOOL;
@@ -2867,11 +2907,15 @@ unsigned gen_node(struct node *n)
 		if (sz > 2)
 			return 0;
 		if (sz == 2)
-			puts("\tor a,e");
+			or_a_e();
+		else
+			load_e_a();
 		printf("\tbz X%u\n", ++label);
 		load_ea(2, 1);
 		printf("X%u:\n", label);
 		puts("\txor a,=1");
+		invalidate_a();
+		set_e(0);
 		return 1;
 	case T_BOOL:
 		n->flags |= ISBOOL;
@@ -2881,10 +2925,14 @@ unsigned gen_node(struct node *n)
 		if (sz > 2)
 			return 0;
 		if (sz == 2)
-			puts("\tor a,e");
+			or_a_e();
+		else	/* So E is 0 if A is 0 */
+			load_e_a();
 		printf("\tbz X%u\n", ++label);
 		load_ea(2, 1);
 		printf("X%u:\n", label);
+		invalidate_a();
+		set_e(0);
 		return 1;
 	/* Shift TOS by EA */
 	case T_LTLT:
