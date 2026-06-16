@@ -8,6 +8,7 @@ int main(int argc, char *argv[])
 {
     signed char a;
     int b;
+    char c;
 
     a = 0xA5;
     b = a;
@@ -25,7 +26,9 @@ int main(int argc, char *argv[])
     a = 0x20;
     if ((unsigned)func(a) != 0x0020)
         return 4;
+    a = -1;
+    c = 255;
+    if (a == c)
+        return 5;
     return 0;
 }
-
-    
