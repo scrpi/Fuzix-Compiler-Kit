@@ -6,8 +6,7 @@
 __boolc:
 	ldx #0
 	cmp #0
-	bne setit
-	rts
-setit:
+	beq ex0
 	lda #1
+ex0:
 	rts

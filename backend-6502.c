@@ -814,7 +814,7 @@ static int do_pri8hi(struct node *n, struct node *r, const char *op, void (*pre)
 
 /*	printf(";pri8hi node %04X right %04X op %s\n",
 		n->op, r->op, op); */
-		
+
 	/* We can fold in some simple casting */
 	/* FIXME: not clear this is safe (eg if using stx) */
 	if (r->op == T_CAST && !has_sideeffect(r->right)) {
@@ -2978,6 +2978,12 @@ unsigned gen_direct(struct node *n)
 		s = get_size(r->type);
 		if (r->op == T_CONSTANT) {
 			if (v == 0) {
+				if (n->left->flags & ISBOOL) {
+					n->flags |= ISBOOL;
+					output("eor #1");
+					const_a_set(reg[R_A].value ^ 1);
+					return 1;
+				}
 				if (is_byte) {
 					output("tax");	/* For now TODO */
 					/* And fall through until we have CCONLY support */
@@ -3044,7 +3050,14 @@ unsigned gen_direct(struct node *n)
 		s = get_size(r->type);
 		if (r->op == T_CONSTANT) {
 			if (v == 0) {
-				if (is_byte) {
+				/* If it's already bool then no work to do */
+				if (n->left->flags & ISBOOL) {
+					n->flags |= ISBOOL;
+					return 1;
+				}
+				/* Only do the fixup if we are working on
+				   words squashed to byte */
+				if (is_byte && s != 1) {
 					output("tax");	/* For now TODO */
 					/* And fall through until we have CCONLY support */
 				}
@@ -3360,7 +3373,7 @@ unsigned gen_shortcut(struct node *n)
 					invalidate_x();
 				return 1;
 			}
-		}	
+		}
 		break;
 	case T_MINUSMINUS:
 		if (leftop_memc(n, "dec"))
@@ -3412,7 +3425,7 @@ unsigned gen_shortcut(struct node *n)
 					invalidate_x();
 				return 1;
 			}
-		}	
+		}
 		break;
 	case T_PLUSEQ:
 		if (leftop_memc(n, "inc"))
@@ -3497,13 +3510,18 @@ static unsigned gen_cast(struct node *n)
 	if (!IS_INTARITH(lt) || !IS_INTARITH(rt))
 		return 0;
 
+	ls = get_size(lt);
+	/* Our boolean is still boolean and the bits that matter
+	   are still correct so pass the ISBOOL on. This deals with
+	   casts inserted by the byte optimisations */
+	if ((n->right->flags & ISBOOL) && ls <= 2)
+		n->flags |= ISBOOL;
 	/* No type casting needed as computing byte sized and
 	   other half does not matter. One some processors we'd
 	   use this case to move between registers  */
 	if (n->flags & BYTEOP)
 		return 1;
 
-	ls = get_size(lt);
 
 	/* Size shrink is free */
 	if ((lt & ~UNSIGNED) <= (rt & ~UNSIGNED))
