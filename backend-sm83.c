@@ -936,7 +936,7 @@ static void repeated_op(const char *o, unsigned n)
 
 /*
  *	We split the direct two operand stuff into two forms
- *	- Stuff with DE or A  and constants (in L or HL) 
+ *	- Stuff with DE or A  and constants (in L or HL)
  *	- Anything else with HL or A and (HL)
  */
 static unsigned gen_twoop(const char *op, struct node *n, struct node *r, unsigned sign, unsigned s)
@@ -1434,7 +1434,7 @@ unsigned gen_direct(struct node *n)
 		}
 		return gen_compc("cmpne", n, r, 0);
 	case T_LTLT:
-		if (s == 1 && r->op == T_CONSTANT) { 
+		if (s == 1 && r->op == T_CONSTANT) {
 			repeated_op("add a,a", v & 7);
 			return 1;
 		}
@@ -1482,7 +1482,7 @@ unsigned gen_direct(struct node *n)
 			outputne("ld e,a");
 			if (v == 1)
 				output("inc a");
-			else 
+			else
 				/* Right is always a constant for n++ forms */
 				output("add %u", BYTE(v));
 			outputne("ld (de),a");
@@ -1851,7 +1851,7 @@ static void perform_byte_const(const char *op, unsigned nr, unsigned t, unsigned
 		/* In type 0 case (add/adc etc we can't xor due to flags */
 		if (b == 0 && t)
 			output("xor a");
-		else		
+		else
 			outputne("ld a, %u", b);
 		outputne("%s a,(hl)", op);
 	}
@@ -1960,7 +1960,7 @@ unsigned gen_shortcut(struct node *n)
 	/* The comma operator discards the result of the left side, then
 	   evaluates the right. Avoid pushing/popping and generating stuff
 	   that is surplus */
-	
+
 	switch(op) {
 	case T_COMMA:
 		l->flags |= NORETURN;
@@ -2105,11 +2105,17 @@ static unsigned gen_cast(struct node *n)
 	if (!IS_INTARITH(lt) || !IS_INTARITH(rt))
 		return 0;
 
+	ls = get_size(lt);
+
+	/* Propogate boolean state through casts to clean up after
+	   byte optimizer */
+	if ((n->right->flags & ISBOOL) && ls <= 2)
+		n->flags |= ISBOOL;
+
 	/* No type casting needed as computing byte sized */
 	if (n->flags & BYTEOP)
 		return 1;
 
-	ls = get_size(lt);
 	rs = get_size(rt);
 
 	/* Size shrink is not always free for us as it's a reg change */

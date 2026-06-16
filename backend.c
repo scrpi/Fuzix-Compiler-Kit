@@ -105,7 +105,7 @@ static void init_name_cache(void)
    how to clean the logic up across the backends so that we don't mash
    signs but we can squash other same size conversions. In particular
    pointer/integer is fine regardless */
-   
+
 unsigned cast_fold_safe(register unsigned op)
 {
 	/* Division forms are sign dependent */

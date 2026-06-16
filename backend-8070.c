@@ -2611,11 +2611,17 @@ static unsigned gen_cast(struct node *n)
 	if (!IS_INTARITH(lt) || !IS_INTARITH(rt))
 		return 0;
 
+	ls = get_size(lt);
+
+	/* Propogate ISBOOL when possible. Needed to clean up
+	   byte conversion casts */
+	if ((n->right->flags & ISBOOL) && ls <= 2)
+		n->flags |= ISBOOL;
+
 	/* No type casting needed as computing byte sized */
 	if (n->flags & BYTEOP)
 		return 1;
 
-	ls = get_size(lt);
 
 	/* Size shrink is free */
 	if ((lt & ~UNSIGNED) <= (rt & ~UNSIGNED))

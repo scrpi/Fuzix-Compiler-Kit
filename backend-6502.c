@@ -74,7 +74,7 @@
  *	move carry along with this. That's tricky to do from a compiler tree.
  *
  *	Can we fix the common byte = byte >> n case - generically we can't
- *	screw with right unsigned shift but if bot sides are byte we can
+ *	screw with right unsigned shift but if both sides are byte we can
  *
  *	?? l_andeq and friends ?
  *
