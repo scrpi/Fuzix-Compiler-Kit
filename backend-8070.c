@@ -23,8 +23,6 @@
  *
  *	TODO:
  *	- Debug p2 tracking as it's often not getting stuff
- *	- Track ea as both node and constant especially for intializers
- *		(eg it messes up local1 = 0; local2 = 0)
  *	- Fold together all the condition helpers for byte/word
  *	- Rewrite x++ and --x forms to use autoindexing
  *	- Byte sized ++/-- optimizations
@@ -36,20 +34,16 @@
  *		Need to do pointer tracking an EA node tracking for ptr
  *		and word sized refs.
  *		Need to enable LREF/LSTORE etc for dword
- *		Constant tracking needs putting back
  *	- Spot the *foo++ case and build a p2 based ++ op for it
  *		ld p2,1,p1 ; st ea,@2,p2; st p2,1,p1 etc
  *		ld p2,1,p1 ; add ea,@2,p2; st p2,1,p1 etc
  *	- CCONLY
  *	- Comparisons using CCONLY
  *	- Peepholes
- *	- Can we do some equality type comparisons better inline with something
- *	  like sub ea,blah jsr bool/bang ?
  *	- With -Os swap ld ea,=0 with ld ea,:zero and consider same for pointers
  *	  (saves a byte a time and occurs a lot)
  *	- Optimise nr long local = long local
  *	- Shortcut some helpers for longs to use argument stack helper
- *	- Why do we have cases generating sub ea,=0 or a,e ? (FIXED ?)
  */
 #include <stdio.h>
 #include <stdint.h>
@@ -2184,11 +2178,19 @@ unsigned gen_direct(struct node *n)
 		}
 		break;
 	case T_MINUSMINUS:
+	case T_MINUSEQ:
 		v = -v;
 	case T_PLUSPLUS:
-		/* Complex ++/-- right is always constant, EA holds address */
-		if (s > 2)
+	case T_PLUSEQ:
+		/* Complex ++/-- right is always constant for post forms,
+		    EA holds address */
+		if (s > 2 || r->op != T_CONSTANT)
 			return 0;
+		/* With nr = 1 we return the new value, which is
+		   correct for these two cases, and if nr = 1 was
+		   already set it doesn't matter anyway */
+		if (n->op == T_PLUSEQ || n->op == T_MINUSEQ)
+			nr = 1;
 		load_ptr_ea(2);
 		make_ref_p2(0);
 		op16("ld", s, O_LOAD, 1);
