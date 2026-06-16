@@ -11,8 +11,8 @@ __plusl:
 	ldd	@hireg
 	adcb	3,x
 	adca	2,x
-	sta	@hireg
-	lda	@tmp
+	std	@hireg
+	ldd 	@tmp
 	pulx
 	ins
 	ins
