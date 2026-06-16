@@ -55,7 +55,7 @@ static unsigned byte_cast(struct node *n)
 {
 	if ((n->type & ~UNSIGNED) == CCHAR)
 		return 1;
-	if (n->op == T_CAST && (n->right->type & ~UNSIGNED) == CCHAR)
+	if (n->op == T_CAST && n->right->type == UCHAR)
 		return 1;
 	/* Bools are integer types but can be byteified */
 	if (n->flags & ISBOOL)
