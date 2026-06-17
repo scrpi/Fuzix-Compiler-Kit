@@ -251,6 +251,16 @@ D-18).
   stays mapped at a fixed location in every map set, for the always-resident
   kernel code and the inter-map copy routines (R-MEM-4); the active map set follows
   the privilege mode (R-MEM-5).
+- **Inter-map copy is software, not an instruction.** BLIP provides no block-move
+  instruction. Bulk copies — including the kernel's cross-map `copyin`/`copyout`
+  between a user map and the kernel (R-MEM-4) — are interruptible software loops over
+  the auto-increment addressing modes (§4). A cross-map copy runs in the
+  always-resident region and reaches the other map set by temporarily windowing the
+  target page into a scratch slot with `LDMMU`, copying a bounded chunk, then
+  advancing. Because it is a loop it never delays an interrupt by more than one
+  iteration (R-CPU-3) and spends no opcode slot; a hardware block move would instead
+  either stall interrupts for the whole transfer or require restartable microcode,
+  so it is deliberately not provided.
 - **Reset.** On reset the CPU enters supervisor mode with interrupts masked and
   begins at a fixed reset vector (R-CPU-7); the page table comes up as an identity
   map of the low 64 KB (logical = physical), so the machine runs before any
