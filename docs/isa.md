@@ -102,10 +102,11 @@ user code cannot name or corrupt); `RTI` restores the saved mode. The kernel can
 read/write `USP` explicitly to set up a user stack (68000-style). MMU control and
 other privileged operations are legal only in supervisor mode.
 
-**`CC` layout (proposed):** ALU flags `N Z V C`, half-carry `H`, interrupt masks
-`I`/`F`, an "entire-frame" bit `E` (so `RTI` knows how much to restore), and the
-**`M` supervisor/user mode bit**. (Exact bit positions / whether mode lives in
-`CC` or separate state is [open](#8-open-questions-for-this-document).)
+**`CC` layout (decided):** 8 bits `E F H I N Z V C` (bit7→bit0): `E` entire-frame
+(so `RTI` knows how much to restore), `F` fast-IRQ mask, `H` half-carry, `I` IRQ
+mask, and the ALU flags `N`/`Z`/`V`/`C`. The supervisor/user **mode is separate
+processor state, not a `CC` bit** (it is saved/restored with the interrupt frame).
+See §8.4.
 
 **Why this set.** Two 8-bit accumulators that pair into 16-bit `D` give cheap
 `char` math *and* 16-bit `int`/pointer math. `X` and `Y` plus stack-relative
@@ -185,40 +186,39 @@ frames still work.
 
 ## 5. Instruction encoding
 
-### 5.1 Opcode space and prefix pages
-Instructions are variable length. The first byte is the **primary opcode**, a
-256-entry map (§7). Two **prefix bytes** (working names `P2`, `P3`) open two
-additional 256-entry pages for less-common operations (wide ops, the second set
-of conditional branches, system instructions) — the same technique the 6809 uses
-with its `$10`/`$11` prefixes. This keeps common instructions one byte while
-leaving room to grow.
+### 5.1 Opcode space — a single page
+There is exactly **one 256-entry opcode page** — no prefix bytes. Every instruction
+is one opcode byte followed by 0–3 trailing bytes: an optional indexed postbyte,
+then 0–2 offset / immediate / address bytes. Decode is microcoded, so the opcode
+byte need not be bit-field-structured; the full table is §8.
 
 ```
-[ prefix? ] [ opcode ] [ postbyte? ] [ operand bytes 0..2 ]
+[ opcode ] [ postbyte? ] [ operand bytes 0..2 ]
 ```
 
 ### 5.2 The indexed **postbyte**
 Indexed-mode instructions carry one postbyte that selects the index register and
 the sub-mode (zero/constant/accumulator offset, auto inc/dec, indirect, PC-rel).
-The postbyte layout is a BLIP design choice (it need not copy the 6809 bit-for-
-bit) and is **TBD**; the *set* of modes it must encode is fixed by §4.
+The full bit layout is specified in §8.3; the *set* of modes it must encode is
+fixed by §4.
 
 ### 5.3 Branch offsets
-Short (conditional) branches use an 8-bit signed offset; long branches use a
-16-bit signed offset (via a prefix page) so the compiler is never boxed in by
-±128 bytes.
+Short (conditional) branches use an 8-bit signed offset (`Bcc`, `0x20–0x2F`); long
+branches use a 16-bit signed offset (`LBcc`, `0xB0–0xBF`) so the compiler is never
+boxed in by ±128 bytes.
 
-> **Open:** prefix-page assignment, the exact postbyte bit layout, and whether
-> immediate/branch operands are little- or big-endian (ties to §3 endianness).
+> **Resolved:** single opcode page (no prefix pages); the postbyte bit layout is in
+> §8.3 and operands are little-endian (§3).
 
 ---
 
 ## 6. System / privileged behaviour (for FUZIX)
 
-BLIP has two CPU modes, **supervisor** and **user**, selected by the `CC.M` mode
-bit (see [§2](#2-programming-model-register-file-v0)). User code runs in user
-mode on `USP`; the kernel runs in supervisor mode on `SSP`. This gives a real
-hardware kernel/user boundary on top of the per-process address map.
+BLIP has two CPU modes, **supervisor** and **user**, selected by a mode bit held
+as separate processor state (not in `CC`; see [§2](#2-programming-model-register-file-v0)
+and §8.4). User code runs in user mode on `USP`; the kernel runs in supervisor
+mode on `SSP`. This gives a real hardware kernel/user boundary on top of the
+per-process address map.
 
 Process isolation rests on two cheap mechanisms: each process's map only covers
 its own pages (R-MEM-3), and the instructions that could change a map or otherwise
@@ -232,9 +232,12 @@ D-18).
   bank and user map set). A user program cannot raise its own privilege except by
   trapping into the kernel.
 - **Privileged operations** (supervisor-only; attempted in user mode → a
-  **privilege-violation trap**): MMU control (`LDMMU`/`STMMU`), `RTI`,
-  interrupt-mask changes, halt/`SYNC`, and the `SSP`/`USP` banking moves. `SWI`
-  and everything a process needs for ordinary computation stay unprivileged.
+  **privilege-violation trap**): MMU control (`LDMMU`/`STMMU`), `RTI`, the
+  interrupt-mask instructions (`SEI`/`CLI`/`SEF`/`CLF`), `HALT`/`SYNC`, and the
+  `SSP`/`USP` banking moves. `SWI` and everything a process needs for ordinary
+  computation stay unprivileged. To keep "interrupt-mask changes" actually
+  privileged, user-mode `CC` writes (`ANDCC`/`ORCC`/`CWAI`/`PULS CC`) cannot alter
+  the `I`, `F`, or `E` bits (see §8.7).
 - **Interrupts.** Maskable `IRQ` (mask `CC.I`) and a faster `FIRQ` (mask `CC.F`)
   that stacks a minimal frame; a non-maskable `NMI`. The frame is pushed on
   `SSP`; `RTI` restores per `CC.E`.
@@ -303,94 +306,202 @@ displacement removes any need for `Y` as a frame pointer (R-ISA-2).
 
 ---
 
-## 8. Opcode table (DRAFT v0 — representative, not final)
+## 8. Opcode table
 
-> This section lays out the **map** (how the 256-entry primary space is carved
-> up) and lists representative instructions per group with their addressing
-> modes. Exact opcode byte values, cycle counts, and flag effects are filled in
-> once the register model (§2) and encoding (§5) are locked. **Do not treat the
-> hex values as final** — several are placeholders to show the layout.
+> The full instruction encoding, on a **single 256-opcode page** (no prefix pages —
+> see [decision-log.md](decision-log.md) D-21). It was generated exhaustively and
+> checked by independent adversarial passes (collisions/coverage, flag-effect
+> consistency, addressing/operand lengths, completeness); coverage is **256/256,
+> collision-free**, and the fixes applied are recorded in D-20. **Byte lengths and
+> flag effects are exact**; cycle counts are deferred until the datapath bus count
+> ([hardware.md](hardware.md) §9) is settled, since they depend on it.
 
-### 8.1 Primary opcode map (how the 256 bytes are grouped)
+### 8.1 Encoding model
 
-| Range (hex) | Group |
-|-------------|-------|
-| `00–0F` | Inherent / system (`NOP`, `RTS`, `RTI`, `SWI`, `SYNC`, `SEI`/`CLI`, …) |
-| `10–11` | **Prefix bytes** `P2` / `P3` (open pages 2 and 3) |
-| `12–1F` | Inter-register ops (`TFR`, `EXG`, `LEA`, `PSH`/`PUL`) |
-| `20–2F` | Short conditional branches (`BEQ`, `BNE`, `BCC`, `BCS`, `BGE`, …) |
-| `30–3F` | Stack / address (`LEAX/Y`, `LEASP`, `PSHS/PULS`) |
-| `40–5F` | Accumulator inherent ops on `A`/`B` (`NEG`, `COM`, `INC`, `DEC`, `ASL`, `LSR`, `ROL`, `ROR`, `CLR`, `TST`) |
-| `60–7F` | Memory/indexed read-modify-write (same ops as `40–5F`, indexed & extended) |
-| `80–BF` | `A`/`D`-oriented ALU & loads (`SUB`,`CMP`,`SBC`,`AND`,`BIT`,`LD`,`EOR`,`ADC`,`OR`,`ADD`, `LDX/Y`, `JSR`, …) across immediate/indexed/extended |
-| `C0–FF` | `B`-oriented ALU & loads + 16-bit (`LDD`,`STD`,`LDX`,`STX`,`LDY`,`STY`,`LDSP`,`STSP`, stores) across the same mode families |
+Every instruction is **one opcode byte** plus 0–3 trailing bytes: an optional
+indexed postbyte (§8.3), then 0–2 offset/immediate/address bytes. No prefix bytes;
+maximum length is 4 (opcode + postbyte + 2). Decode is microcoded, so the opcode
+need not be bit-structured — but the regular grids below are kept because they let
+shared microcode serve a whole band.
 
-(This is intentionally 6809-shaped so the structure is familiar and regular for
-microcode and for the assembler; the exact assignments are ours to set.)
+| Band | Contents |
+|------|----------|
+| `0x00–0x1F` | Inherent / system / inter-register (incl. relocated `SEI/CLI/SEF/CLF`, USP banking, `LDMMU/STMMU`, `TAS`) |
+| `0x20–0x2F` | Short branches `Bcc rel8` — **low nibble = condition** |
+| `0x30–0x3F` | Effective address, `JMP`, and the wide compares `CMPD/CMPY/CMPSP` |
+| `0x40–0x7F` | Read-modify-write unary ops — a **4×16 grid**: high nibble = operand (`4`=A, `5`=B, `6`=indexed, `7`=extended), low nibble = operation |
+| `0x80–0xAF` | A/D ALU & load group — **3×16**: high nibble = mode (`8`=immediate, `9`=indexed, `A`=extended), low nibble = operation |
+| `0xB0–0xBF` | Long branches `LBcc rel16` — **low nibble = condition** (mirrors `0x20–0x2F`) |
+| `0xC0–0xEF` | B / wide-register group — **3×16**: (`C`=immediate, `D`=indexed, `E`=extended) |
+| `0xF0–0xFF` | `SP` load/store (`0xF0–0xF4`); rest reserved |
 
-### 8.2 Representative instructions
+Stores (low nibble `7`/`D`/`F`) and `JSR` (low nibble `D`) exist only in the
+memory-operand rows; the immediate rows leave those slots reserved (store-immediate
+and JSR-immediate are meaningless) — intentional, not a gap.
 
-**Data movement**
-```
-LD{A,B,D,X,Y,SP}  <ea>       ; load   (imm/indexed/extended)
-ST{A,B,D,X,Y,SP}  <ea>       ; store
-TFR  r1,r2                   ; register -> register (like sizes)
-EXG  r1,r2                   ; exchange
-LEA{X,Y,SP} <ea>             ; r = effective address  (pointer arithmetic!)
-CLR  <ea> / CLRA / CLRB      ; zero
-```
+### 8.2 Primary opcode matrix (the whole 256-byte page)
 
-**ALU (8-bit on A/B, 16-bit on D)**
-```
-ADD/ADC/SUB/SBC  {A,B} ,<ea> ; +, +carry, -, -borrow
-ADDD/SUBD        <ea>        ; 16-bit add/sub into D (pointer/int math)
-AND/OR/EOR/BIT   {A,B},<ea>
-CMP{A,B,D,X,Y}   <ea>        ; compare (sets flags, no writeback)
-INC/DEC/NEG/COM  <ea>        ; read-modify-write
-ASL/LSR/ASR/ROL/ROR <ea>     ; shifts/rotates
-TST <ea>                     ; set N,Z from operand
-```
+Rows = high nibble, columns = low nibble; `—` = reserved. Cells show the mnemonic;
+addressing mode and length are given per band below.
 
-**Stack & frames**
-```
-PSHS/PULS {regset}           ; push/pull any register subset on the active stack
-JSR <ea> / BSR rel           ; call (push return addr)
-RTS                          ; return
-```
+|       | x0 | x1 | x2 | x3 | x4 | x5 | x6 | x7 | x8 | x9 | xA | xB | xC | xD | xE | xF |
+|-------|----|----|----|----|----|----|----|----|----|----|----|----|----|----|----|----|
+| **0x**| NOP | SYNC | DAA | SEX | MUL | ABX | TFR | EXG | PSHS | PULS | ANDCC | ORCC | SEI | CLI | SEF | CLF |
+| **1x**| RTS | RTI | SWI | SWI2 | SWI3 | CWAI | BSR | LBSR | HALT | TAS | TFRU | EXGU | LDMMU | STMMU | — | — |
+| **2x**| BRA | BRN | BHI | BLS | BCC | BCS | BNE | BEQ | BVC | BVS | BPL | BMI | BGE | BLT | BGT | BLE |
+| **3x**| LEAX | LEAY | LEASP | CMPD | CMPY | CMPSP | JMP | JMP | CMPD | CMPD | CMPY | CMPY | CMPSP | CMPSP | — | — |
+| **4x**| NEGA | — | — | COMA | LSRA | — | RORA | ASRA | ASLA | ROLA | DECA | — | INCA | TSTA | — | CLRA |
+| **5x**| NEGB | — | — | COMB | LSRB | — | RORB | ASRB | ASLB | ROLB | DECB | — | INCB | TSTB | — | CLRB |
+| **6x**| NEG | — | — | COM | LSR | — | ROR | ASR | ASL | ROL | DEC | — | INC | TST | — | CLR |
+| **7x**| NEG | — | — | COM | LSR | — | ROR | ASR | ASL | ROL | DEC | — | INC | TST | — | CLR |
+| **8x**| SUBA | CMPA | SBCA | SUBD | ANDA | BITA | LDA | — | EORA | ADCA | ORA | ADDA | CMPX | — | LDX | — |
+| **9x**| SUBA | CMPA | SBCA | SUBD | ANDA | BITA | LDA | STA | EORA | ADCA | ORA | ADDA | CMPX | JSR | LDX | STX |
+| **Ax**| SUBA | CMPA | SBCA | SUBD | ANDA | BITA | LDA | STA | EORA | ADCA | ORA | ADDA | CMPX | JSR | LDX | STX |
+| **Bx**| LBRA | LBRN | LBHI | LBLS | LBCC | LBCS | LBNE | LBEQ | LBVC | LBVS | LBPL | LBMI | LBGE | LBLT | LBGT | LBLE |
+| **Cx**| SUBB | CMPB | SBCB | ADDD | ANDB | BITB | LDB | — | EORB | ADCB | ORB | ADDB | LDD | — | LDY | — |
+| **Dx**| SUBB | CMPB | SBCB | ADDD | ANDB | BITB | LDB | STB | EORB | ADCB | ORB | ADDB | LDD | STD | LDY | STY |
+| **Ex**| SUBB | CMPB | SBCB | ADDD | ANDB | BITB | LDB | STB | EORB | ADCB | ORB | ADDB | LDD | STD | LDY | STY |
+| **Fx**| LDSP | LDSP | STSP | STSP | LDSP | — | — | — | — | — | — | — | — | — | — | — |
 
-**Control flow**
-```
-JMP <ea>
-Bcc rel8 / LBcc rel16        ; cc in {RA,EQ,NE,CC,CS,PL,MI,GE,LT,GT,LE,HI,LS,VC,VS}
-```
+Mode/length per cell where it isn't obvious from the band:
 
-**System**
-```
-NOP
-SWI / SWI2 / SWI3            ; software interrupt / syscall trap (-> supervisor)
-RTI                          ; return from interrupt (restores mode per CC.E)
-SEI / CLI                    ; set/clear IRQ mask            [privileged]
-CWAI / SYNC                  ; wait-for-interrupt
-TFR USP,r / TFR r,USP        ; kernel access to the user stack [privileged]
-LDMMU / STMMU                ; read/write a page-table entry  [privileged] (§6)
-```
+- **`3x`:** `0x33/0x38/0x39` = `CMPD` imm/indexed/extended; `0x34/0x3A/0x3B` = `CMPY`
+  imm/indexed/extended; `0x35/0x3C/0x3D` = `CMPSP` imm/indexed/extended; `0x36`=`JMP`
+  indexed, `0x37`=`JMP` extended.
+- **`1x` relocated system ops:** `0x19 TAS` indexed (atomic test-and-set);
+  `0x1A TFRU`/`0x1B EXGU` = the privileged `TFR`/`EXG` *USP-banking* forms (postbyte
+  with register code `USP`); `0x1C LDMMU`/`0x1D STMMU` take an `#imm8` page-table
+  entry index (data via `D`).
+- **`Fx`:** `0xF0` `LDSP` indexed, `0xF1` `LDSP` extended, `0xF2` `STSP` indexed,
+  `0xF3` `STSP` extended, `0xF4` `LDSP #imm16`.
+- **Lengths:** inherent = 1; `#imm8` / mask / `#imm8`-selector = 2; `#imm16` /
+  extended / `rel16` = 3; `rel8` = 2; postbyte ops (`TFR`/`EXG`/`PSHS`/`PULS`) = 2;
+  **indexed = 2–4** (opcode + postbyte + 0/1/2 offset bytes).
 
-> **Open — the full table.** The next deliverable is the complete primary +
-> P2/P3 page enumeration with: assigned opcode bytes, exact addressing-mode
-> availability per instruction, byte counts, microcycle/T-state counts, and the
-> precise flag effects of each instruction. That is a focused design pass best
-> done after §2 and §5 are confirmed (and a good candidate to generate and then
-> adversarially check for encoding collisions and flag-effect consistency).
+### 8.3 Indexed postbyte
+
+One postbyte follows the opcode for any indexed instruction; bit 7 picks the form.
+Register field `RR`: `00`=X, `01`=Y, `10`=SP, `11`=PC.
+
+**Form A — 5-bit constant offset (bit7 = 0):** `0 | RR(6:5) | nnnnn(4:0)` — signed
+5-bit offset −16…+15, no extra bytes, no indirect. The assembler's densest case.
+
+**Form B — general (bit7 = 1):** `1 | RR(6:5) | I(4) | TTTT(3:0)`, where `I` =
+indirect (one extra level of dereference):
+
+| `TTTT` | Mode | Extra bytes |
+|--------|------|-------------|
+| `0000` | `,R+` auto-inc by 1 (post) | 0 — `I` must be 0 |
+| `0001` | `,R++` auto-inc by 2 (post) | 0 |
+| `0010` | `,-R` auto-dec by 1 (pre) | 0 — `I` must be 0 |
+| `0011` | `,--R` auto-dec by 2 (pre) | 0 |
+| `0100` | `,R` zero offset | 0 |
+| `0101` | `B,R` accumulator-B offset | 0 |
+| `0110` | `A,R` accumulator-A offset | 0 |
+| `1000` | `n,R` 8-bit signed offset | 1 |
+| `1001` | `n,R` 16-bit signed offset | 2 (LE) |
+| `1011` | `D,R` accumulator-D offset | 0 |
+| `1100` | `n,PCR` 8-bit PC-relative | 1 (RR→PC) |
+| `1101` | `n,PCR` 16-bit PC-relative | 2 (RR→PC) |
+| `1111` | `[addr16]` extended-indirect | 2 (requires `I`=1) |
+| `0111`,`1010`,`1110` | reserved | — |
+
+There is one canonical encoding per (mode, register, width, indirect) tuple, so the
+assembler/disassembler round-trips. The privileged USP-banking moves (`0x1A`/`0x1B`)
+do **not** use this postbyte — they use the `TFR`/`EXG` register-code postbyte (§8.4)
+with the `USP` code.
+
+### 8.4 Register & flag encoding
+
+**`CC` (8 bits, MSB→LSB):** `E F H I N Z V C` — bit7 `E` entire-frame, bit6 `F`
+fast-IRQ mask, bit5 `H` half-carry, bit4 `I` IRQ mask, bit3 `N`, bit2 `Z`, bit1
+`V`, bit0 `C`. There is **no mode bit in `CC`** — the supervisor/user mode is
+separate processor state (saved/restored with the interrupt frame).
+
+**`TFR`/`EXG` postbyte:** `src(7:4) | dst(3:0)`, each a 4-bit register code; source
+and destination must be the same width.
+- 16-bit: `D`=0, `X`=1, `Y`=2, `SP`=3, `PC`=4. (e.g. `TFR D,X` = `0x01`.)
+- 8-bit: `A`=8, `B`=9, `CC`=`0xA`. (e.g. `EXG A,B` = `0x89`.)
+- `USP`=`0xF` — referencing it is the **privileged** USP-banking form (`0x1A`/`0x1B`),
+  which traps in user mode. Codes `5`,`6`,`7`,`B`–`E` reserved.
+
+**`PSHS`/`PULS` mask byte** (one bit per register; push high-address-first, pull
+reverse, so the same mask round-trips): bit0 `CC`, bit1 `A`, bit2 `B`, bit3
+*reserved*, bit4 `X`, bit5 `Y`, bit6 `SP` (the other/banked `SP` image), bit7 `PC`.
+`D` is pushed/pulled as `A`+`B` (bits 1+2). The implicit stack is the active one
+(`USP` in user mode, `SSP` in supervisor), so user code can't reach the kernel stack.
+
+### 8.5 Flag effects by operation class
+
+Notation: `*` set from result, `0`/`1` forced, `-` unaffected, `?` undefined.
+
+| Class | N | Z | V | C | H |
+|-------|---|---|---|---|---|
+| `LDr` / `STr` | * | * | 0 | - | - |
+| `CLR` | 0 | 1 | 0 | 0 | - |
+| `ADD`/`ADC` (8-bit) | * | * | * | * | * |
+| `ADDD` (16-bit) | * | * | * | * | - |
+| `SUB`/`SBC`/`CMP` (8-bit) | * | * | * | * | ? |
+| `SUBD`/`CMPD`/`CMPX`/`CMPY`/`CMPSP` | * | * | * | * | - |
+| `AND`/`OR`/`EOR`/`BIT`/`TST` | * | * | 0 | - | - |
+| `INC`/`DEC` | * | * | * | - | - |
+| `NEG` | * | * | * | * | ? |
+| `COM` | * | * | 0 | 1 | - |
+| `ASL`/`ROL`/`LSR`/`ROR`/`ASR` | * | * | * | * | ? |
+| `TAS` | * | * | 0 | - | - |
+| `LEAX`/`LEAY` | - | * | - | - | - |
+| `LEASP`, `TFR`/`EXG`, `JMP`/`JSR`/`BSR`/`LBSR`/`RTS`, `Bcc`/`LBcc`, `ABX`, `NOP`, `SYNC`, `HALT` | - | - | - | - | - |
+| `SEI`/`CLI`/`SEF`/`CLF` | - | - | - | - | - |
+| `LDMMU`/`STMMU` | - | - | - | - | - |
+| `SEX` | * | * | 0 | - | - |
+| `MUL` | - | * | - | * | - |
+| `DAA` | * | * | ? | * | - |
+| `ANDCC`/`ORCC`/`CWAI` | per mask byte | | | | |
+| `RTI`, `PULS CC` | all `CC` restored from stack | | | | |
+| `SWI` | sets `I` and `F`; no N/Z/V/C/H | | | | |
+| `SWI2`/`SWI3` | set `I`; no N/Z/V/C/H | | | | |
+
+### 8.6 Relocations & reserved slots
+
+Going single-page meant packing the ops that had been on prefix pages into holes:
+
+- **Long branches** `LBcc` fill row `0xB0–0xBF` (low nibble = condition, mirroring
+  `0x20–0x2F`), so one condition-decoder serves both.
+- **Wide compares** `CMPD/CMPY/CMPSP` (9 forms) take the `0x30`-row holes (`0x33–0x3D`).
+- **Interrupt-mask** `SEI/CLI/SEF/CLF` → `0x0C–0x0F`; **USP banking** `TFRU/EXGU` →
+  `0x1A/0x1B`; **MMU** `LDMMU/STMMU` → `0x1C/0x1D`; **`TAS`** → `0x19`; **`HALT`** →
+  `0x18`.
+
+**Reserved (free for growth):** `0x1E/0x1F`; `0x3E/0x3F`; the RMW holes
+(low nibbles `1/2/5/B/E` in each of `0x4x–0x7x`); the immediate-row holes
+`0x87/0x8D/0x8F` (A/D) and `0xC7/0xCD/0xCF` (B/wide); and `0xF5–0xFF`. ~40 slots in
+all — the hard 256 ceiling is accepted (D-21).
+
+### 8.7 Privilege & the user-mode `CC` mask
+
+Privileged instructions (trap in user mode): `SYNC` (`0x01`), `RTI` (`0x11`),
+`SEI`/`CLI`/`SEF`/`CLF` (`0x0C–0x0F`), `HALT` (`0x18`), `TFRU`/`EXGU` (`0x1A`/`0x1B`),
+`LDMMU`/`STMMU` (`0x1C`/`0x1D`). `SWI`/`SWI2`/`SWI3` are **unprivileged** — the
+syscall gateway. Plain `TFR`/`EXG` (`0x06`/`0x07`) stay unprivileged; only the
+USP-banking variants are privileged.
+
+Because `ANDCC`/`ORCC`/`CWAI` and `PULS CC` write `CC` directly, they would
+otherwise let user code clear the `I`/`F` interrupt masks. So **in user mode those
+instructions cannot alter the `I`, `F`, or `E` bits** — attempts are ignored (only
+`N Z V C H` are writable), and `PULS CC` restores only `N Z V C H`. The `I`/`F`
+masks change only via the privileged `SEI`/`CLI`/`SEF`/`CLF` and via `RTI`/trap
+entry. This is what makes "interrupt-mask changes are privileged" (R-CPU-4,
+R-CPU-6) actually hold.
 
 ---
 
 ## 9. Open questions for this document
 
-1. **Postbyte layout & prefix-page assignment (§5).**
-2. **Mode/reset encoding (§2/§6):** exact `CC.M` mode-bit position and the
-   reset-vector location.
-3. **Then:** freeze the full 256-entry opcode table (§8).
+1. **Reset details (§6):** the reset-vector location and the exact reset values of
+   `PC`/`SP`.
 
-*Decided so far:* registers `A B D X Y SP` (no `U`/`DP`); little-endian; privilege
-with banked `SSP`/`USP`; internal MMU (physical external bus, 16 MB / 8 KB pages,
-identity-mapped at reset, programmed by `LDMMU`/`STMMU`); calling convention (§7).
+*Decided:* registers `A B D X Y SP` (no `U`/`DP`); little-endian; privilege with
+banked `SSP`/`USP` and the mode bit as separate state (not in `CC`); internal MMU
+(physical external bus, 16 MB / 8 KB pages, identity-mapped at reset, programmed by
+privileged `LDMMU`/`STMMU`); calling convention (§7); and the full **single-page**
+encoding, indexed postbyte, and 256-entry opcode table (§8).

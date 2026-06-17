@@ -33,6 +33,8 @@
 | D-17 | Documentation method: three-tier model + AGENTS.md | Decided |
 | D-18 | Protection: map-isolation + privileged instructions; per-page is a non-goal | Decided |
 | D-19 | Calling convention: register args, `Y` callee-saved | Decided |
+| D-20 | Instruction encoding & the full 256-entry opcode table | Decided |
+| D-21 | Single opcode page (no prefix pages) | Decided |
 
 ---
 
@@ -255,6 +257,57 @@ the other option — more register-arg throughput, but nothing preserved across 
 call, failing R-ABI-4; rejected. Costs of the chosen path: the backend must be
 taught a callee-saved register (the cloned base has none), and 32-bit returns use
 the hidden-pointer path so `Y` stays unambiguously preserved.
+
+## D-20 — Instruction encoding & the full 256-entry opcode table
+**Status:** Decided (2026-06-17)
+**Context:** With the register model (D-07), addressing modes, and calling
+convention (D-19) settled, freeze the full opcode table.
+**Decision:** A single 256-opcode page (no prefix pages — see D-21): regular
+nibble-aligned grids (high nibble = band, low nibble = operation) for the RMW, A/D,
+B/wide, and branch blocks, with the remaining ops packed into holes. Full table,
+indexed postbyte, register/flag encoding, relocations, and reserved slots in
+[isa.md](isa.md) §8. The supervisor/user mode bit is **separate processor state,
+not a `CC` bit** (`CC` is exactly `E F H I N Z V C`); user-mode `CC` writes cannot
+change `I`/`F`/`E`.
+**Why:** Regular grids keep decode/microcode and the assembler simple and make
+collisions structurally unlikely (R-CTRL-1); the table realizes the C-target
+addressing and ABI needs (R-ISA-\*, R-ABI-\*) and the privileged system/MMU set
+(R-CPU-1/4, R-MEM-5).
+**Process / verification:** Generated exhaustively and checked by independent
+adversarial passes (collisions/coverage, flag-effect consistency,
+addressing/operand lengths, completeness); coverage verified 256/256 collision-free
+with nothing lost in re-packing. Fixes applied across the runs: added the missing
+**`JMP`**; removed redundant duplicate encodings; made **`LDMMU`/`STMMU`** consistent
+(no flags); corrected **`CWAI`** flags to per-mask; resolved three **dual-mode ops**
+(`TAS` → indexed; `LDMMU`/`STMMU` → `#imm8` entry-selector); normalized indexed
+byte-lengths; and closed the **user-mode `CC` mask** privilege hole. An initial
+encoding with two prefix pages was produced first, then dropped in favour of the
+single page (D-21) before any commit. Cycle counts are deferred until the datapath
+bus count (hardware.md §9) is decided.
+
+## D-21 — Single opcode page (no prefix pages)
+**Status:** Decided (2026-06-17) — supersedes the initial prefix-page encoding under
+D-20.
+**Context:** The first encoding used a primary page plus two prefix pages
+(`0x10`/`0x11`) for long branches, wide compares, and system/MMU ops. Keep that, or
+hard-limit to one 256-opcode page?
+**Decision:** One 256-opcode page, no prefix bytes — every instruction is one opcode
+byte + 0–3 trailing bytes. The ~216 instructions pack into 256 with ~40 slots free;
+the formerly-prefixed ops move into holes (long branches → `0xB0–0xBF`; wide compares
+→ the `0x30`-row holes; `SEI/CLI/SEF/CLF`, USP banking, `LDMMU/STMMU`, `TAS` →
+low-page holes).
+**Why:** The prefix spill was caused by the field-encoded grid's reserved holes, not
+by real space exhaustion. A single page simplifies instruction fetch/decode (uniform
+"opcode → dispatch", no prefix-byte state) and gives a modest code-density /
+fetch-cycle win for the formerly-prefixed ops; the common case and the clock are
+unchanged. Microcode size is not a constraint (writable control store + planned
+microcode tooling + cheap SRAM/EEPROM), so dense packing beats a prefix mechanism.
+**Alternatives/notes:** Field encoding is what keeps microcode lean (opcode bits
+parameterize shared routines); under dense packing that survives where the grids are
+kept (RMW, A/D, B/wide, branch-condition) and is otherwise carried as decode-hint
+fields in the microcode dispatch table. Cost accepted: a hard 256 ceiling (~40 free)
+and a table-driven (not algorithmic) encoding — both fine for a lean, microcoded
+design.
 
 ---
 
