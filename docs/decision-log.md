@@ -36,6 +36,7 @@
 | D-20 | Instruction encoding & the full 256-entry opcode table | Decided |
 | D-21 | Single opcode page (no prefix pages) | Decided |
 | D-22 | Drop FIRQ; mode bit in CC; minimal interrupt frame | Decided |
+| D-23 | Adopt `ADCD`/`SBCD` and `D` multi-bit shifts (`ASLD`/`LSRD`/`ASRD`) | Decided |
 
 ---
 
@@ -331,6 +332,37 @@ user-mode-`CC`-write protection.
 **Alternatives/notes:** A full auto-stacked register frame was considered and
 rejected (slow entry; conflicts with caller-saves). One `CC` bit is left reserved in
 case a second interrupt level is ever justified.
+
+## D-23 — Adopt `ADCD`/`SBCD` and `D` multi-bit shifts
+**Status:** Decided (2026-06-18)
+**Context:** A study of another homebrew TTL CPU (Magic-1) surfaced two capabilities
+BLIP lacked that a C target benefits from: 16-bit add/subtract **with carry-in**, and
+a multi-bit shift of the 16-bit accumulator. (See the influence note below.)
+**Decision:** Add `ADCD`/`SBCD` (16-bit add/subtract-with-carry on `D`; immediate /
+indexed / extended) at `0xF5–0xFA`, and `ASLD`/`LSRD`/`ASRD #n` (shift `D` left /
+logical-right / arithmetic-right by an immediate count) at `0xFB–0xFD`. Both sit in
+the `0xF0–0xFF` "wide ops" band beside `LDSP`/`STSP`. The shift count is an immediate;
+a runtime-register count is **not** added (see below). Spec in [isa.md](isa.md) §8.8.
+**Why:** `ADCD`/`SBCD` keep multi-word (`long`) integer add/subtract on the 16-bit
+arithmetic path instead of emulating the carry chain in 8-bit steps (R-ISA-6),
+shrinking the compiler's `long` helpers (R-BUILD-1). The `D` shifts fill a real hole —
+the base set has no 16-bit shift on `D` — and make constant-count shifts (scaling by
+powers of two, field extraction), the dominant C case, single instructions (R-ISA-6,
+R-BUILD-1).
+**Alternatives/notes:** A *runtime-variable* shift (count in a register) was
+considered and deferred: `D = A:B` holds the value being shifted, so the count would
+have to occupy `X`/`Y` (the pointer/return registers), which is too costly to
+standardise; the constant-count form captures most of the benefit and a register-count
+form can be added later if profiling justifies it. Placing these in the `0xF` band
+(rather than column-adjacent to `ADDD`/`SUBD`) is forced by the ALU grids being
+column-full; the `0xF` band already collects 16-bit `SP` ops, so the wide ALU ops sit
+coherently there. Cost accepted: nine of the formerly-free `0xF5–0xFF` slots are now
+used (~34 free remain, D-21).
+**Influences (non-normative):** Magic-1 (Bill Buzbee) implements 16-bit
+add/subtract-with-carry and register-count variable shifts. The 8-bit lineage BLIP
+draws its *shape* from notably lacked 16-bit add-with-carry (a later revision of that
+family added it) — the gap `ADCD`/`SBCD` close. These are the *source* of the idea,
+not its justification; the requirements above are.
 
 ---
 

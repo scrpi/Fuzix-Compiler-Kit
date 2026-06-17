@@ -334,7 +334,7 @@ shared microcode serve a whole band.
 | `0x80–0xAF` | A/D ALU & load group — **3×16**: high nibble = mode (`8`=immediate, `9`=indexed, `A`=extended), low nibble = operation |
 | `0xB0–0xBF` | Long branches `LBcc rel16` — **low nibble = condition** (mirrors `0x20–0x2F`) |
 | `0xC0–0xEF` | B / wide-register group — **3×16**: (`C`=immediate, `D`=indexed, `E`=extended) |
-| `0xF0–0xFF` | `SP` load/store (`0xF0–0xF4`); rest reserved |
+| `0xF0–0xFF` | 16-bit wide ops: `SP` load/store (`0xF0–0xF4`), `ADCD`/`SBCD` (`0xF5–0xFA`), `D` multi-bit shifts (`0xFB–0xFD`); `0xFE/0xFF` reserved |
 
 Stores (low nibble `7`/`D`/`F`) and `JSR` (low nibble `D`) exist only in the
 memory-operand rows; the immediate rows leave those slots reserved (store-immediate
@@ -362,7 +362,7 @@ addressing mode and length are given per band below.
 | **Cx**| SUBB | CMPB | SBCB | ADDD | ANDB | BITB | LDB | — | EORB | ADCB | ORB | ADDB | LDD | — | LDY | — |
 | **Dx**| SUBB | CMPB | SBCB | ADDD | ANDB | BITB | LDB | STB | EORB | ADCB | ORB | ADDB | LDD | STD | LDY | STY |
 | **Ex**| SUBB | CMPB | SBCB | ADDD | ANDB | BITB | LDB | STB | EORB | ADCB | ORB | ADDB | LDD | STD | LDY | STY |
-| **Fx**| LDSP | LDSP | STSP | STSP | LDSP | — | — | — | — | — | — | — | — | — | — | — |
+| **Fx**| LDSP | LDSP | STSP | STSP | LDSP | ADCD | ADCD | ADCD | SBCD | SBCD | SBCD | ASLD | LSRD | ASRD | — | — |
 
 Mode/length per cell where it isn't obvious from the band:
 
@@ -374,7 +374,11 @@ Mode/length per cell where it isn't obvious from the band:
   with register code `USP`); `0x1C LDMMU`/`0x1D STMMU` take an `#imm8` page-table
   entry index (data via `D`).
 - **`Fx`:** `0xF0` `LDSP` indexed, `0xF1` `LDSP` extended, `0xF2` `STSP` indexed,
-  `0xF3` `STSP` extended, `0xF4` `LDSP #imm16`.
+  `0xF3` `STSP` extended, `0xF4` `LDSP #imm16`. `0xF5` `ADCD #imm16`, `0xF6` `ADCD`
+  indexed, `0xF7` `ADCD` extended; `0xF8` `SBCD #imm16`, `0xF9` `SBCD` indexed,
+  `0xFA` `SBCD` extended (16-bit add/subtract-with-carry on `D`). `0xFB` `ASLD #n`,
+  `0xFC` `LSRD #n`, `0xFD` `ASRD #n` — shift `D` by the immediate count byte `n`
+  (length 2). See §8.8.
 - **Lengths:** inherent = 1; `#imm8` / mask / `#imm8`-selector = 2; `#imm16` /
   extended / `rel16` = 3; `rel8` = 2; postbyte ops (`TFR`/`EXG`/`PSHS`/`PULS`) = 2;
   **indexed = 2–4** (opcode + postbyte + 0/1/2 offset bytes).
@@ -442,14 +446,14 @@ Notation: `*` set from result, `0`/`1` forced, `-` unaffected, `?` undefined.
 | `LDr` / `STr` | * | * | 0 | - | - |
 | `CLR` | 0 | 1 | 0 | 0 | - |
 | `ADD`/`ADC` (8-bit) | * | * | * | * | * |
-| `ADDD` (16-bit) | * | * | * | * | - |
+| `ADDD`/`ADCD` (16-bit) | * | * | * | * | - |
 | `SUB`/`SBC`/`CMP` (8-bit) | * | * | * | * | ? |
-| `SUBD`/`CMPD`/`CMPX`/`CMPY`/`CMPSP` | * | * | * | * | - |
+| `SUBD`/`SBCD`/`CMPD`/`CMPX`/`CMPY`/`CMPSP` | * | * | * | * | - |
 | `AND`/`OR`/`EOR`/`BIT`/`TST` | * | * | 0 | - | - |
 | `INC`/`DEC` | * | * | * | - | - |
 | `NEG` | * | * | * | * | ? |
 | `COM` | * | * | 0 | 1 | - |
-| `ASL`/`ROL`/`LSR`/`ROR`/`ASR` | * | * | * | * | ? |
+| `ASL`/`ROL`/`LSR`/`ROR`/`ASR`, `ASLD`/`LSRD`/`ASRD` | * | * | * | * | ? |
 | `TAS` | * | * | 0 | - | - |
 | `LEAX`/`LEAY` | - | * | - | - | - |
 | `LEASP`, `TFR`/`EXG`, `JMP`/`JSR`/`BSR`/`LBSR`/`RTS`, `Bcc`/`LBcc`, `ABX`, `NOP`, `SYNC`, `HALT` | - | - | - | - | - |
@@ -475,8 +479,9 @@ Going single-page meant packing the ops that had been on prefix pages into holes
 
 **Reserved (free for growth):** `0x0E/0x0F`; `0x1E/0x1F`; `0x3E/0x3F`; the RMW holes
 (low nibbles `1/2/5/B/E` in each of `0x4x–0x7x`); the immediate-row holes
-`0x87/0x8D/0x8F` (A/D) and `0xC7/0xCD/0xCF` (B/wide); and `0xF5–0xFF`. ~40 slots in
-all — the hard 256 ceiling is accepted (D-21).
+`0x87/0x8D/0x8F` (A/D) and `0xC7/0xCD/0xCF` (B/wide); and `0xFE/0xFF`. ~34 slots in
+all — the hard 256 ceiling is accepted (D-21). (`0xF5–0xFD` now hold `ADCD`/`SBCD`
+and the `D` shifts — D-23.)
 
 ### 8.7 Privilege & the user-mode `CC` mask
 
@@ -493,6 +498,32 @@ attempts are ignored (only `H N Z V C` are writable). `M` and `I` change only in
 supervisor mode (and via `RTI`/trap entry, which is itself privileged). This is what
 makes the mode bit and "interrupt-mask changes are privileged" (R-CPU-4, R-CPU-6)
 actually hold.
+
+### 8.8 Multi-word arithmetic and wide shifts
+
+`ADCD`/`SBCD` are 16-bit add/subtract **with carry-in** — the chaining partners of
+`ADDD`/`SUBD` (which deposit `C`, §8.5). A 32-bit or wider integer is then added or
+subtracted 16 bits at a time — `ADDD` the low halves, `ADCD` the high halves —
+instead of dropping to the 8-bit `ADC`/`SBC` and threading the carry through four
+steps. This keeps multi-word integer add/subtract on the non-emulated 16-bit path
+(R-ISA-6) and makes the compiler's `long` helpers compact (R-BUILD-1). Their flags
+follow `ADDD`/`SUBD` (§8.5).
+
+`ASLD`/`LSRD`/`ASRD #n` shift the 16-bit accumulator `D` by an immediate count `n` in
+one instruction: left (logical = arithmetic), logical right (unsigned `>>`), and
+arithmetic right (signed `>>`). They close two gaps — the base set has **no** 16-bit
+shift on `D` at all (it otherwise costs an `ASLB`+`ROLA`-style pair *per bit*), and a
+constant multi-bit shift (scaling by a power of two, field extraction — the dominant
+C case) collapses to a single instruction (R-ISA-6, R-BUILD-1). The count is an
+immediate byte; the microcode shifts `n` positions and saturates at 16 (C leaves
+shifts ≥ the operand width undefined, so conforming code never relies on a larger
+count).
+
+A **runtime-variable** shift count is deliberately not encoded: the value occupies
+`D = A:B`, so a register-held count would have to live in `X`/`Y` — the pointer and
+return registers — which is too costly to standardise. The constant-count form
+captures the dominant case; a register-count form remains a future option if
+profiling shows runtime-variable shifts are hot.
 
 ---
 
