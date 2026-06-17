@@ -102,11 +102,11 @@ user code cannot name or corrupt); `RTI` restores the saved mode. The kernel can
 read/write `USP` explicitly to set up a user stack (68000-style). MMU control and
 other privileged operations are legal only in supervisor mode.
 
-**`CC` layout (decided):** 8 bits `E F H I N Z V C` (bit7→bit0): `E` entire-frame
-(so `RTI` knows how much to restore), `F` fast-IRQ mask, `H` half-carry, `I` IRQ
-mask, and the ALU flags `N`/`Z`/`V`/`C`. The supervisor/user **mode is separate
-processor state, not a `CC` bit** (it is saved/restored with the interrupt frame).
-See §8.4.
+**`CC` layout (decided):** 8 bits `M – H I N Z V C` (bit7→bit0): `M` supervisor/user
+**mode** (1 = supervisor), bit6 reserved, `H` half-carry, `I` IRQ mask, and the ALU
+flags `N`/`Z`/`V`/`C`. Holding the mode in `CC` lets it save/restore automatically
+with `CC` on a trap/`RTI`; `M` is supervisor-write-only (user-mode `CC` writes can't
+change it). See §8.4.
 
 **Why this set.** Two 8-bit accumulators that pair into 16-bit `D` give cheap
 `char` math *and* 16-bit `int`/pointer math. `X` and `Y` plus stack-relative
@@ -214,11 +214,11 @@ boxed in by ±128 bytes.
 
 ## 6. System / privileged behaviour (for FUZIX)
 
-BLIP has two CPU modes, **supervisor** and **user**, selected by a mode bit held
-as separate processor state (not in `CC`; see [§2](#2-programming-model-register-file-v0)
-and §8.4). User code runs in user mode on `USP`; the kernel runs in supervisor
-mode on `SSP`. This gives a real hardware kernel/user boundary on top of the
-per-process address map.
+BLIP has two CPU modes, **supervisor** and **user**, selected by the `M` bit in
+`CC` (supervisor-write-only; see [§2](#2-programming-model-register-file-v0) and
+§8.4). User code runs in user mode on `USP`; the kernel runs in supervisor mode on
+`SSP`. This gives a real hardware kernel/user boundary on top of the per-process
+address map.
 
 Process isolation rests on two cheap mechanisms: each process's map only covers
 its own pages (R-MEM-3), and the instructions that could change a map or otherwise
@@ -233,14 +233,15 @@ D-18).
   trapping into the kernel.
 - **Privileged operations** (supervisor-only; attempted in user mode → a
   **privilege-violation trap**): MMU control (`LDMMU`/`STMMU`), `RTI`, the
-  interrupt-mask instructions (`SEI`/`CLI`/`SEF`/`CLF`), `HALT`/`SYNC`, and the
-  `SSP`/`USP` banking moves. `SWI` and everything a process needs for ordinary
-  computation stay unprivileged. To keep "interrupt-mask changes" actually
-  privileged, user-mode `CC` writes (`ANDCC`/`ORCC`/`CWAI`/`PULS CC`) cannot alter
-  the `I`, `F`, or `E` bits (see §8.7).
-- **Interrupts.** Maskable `IRQ` (mask `CC.I`) and a faster `FIRQ` (mask `CC.F`)
-  that stacks a minimal frame; a non-maskable `NMI`. The frame is pushed on
-  `SSP`; `RTI` restores per `CC.E`.
+  interrupt-mask instructions (`SEI`/`CLI`), `HALT`/`SYNC`, and the `SSP`/`USP`
+  banking moves. `SWI` and everything a process needs for ordinary computation stay
+  unprivileged. So a process can't change its own mode or unmask interrupts,
+  user-mode `CC` writes (`ANDCC`/`ORCC`/`CWAI`/`PULS CC`) cannot alter the `M` or
+  `I` bits (see §8.7).
+- **Interrupts.** One maskable `IRQ` (mask `CC.I`) plus a non-maskable `NMI`. Entry
+  stacks a **minimal frame** (`PC` and `CC`) on `SSP`; the handler saves any other
+  registers it uses with `PSHS`/`PULS` (matching the caller-saves ABI). `RTI`
+  restores `CC` (hence the mode) and `PC`.
 - **System call / trap.** A software interrupt (`SWI`, possibly `SWI2`/`SWI3`) is
   FUZIX's kernel-entry trap: it enters supervisor mode with a saved frame.
 - **MMU control.** Address translation is internal to the CPU (see
@@ -326,7 +327,7 @@ shared microcode serve a whole band.
 
 | Band | Contents |
 |------|----------|
-| `0x00–0x1F` | Inherent / system / inter-register (incl. relocated `SEI/CLI/SEF/CLF`, USP banking, `LDMMU/STMMU`, `TAS`) |
+| `0x00–0x1F` | Inherent / system / inter-register (incl. relocated `SEI/CLI`, USP banking, `LDMMU/STMMU`, `TAS`) |
 | `0x20–0x2F` | Short branches `Bcc rel8` — **low nibble = condition** |
 | `0x30–0x3F` | Effective address, `JMP`, and the wide compares `CMPD/CMPY/CMPSP` |
 | `0x40–0x7F` | Read-modify-write unary ops — a **4×16 grid**: high nibble = operand (`4`=A, `5`=B, `6`=indexed, `7`=extended), low nibble = operation |
@@ -346,7 +347,7 @@ addressing mode and length are given per band below.
 
 |       | x0 | x1 | x2 | x3 | x4 | x5 | x6 | x7 | x8 | x9 | xA | xB | xC | xD | xE | xF |
 |-------|----|----|----|----|----|----|----|----|----|----|----|----|----|----|----|----|
-| **0x**| NOP | SYNC | DAA | SEX | MUL | ABX | TFR | EXG | PSHS | PULS | ANDCC | ORCC | SEI | CLI | SEF | CLF |
+| **0x**| NOP | SYNC | DAA | SEX | MUL | ABX | TFR | EXG | PSHS | PULS | ANDCC | ORCC | SEI | CLI | — | — |
 | **1x**| RTS | RTI | SWI | SWI2 | SWI3 | CWAI | BSR | LBSR | HALT | TAS | TFRU | EXGU | LDMMU | STMMU | — | — |
 | **2x**| BRA | BRN | BHI | BLS | BCC | BCS | BNE | BEQ | BVC | BVS | BPL | BMI | BGE | BLT | BGT | BLE |
 | **3x**| LEAX | LEAY | LEASP | CMPD | CMPY | CMPSP | JMP | JMP | CMPD | CMPD | CMPY | CMPY | CMPSP | CMPSP | — | — |
@@ -413,10 +414,11 @@ with the `USP` code.
 
 ### 8.4 Register & flag encoding
 
-**`CC` (8 bits, MSB→LSB):** `E F H I N Z V C` — bit7 `E` entire-frame, bit6 `F`
-fast-IRQ mask, bit5 `H` half-carry, bit4 `I` IRQ mask, bit3 `N`, bit2 `Z`, bit1
-`V`, bit0 `C`. There is **no mode bit in `CC`** — the supervisor/user mode is
-separate processor state (saved/restored with the interrupt frame).
+**`CC` (8 bits, MSB→LSB):** `M – H I N Z V C` — bit7 `M` supervisor/user mode
+(1 = supervisor), bit6 reserved, bit5 `H` half-carry, bit4 `I` IRQ mask, bit3 `N`,
+bit2 `Z`, bit1 `V`, bit0 `C`. `M` lives in `CC` so it saves/restores automatically
+with `CC` on trap/`RTI`, and it is **supervisor-write-only** (user-mode `CC` writes
+can't change it — §8.7).
 
 **`TFR`/`EXG` postbyte:** `src(7:4) | dst(3:0)`, each a 4-bit register code; source
 and destination must be the same width.
@@ -451,15 +453,14 @@ Notation: `*` set from result, `0`/`1` forced, `-` unaffected, `?` undefined.
 | `TAS` | * | * | 0 | - | - |
 | `LEAX`/`LEAY` | - | * | - | - | - |
 | `LEASP`, `TFR`/`EXG`, `JMP`/`JSR`/`BSR`/`LBSR`/`RTS`, `Bcc`/`LBcc`, `ABX`, `NOP`, `SYNC`, `HALT` | - | - | - | - | - |
-| `SEI`/`CLI`/`SEF`/`CLF` | - | - | - | - | - |
+| `SEI`/`CLI` | - | - | - | - | - |
 | `LDMMU`/`STMMU` | - | - | - | - | - |
 | `SEX` | * | * | 0 | - | - |
 | `MUL` | - | * | - | * | - |
 | `DAA` | * | * | ? | * | - |
 | `ANDCC`/`ORCC`/`CWAI` | per mask byte | | | | |
 | `RTI`, `PULS CC` | all `CC` restored from stack | | | | |
-| `SWI` | sets `I` and `F`; no N/Z/V/C/H | | | | |
-| `SWI2`/`SWI3` | set `I`; no N/Z/V/C/H | | | | |
+| `SWI`/`SWI2`/`SWI3` | set `I`; no N/Z/V/C/H | | | | |
 
 ### 8.6 Relocations & reserved slots
 
@@ -468,11 +469,11 @@ Going single-page meant packing the ops that had been on prefix pages into holes
 - **Long branches** `LBcc` fill row `0xB0–0xBF` (low nibble = condition, mirroring
   `0x20–0x2F`), so one condition-decoder serves both.
 - **Wide compares** `CMPD/CMPY/CMPSP` (9 forms) take the `0x30`-row holes (`0x33–0x3D`).
-- **Interrupt-mask** `SEI/CLI/SEF/CLF` → `0x0C–0x0F`; **USP banking** `TFRU/EXGU` →
+- **Interrupt-mask** `SEI/CLI` → `0x0C/0x0D`; **USP banking** `TFRU/EXGU` →
   `0x1A/0x1B`; **MMU** `LDMMU/STMMU` → `0x1C/0x1D`; **`TAS`** → `0x19`; **`HALT`** →
   `0x18`.
 
-**Reserved (free for growth):** `0x1E/0x1F`; `0x3E/0x3F`; the RMW holes
+**Reserved (free for growth):** `0x0E/0x0F`; `0x1E/0x1F`; `0x3E/0x3F`; the RMW holes
 (low nibbles `1/2/5/B/E` in each of `0x4x–0x7x`); the immediate-row holes
 `0x87/0x8D/0x8F` (A/D) and `0xC7/0xCD/0xCF` (B/wide); and `0xF5–0xFF`. ~40 slots in
 all — the hard 256 ceiling is accepted (D-21).
@@ -480,18 +481,18 @@ all — the hard 256 ceiling is accepted (D-21).
 ### 8.7 Privilege & the user-mode `CC` mask
 
 Privileged instructions (trap in user mode): `SYNC` (`0x01`), `RTI` (`0x11`),
-`SEI`/`CLI`/`SEF`/`CLF` (`0x0C–0x0F`), `HALT` (`0x18`), `TFRU`/`EXGU` (`0x1A`/`0x1B`),
+`SEI`/`CLI` (`0x0C`/`0x0D`), `HALT` (`0x18`), `TFRU`/`EXGU` (`0x1A`/`0x1B`),
 `LDMMU`/`STMMU` (`0x1C`/`0x1D`). `SWI`/`SWI2`/`SWI3` are **unprivileged** — the
 syscall gateway. Plain `TFR`/`EXG` (`0x06`/`0x07`) stay unprivileged; only the
 USP-banking variants are privileged.
 
 Because `ANDCC`/`ORCC`/`CWAI` and `PULS CC` write `CC` directly, they would
-otherwise let user code clear the `I`/`F` interrupt masks. So **in user mode those
-instructions cannot alter the `I`, `F`, or `E` bits** — attempts are ignored (only
-`N Z V C H` are writable), and `PULS CC` restores only `N Z V C H`. The `I`/`F`
-masks change only via the privileged `SEI`/`CLI`/`SEF`/`CLF` and via `RTI`/trap
-entry. This is what makes "interrupt-mask changes are privileged" (R-CPU-4,
-R-CPU-6) actually hold.
+otherwise let user code change its own **mode** (`M`) or clear the **`I`** interrupt
+mask. So **in user mode those instructions cannot alter the `M` or `I` bits** —
+attempts are ignored (only `H N Z V C` are writable). `M` and `I` change only in
+supervisor mode (and via `RTI`/trap entry, which is itself privileged). This is what
+makes the mode bit and "interrupt-mask changes are privileged" (R-CPU-4, R-CPU-6)
+actually hold.
 
 ---
 

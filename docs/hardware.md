@@ -218,7 +218,7 @@ The minimum board to boot FUZIX to a shell (goal **G3**):
   steady tick, conventionally a multiple of 10 Hz).
 - **Storage:** a block device — CompactFlash/IDE or an SD interface — for the
   root filesystem and swap.
-- **Interrupts:** `IRQ`/`FIRQ`/`NMI` lines (see [isa §6](isa.md#6-system--privileged-behaviour-for-fuzix))
+- **Interrupts:** `IRQ`/`NMI` lines (see [isa §6](isa.md#6-system--privileged-behaviour-for-fuzix))
   with a simple priority/vectoring scheme; a small interrupt controller or
   daisy-chain. **TBD.**
 - **Boot ROM:** holds the microcode image (for the WCS boot-copy, §4) and an

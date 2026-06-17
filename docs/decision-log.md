@@ -35,6 +35,7 @@
 | D-19 | Calling convention: register args, `Y` callee-saved | Decided |
 | D-20 | Instruction encoding & the full 256-entry opcode table | Decided |
 | D-21 | Single opcode page (no prefix pages) | Decided |
+| D-22 | Drop FIRQ; mode bit in CC; minimal interrupt frame | Decided |
 
 ---
 
@@ -266,9 +267,8 @@ convention (D-19) settled, freeze the full opcode table.
 nibble-aligned grids (high nibble = band, low nibble = operation) for the RMW, A/D,
 B/wide, and branch blocks, with the remaining ops packed into holes. Full table,
 indexed postbyte, register/flag encoding, relocations, and reserved slots in
-[isa.md](isa.md) §8. The supervisor/user mode bit is **separate processor state,
-not a `CC` bit** (`CC` is exactly `E F H I N Z V C`); user-mode `CC` writes cannot
-change `I`/`F`/`E`.
+[isa.md](isa.md) §8. The supervisor/user mode bit, the `CC` layout, and the
+interrupt model were revised in **D-22** (mode moved into `CC`; `FIRQ` dropped).
 **Why:** Regular grids keep decode/microcode and the assembler simple and make
 collisions structurally unlikely (R-CTRL-1); the table realizes the C-target
 addressing and ABI needs (R-ISA-\*, R-ABI-\*) and the privileged system/MMU set
@@ -294,7 +294,7 @@ hard-limit to one 256-opcode page?
 **Decision:** One 256-opcode page, no prefix bytes — every instruction is one opcode
 byte + 0–3 trailing bytes. The ~216 instructions pack into 256 with ~40 slots free;
 the formerly-prefixed ops move into holes (long branches → `0xB0–0xBF`; wide compares
-→ the `0x30`-row holes; `SEI/CLI/SEF/CLF`, USP banking, `LDMMU/STMMU`, `TAS` →
+→ the `0x30`-row holes; `SEI/CLI`, USP banking, `LDMMU/STMMU`, `TAS` →
 low-page holes).
 **Why:** The prefix spill was caused by the field-encoded grid's reserved holes, not
 by real space exhaustion. A single page simplifies instruction fetch/decode (uniform
@@ -308,6 +308,29 @@ kept (RMW, A/D, B/wide, branch-condition) and is otherwise carried as decode-hin
 fields in the microcode dispatch table. Cost accepted: a hard 256 ceiling (~40 free)
 and a table-driven (not algorithmic) encoding — both fine for a lean, microcoded
 design.
+
+## D-22 — Drop FIRQ; mode bit in CC; minimal interrupt frame
+**Status:** Decided (2026-06-17) — supersedes D-20's mode-location choice; realigns
+with D-08 (which always had the mode in `CC`).
+**Context:** The early design carried a fast interrupt `FIRQ` (mask `CC.F`, minimal
+frame) and an `E` "entire-frame" bit, both inherited from the 6809 influence without
+a requirement behind them. `R-CPU-3` calls only for a maskable IRQ + timer + NMI.
+**Decision:** Remove `FIRQ`. Keep one maskable `IRQ` (mask `CC.I`) plus `NMI`. Every
+interrupt/trap stacks a **minimal frame (`PC`+`CC`)**; the handler saves any other
+registers it uses via `PSHS`/`PULS` (matching the caller-saves ABI, D-19). This
+frees the `F` mask, makes the `E` bit redundant (single frame type), and removes the
+`SEF`/`CLF` opcodes (`0x0E`/`0x0F` → reserved). The freed room lets the
+supervisor/user **mode bit `M` live in `CC`** (bit7); new `CC` = `M – H I N Z V C`
+(bit6 reserved). `M` saves/restores automatically with `CC` and is protected from
+user-mode writes alongside `I`.
+**Why:** `FIRQ` was unjustified by any requirement (R-CPU-3); `IRQ`+`NMI` give two
+levels, ample for the OS, and a minimal frame gives low-latency entry on a discrete
+CPU. Mode-in-`CC` is simpler than the separate-state choice in D-20 (which was forced
+only by `CC` being full) — it rides `CC` save/restore and reuses the existing
+user-mode-`CC`-write protection.
+**Alternatives/notes:** A full auto-stacked register frame was considered and
+rejected (slow entry; conflicts with caller-saves). One `CC` bit is left reserved in
+case a second interrupt level is ever justified.
 
 ---
 
