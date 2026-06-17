@@ -136,6 +136,20 @@ field directly enables a datapath action), with a **writable control store**.
   (a) increment, (b) jump to an opcode's microroutine (dispatch on `IR`),
   (c) conditionally branch on a selected flag/condition, and (d) return to the
   fetch routine. Built from counters/registers + a next-address mux.
+- **Dispatch — how `µPC` reaches a routine (concrete).** A routine is selected by
+  *forming the microaddress from instruction bits*, not by a lookup table: the opcode
+  in `IR` supplies the high bits of `µPC` (each opcode owns a fixed block of the
+  control store) and the within-routine step supplies the low bits, so "dispatch on
+  `IR`" is address wiring plus an increment — no decode memory in the path. The indexed
+  **postbyte** is treated the same way: its mode field is OR'd into a base microaddress
+  to land on the *shared* effective-address sub-routine, while its register-select field
+  rides along as a datapath mux setting, so one EA routine serves every index register.
+  There is deliberately **no mapping PROM/ROM** (and no separate lookup memory) on the
+  dispatch path: a non-volatile lookup would reintroduce the per-cycle access latency
+  that R-CTRL-2 — and the boot-copy of microcode into fast SRAM
+  ([decision-log](decision-log.md) D-03) — exist to remove. Dispatch indexes the same
+  fast WCS the rest of the microcode runs from, and routine placement (hence the "map")
+  lives in the patchable boot-copied image (R-CTRL-1, R-CTRL-2, R-CTRL-3).
 - **Control word:** wide (horizontal) so most datapath actions are one microstep;
   fields gate bus drivers, latch registers, select the ALU op, drive `MAR`/MMU,
   and assert memory read/write. **Width and field layout: TBD** (see §9).

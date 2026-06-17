@@ -37,6 +37,7 @@
 | D-21 | Single opcode page (no prefix pages) | Decided |
 | D-22 | Drop FIRQ; mode bit in CC; minimal interrupt frame | Decided |
 | D-23 | Adopt `ADCD`/`SBCD` and `D` multi-bit shifts (`ASLD`/`LSRD`/`ASRD`) | Decided |
+| D-24 | Dispatch by microaddress formation (no mapping PROM) | Decided |
 
 ---
 
@@ -363,6 +364,40 @@ add/subtract-with-carry and register-count variable shifts. The 8-bit lineage BL
 draws its *shape* from notably lacked 16-bit add-with-carry (a later revision of that
 family added it) — the gap `ADCD`/`SBCD` close. These are the *source* of the idea,
 not its justification; the requirements above are.
+
+## D-24 — Dispatch by microaddress formation (no mapping PROM)
+**Status:** Decided (2026-06-18)
+**Context:** hardware.md §4 listed "dispatch on `IR`" as a next-address capability but
+not its implementation; working through the fetch/decode path raised whether the
+opcode→microroutine selection should be a mapping PROM.
+**Decision:** Dispatch forms the microaddress directly from instruction bits — the
+opcode (from `IR`) is the high part of `µPC`, the within-routine step the low part; the
+indexed postbyte's mode field is OR'd into a base microaddress to reach the *shared*
+effective-address sub-routine, with the postbyte's register-select field carried as a
+datapath mux setting. There is **no mapping PROM/ROM and no separate lookup memory** on
+the dispatch path; it indexes the same writable control store (WCS) SRAM as the rest of
+the microcode. Spec in [hardware.md](hardware.md) §4.
+**Why:** A non-volatile lookup on the per-instruction dispatch path would reintroduce
+the very access latency that R-CTRL-2 — and the boot-copy of microcode into fast SRAM
+(D-03) — exist to eliminate. Direct microaddress formation is pure wiring (no lookup
+stage), keeps dispatch off the cycle-time budget (R-CTRL-2), and stays fully patchable
+because routine placement lives in the boot-copied image (R-CTRL-1, R-CTRL-3). It also
+makes the postbyte a true operand specifier consumed by shared microcode — one EA
+routine serving all index registers — matching the single-page encoding (D-21).
+**Alternatives/notes:** (1) A mapping **PROM** indexed by the opcode — rejected: too
+slow on the hot path (the same argument as D-03). (2) A boot-loaded **SRAM** map — fast
+and patchable, but adds a serial lookup stage before the WCS for no benefit over direct
+addressing; not adopted. (3) A combinational **PAL/PLA** decoder — fast, but fixed
+logic, so it fights "correct/extend microcode without rewiring" (R-CTRL-1/3). (4)
+Folding *all* control state (flags, postbyte-mode, loop counts) into the address to
+eliminate next-address logic entirely — rejected: live flags force replicating every
+microstep across all flag values, and removing branches further needs postbyte-mode and
+loop-count fields in the address, multiplying the control store by large factors; an
+increment-only step also cannot express data-dependent loops (`MUL`, the variable
+shifts), and dropping jumps breaks microcode sharing. The blow-up in WCS and boot-ROM
+costs far more than the few packages of next-address logic it would save. The
+addressing trick is therefore used only where the field is constant for the whole
+instruction (opcode, postbyte-mode).
 
 ---
 
