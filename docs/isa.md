@@ -279,8 +279,8 @@ D-18).
   resolved in the kernel map that entry has already selected, so the kernel installs
   its own handlers simply by writing the table at init. **`RESET` is the exception:**
   RAM is not valid at reset, so it uses a fixed hardwired entry into boot ROM rather
-  than a slot (R-CPU-7). The table's physical address is fixed with the memory map
-  (§9). (D-30.)
+  than a slot (R-CPU-7). The table sits at the top of the resident common region
+  (logical `0xFFE0–0xFFFF`; D-30, D-31).
 - **MMU control.** Address translation is internal to the CPU (see
   [docs/hardware.md](hardware.md) §3); its page table is an internal privileged
   register file, written only in supervisor mode by dedicated instructions
@@ -298,14 +298,18 @@ D-18).
   iteration (R-CPU-3) and spends no opcode slot; a hardware block move would instead
   either stall interrupts for the whole transfer or require restartable microcode,
   so it is deliberately not provided.
-- **Reset.** On reset the CPU enters supervisor mode with interrupts masked and
-  begins at a fixed, hardwired reset entry in boot ROM (R-CPU-7; not a vector-table
-  slot — see *Exception vectors* above). **There is no "translation off" state —
-  only the identity map.** Address translation is always active; at reset it is the
-  transparent **identity map of the low 64 KB** (logical = physical for
-  `0x0000–0xFFFF`), so the machine runs before software has configured any map
-  (R-MEM-7). The kernel later replaces it with real per-process maps via
-  `LDMMU`/`STMMU`.
+- **Reset.** On reset the CPU enters supervisor mode with interrupts masked, `SSP` set
+  below the I/O page (`0xE000`), and `PC` at the fixed, hardwired reset entry —
+  **physical `0x000000`**, the start of boot ROM (R-CPU-7; not a vector-table slot —
+  see *Exception vectors* above). **There is no "translation off" state — only the
+  identity map.** Address translation is always active; at reset it is the transparent
+  **identity map of the low 64 KB** (logical = physical for `0x0000–0xFFFF`), so the
+  machine runs before software has configured any map (R-MEM-7). Boot ROM holds a
+  **firmware monitor/loader** that initialises hardware, **loads the FUZIX kernel from
+  a block device** into RAM, builds the kernel map (`LDMMU`), populates the exception
+  vector table, and enters the kernel — which re-enables interrupts and replaces the
+  identity map with per-process maps. The physical memory map (boot ROM / RAM / I/O
+  page) is fixed in D-31.
 - **Memory-mapped I/O.** Peripherals have no separate address space and no I/O
   instructions: they are decoded (outside the CPU) from a reserved region of the
   **physical** space — a single 8 KB **I/O page** at physical `0x00E000–0x00FFFF`,
@@ -597,16 +601,16 @@ profiling shows runtime-variable shifts are hot.
 
 ## 9. Open questions for this document
 
-1. **Reset details (§6):** the reset-entry location, the physical address of the
-   exception vector table (§6, D-30), and the exact reset values of `PC`/`SP`. The
-   reset entry must lie **outside** `0xE000–0xFFFF`, which the boot identity map
-   exposes as the memory-mapped I/O page (D-28).
+1. **Atomicity primitive (§6):** whether to add a test-and-set-like instruction for
+   kernel locking, or rely on interrupt masking alone.
 
 *Decided:* registers `A B D X Y SP` (no `U`/`DP`); little-endian; privilege with
 banked `SSP`/`USP` and the mode bit in `CC` (D-22); internal MMU
 (physical external bus, 16 MB / 8 KB pages, identity-mapped at reset, programmed by
 privileged `LDMMU`/`STMMU`); memory-mapped I/O in a single physical I/O page reached
-through the MMU (D-28); calling convention (§7); the full **single-page**
+through the MMU (D-28); reset vector and physical memory map (reset entry `0x000000`,
+common at `0xE000`, vector table at `0xFFE0`; firmware monitor/loader boots the kernel
+from a block device — D-31); calling convention (§7); the full **single-page**
 encoding, indexed postbyte, and 256-entry opcode table (§8); and the assembly
 notation house style (§4.1 — verb/register split, bare `$`-hex immediates,
 parenthesised memory, `LD`/`XCHG` register moves; D-25).

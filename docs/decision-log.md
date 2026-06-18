@@ -44,6 +44,7 @@
 | D-28 | Memory-mapped I/O: one 8 KB physical I/O page inside the boot identity window | Decided |
 | D-29 | Functional CPU/system interface: sync bus + `/WAIT`, separate `/RD`/`/WR`, separate buses, fixed-vector IRQ/NMI, REQ/GRANT | Decided |
 | D-30 | Exception entry: auto-mask `CC.I` on entry; fixed pointer-slot vectors (RESET hardwired) | Decided |
+| D-31 | Reset vector & physical memory map: reset entry `0x000000`, monitor/loader boots kernel from block device | Decided |
 
 ---
 
@@ -581,8 +582,55 @@ exception reaches its handler.
   no microcode change, at the cost of one memory indirection per exception. Hardwired
   entries (no table) were rejected as too rigid for an OS; device-supplied vectors
   were already rejected (D-29) as needing an acknowledge cycle on the interface.
-**Notes:** The table's physical address is fixed with the memory map / reset vector
-([isa.md](isa.md) §9, still open).
+**Notes:** Resolved by [D-31](decision-log.md): the table sits at the top of the
+resident common region (logical `0xFFE0–0xFFFF`).
+
+## D-31 — Reset vector & physical memory map
+**Status:** Decided (2026-06-18)
+**Context:** isa.md §9 left open the reset-entry address, the reset `PC`/`SP` values,
+the exception vector-table location ([D-30](decision-log.md)), and where ROM/RAM/I/O
+sit in physical space. D-15 (identity-map boot) and D-28 (I/O page) constrain it.
+**Decision:**
+- **Reset entry & state.** `PC = 0x000000` (start of boot ROM) — the hardwired reset
+  entry of D-30; `CC` = supervisor, `IRQ` masked (D-15); `SSP = 0x00E000` (top of boot
+  RAM, just below the I/O page). Translation is the identity map of the low 64 KB.
+- **Boot-visible physical layout** (what the reset identity map exposes):
+  - `0x000000–0x003FFF` (16 KB) — boot ROM: the firmware monitor/loader (reset entry,
+    hardware init, block-device driver, kernel loader, default handlers).
+  - `0x004000–0x00DFFF` (40 KB) — RAM: monitor stack and staging.
+  - `0x00E000–0x00FFFF` (8 KB) — I/O page (D-28).
+- **Rest of physical** `0x010000–0xFFFFFF` — RAM (kernel + process frames). No
+  ROM-shadow/disable latch: with the internal MMU (D-14) ROM has a fixed physical home
+  reachable at reset and is simply left unmapped afterward.
+- **Boot model.** A **firmware monitor/loader** in boot ROM initialises hardware and
+  **loads the FUZIX kernel from a block device** into RAM (placing it across physical
+  frames via `LDMMU` windowing), builds the kernel map, populates the exception vector
+  table, and enters the kernel; the kernel re-enables interrupts and starts the tick.
+  The means by which the loader locates the kernel on the device (raw reserved sectors
+  vs partition vs filesystem) is **deferred**.
+- **Logical layout (every map).** The resident **common** region is slot 7 (logical
+  `0xE000–0xFFFF`, R-MEM-4): trap/interrupt entry stubs, map-switch code, `udata`, and
+  the **exception vector table** at the top (`0xFFE0–0xFFFF`). User programs link from
+  `0x0000` and get slots 0–6 (56 KB); the user stack grows down from `0xDFFF`. At
+  runtime `0xE000` is the common, so the kernel maps the physical I/O page into a
+  separate free slot for device access (it is at `0xE000` only under the boot identity
+  map).
+**Why:**
+- `0x000000` is the natural reset entry: reachable through the boot identity map
+  (D-15) and clear of the `0xE000–0xFFFF` I/O page (D-28), and a hardwired low entry
+  needs no vector fetch before RAM is valid (D-30).
+- Loading the kernel from a block device rather than ROM matches how FUZIX is run
+  (G3): the kernel and root filesystem share one medium and the kernel updates without
+  reflashing. (Unlike a no-MMU machine, BLIP needs no ROM-disable latch — the MMU just
+  unmaps ROM.)
+- Common-at-top gives a zero-based program load address and puts vectors at the top of
+  memory; keeping the common in every map means trap entry and cross-map copy always
+  find their stubs (R-MEM-4).
+**Notes:** Resolves isa.md §9 Q1 and fixes the D-30 vector-table address. The boot-ROM
+region is sized generously (16 KB) for the monitor/loader (which must include a
+block-device driver); the means of locating the kernel on the device remains open. In
+simulation the block device is a disk image, so the same loader path works from first
+bring-up (D-10).
 
 ---
 
@@ -591,9 +639,6 @@ exception reaches its handler.
 Tracked in the docs' own "Open questions" sections; the load-bearing ones:
 
 - **Datapath bus count** — one shared 8-bit bus vs two/three. ([hardware.md](hardware.md) §9)
-- **Reset vector & physical memory map** — boot ROM/RAM/I/O layout, the reset entry
-  address, and the exception vector table location (D-30). ([isa.md](isa.md) §9,
-  constrained by D-28)
 - **Debug interface spec** — the privileged front-panel signal list (functional
   interface now done — D-29 / [interface.md](interface.md)).
 - **Step-3 retrofit** — scrub remaining architecture names from the normative

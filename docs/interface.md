@@ -246,15 +246,14 @@ contract (`R-IF-1`, `R-IF-6`).
 
 ## 8. Open questions
 
-1. **Reset-vector address & physical memory map.** Where boot ROM, RAM, and the I/O
-   page sit in the 16 MB physical space, and the fixed address the CPU fetches from
-   after reset. Constrained by [D-28](decision-log.md): the vector must lie outside
-   `0xE000–0xFFFF` (the boot-time I/O page) and must be reachable through the
-   low-64 KB identity map. Tracked in [isa.md](isa.md) §9.
-2. **Exact CLK-edge timing.** The nominal bus-cycle length, the `/WAIT` sample edge,
+1. **Exact CLK-edge timing.** The nominal bus-cycle length, the `/WAIT` sample edge,
    and minimum hold/setup numbers are pinned once the **datapath bus count** is
    decided (pending — [hardware.md](hardware.md) §9).
-3. **Minor conventions** flagged in §5 (edge/polarity/hold defaults).
+2. **Minor conventions** flagged in §5 (edge/polarity/hold defaults).
+
+*Decided:* the reset-vector address and physical memory map (reset entry `0x000000`;
+boot ROM / RAM / I/O-page layout; firmware monitor/loader boots the kernel from a
+block device) — [D-31](decision-log.md).
 
 ---
 
