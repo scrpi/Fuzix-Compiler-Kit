@@ -15,11 +15,11 @@
 - **74-series only for the CPU** (goal **G1**). Working family: **74AHCT** —
   fast enough (a few ns/gate) to chase 10 MHz, 5 V, TTL-compatible inputs so it
   mixes with the slower glue and memory.
-- **Everything is displayable** (goal **G7**): every bus and architectural
+- **Everything is displayable** (goal **G5**): every bus and architectural
   register is latched/buffered so the value driving the LEDs is stable and
   legible. This biases the datapath toward *registered* points rather than long
   combinational chains.
-- **Microcoded** (goal **G5**): the control unit is a small writable-control-
+- **Microcoded** (goal **G7**): the control unit is a small writable-control-
   store sequencer, not a sea of random logic. New behaviour = new microcode.
 
 ---
@@ -61,7 +61,7 @@
   compute are separate microcycles — important for both timing and clean display.
 
 > **Open:** one shared 8-bit bus vs a two-bus (A/B operand) or three-bus design.
-> More buses = fewer microcycles per instruction (helps G6) at the cost of parts
+> More buses = fewer microcycles per instruction (helps G8) at the cost of parts
 > and a busier front panel. This is the central datapath tradeoff.
 
 ---
@@ -160,7 +160,7 @@ field directly enables a datapath action), with a **writable control store**.
 - **Boot-copy circuit:** at power-on/reset, a small hardware state machine copies
   the microcode image from a non-volatile **ROM/EEPROM** into the WCS SRAM, then
   releases the CPU to run. (Independent of the CPU — it's just a counter + the
-  ROM + the SRAM + a little sequencing.) This is the mechanism behind goal G5's
+  ROM + the SRAM + a little sequencing.) This is the mechanism behind goal G7's
   "fast at runtime, hackable at the bench."
 - **Privilege & traps in microcode:** the user→supervisor switch on traps/
   interrupts (and its reversal on `RTI`), the `SSP`/`USP` bank select, the MMU
@@ -169,7 +169,7 @@ field directly enables a datapath action), with a **writable control store**.
 - **Pipelining for speed:** the control word is **registered** (latched) so the
   WCS lookup for microstep *n+1* overlaps the execution of microstep *n*, keeping
   the SRAM access off the critical path. Instruction fetch likewise overlaps
-  where possible. (Goal G6.)
+  where possible. (Goal G8.)
 
 > **Open:** horizontal vs partly-vertical microcode (width vs ROM size);
 > single-level vs nano/two-level store; how deep to pipeline (more stages = more
@@ -179,7 +179,7 @@ field directly enables a datapath action), with a **writable control store**.
 
 ## 5. Clocking & timing (the 10 MHz aspiration)
 
-- **Target:** 10 MHz (100 ns) is the *aspiration* (goal G6), not a gate.
+- **Target:** 10 MHz (100 ns) is the *aspiration* (goal G8), not a gate.
 - **Budget reality:** at ~5 ns/gate for 74AHCT, a 100 ns cycle allows perhaps a
   dozen gate-delays — workable for a registered datapath but tight once SRAM
   access, ALU carry propagation, and bus turnaround are counted. The registered
@@ -198,7 +198,7 @@ field directly enables a datapath action), with a **writable control store**.
 
 ## 6. Front panel & bus mastering (functional blinkenlights)
 
-The front panel is a first-class subsystem (goal **G7**), modeled on classic
+The front panel is a first-class subsystem (goal **G5**), modeled on classic
 deposit/examine panels (Altair/PDP-8 lineage):
 
 - **Bus mastering:** when halted, the CPU tri-states the address/data/control
@@ -248,13 +248,13 @@ The minimum board to boot FUZIX to a shell (goal **G3**):
 
 | Subsystem | Realizes goal | Key open question |
 |-----------|---------------|-------------------|
-| Discrete 74AHCT datapath | G1, G6 | bus count (§2) |
+| Discrete 74AHCT datapath | G1, G8 | bus count (§2) |
 | Register file with self-inc/dec 16-bit regs | G2 | — |
 | 8-bit ALU + carry-sequenced 16-bit ops | G2 | ALU implementation (§2/§9) |
 | Internal MMU (logical→physical) | G3, G4 | per-page protection bits (§3) |
-| Microsequencer + writable control store | G5, G6 | microcode width, pipelining (§4) |
-| Boot-copy ROM→SRAM circuit | G5 | — |
-| Front panel + bus mastering | G7 | step granularity (§6) |
+| Microsequencer + writable control store | G7, G8 | microcode width, pipelining (§4) |
+| Boot-copy ROM→SRAM circuit | G7 | — |
+| Front panel + bus mastering | G5 | step granularity (§6) |
 | UART / timer / storage / IRQ | G3 | parts allowance under G1 (§7) |
 
 ---

@@ -25,7 +25,7 @@
 | D-09 | Byte order: little-endian | Decided |
 | D-10 | Realization: simulation-first, then hardware | Decided |
 | D-11 | MMU sizing: 8 KB pages, 24-bit physical (16 MB) | Decided |
-| D-12 | Add goal G8: a fixed external CPU/system interface | Decided |
+| D-12 | Add goal G6: a fixed external CPU/system interface | Decided |
 | D-13 | Two interfaces: functional + privileged debug | Decided |
 | D-14 | MMU is internal to the CPU (external bus is physical) | Decided |
 | D-15 | Reset state: identity map + deterministic CPU state | Decided |
@@ -39,12 +39,14 @@
 | D-23 | Adopt `ADCD`/`SBCD` and `D` multi-bit shifts (`ASLD`/`LSRD`/`ASRD`) | Decided |
 | D-24 | Dispatch by microaddress formation (no mapping PROM) | Decided |
 | D-25 | Assembly notation house style (verb/register split, `$`-hex, parens=memory, `LD`/`XCHG`) | Decided |
+| D-26 | Strengthen G7 (ISA fully in microcode, field-reprogrammable); reprioritise blinkenlights > interface > microcode | Decided |
+| D-27 | Renumber goals so numbering matches priority order (G5↔G7, G6↔G8) | Decided |
 
 ---
 
 ## D-01 — 10 MHz is an aspiration, not a hard gate
 **Status:** Decided (2026-06-17)
-**Context:** G6 sets a 10 MHz target; we needed to know how binding it is when it
+**Context:** G8 sets a 10 MHz target; we needed to know how binding it is when it
 collides with other goals.
 **Decision:** Treat 10 MHz as an aspiration; the achievable clock is whatever the
 critical path supports, and it yields to higher-priority goals.
@@ -153,11 +155,11 @@ logical address therefore has 8 page slots.
 swapping (R-MEM-2); 8 KB balances internal waste against translation-table size
 (R-MEM-6).
 
-## D-12 — Add goal G8: a fixed external CPU/system interface
+## D-12 — Add goal G6: a fixed external CPU/system interface
 **Status:** Decided (2026-06-17)
 **Context:** We wanted the CPU to be a self-contained module with a stable
 boundary to the rest of the system.
-**Decision:** Added goal G8 — functional peripherals attach only through a fixed,
+**Decision:** Added goal G6 — functional peripherals attach only through a fixed,
 documented external interface; the CPU is revised *within* that boundary.
 **Why:** Modularity — internals can change without disturbing peripherals, and
 memory/I/O/panel get one well-understood place to attach.
@@ -175,7 +177,7 @@ contract stays clean.
 ## D-14 — MMU is internal to the CPU (external bus is physical)
 **Status:** Decided (2026-06-17) — supersedes an earlier lean toward an external
 MMU.
-**Context:** Where does the translation unit sit relative to the G8 boundary? It
+**Context:** Where does the translation unit sit relative to the G6 boundary? It
 affects timing, the interface, and the front panel.
 **Decision:** Translation and protection are inside the CPU; the external bus
 carries the 24-bit physical address; the functional interface carries no privilege
@@ -183,12 +185,12 @@ or fault line.
 **Why:** Translation can overlap address generation, keeping it off the memory
 critical path (R-CLK-1); the external fault/abort path disappears; the front panel
 reaches physical memory directly for bootstrap (R-DBG-3). Software still sees a flat
-16-bit logical model (R-MEM-1), the external interface stays fixed (G8), and it is
+16-bit logical model (R-MEM-1), the external interface stays fixed (G6), and it is
 all discrete logic plus a small SRAM (R-HW-1).
 **Alternatives/notes:** External MMU (CPU emits logical address + privilege line)
 was the earlier recommendation. Reversed after weighing the above: the 8 extra
-address lines are a minor cost, and "welded to the CPU" is *not* a G8 violation,
-since G8 fixes the *external* interface, which an internal MMU keeps stable (just
+address lines are a minor cost, and "welded to the CPU" is *not* a G6 violation,
+since G6 fixes the *external* interface, which an internal MMU keeps stable (just
 physical).
 
 ## D-15 — Reset state: identity map + deterministic CPU state
@@ -434,6 +436,52 @@ depends on operand kind. Left as-is for now (preserves `TFR` behaviour); making 
 register-move form also set `N/Z` for uniformity is a possible future tweak.
 **Influences (non-normative):** Z80 (one `LD` verb, parens = memory) and 8086 (`XCHG`,
 bracket-memory) — sources of the spelling, not its justification.
+
+## D-26 — Strengthen G7 (ISA fully in microcode) and reprioritise
+**Status:** Decided (2026-06-18)
+**Context:** G7 and R-CTRL-1/3 already said the instruction set could be "developed,
+corrected, and extended without rewiring," but framed it as bench-time editing of
+*decoding/sequencing*. Ben wants the stronger property as a first-class goal: the ISA
+must be **fully** expressible in microcode and changeable in the field by reflashing
+EEPROM, never by respinning a board.
+**Decision:** (1) Sharpen **G7** ("The ISA lives in microcode"): the whole instruction
+set — encodings, addressing modes, operations, flag effects — is defined by the
+control-store image, with no instruction-specific behaviour in fixed logic; the datapath
+is a fixed, general substrate exposing a complete set of microcode-controllable
+primitives; the ISA is corrected/extended/redefined by reflashing the boot EEPROM.
+(2) Strengthen the requirements: **R-CTRL-1** (whole ISA control-store-defined, no fixed
+instruction logic), **R-CTRL-3** (field-reprogrammable, not just bench-modifiable), and a
+new **R-CTRL-4** (the datapath is a complete microcode substrate). (3) Reprioritise so
+**G5 (blinkenlights) > G6 (interface) > G7 (microcode)** — observability and the fixed
+external boundary outrank microcode flexibility; new order is G1, G2, G3, G4, G5, G6, G7,
+G8.
+**Why:** It makes the ISA a software artifact over a fixed machine — longevity and
+evolvability without board changes (G7). It is already *realised* by the boot-copy of
+microcode EEPROM→SRAM (D-03) and microaddress-formation dispatch with no fixed decode
+PROM (D-24); this records the intent and sets a standing guardrail on datapath design (no
+hardwired special-case an instruction's meaning depends on). The honest boundary — what
+microcode cannot change without hardware (register set/widths, ALU primitives, bus
+topology, MMU, the G6 interface, control-word width) — is stated in G7 so the goal stays
+bounded and testable.
+**Notes:** The reprioritisation reads as "keep the machine observable and its interface
+clean before reaching for microcode convenience." The ISA's *shape* still answers to G2,
+which outranks all three.
+
+## D-27 — Renumber goals to priority order
+**Status:** Decided (2026-06-18)
+**Context:** After D-26 reprioritised the goals, the goal *numbers* no longer matched
+their priority rank — confusing, since the numbering is cited throughout the docs.
+**Decision:** Renumber so the number *is* the priority rank. Mapping `G5↔G7` and `G6↔G8`
+(G1–G4 unchanged): old G5 (microcode) → **G7**, old G6 (clock) → **G8**, old G7
+(blinkenlights) → **G5**, old G8 (interface) → **G6**. Applied across goals.md,
+requirements.md (every `⟸ Gn` link and the coverage table), this log, and hardware.md;
+isa.md / AGENTS.md / README.md reference only G1–G4 and were untouched.
+**Why:** The priority order is load-bearing (the design cites it for tie-breaks); making
+the numbering match it removes a standing source of confusion. The reorder is a pure
+relabelling — no goal, requirement, or decision changed in substance.
+**Note:** Earlier entries now name goals by their *current* numbers (e.g. the external
+interface, added under D-12, is **G6** — though it was introduced as G8); the log tracks
+the live design, not its numbering history.
 
 ---
 

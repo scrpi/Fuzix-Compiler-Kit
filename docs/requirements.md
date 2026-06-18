@@ -23,7 +23,7 @@ by reaching past them to a goal or to another design.
   unit) shall be built from commodity discrete logic and standard memory devices.
   No single device may implement the processor's core function (no integrated
   CPU, microcontroller, or programmable-logic soft-core acting as the CPU).
-- **R-HW-2** (⟸ G1, G6) — All core logic shall be drawn from a single logic
+- **R-HW-2** (⟸ G1, G8) — All core logic shall be drawn from a single logic
   family that is fast enough to meet R-CLK-1 and presents consistent signaling
   levels across the machine.
 - **R-HW-3** (⟸ G1) — Peripheral and support functions that are not the
@@ -95,7 +95,7 @@ by reaching past them to a goal or to another design.
   neither name nor corrupt.
 - **R-CPU-6** (⟸ G3) — The kernel shall be able to execute critical sections
   without interruption, to protect scheduler and data-structure invariants.
-- **R-CPU-7** (⟸ G3, G7) — On reset the CPU shall enter a defined, deterministic
+- **R-CPU-7** (⟸ G3, G5) — On reset the CPU shall enter a defined, deterministic
   state — supervisor mode, interrupts masked, execution beginning at a fixed reset
   vector — so startup does not depend on uninitialised state. (supports R-DBG-3)
 
@@ -120,43 +120,52 @@ by reaching past them to a goal or to another design.
 - **R-MEM-6** (⟸ G4) — Address-translation granularity shall be fine enough to
   allocate physical memory to processes with little internal waste, yet coarse
   enough to keep the translation hardware small.
-- **R-MEM-7** (⟸ G3, G7) — On reset, address translation shall default to a
+- **R-MEM-7** (⟸ G3, G5) — On reset, address translation shall default to a
   transparent (identity) mapping of the low 64 KB of logical space onto the low
   64 KB of physical, so the machine can fetch, execute, and be bootstrapped before
   any translation is configured. (supports R-DBG-3 and first-bring-up)
 
 ## Control & microcode (CTRL)
 
-- **R-CTRL-1** (⟸ G5) — Instruction decoding and sequencing shall be defined by
-  stored microcode rather than fixed random logic, so the instruction set can be
-  developed, corrected, and extended without rewiring.
-- **R-CTRL-2** (⟸ G5, G6) — The runtime microcode store shall be fast enough not
+- **R-CTRL-1** (⟸ G7) — The **entire** instruction set — opcode encodings,
+  addressing modes, operations, and flag effects — shall be defined by the stored
+  microcode, with no instruction-specific behaviour in fixed logic, so the
+  instruction set can be corrected, extended, or redefined without rewiring.
+- **R-CTRL-2** (⟸ G7, G8) — The runtime microcode store shall be fast enough not
   to dominate the cycle time at the target clock (R-CLK-1).
-- **R-CTRL-3** (⟸ G5) — Microcode shall be modifiable at the bench during
-  development, yet retained across power cycles so the machine boots unattended.
+- **R-CTRL-3** (⟸ G7) — The microcode image shall be **field-reprogrammable**:
+  changing the instruction set shall require only reflashing the non-volatile store
+  from which the control store is loaded at power-on — never a hardware change — and
+  the microcode shall be retained across power cycles so the machine boots unattended.
+- **R-CTRL-4** (⟸ G7) — The datapath shall be a **complete microcode substrate**:
+  the control word shall expose every primitive needed to realize an instruction
+  (register loads/enables, bus routing, ALU operations, memory and MMU control, and
+  sequencing), so that no instruction's behaviour depends on fixed, instruction-specific
+  logic. The fixed substrate — register set and widths, ALU primitives, bus topology,
+  the MMU, and the G6 interface — bounds what microcode can change.
 
 ## Timing (CLK)
 
-- **R-CLK-1** (⟸ G6) — The design shall target a continuous clock of about
+- **R-CLK-1** (⟸ G8) — The design shall target a continuous clock of about
   10 MHz. This target yields to correctness and to higher-priority requirements
   where the critical path cannot meet it; the achievable clock is whatever the
   critical path supports.
-- **R-CLK-2** (⟸ G6) — The microarchitecture shall prefer registered/pipelined
+- **R-CLK-2** (⟸ G8) — The microarchitecture shall prefer registered/pipelined
   structures over long sequential combinational paths wherever an equivalent
   registered alternative exists.
 
 ## Debug & front panel (DBG)
 
-- **R-DBG-1** (⟸ G7) — Every bus and architectural register shall be
+- **R-DBG-1** (⟸ G5) — Every bus and architectural register shall be
   continuously displayable in a stable, legible form, whether the machine is
   free-running, single-stepped, or stopped.
-- **R-DBG-2** (⟸ G7) — A front panel shall be able to halt the CPU, take control
+- **R-DBG-2** (⟸ G5) — A front panel shall be able to halt the CPU, take control
   of the buses, and examine and deposit individual memory locations by hand.
-- **R-DBG-3** (⟸ G7) — The machine shall be bootstrappable from the front panel
+- **R-DBG-3** (⟸ G5) — The machine shall be bootstrappable from the front panel
   alone: code can be entered and execution started with no external tools.
-- **R-DBG-4** (⟸ G7) — The CPU shall support run/stop control and single-stepping
+- **R-DBG-4** (⟸ G5) — The CPU shall support run/stop control and single-stepping
   (at least per instruction; preferably also per microstep).
-- **R-DBG-5** (⟸ G7, G8) — The front panel shall be the sole exception to the
+- **R-DBG-5** (⟸ G5, G6) — The front panel shall be the sole exception to the
   functional-interface boundary of R-IF-1. It shall connect through a separate,
   privileged **debug interface** that exposes internal architectural and
   microarchitectural state — at minimum the registers and instruction/microcode
@@ -175,18 +184,18 @@ by reaching past them to a goal or to another design.
 
 ## CPU/system interface (IF)
 
-- **R-IF-1** (⟸ G8) — All interaction between the CPU and the *functional* parts
+- **R-IF-1** (⟸ G6) — All interaction between the CPU and the *functional* parts
   of the system (memory, translation, I/O peripherals) shall occur through one
   documented set of external signals — the functional interface — and no
   functional peripheral shall depend on any signal internal to the CPU. The front
   panel is the sole exception (R-DBG-5).
-- **R-IF-2** (⟸ G8) — The interface shall define an address bus, a data bus, and
+- **R-IF-2** (⟸ G6) — The interface shall define an address bus, a data bus, and
   the control signals that qualify and time a bus transfer (transfer direction, a
   validity/strobe indication, and a timing reference).
-- **R-IF-3** (⟸ G8, G3) — The interface shall carry the asynchronous system
+- **R-IF-3** (⟸ G6, G3) — The interface shall carry the asynchronous system
   control lines: a reset input, the interrupt request inputs (maskable, fast, and
   non-maskable), and the clock/timing reference. (supports R-CPU-3)
-- **R-IF-4** (⟸ G8, G7) — The interface shall provide a bus-request / bus-grant
+- **R-IF-4** (⟸ G6, G5) — The interface shall provide a bus-request / bus-grant
   handshake by which an external master can take ownership of the buses while the
   CPU tri-states its bus drivers. (supports R-DBG-2)
 - **R-IF-5** *(retired)* — Originally required the interface to expose the CPU's
@@ -195,7 +204,7 @@ by reaching past them to a goal or to another design.
   [isa.md](isa.md) §6 and [hardware.md](hardware.md) §3); the functional interface
   therefore conveys neither privilege nor a translation-fault signal. The
   underlying needs remain covered by R-CPU-4, R-MEM-3, and R-MEM-5.
-- **R-IF-6** (⟸ G8) — The interface shall be stable: changes to the CPU's
+- **R-IF-6** (⟸ G6) — The interface shall be stable: changes to the CPU's
   internal implementation shall not alter the documented signal set or its timing
   contract, so existing peripherals remain compatible.
 
@@ -209,10 +218,10 @@ by reaching past them to a goal or to another design.
 | **G2** Genuine C target | R-ISA-1…8, R-ABI-1…4, R-BUILD-1, R-BUILD-2 |
 | **G3** Run FUZIX | R-ISA-8, R-CPU-1…7, R-MEM-2…5, R-MEM-7, R-IF-3, R-BUILD-1 |
 | **G4** >64 KB, flat per-process | R-MEM-1…6, R-CPU-4 |
-| **G5** Microcoded control | R-CTRL-1, R-CTRL-2, R-CTRL-3 |
-| **G6** ~10 MHz | R-HW-2, R-CLK-1, R-CLK-2, R-CTRL-2 |
-| **G7** Functional blinkenlights | R-DBG-1…5, R-IF-4, R-CPU-7, R-MEM-7 |
-| **G8** Defined CPU/system interface | R-IF-1…4, R-IF-6, R-DBG-5 |
+| **G5** Functional blinkenlights | R-DBG-1…5, R-IF-4, R-CPU-7, R-MEM-7 |
+| **G6** Defined CPU/system interface | R-IF-1…4, R-IF-6, R-DBG-5 |
+| **G7** The ISA lives in microcode | R-CTRL-1, R-CTRL-2, R-CTRL-3, R-CTRL-4 |
+| **G8** ~10 MHz | R-HW-2, R-CLK-1, R-CLK-2, R-CTRL-2 |
 
 ## Open questions for this document
 
