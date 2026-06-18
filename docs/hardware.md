@@ -31,67 +31,66 @@
 
 ## 2. Datapath overview
 
+> **Status — tentative working direction** (refines D-34; under active iteration as the
+> microcode and timing are worked out, so expect it to mutate). Open questions are flagged
+> at the end of this section and in §9.
+
 BLIP has a **16-bit core**: one 16-bit ALU and 16-bit internal buses, with 8-bit
-operations (`A`, `B`) using the low lane. Most architectural registers are 16-bit,
-so a 16-bit datapath keeps pointer and effective-address math single-pass (G2, G9),
-and the register set is **discrete and individually visible** (G5 / R-HW-4) — no RAM
-register file. (Architecture decided in D-34.)
+operations (`A`, `B`) on the low lane. Registers are **discrete and individually visible**
+(G5 / R-HW-4). Operands reach the ALU over an *asymmetric* pair of source buses and
+results return on a third:
+
+- **LEFT** — *any* register can drive it -> the ALU's left input.
+- **RIGHT** — only the **two scratch registers** and a **constant generator** drive it ->
+  the ALU's right input.
+- **Z** (result) — the ALU drives it; *any* register latches from it. (Named **Z**, not
+  R, to avoid confusion with RIGHT; it is the former D-34 "result bus".)
 
 ```
-   S  ========================================================  (16-bit source)
-      |     |     |     |     |     |     |     |
-    D=A:B   X     Y    USP   SSP    PC   MAR  TEMP   discrete 16-bit registers
-      |     |     |     |     |     |     |     |    (each: drive S, latch R)
-   R  ========================================================  (16-bit result)
-                                                    ^
-                          +------------+            |
-              S ---> in-1 |  16-bit    | result --> R
-              L ---> in-2 |    ALU     |--> flags --> CC
-                          | +-&|^ <<>> |
-                          |  inc/dec   |
-                          +------------+
-              L = ALU operand latch (loaded from S a microcycle earlier)
+  LEFT  ===+====+====+====+====+====+====+====+====+==========   any register --> ALU left
+       |   |    |    |    |    |    |    |    |    |
+     D=A:B X    Y   USP  SSP   PC  MAR  SCR1 SCR2               discrete 16-bit registers
+       |   |    |    |    |    |    |    |    |    |             (drive LEFT, latch Z)
+  Z   ====+====+====+====+====+====+====+====+====+==========   ALU result --> any register
 
-   +1 incrementer --> PC, MAR   (off-bus: PC++ and 16-bit byte-stepping)
-   MAR (16-bit logical) --> [ MMU: 8 KB pages, SRAM table ] --> physical A[23:0]
-   MDR (8-bit) <--> external D[7:0]    (16-bit transfer = two byte cycles)
+  RIGHT ===========================< SCR1 . SCR2 . const 0/1/2/-1 >   ALU right input
+                                     (scratch registers + constants only)
+
+           +------------------------------+
+  LEFT  -->|          16-bit ALU          |
+  RIGHT -->|  + - & | ^  << >>  inc/dec   |--> Z      flags --> CC
+           +------------------------------+
 ```
 
-- **16-bit core (D-34).** One 16-bit ALU and 16-bit buses; 8-bit ops use the low
-  lane. The 16-bit register set (D-07) makes this the natural fit and keeps
-  pointer/EA math single-pass (G2, G9), with one uniform ALU primitive for microcode
-  (G8 / R-CTRL-4).
-- **Discrete register file (G5 / R-HW-4 / D-33).** Each register is its own latch
-  with its own display buffer: `D`(=`A:B`), `X`, `Y`, `USP`/`SSP` (active `SP` gated
-  by `CC.M`), `PC`, the working `MAR` and `TEMP` (16-bit), and `IR` / postbyte
-  (8-bit). No addressed RAM file — every register is a point you can watch.
-- **Two buses (D-34).** A 16-bit **source bus S** (any register drives) and a 16-bit
-  **result bus R** (any register latches). The ALU reads input 1 live from S and
-  input 2 from an **operand latch L** (loaded from S a microcycle earlier), result to
-  R. A register move is an ALU pass-through (S->R); a two-operand op (e.g. EA `X+n`)
-  is two microcycles — load `L`, then operate. Two buses rather than three because
-  the 8-bit external memory makes the machine **memory-bound**, so a third bus's
-  parallelism would rarely show in wall-clock, while two keep the drivers and the
-  front panel simpler.
-- **16-bit ALU.** add/sub, logic, shifts, inc/dec, compare; 8-bit mode on the low
-  lane; flags `N Z V C` + half-carry -> `CC`. One ALU serves data math, pointer math,
-  *and* effective-address computation — the 16-bit core removes the need for a
-  separate address adder. Part choice (cascaded adders + logic mux vs ALU slices) is
-  TBD (§9).
-- **Dedicated address incrementer (D-34).** `PC` and `MAR` have a +1 incrementer off
-  the S/R buses, so `PC++` on every fetch and the byte-stepping inside a 16-bit
-  (two-byte) access happen without occupying the ALU or buses — overlapping the memory
-  cycle (G9). This keeps fetch and pointer loads/stores cheap on a 2-bus datapath.
-- **Memory interface.** `MDR` interfaces the **8-bit** external data bus `D[7:0]`;
-  16-bit values move as two byte cycles (little-endian, D-09), the incrementer
-  stepping `MAR` between them. `MAR` (16-bit logical) feeds the internal MMU (§3),
-  which drives the 24-bit physical address off the CPU.
+- **16-bit core.** One 16-bit ALU and 16-bit buses; 8-bit ops on the low lane. The one
+  ALU does data, pointer, and effective-address math.
+- **Discrete register file (G5 / R-HW-4 / D-33).** `D`(=`A:B`), `X`, `Y`, `USP`/`SSP`
+  (active `SP` gated by `CC.M`), `PC`, `MAR`, and **two scratch registers** `SCR1`/`SCR2`,
+  plus 8-bit `IR` / postbyte. The scratch registers can drive LEFT, RIGHT, or both at once.
+- **Asymmetric source buses.** Putting *all* registers only on LEFT and limiting RIGHT to
+  the scratch registers + constants is the cheap part of a third source bus — RIGHT carries
+  a handful of drivers, so it avoids a second bus buffer on every register (see the
+  chip-count reasoning, §8/§9). The trade: `anyreg OP scratch` and `anyreg OP const` are
+  **one** microcycle, but `anyreg OP anyreg` is **two** (stage the second operand into a
+  scratch first).
+- **Constant generator.** A small unit places `0`, `1`, `2`, or `-1` on RIGHT, so `reg+1`,
+  `reg-1`, `reg+2`, and `reg+0` (= move) are single ALU ops on *any* register, with no
+  register tied up holding a small constant.
+- **16-bit ALU.** add/sub, logic, shifts, inc/dec, compare; flags `N Z V C` + half-carry
+  --> `CC`. Part choice TBD (§9).
+- **Memory interface.** `MDR` interfaces the **8-bit** external data bus `D[7:0]`; 16-bit
+  values move as two byte cycles (little-endian, D-09). `MAR` (16-bit logical) feeds the
+  MMU (§3). To keep the front-panel shadow display (§6) correct, **every register write is
+  posted on the Z bus** — including `MDR` on a memory read.
 
-> **Decided (D-34):** 16-bit core; two buses (S + R, with an ALU operand latch);
-> discrete registers; a dedicated address incrementer. The internal **bus count fell
-> out** of this — *two*, because the 8-bit external memory makes the machine
-> memory-bound. Remaining datapath detail (ALU parts, control-word width, pipeline
-> depth) is in §9.
+> **Open (this direction):**
+> - **Address increment vs overlap.** D-34 added a dedicated *off-bus* incrementer for
+>   `PC`/`MAR`. The constant generator now does `reg+1`/`reg+2` through the ALU --> Z, which
+>   is simpler and keeps the write visible on Z (the §6 shadow needs *all* writes on Z) —
+>   but loses the off-bus overlap. Open: drop the incrementer, keep it for overlap, or have
+>   it also post its result on Z.
+> - **One scratch register or two?** Two allow holding two staged operands (and
+>   `scratch OP scratch`); one may suffice. Decide once the microcode shows real demand.
 
 ---
 
@@ -241,14 +240,28 @@ deposit/examine panels (Altair/PDP-8 lineage):
   and `RESET`.
 - **Bootstrap:** the panel can deposit a bootstrap by hand into RAM and start
   execution there — enough to bring the machine up from nothing.
-- **Display:** address bus, data bus, and the key registers (`PC`, `IR`, `CC`,
-  `µPC`, MMU page regs) are buffered to LED banks. Because every displayed point
-  is a latch output, the lights are legible whether free-running, single-stepped,
-  or stopped.
+- **Register display via shadow registers (tentative).** Rather than tap every CPU
+  register independently (16 × N wires), the panel carries a bank of **shadow
+  registers** that listen to the **Z (result) bus**: when a CPU register latches Z, its
+  shadow latches the same value (driven by the same load strobe), and the panel drives
+  its LEDs from the local shadows. This needs only the **Z bus + one load strobe per
+  register + a clock** routed to the panel (tens of wires, not hundreds), and it lets the
+  CPU's own registers keep **no permanent display tap** — so LEFT-only registers can stay
+  efficient integrated latch+driver parts (§2). It also defines, cheaply, the
+  register-visibility half of the privileged debug interface (D-13): the panel observes
+  Z + the load strobes rather than every register.
+  - *Correctness condition:* the shadows are accurate only if **every register write is
+    posted on Z** (see §2) — which is why the address-increment question (§2) matters
+    here too; an off-bus increment would silently desync the shadow.
+- **Bus & sequencing display.** The LEFT, RIGHT, and Z buses plus key sequencing state
+  (`IR`, `CC`, `µPC`, MMU page regs) are buffered to LED banks; because each displayed
+  point is a latch output, the lights stay legible free-running, single-stepped, or
+  stopped.
 
-> **Open:** does single-step default to instruction-level or microstep-level (or
-> a switch between them)? How much state gets dedicated LEDs vs a multiplexed
-> "selected register" display?
+> **Open:** instruction-level vs microstep-level single-step default. **Shadow
+> registers** (above) vs a multiplexed "selected register" display — shadow is the
+> leading idea (every register visible continuously), conditional on §2's "all writes
+> posted on Z".
 
 ---
 
@@ -277,9 +290,9 @@ The minimum board to boot FUZIX to a shell (goal **G3**):
 
 | Subsystem | Realizes goal | Key open question |
 |-----------|---------------|-------------------|
-| Discrete 74AHCT datapath (16-bit, two-bus) | G1, G5, G9 | ALU parts (§9) |
-| Discrete register file (16-bit) | G2, G5 | — |
-| 16-bit ALU + dedicated address incrementer | G2, G9 | ALU parts (§9) |
+| Discrete 74AHCT datapath (16-bit; LEFT/RIGHT/Z — tentative) | G1, G5, G9 | scratch count · incrementer (§9) |
+| Discrete register file (16-bit, + 2 scratch) | G2, G5 | 1 vs 2 scratch (§9) |
+| 16-bit ALU + constant generator (`0/1/2/-1`) | G2, G9 | ALU parts · incrementer (§9) |
 | Internal MMU (logical→physical) | G3, G4 | extra map sets (§3) |
 | Microsequencer + writable control store | G8, G9 | microcode width, pipelining (§4) |
 | Boot-copy ROM→SRAM circuit | G8 | — |
@@ -290,17 +303,20 @@ The minimum board to boot FUZIX to a shell (goal **G3**):
 
 ## 9. Open questions for this document
 
-1. **Datapath architecture:** *(decided — D-34: 16-bit core; two buses, S + R with
-   an ALU operand latch; discrete registers; a dedicated address incrementer.)*
-2. **ALU implementation:** discrete adders + logic-op mux vs 74-181/381 slices, and
-   how the flags are generated. (16-bit width and the dedicated address incrementer
-   are decided — D-34.)
+1. **Datapath architecture (tentative — refines D-34, see §2):** 16-bit core; **LEFT**
+   bus (all registers) + **RIGHT** bus (the two scratch registers + a constant generator
+   `0/1/2/-1`) into the ALU, results on the **Z** bus; discrete registers. Open:
+   **(a)** keep D-34's off-bus `PC`/`MAR` incrementer, drop it for `reg+const` through the
+   ALU → Z, or have it post on Z (the §6 shadow needs every write on Z); **(b)** **two
+   scratch registers or one?**
+2. **ALU implementation:** discrete adders + logic-op mux vs 74-181/381 slices; flag
+   generation; the constant generator on RIGHT.
 3. **MMU:** *(decided: 8 KB pages, 16 MB physical, kernel/user map sets.)*
    Remaining: translation-only vs per-page protection bits.
 4. **Microcode:** control-word width and field layout; horizontal vs two-level;
    pipeline depth.
-5. **Front panel:** instruction-step vs microstep default; dedicated vs
-   multiplexed register display.
+5. **Front panel:** instruction-step vs microstep default; **shadow-register**
+   display (§6, leading) vs a multiplexed "selected register" display.
 6. **Peripherals & G1 boundary:** confirm which non-74-series support chips are
    acceptable.
 7. **Realization:** *(decided: simulation-first, then hardware.)*

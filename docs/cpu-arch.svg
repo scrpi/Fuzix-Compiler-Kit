@@ -1,7 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1180 820" font-family="'Segoe UI',Arial,sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 910" font-family="'Segoe UI',Arial,sans-serif">
   <defs>
     <marker id="ar" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
       <path d="M0,0 L7,3 L0,6 Z" fill="#475569"/>
+    </marker>
+    <marker id="aro" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#c2410c"/>
     </marker>
   </defs>
   <style>
@@ -11,167 +14,165 @@
     .sm{font-size:10.5px;text-anchor:middle;fill:#475569}
     .lbl{font-size:11px;fill:#334155}
     .reg{fill:#dbeafe;stroke:#1d4ed8;stroke-width:1.5}
+    .scr{fill:#e0e7ff;stroke:#4338ca;stroke-width:1.8}
     .alu{fill:#fde68a;stroke:#b45309;stroke-width:1.5}
     .mem{fill:#bbf7d0;stroke:#15803d;stroke-width:1.5}
     .ctrl{fill:#ddd6fe;stroke:#6d28d9;stroke-width:1.5}
     .cc{fill:#fbcfe8;stroke:#be185d;stroke-width:1.5}
+    .konst{fill:#ccfbf1;stroke:#0d9488;stroke-width:1.5}
+    .fp{fill:#f1f5f9;stroke:#475569;stroke-width:1.5}
     .wire{stroke:#475569;stroke-width:1.6;fill:none}
     .tap{stroke:#94a3b8;stroke-width:1;fill:none}
+    .taps{stroke:#c2410c;stroke-width:1.6;fill:none}
     .dash{stroke:#64748b;stroke-width:1.6;fill:none;stroke-dasharray:5 4}
   </style>
 
-  <rect x="0" y="0" width="1180" height="820" fill="#f8fafc"/>
+  <rect x="0" y="0" width="1200" height="910" fill="#f8fafc"/>
 
-  <!-- title -->
-  <text x="500" y="34" class="tb" font-size="22">BLIP — CPU Internal Architecture</text>
-  <text x="500" y="56" class="t" font-size="12" fill="#475569">16-bit core · two buses (S / R) · discrete registers · internal MMU · microcoded — D-34</text>
+  <text x="500" y="32" class="tb" font-size="22">BLIP — CPU Internal Architecture</text>
+  <text x="500" y="53" class="t" font-size="12" fill="#475569">16-bit core · LEFT / RIGHT / Z buses · 2 scratch + constant-gen · shadow-register panel — tentative working direction (D-34 / D-35)</text>
 
   <!-- CPU boundary -->
-  <rect x="24" y="74" width="946" height="700" rx="12" fill="none" stroke="#6b7280" stroke-width="1.6" stroke-dasharray="8 5"/>
-  <text x="40" y="94" class="lbl" font-style="italic">CPU — functional boundary (G6)</text>
+  <rect x="24" y="72" width="940" height="568" rx="12" fill="none" stroke="#6b7280" stroke-width="1.6" stroke-dasharray="8 5"/>
+  <text x="40" y="92" class="lbl" font-style="italic">CPU — functional boundary (G6)</text>
 
-  <!-- ===================== TIER 1: DATAPATH ===================== -->
-  <text x="44" y="118" class="lbl">Discrete 16-bit register file — each register drives S, latches R (G5 / R-HW-4)</text>
-
-  <!-- registers -->
+  <!-- ===== registers ===== -->
+  <text x="44" y="112" class="lbl">Discrete 16-bit register file (G5 / R-HW-4) — all drive LEFT, latch Z; scratch also drive RIGHT</text>
   <g>
-    <rect class="reg" x="44"  y="128" width="94" height="46" rx="6"/>
-    <text x="91"  y="150" class="tb">D</text><text x="91" y="166" class="sm">(A:B)</text>
-    <rect class="reg" x="158" y="128" width="94" height="46" rx="6"/><text x="205" y="156" class="tb">X</text>
-    <rect class="reg" x="272" y="128" width="94" height="46" rx="6"/><text x="319" y="156" class="tb">Y</text>
-    <rect class="reg" x="386" y="128" width="94" height="46" rx="6"/><text x="433" y="156" class="tb">USP</text>
-    <rect class="reg" x="500" y="128" width="94" height="46" rx="6"/><text x="547" y="156" class="tb">SSP</text>
-    <rect class="reg" x="614" y="128" width="94" height="46" rx="6"/><text x="661" y="156" class="tb">PC</text>
-    <rect class="reg" x="728" y="128" width="94" height="46" rx="6"/><text x="775" y="156" class="tb">TEMP</text>
-    <rect class="reg" x="842" y="128" width="94" height="46" rx="6"/><text x="889" y="156" class="tb">MAR</text>
+    <rect class="reg" x="44"  y="120" width="84" height="46" rx="6"/><text x="86"  y="142" class="tb">D</text><text x="86" y="158" class="sm">(A:B)</text>
+    <rect class="reg" x="144" y="120" width="84" height="46" rx="6"/><text x="186" y="148" class="tb">X</text>
+    <rect class="reg" x="244" y="120" width="84" height="46" rx="6"/><text x="286" y="148" class="tb">Y</text>
+    <rect class="reg" x="344" y="120" width="84" height="46" rx="6"/><text x="386" y="148" class="tb">USP</text>
+    <rect class="reg" x="444" y="120" width="84" height="46" rx="6"/><text x="486" y="148" class="tb">SSP</text>
+    <rect class="reg" x="544" y="120" width="84" height="46" rx="6"/><text x="586" y="148" class="tb">PC</text>
+    <rect class="reg" x="644" y="120" width="84" height="46" rx="6"/><text x="686" y="148" class="tb">MAR</text>
+    <rect class="scr" x="744" y="120" width="84" height="46" rx="6"/><text x="786" y="148" class="tb">SCR1</text>
+    <rect class="scr" x="844" y="120" width="84" height="46" rx="6"/><text x="886" y="148" class="tb">SCR2</text>
   </g>
 
-  <!-- bus taps -->
+  <!-- taps to LEFT (and across Z) -->
   <g class="tap">
-    <line x1="91" y1="174" x2="91" y2="236"/><line x1="205" y1="174" x2="205" y2="236"/>
-    <line x1="319" y1="174" x2="319" y2="236"/><line x1="433" y1="174" x2="433" y2="236"/>
-    <line x1="547" y1="174" x2="547" y2="236"/><line x1="661" y1="174" x2="661" y2="236"/>
-    <line x1="775" y1="174" x2="775" y2="236"/><line x1="889" y1="174" x2="889" y2="236"/>
+    <line x1="86" y1="166" x2="86" y2="216"/><line x1="186" y1="166" x2="186" y2="216"/>
+    <line x1="286" y1="166" x2="286" y2="216"/><line x1="386" y1="166" x2="386" y2="216"/>
+    <line x1="486" y1="166" x2="486" y2="216"/><line x1="586" y1="166" x2="586" y2="216"/>
+    <line x1="686" y1="166" x2="686" y2="216"/>
+  </g>
+  <!-- scratch taps continue to RIGHT -->
+  <g class="taps">
+    <line x1="786" y1="166" x2="786" y2="244"/><line x1="886" y1="166" x2="886" y2="244"/>
   </g>
 
   <!-- buses -->
-  <rect x="40" y="196" width="900" height="6" rx="3" fill="#16a34a"/>
-  <text x="946" y="203" class="sm" text-anchor="start" fill="#16a34a">R</text>
-  <rect x="40" y="230" width="900" height="6" rx="3" fill="#2563eb"/>
-  <text x="946" y="240" class="sm" text-anchor="start" fill="#2563eb">S</text>
-  <text x="46" y="192" class="sm" text-anchor="start" fill="#16a34a">R · 16-bit result bus</text>
-  <text x="46" y="252" class="sm" text-anchor="start" fill="#2563eb">S · 16-bit source bus</text>
+  <rect x="40" y="187" width="888" height="6" rx="3" fill="#16a34a"/>
+  <text x="44" y="183" class="sm" text-anchor="start" fill="#16a34a">Z · result (any reg latches)</text>
+  <rect x="40" y="213" width="888" height="6" rx="3" fill="#2563eb"/>
+  <text x="44" y="231" class="sm" text-anchor="start" fill="#2563eb">LEFT · source (any reg drives)</text>
+  <rect x="40" y="241" width="888" height="6" rx="3" fill="#ea580c"/>
+  <text x="932" y="248" class="sm" text-anchor="start" fill="#c2410c">RIGHT</text>
+  <text x="44" y="263" class="sm" text-anchor="start" fill="#c2410c">RIGHT · scratch + constants only</text>
+
+  <!-- constant generator -->
+  <rect class="konst" x="44" y="300" width="180" height="42" rx="6"/>
+  <text x="134" y="320" class="tb">constant generator</text>
+  <text x="134" y="336" class="sm">0 / 1 / 2 / -1</text>
+  <line class="taps" x1="134" y1="300" x2="134" y2="247" marker-end="url(#aro)"/>
+  <text x="142" y="284" class="sm" text-anchor="start" fill="#c2410c">→ RIGHT</text>
 
   <!-- ALU -->
-  <rect class="alu" x="110" y="288" width="190" height="96" rx="6"/>
-  <text x="205" y="318" class="tb">16-bit ALU</text>
-  <text x="205" y="340" class="t" font-size="12">+  −  &amp; | ^  «  »</text>
-  <text x="205" y="360" class="sm">inc / dec · compare</text>
-  <!-- ALU in-1 from S, result to R -->
-  <line class="wire" x1="150" y1="236" x2="150" y2="288" marker-end="url(#ar)"/>
-  <text x="150" y="274" class="sm">in-1 ◄ S</text>
-  <line class="wire" x1="255" y1="288" x2="255" y2="202" marker-end="url(#ar)"/>
-  <text x="276" y="262" class="sm" text-anchor="start">result ► R</text>
-
-  <!-- ALU operand latch L -->
-  <rect class="reg" x="340" y="300" width="104" height="46" rx="6"/>
-  <text x="392" y="328" class="t">ALU latch L</text>
-  <line class="wire" x1="392" y1="236" x2="392" y2="300" marker-end="url(#ar)"/>
-  <text x="392" y="274" class="sm">◄ S</text>
-  <line class="wire" x1="340" y1="323" x2="302" y2="323" marker-end="url(#ar)"/>
-  <text x="320" y="316" class="sm">in-2</text>
+  <rect class="alu" x="300" y="300" width="220" height="100" rx="6"/>
+  <text x="410" y="332" class="tb">16-bit ALU</text>
+  <text x="410" y="354" class="t" font-size="12">+  -  &amp; | ^  &lt;&lt; &gt;&gt;</text>
+  <text x="410" y="374" class="sm">inc / dec · compare</text>
+  <line class="wire" x1="340" y1="219" x2="340" y2="300" marker-end="url(#ar)"/><text x="340" y="288" class="sm">LEFT</text>
+  <line class="taps" x1="480" y1="247" x2="480" y2="300" marker-end="url(#aro)"/><text x="480" y="288" class="sm" fill="#c2410c">RIGHT</text>
+  <line class="wire" x1="410" y1="300" x2="410" y2="193" marker-end="url(#ar)"/><text x="418" y="276" class="sm" text-anchor="start">result → Z</text>
 
   <!-- CC -->
-  <rect class="cc" x="110" y="404" width="190" height="40" rx="6"/>
-  <text x="205" y="429" class="t">CC  ·  M H I N Z V C</text>
-  <line class="wire" x1="205" y1="384" x2="205" y2="404" marker-end="url(#ar)"/>
-  <text x="220" y="398" class="sm" text-anchor="start">flags</text>
+  <rect class="cc" x="300" y="430" width="190" height="38" rx="6"/>
+  <text x="395" y="454" class="t">CC · M H I N Z V C</text>
+  <line class="wire" x1="395" y1="400" x2="395" y2="430" marker-end="url(#ar)"/><text x="404" y="422" class="sm" text-anchor="start">flags</text>
 
-  <!-- address incrementer -->
-  <rect class="reg" x="571" y="290" width="180" height="44" rx="6"/>
-  <text x="661" y="310" class="tb">+1 incrementer</text>
-  <text x="661" y="326" class="sm">PC++ · 16-bit step (off-bus)</text>
-  <line class="dash" x1="661" y1="290" x2="661" y2="174" marker-end="url(#ar)"/>
-  <path class="dash" d="M751,312 H889 V174" marker-end="url(#ar)"/>
-
-  <!-- ===================== TIER 2: MEMORY / ADDRESS ===================== -->
   <!-- MMU -->
-  <rect class="mem" x="600" y="372" width="330" height="116" rx="6"/>
-  <text x="765" y="398" class="tb">MMU — internal</text>
-  <text x="765" y="420" class="sm">page-table SRAM · kernel / user map sets</text>
-  <text x="765" y="438" class="sm">MAR[15:13] → 11-bit physical frame</text>
-  <text x="765" y="456" class="sm">MAR[12:0] offset → 24-bit physical</text>
-  <text x="765" y="476" class="sm">(8 KB pages · 16 MB — D-11/14/16)</text>
-  <!-- MAR -> MMU -->
-  <line class="wire" x1="910" y1="174" x2="910" y2="372" marker-end="url(#ar)"/>
-  <text x="918" y="300" class="sm" text-anchor="start" transform="rotate(90 918 300)">MAR (16-bit logical)</text>
-  <!-- MMU -> A[23:0] -->
-  <line class="wire" x1="930" y1="412" x2="978" y2="412" marker-end="url(#ar)"/>
+  <rect class="mem" x="600" y="300" width="324" height="104" rx="6"/>
+  <text x="762" y="326" class="tb">MMU — internal</text>
+  <text x="762" y="346" class="sm">page-table SRAM · kernel / user map sets</text>
+  <text x="762" y="364" class="sm">MAR[15:13] → 11-bit frame · [12:0] offset</text>
+  <text x="762" y="382" class="sm">→ 24-bit physical (8 KB pages, 16 MB)</text>
+  <line class="wire" x1="686" y1="166" x2="686" y2="300" marker-end="url(#ar)"/><text x="694" y="288" class="sm" text-anchor="start">MAR</text>
+  <line class="wire" x1="924" y1="350" x2="978" y2="350" marker-end="url(#ar)"/>
 
   <!-- MDR -->
-  <rect class="mem" x="600" y="510" width="200" height="46" rx="6"/>
-  <text x="700" y="538" class="t">MDR — 8-bit data</text>
-  <path class="wire" d="M600,533 H560 V236" marker-end="url(#ar)"/>
-  <text x="566" y="470" class="sm" text-anchor="start">◄► S / R (low lane)</text>
-  <line class="wire" x1="800" y1="533" x2="978" y2="533" marker-end="url(#ar)"/>
+  <rect class="mem" x="600" y="430" width="190" height="42" rx="6"/>
+  <text x="695" y="456" class="t">MDR — 8-bit data</text>
+  <line class="wire" x1="790" y1="451" x2="978" y2="451" marker-end="url(#ar)"/>
+  <path class="wire" d="M600,451 H560 V193" marker-end="url(#ar)"/>
+  <text x="566" y="300" class="sm" text-anchor="start">posts on Z</text>
 
-  <!-- ===================== TIER 3: CONTROL ===================== -->
-  <text x="44" y="592" class="lbl">Microcoded control (G8 / R-CTRL) — dispatch by microaddress formation (D-24), writable store boot-copied from EEPROM (D-03)</text>
-  <rect class="ctrl" x="70"  y="604" width="150" height="46" rx="6"/><text x="145" y="632" class="t">IR + postbyte</text>
-  <rect class="ctrl" x="250" y="604" width="180" height="46" rx="6"/>
-  <text x="340" y="626" class="t">next-addr / dispatch</text><text x="340" y="643" class="sm">(µaddr from IR)</text>
-  <rect class="ctrl" x="460" y="604" width="72" height="46" rx="6"/><text x="496" y="632" class="tb">µPC</text>
-  <rect class="ctrl" x="562" y="594" width="178" height="66" rx="6"/>
-  <text x="651" y="620" class="t">Writable Control</text><text x="651" y="638" class="t">Store (SRAM)</text>
-  <rect class="ctrl" x="770" y="594" width="170" height="66" rx="6"/>
-  <text x="855" y="620" class="t">control word</text><text x="855" y="638" class="sm">(pipelined)</text>
-  <rect class="ctrl" x="562" y="676" width="178" height="38" rx="6"/><text x="651" y="700" class="sm">boot ROM / EEPROM → WCS</text>
+  <!-- footnote: incrementer open -->
+  <text x="300" y="492" class="sm" text-anchor="start" fill="#94a3b8">address increments via ALU + const-gen — dedicated off-bus incrementer is open (§2)</text>
 
-  <line class="wire" x1="220" y1="627" x2="250" y2="627" marker-end="url(#ar)"/>
-  <line class="wire" x1="430" y1="627" x2="460" y2="627" marker-end="url(#ar)"/>
-  <line class="wire" x1="532" y1="627" x2="562" y2="627" marker-end="url(#ar)"/>
-  <line class="wire" x1="740" y1="627" x2="770" y2="627" marker-end="url(#ar)"/>
-  <line class="wire" x1="651" y1="676" x2="651" y2="660" marker-end="url(#ar)"/>
+  <!-- ===== control ===== -->
+  <text x="44" y="504" class="lbl">Microcoded control (G8) — dispatch by microaddress formation (D-24); WCS boot-copied from EEPROM (D-03)</text>
+  <rect class="ctrl" x="70"  y="512" width="150" height="42" rx="6"/><text x="145" y="538" class="t">IR + postbyte</text>
+  <rect class="ctrl" x="250" y="512" width="176" height="42" rx="6"/><text x="338" y="534" class="t">next-addr / dispatch</text><text x="338" y="550" class="sm">(µaddr from IR)</text>
+  <rect class="ctrl" x="456" y="512" width="66" height="42" rx="6"/><text x="489" y="538" class="tb">µPC</text>
+  <rect class="ctrl" x="552" y="504" width="168" height="58" rx="6"/><text x="636" y="528" class="t">Writable Control</text><text x="636" y="546" class="t">Store (SRAM)</text>
+  <rect class="ctrl" x="750" y="504" width="160" height="58" rx="6"/><text x="830" y="528" class="t">control word</text><text x="830" y="546" class="sm">(pipelined)</text>
+  <rect class="ctrl" x="552" y="582" width="168" height="34" rx="6"/><text x="636" y="604" class="sm">boot ROM / EEPROM → WCS</text>
 
-  <!-- opcode MDR -> IR -->
-  <path class="dash" d="M700,556 V574 H145 V604" marker-end="url(#ar)"/>
-  <text x="420" y="570" class="sm">opcode → IR</text>
-  <!-- CC -> dispatch (condition) -->
-  <path class="dash" d="M150,444 V582 H300 V604" marker-end="url(#ar)"/>
-  <text x="170" y="460" class="sm" text-anchor="start">cond</text>
-  <!-- control word -> all blocks -->
-  <line class="wire" x1="855" y1="594" x2="855" y2="566" marker-end="url(#ar)" stroke-width="2.4"/>
-  <text x="855" y="582" class="sm">control word → bus enables · ALU op · reg loads · /RD //WR · MMU</text>
+  <line class="wire" x1="220" y1="533" x2="250" y2="533" marker-end="url(#ar)"/>
+  <line class="wire" x1="426" y1="533" x2="456" y2="533" marker-end="url(#ar)"/>
+  <line class="wire" x1="522" y1="533" x2="552" y2="533" marker-end="url(#ar)"/>
+  <line class="wire" x1="720" y1="533" x2="750" y2="533" marker-end="url(#ar)"/>
+  <line class="wire" x1="636" y1="582" x2="636" y2="562" marker-end="url(#ar)"/>
+  <line class="wire" x1="830" y1="504" x2="830" y2="480" marker-end="url(#ar)" stroke-width="2.4"/>
+  <text x="830" y="474" class="sm">control word → datapath · ALU · MMU · memory</text>
+  <path class="dash" d="M636,472 V490 H145 V512" marker-end="url(#ar)"/><text x="380" y="486" class="sm">opcode → IR</text>
+  <path class="dash" d="M360,468 V512" marker-end="url(#ar)"/><text x="364" y="486" class="sm" text-anchor="start">cond</text>
 
-  <!-- ===================== EXTERNAL INTERFACE ===================== -->
-  <text x="1075" y="110" class="tb" font-size="12">Functional</text>
-  <text x="1075" y="126" class="tb" font-size="12">interface (D-29)</text>
-
-  <!-- buses already drawn to 978; labels -->
-  <text x="984" y="416" class="lbl" text-anchor="start">A[23:0]  (out)</text>
-  <text x="984" y="537" class="lbl" text-anchor="start">D[7:0]  (in/out)</text>
-
-  <!-- control / timing signal stubs -->
+  <!-- ===== external interface ===== -->
+  <text x="1080" y="106" class="tb" font-size="12">Functional</text>
+  <text x="1080" y="122" class="tb" font-size="12">interface (D-29)</text>
+  <text x="982" y="354" class="lbl" text-anchor="start">A[23:0]  (out)</text>
+  <text x="982" y="455" class="lbl" text-anchor="start">D[7:0]  (in/out)</text>
   <g>
-    <line class="wire" x1="970" y1="158" x2="1000" y2="158" marker-end="url(#ar)"/><text x="1006" y="162" class="lbl" text-anchor="start">/RD  (out)</text>
-    <line class="wire" x1="970" y1="182" x2="1000" y2="182" marker-end="url(#ar)"/><text x="1006" y="186" class="lbl" text-anchor="start">/WR  (out)</text>
-    <line class="wire" x1="1000" y1="206" x2="970" y2="206" marker-end="url(#ar)"/><text x="1006" y="210" class="lbl" text-anchor="start">/WAIT  (in)</text>
-    <line class="wire" x1="1000" y1="234" x2="970" y2="234" marker-end="url(#ar)"/><text x="1006" y="238" class="lbl" text-anchor="start">CLK  (in)</text>
-    <line class="wire" x1="1000" y1="258" x2="970" y2="258" marker-end="url(#ar)"/><text x="1006" y="262" class="lbl" text-anchor="start">/RESET  (in)</text>
-    <line class="wire" x1="1000" y1="282" x2="970" y2="282" marker-end="url(#ar)"/><text x="1006" y="286" class="lbl" text-anchor="start">/IRQ  (in)</text>
-    <line class="wire" x1="1000" y1="306" x2="970" y2="306" marker-end="url(#ar)"/><text x="1006" y="310" class="lbl" text-anchor="start">/NMI  (in)</text>
-    <line class="wire" x1="1000" y1="330" x2="970" y2="330" marker-end="url(#ar)"/><text x="1006" y="334" class="lbl" text-anchor="start">/BUSREQ  (in)</text>
-    <line class="wire" x1="970" y1="354" x2="1000" y2="354" marker-end="url(#ar)"/><text x="1006" y="358" class="lbl" text-anchor="start">/BUSGRANT (out)</text>
+    <line class="wire" x1="964" y1="150" x2="994" y2="150" marker-end="url(#ar)"/><text x="1000" y="154" class="lbl" text-anchor="start">/RD  (out)</text>
+    <line class="wire" x1="964" y1="172" x2="994" y2="172" marker-end="url(#ar)"/><text x="1000" y="176" class="lbl" text-anchor="start">/WR  (out)</text>
+    <line class="wire" x1="994" y1="194" x2="964" y2="194" marker-end="url(#ar)"/><text x="1000" y="198" class="lbl" text-anchor="start">/WAIT  (in)</text>
+    <line class="wire" x1="994" y1="220" x2="964" y2="220" marker-end="url(#ar)"/><text x="1000" y="224" class="lbl" text-anchor="start">CLK  (in)</text>
+    <line class="wire" x1="994" y1="244" x2="964" y2="244" marker-end="url(#ar)"/><text x="1000" y="248" class="lbl" text-anchor="start">/RESET  (in)</text>
+    <line class="wire" x1="994" y1="268" x2="964" y2="268" marker-end="url(#ar)"/><text x="1000" y="272" class="lbl" text-anchor="start">/IRQ  (in)</text>
+    <line class="wire" x1="994" y1="292" x2="964" y2="292" marker-end="url(#ar)"/><text x="1000" y="296" class="lbl" text-anchor="start">/NMI  (in)</text>
+    <line class="wire" x1="994" y1="316" x2="964" y2="316" marker-end="url(#ar)"/><text x="1000" y="320" class="lbl" text-anchor="start">/BUSREQ  (in)</text>
+    <line class="wire" x1="964" y1="340" x2="994" y2="340" marker-end="url(#ar)"/><text x="1000" y="344" class="lbl" text-anchor="start">/BUSGRANT (out)</text>
   </g>
-  <text x="1006" y="384" class="sm" text-anchor="start" fill="#94a3b8">(timing/control to control unit)</text>
 
-  <!-- ===================== LEGEND ===================== -->
+  <!-- ===== front panel (shadow registers) ===== -->
+  <rect class="fp" x="40" y="700" width="720" height="160" rx="10"/>
+  <text x="56" y="724" class="tb" text-anchor="start">Front panel — shadow-register display (tentative, G5/G6; debug i/f D-13)</text>
+  <text x="56" y="744" class="lbl" text-anchor="start">Mirrors each CPU register by latching the Z bus on the matching load strobe →</text>
+  <text x="56" y="760" class="lbl" text-anchor="start">drives LEDs. So CPU registers need no display tap; only Z + strobes + clock are routed.</text>
   <g>
-    <rect x="70" y="734" width="14" height="14" rx="3" class="reg"/><text x="90" y="746" class="lbl" text-anchor="start">registers</text>
-    <rect x="180" y="734" width="14" height="14" rx="3" class="alu"/><text x="200" y="746" class="lbl" text-anchor="start">ALU</text>
-    <rect x="262" y="734" width="14" height="14" rx="3" class="cc"/><text x="282" y="746" class="lbl" text-anchor="start">flags</text>
-    <rect x="340" y="734" width="14" height="14" rx="3" class="mem"/><text x="360" y="746" class="lbl" text-anchor="start">MMU / memory</text>
-    <rect x="470" y="734" width="14" height="14" rx="3" class="ctrl"/><text x="490" y="746" class="lbl" text-anchor="start">control / microcode</text>
-    <line class="dash" x1="630" y1="741" x2="664" y2="741"/><text x="670" y="746" class="lbl" text-anchor="start">off-bus / control path</text>
+    <rect class="reg" x="56"  y="784" width="74" height="34" rx="5"/><text x="93"  y="805" class="sm">sh-D</text>
+    <rect class="reg" x="140" y="784" width="74" height="34" rx="5"/><text x="177" y="805" class="sm">sh-X</text>
+    <rect class="reg" x="224" y="784" width="74" height="34" rx="5"/><text x="261" y="805" class="sm">sh-PC</text>
+    <rect class="reg" x="308" y="784" width="74" height="34" rx="5"/><text x="345" y="805" class="sm">sh-…</text>
+    <text x="398" y="805" class="lbl" text-anchor="start">(one shadow per register)</text>
+  </g>
+  <text x="56" y="844" class="lbl" text-anchor="start">→ LED banks (every register continuously visible)</text>
+  <!-- feed from Z + strobes -->
+  <line class="dash" x1="300" y1="640" x2="300" y2="700" marker-end="url(#ar)"/>
+  <text x="308" y="676" class="sm" text-anchor="start">Z bus + per-register load strobes</text>
+
+  <!-- ===== legend ===== -->
+  <g>
+    <rect x="800" y="704" width="14" height="14" rx="3" class="reg"/><text x="820" y="716" class="lbl" text-anchor="start">register</text>
+    <rect x="800" y="726" width="14" height="14" rx="3" class="scr"/><text x="820" y="738" class="lbl" text-anchor="start">scratch reg</text>
+    <rect x="800" y="748" width="14" height="14" rx="3" class="alu"/><text x="820" y="760" class="lbl" text-anchor="start">ALU</text>
+    <rect x="800" y="770" width="14" height="14" rx="3" class="konst"/><text x="820" y="782" class="lbl" text-anchor="start">constant gen</text>
+    <rect x="940" y="704" width="14" height="14" rx="3" class="mem"/><text x="960" y="716" class="lbl" text-anchor="start">MMU / memory</text>
+    <rect x="940" y="726" width="14" height="14" rx="3" class="ctrl"/><text x="960" y="738" class="lbl" text-anchor="start">control / microcode</text>
+    <rect x="940" y="748" width="14" height="14" rx="3" class="cc"/><text x="960" y="760" class="lbl" text-anchor="start">flags</text>
+    <rect x="940" y="770" width="14" height="14" rx="3" class="fp"/><text x="960" y="782" class="lbl" text-anchor="start">front panel</text>
   </g>
 </svg>

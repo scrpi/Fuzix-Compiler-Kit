@@ -54,6 +54,7 @@
 | D-32 | Add goal G5 (legible component architecture); renumber G5–G8 → G6–G9 | Decided |
 | D-33 | Discrete architectural registers (no SRAM register file) | Decided |
 | D-34 | High-level datapath: 16-bit core, two-bus (S+R + ALU latch), dedicated address incrementer | Decided |
+| D-35 | Rename internal buses to LEFT / RIGHT / Z (Z replaces R, avoids clash with RIGHT) | Decided |
 
 ---
 
@@ -714,6 +715,27 @@ occupy the single ALU + buses, serial with data work).
 **Notes:** Bus count is thus a *consequence* of the datapath, per the design principle.
 Written into [hardware.md](hardware.md) §2; remaining detail (ALU parts, control-word
 width/format, pipeline depth) is hardware.md §9.
+
+## D-35 — Rename internal buses: LEFT / RIGHT / Z
+**Status:** Decided (2026-06-18)
+**Context:** The working datapath direction ([hardware.md](hardware.md) §2) adds a
+second, sparsely-driven ALU source bus named **RIGHT**. D-34's result bus was called
+**R**, which now reads ambiguously against RIGHT.
+**Decision:** Name the internal buses:
+- **Z** — the **result** bus (ALU drives it, registers latch from it). **Z replaces the
+  name `R`** used in D-34; the bus's role is unchanged. This rename is firm regardless of
+  how the source side evolves.
+- **LEFT** — the source bus *every* register can drive (ALU left input).
+- **RIGHT** — the source bus only the scratch registers + constant generator drive (ALU
+  right input).
+(LEFT/RIGHT name the source side of the current — still tentative — two-source-bus
+direction; **Z** is the firm rename either way.)
+**Why:** Avoids confusing the result bus "R" with the source bus "RIGHT" in specs,
+microcode listings, and on the front panel; LEFT/RIGHT-into-the-ALU and Z-out read
+unambiguously.
+**History note:** Earlier entries — notably **D-34** — keep their original `S`/`R`
+naming and are **not** retroactively edited (per the log policy in the index note).
+hardware.md and later specs use LEFT / RIGHT / Z.
 
 ---
 
