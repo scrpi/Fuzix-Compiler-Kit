@@ -15,6 +15,11 @@
 - **74-series only for the CPU** (goal **G1**). Working family: **74AHCT** —
   fast enough (a few ns/gate) to chase 10 MHz, 5 V, TTL-compatible inputs so it
   mixes with the slower glue and memory.
+- **Legible at the component level** (goal **G5**): the architectural registers,
+  the ALU, and the internal buses are *individually visible discrete parts*
+  (R-HW-4) — never collapsed into an addressed register-file SRAM. You can point at
+  each register and watch it change; this is why the datapath uses discrete
+  registers rather than a RAM file.
 - **Everything is displayable** (goal **G6**): every bus and architectural
   register is latched/buffered so the value driving the LEDs is stable and
   legible. This biases the datapath toward *registered* points rather than long
@@ -26,43 +31,67 @@
 
 ## 2. Datapath overview
 
+BLIP has a **16-bit core**: one 16-bit ALU and 16-bit internal buses, with 8-bit
+operations (`A`, `B`) using the low lane. Most architectural registers are 16-bit,
+so a 16-bit datapath keeps pointer and effective-address math single-pass (G2, G9),
+and the register set is **discrete and individually visible** (G5 / R-HW-4) — no RAM
+register file. (Architecture decided in D-34.)
+
 ```
-            +-------------------------------------------------+
-            |                  8-bit DATA BUS                 |
-            +--+------+------+------+------+------+------+-----+
-               |      |      |      |      |      |      |
-              A/B    D/X/Y  SP/PC   CC     ALU    MDR   (regfile read/write ports)
-               |      |      |      |      |      |
-            +--v------v------v------v------v------v--+
-            |            register file               |
-            +----------------------+------------------+
-                                   |
-                              +----v----+        +-----------------+
-                              |   ALU   |<------>|  ALU temp TA/TB  |
-                              +----+----+        +-----------------+
-                                   |
-                       +-----------v-----------+
-                       | 16-bit ADDRESS path   |---> MAR --> [ MMU ] --> physical bus
-                       +-----------------------+
+   S  ========================================================  (16-bit source)
+      |     |     |     |     |     |     |     |
+    D=A:B   X     Y    USP   SSP    PC   MAR  TEMP   discrete 16-bit registers
+      |     |     |     |     |     |     |     |    (each: drive S, latch R)
+   R  ========================================================  (16-bit result)
+                                                    ^
+                          +------------+            |
+              S ---> in-1 |  16-bit    | result --> R
+              L ---> in-2 |    ALU     |--> flags --> CC
+                          | +-&|^ <<>> |
+                          |  inc/dec   |
+                          +------------+
+              L = ALU operand latch (loaded from S a microcycle earlier)
+
+   +1 incrementer --> PC, MAR   (off-bus: PC++ and 16-bit byte-stepping)
+   MAR (16-bit logical) --> [ MMU: 8 KB pages, SRAM table ] --> physical A[23:0]
+   MDR (8-bit) <--> external D[7:0]    (16-bit transfer = two byte cycles)
 ```
 
-- **Data bus:** 8 bits — BLIP is an 8-bit machine; 16-bit values move as two
-  byte transfers (or via a dedicated 16-bit internal path; **TBD**, see §9).
-- **Register file:** holds `A B (D) X Y USP SSP PC CC` (see [isa §2](isa.md#2-programming-model-register-file-v0)),
-  with `USP`/`SSP` banked by the supervisor/user mode bit so the active `SP` is
-  selected by privilege. 16-bit registers are two 8-bit slices with shared
-  increment/decrement so `PC`, the active `SP`, `X`, `Y` can self-modify (for
-  fetch, push/pull, auto-inc/dec) without the ALU.
-- **ALU:** 8-bit, with the four ALU flags (`N Z V C`) plus half-carry. Candidate
-  implementations: cascaded **74AHCT283** adders + a logic-op mux, or classic
-  **74-181/74-381** ALU slices. 16-bit ops (`ADDD`, address math) are done as two
-  8-bit passes with carry, sequenced by microcode. **TBD** (see §9).
-- **Internal temp registers `TA`/`TB`** latch ALU operands so operand fetch and
-  compute are separate microcycles — important for both timing and clean display.
+- **16-bit core (D-34).** One 16-bit ALU and 16-bit buses; 8-bit ops use the low
+  lane. The 16-bit register set (D-07) makes this the natural fit and keeps
+  pointer/EA math single-pass (G2, G9), with one uniform ALU primitive for microcode
+  (G8 / R-CTRL-4).
+- **Discrete register file (G5 / R-HW-4 / D-33).** Each register is its own latch
+  with its own display buffer: `D`(=`A:B`), `X`, `Y`, `USP`/`SSP` (active `SP` gated
+  by `CC.M`), `PC`, the working `MAR` and `TEMP` (16-bit), and `IR` / postbyte
+  (8-bit). No addressed RAM file — every register is a point you can watch.
+- **Two buses (D-34).** A 16-bit **source bus S** (any register drives) and a 16-bit
+  **result bus R** (any register latches). The ALU reads input 1 live from S and
+  input 2 from an **operand latch L** (loaded from S a microcycle earlier), result to
+  R. A register move is an ALU pass-through (S->R); a two-operand op (e.g. EA `X+n`)
+  is two microcycles — load `L`, then operate. Two buses rather than three because
+  the 8-bit external memory makes the machine **memory-bound**, so a third bus's
+  parallelism would rarely show in wall-clock, while two keep the drivers and the
+  front panel simpler.
+- **16-bit ALU.** add/sub, logic, shifts, inc/dec, compare; 8-bit mode on the low
+  lane; flags `N Z V C` + half-carry -> `CC`. One ALU serves data math, pointer math,
+  *and* effective-address computation — the 16-bit core removes the need for a
+  separate address adder. Part choice (cascaded adders + logic mux vs ALU slices) is
+  TBD (§9).
+- **Dedicated address incrementer (D-34).** `PC` and `MAR` have a +1 incrementer off
+  the S/R buses, so `PC++` on every fetch and the byte-stepping inside a 16-bit
+  (two-byte) access happen without occupying the ALU or buses — overlapping the memory
+  cycle (G9). This keeps fetch and pointer loads/stores cheap on a 2-bus datapath.
+- **Memory interface.** `MDR` interfaces the **8-bit** external data bus `D[7:0]`;
+  16-bit values move as two byte cycles (little-endian, D-09), the incrementer
+  stepping `MAR` between them. `MAR` (16-bit logical) feeds the internal MMU (§3),
+  which drives the 24-bit physical address off the CPU.
 
-> **Open:** one shared 8-bit bus vs a two-bus (A/B operand) or three-bus design.
-> More buses = fewer microcycles per instruction (helps G9) at the cost of parts
-> and a busier front panel. This is the central datapath tradeoff.
+> **Decided (D-34):** 16-bit core; two buses (S + R, with an ALU operand latch);
+> discrete registers; a dedicated address incrementer. The internal **bus count fell
+> out** of this — *two*, because the 8-bit external memory makes the machine
+> memory-bound. Remaining datapath detail (ALU parts, control-word width, pipeline
+> depth) is in §9.
 
 ---
 
@@ -248,10 +277,10 @@ The minimum board to boot FUZIX to a shell (goal **G3**):
 
 | Subsystem | Realizes goal | Key open question |
 |-----------|---------------|-------------------|
-| Discrete 74AHCT datapath | G1, G9 | bus count (§2) |
-| Register file with self-inc/dec 16-bit regs | G2 | — |
-| 8-bit ALU + carry-sequenced 16-bit ops | G2 | ALU implementation (§2/§9) |
-| Internal MMU (logical→physical) | G3, G4 | per-page protection bits (§3) |
+| Discrete 74AHCT datapath (16-bit, two-bus) | G1, G5, G9 | ALU parts (§9) |
+| Discrete register file (16-bit) | G2, G5 | — |
+| 16-bit ALU + dedicated address incrementer | G2, G9 | ALU parts (§9) |
+| Internal MMU (logical→physical) | G3, G4 | extra map sets (§3) |
 | Microsequencer + writable control store | G8, G9 | microcode width, pipelining (§4) |
 | Boot-copy ROM→SRAM circuit | G8 | — |
 | Front panel + bus mastering | G6 | step granularity (§6) |
@@ -261,11 +290,11 @@ The minimum board to boot FUZIX to a shell (goal **G3**):
 
 ## 9. Open questions for this document
 
-1. **Bus architecture:** one shared 8-bit bus vs two/three buses (microcycles
-   per instruction vs part count). *Most impactful single decision here.*
-2. **ALU implementation:** discrete adders + logic mux vs 74-181/381 slices; how
-   16-bit ops are sequenced; is there a dedicated 16-bit increment path for
-   addresses?
+1. **Datapath architecture:** *(decided — D-34: 16-bit core; two buses, S + R with
+   an ALU operand latch; discrete registers; a dedicated address incrementer.)*
+2. **ALU implementation:** discrete adders + logic-op mux vs 74-181/381 slices, and
+   how the flags are generated. (16-bit width and the dedicated address incrementer
+   are decided — D-34.)
 3. **MMU:** *(decided: 8 KB pages, 16 MB physical, kernel/user map sets.)*
    Remaining: translation-only vs per-page protection bits.
 4. **Microcode:** control-word width and field layout; horizontal vs two-level;

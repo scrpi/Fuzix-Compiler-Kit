@@ -53,6 +53,7 @@
 | D-31 | Reset vector & physical memory map: reset entry `0x000000`, monitor/loader boots kernel from block device | Decided |
 | D-32 | Add goal G5 (legible component architecture); renumber G5–G8 → G6–G9 | Decided |
 | D-33 | Discrete architectural registers (no SRAM register file) | Decided |
+| D-34 | High-level datapath: 16-bit core, two-bus (S+R + ALU latch), dedicated address incrementer | Decided |
 
 ---
 
@@ -680,13 +681,48 @@ hardware.md); the internal **bus count / topology** falls out of the register po
 ALU routing + address path. The earlier 1/2/3-bus cycle analysis becomes *evidence*
 (it shows a single shared bus is too slow), not a standalone decision.
 
+## D-34 — High-level datapath architecture (16-bit core, two-bus, address incrementer)
+**Status:** Decided (2026-06-18)
+**Context:** With discrete registers fixed (D-33), the internal datapath needed its
+high-level shape — and the **bus count was to fall out of that design**, not be picked
+first (the principle behind D-33).
+**Decision:**
+- **16-bit core.** One 16-bit ALU and 16-bit internal buses; 8-bit ops (`A`/`B`) use the
+  low lane. One ALU serves data, pointer, and effective-address math (no separate address
+  adder).
+- **Two buses.** A source bus `S` and a result bus `R`; the ALU reads input 1 live from
+  `S` and input 2 from an operand latch `L` (loaded from `S` a microcycle earlier),
+  result to `R`. Register moves are ALU pass-throughs; two-operand ops take two
+  microcycles.
+- **Dedicated address incrementer** on `PC` and `MAR`, off the buses, for `PC++` and
+  16-bit byte-stepping.
+**Why:**
+- *16-bit core:* most registers are 16-bit (D-07), so a 16-bit datapath keeps pointer/EA
+  math single-pass (G2, G9) and gives one uniform ALU primitive for microcode
+  (G8 / R-CTRL-4). Extra parts are accepted (a non-goal; G1/G5).
+- *Two buses, not three:* the 8-bit external memory makes the machine memory-bound, so a
+  third bus's parallelism rarely shows in wall-clock (the earlier cycle analysis); two
+  buses mean fewer drivers and a simpler front panel, at the cost of one extra microcycle
+  to stage the second ALU operand.
+- *Dedicated incrementer:* `PC++` every fetch and the byte-stepping inside every 16-bit
+  access are the hottest paths; off the ALU/buses they overlap the memory cycle (G9) and
+  keep the 2-bus microcode simple.
+**Alternatives:** 8-bit core (rejected — pointer/EA math pays 2× on the critical path,
+against G2/G9); three buses (rejected — benefit capped by the 8-bit memory bus, more
+drivers, less legible); ALU-only increments (rejected — every `PC++`/byte-step would
+occupy the single ALU + buses, serial with data work).
+**Notes:** Bus count is thus a *consequence* of the datapath, per the design principle.
+Written into [hardware.md](hardware.md) §2; remaining detail (ALU parts, control-word
+width/format, pipeline depth) is hardware.md §9.
+
 ---
 
 ## Pending (not yet decided)
 
 Tracked in the docs' own "Open questions" sections; the load-bearing ones:
 
-- **Datapath bus count** — one shared 8-bit bus vs two/three. ([hardware.md](hardware.md) §9)
+- **Datapath detail** — microcode control-word format, pipeline depth, and ALU part
+  choice (the high-level datapath is decided — D-34 / [hardware.md](hardware.md) §2, §9).
 - **Debug interface spec** — the privileged front-panel signal list (functional
   interface now done — D-29 / [interface.md](interface.md)).
 - **Step-3 retrofit** — scrub remaining architecture names from the normative
