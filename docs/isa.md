@@ -5,9 +5,9 @@
 > [docs/hardware.md](hardware.md).
 >
 > **Status:** the rationale, register model, addressing modes, and encoding map
-> below are a **v0 proposal** under active design review. The opcode table in
-> §7 is a representative first draft, not the final 256-entry assignment — the
-> full enumeration is the next step once the register model is signed off.
+> below are a **v0 proposal** under active design review. The §8 opcode table is the
+> full 256-entry assignment (generated and adversarially checked — D-20), and the
+> assembly notation follows the house style of §4.1 (D-25).
 
 ---
 
@@ -110,14 +110,14 @@ change it). See §8.4.
 
 **Why this set.** Two 8-bit accumulators that pair into 16-bit `D` give cheap
 `char` math *and* 16-bit `int`/pointer math. `X` and `Y` plus stack-relative
-addressing (`n,SP`) cover C's pointer and locals needs — this is exactly the
+addressing `(SP+n)` cover C's pointer and locals needs — this is exactly the
 **STM8** register shape (`X`, `Y`, `SP`), which SDCC already targets well, so the
 backend has a proven template. The banked `SSP`/`USP` give the FUZIX kernel a
 stack a misbehaving process literally cannot reach, turning the MMU's per-process
 isolation into genuine kernel protection.
 
 **Why no `U` and no `DP`.** We drop the 6809's second user stack `U` (a third
-live pointer is a luxury; `X`/`Y`/`n,SP` suffice, per STM8) — the second stack
+live pointer is a luxury; `X`/`Y`/`(SP+n)` suffice, per STM8) — the second stack
 pointer instead earns its keep as the *supervisor* stack. We drop the direct-page
 register `DP` because it solves a different problem than the MMU and pays off
 little for C: direct/zero-page addressing buys code density for *hot globals*, but
@@ -160,27 +160,49 @@ one proven to make a code generator happy.
 | Mode | Syntax | Use |
 |------|--------|-----|
 | Inherent | `NOP`, `RTS` | no operand |
-| Immediate | `#imm8` / `#imm16` | constants |
-| Extended | `addr16` | absolute 16-bit address |
-| Indexed: constant offset | `n,X` `n,Y` `n,SP` | **stack-relative locals**, struct fields |
-| Indexed: zero offset | `,X` | pointer dereference |
-| Indexed: accumulator offset | `A,X` `B,X` `D,X` | `array[i]` in one instruction |
-| Indexed: auto inc/dec | `,X+` `,X++` `,-X` `,--X` | `*p++`, stack-walks |
-| Indexed: indirect | `[n,X]` `[,X++]` | pointer-to-pointer, jump tables |
-| PC-relative | `n,PCR` `[n,PCR]` | position-independent code/data |
+| Immediate | `$nn` / `$nnnn` | constants (bare `$`-hex, no `#`) |
+| Extended (absolute) | `($nnnn)` | absolute 16-bit address |
+| Indexed: constant offset | `(X+n)` `(Y+n)` `(SP+n)` | **stack-relative locals**, struct fields |
+| Indexed: zero offset | `(X)` | pointer dereference |
+| Indexed: accumulator offset | `(X+A)` `(X+B)` `(X+D)` | `array[i]` in one instruction |
+| Indexed: auto inc/dec | `(X+)` `(X++)` `(-X)` `(--X)` | `*p++`, stack-walks |
+| Indexed: indirect | `((X+n))` `((X++))` | pointer-to-pointer, jump tables |
+| PC-relative | `(PC+n)` `((PC+n))` | position-independent code/data |
 | Relative (branch) | `label` | conditional/unconditional branches (8- and 16-bit) |
 
 The two that earn their keep for C:
 
-- **`n,SP`** — a local at frame offset *n* is one instruction, no frame-pointer
-  setup tax. This is the single biggest win over the Z80.
+- **`(SP+n)`** — a local at frame offset *n* is one instruction, no frame-pointer
+  setup tax. This is the single biggest win over a frame-pointer machine.
 - **`LEA`** (load effective address, §7) — computes `r = address(mode)` so
   `p += n`, `&local`, and `&array[i]` are single instructions; it's how pointer
-  arithmetic stays cheap.
+  arithmetic stays cheap. `LEA` names the *address*, so its operand is written
+  **bare** (`LEA X,X+4`), not parenthesised.
 
 Constant offsets come in **5-bit**, **8-bit**, and **16-bit** widths (chosen by
 the postbyte, §5.2) so small frames and struct accesses stay compact while large
 frames still work.
+
+### 4.1 Assembly notation
+
+BLIP assembly follows four conventions — the house style. (For how it compares to
+other architectures see the non-normative [isa-comparison.md](isa-comparison.md).)
+
+1. **The register is an operand, not part of the verb.** `LD A,$05`, `SUB A,(X+6)`,
+   `NEG B`, `LEA X,X+4` — the mnemonic is the operation; the target register is its
+   first operand.
+2. **Immediates are bare `$`-hex.** A constant is written `$05` / `$1000`, with no
+   `#` prefix.
+3. **Parentheses mean memory.** `(addr)` is the *contents* at `addr`; a bare token
+   is the value itself. The address inside may be a register (register-indirect,
+   `(X)`), register + displacement (`(X+6)`, `(SP-8)`), register + accumulator
+   (`(X+B)`), an auto-inc/dec form (`(X+)`, `(-X)`), an absolute address (`($1234)`),
+   or a further indirection (`((X+6))`). An operand that *names an address* rather
+   than dereferencing it stays bare — a `LEA` result and a jump/branch target (so
+   `JMP X` jumps to the address in `X`, whereas `JMP (X)` jumps *through* it).
+4. **Register↔register moves are `LD` / `XCHG`.** A copy is `LD dst,src`; a swap is
+   `XCHG`. The assembler selects the opcode from the operand kinds (register,
+   immediate, or memory), so the one `LD` verb covers them all.
 
 ---
 
@@ -276,7 +298,7 @@ D-18).
 > both follow (R-ABI-1) — fixed, not an implementation detail free to drift.
 
 **Reentrancy & locals.** Parameters, locals, and return linkage live on a
-per-call stack; locals are reached by `n,SP` displacement, with no frame-pointer
+per-call stack; locals are reached by `(SP+n)` displacement, with no frame-pointer
 register (R-ISA-1, R-ISA-2, R-ISA-8).
 
 **Argument passing.** Leading scalar arguments go in registers; the rest are
@@ -339,12 +361,12 @@ shared microcode serve a whole band.
 |------|----------|
 | `0x00–0x1F` | Inherent / system / inter-register (incl. relocated `SEI/CLI`, USP banking, `LDMMU/STMMU`, `TAS`) |
 | `0x20–0x2F` | Short branches `Bcc rel8` — **low nibble = condition** |
-| `0x30–0x3F` | Effective address, `JMP`, and the wide compares `CMPD/CMPY/CMPSP` |
+| `0x30–0x3F` | Effective address, `JMP`, and the wide compares `CMP D/CMP Y/CMP SP` |
 | `0x40–0x7F` | Read-modify-write unary ops — a **4×16 grid**: high nibble = operand (`4`=A, `5`=B, `6`=indexed, `7`=extended), low nibble = operation |
 | `0x80–0xAF` | A/D ALU & load group — **3×16**: high nibble = mode (`8`=immediate, `9`=indexed, `A`=extended), low nibble = operation |
 | `0xB0–0xBF` | Long branches `LBcc rel16` — **low nibble = condition** (mirrors `0x20–0x2F`) |
 | `0xC0–0xEF` | B / wide-register group — **3×16**: (`C`=immediate, `D`=indexed, `E`=extended) |
-| `0xF0–0xFF` | 16-bit wide ops: `SP` load/store (`0xF0–0xF4`), `ADCD`/`SBCD` (`0xF5–0xFA`), `D` multi-bit shifts (`0xFB–0xFD`); `0xFE/0xFF` reserved |
+| `0xF0–0xFF` | 16-bit wide ops: `SP` load/store (`0xF0–0xF4`), `ADC D`/`SBC D` (`0xF5–0xFA`), `D` multi-bit shifts (`0xFB–0xFD`); `0xFE/0xFF` reserved |
 
 Stores (low nibble `7`/`D`/`F`) and `JSR` (low nibble `D`) exist only in the
 memory-operand rows; the immediate rows leave those slots reserved (store-immediate
@@ -352,45 +374,49 @@ and JSR-immediate are meaningless) — intentional, not a gap.
 
 ### 8.2 Primary opcode matrix (the whole 256-byte page)
 
-Rows = high nibble, columns = low nibble; `—` = reserved. Cells show the mnemonic;
-addressing mode and length are given per band below.
+Rows = high nibble, columns = low nibble; `—` = reserved. A cell shows the operation
+and (where it has one) its target register in the house style of §4.1 — e.g. `LD A`,
+`SUB D`, `CMP SP`. As in any `LD`-unified ISA the `LD` verb appears in several cells:
+the memory/immediate loads (`LD A`, `LD X`, …), the register-move at `0x06`, and the
+USP-banking form at `0x1A`; the assembler picks the opcode from the operands. Addressing
+mode and length are given per band below.
 
 |       | x0 | x1 | x2 | x3 | x4 | x5 | x6 | x7 | x8 | x9 | xA | xB | xC | xD | xE | xF |
 |-------|----|----|----|----|----|----|----|----|----|----|----|----|----|----|----|----|
-| **0x**| NOP | SYNC | DAA | SEX | MUL | ABX | TFR | EXG | PSHS | PULS | ANDCC | ORCC | SEI | CLI | — | — |
-| **1x**| RTS | RTI | SWI | SWI2 | SWI3 | CWAI | BSR | LBSR | HALT | TAS | TFRU | EXGU | LDMMU | STMMU | — | — |
+| **0x**| NOP | SYNC | DAA | SEX | MUL | ABX | LD | XCHG | PSHS | PULS | ANDCC | ORCC | SEI | CLI | — | — |
+| **1x**| RTS | RTI | SWI | SWI2 | SWI3 | CWAI | BSR | LBSR | HALT | TAS | LD | XCHG | LDMMU | STMMU | — | — |
 | **2x**| BRA | BRN | BHI | BLS | BCC | BCS | BNE | BEQ | BVC | BVS | BPL | BMI | BGE | BLT | BGT | BLE |
-| **3x**| LEAX | LEAY | LEASP | CMPD | CMPY | CMPSP | JMP | JMP | CMPD | CMPD | CMPY | CMPY | CMPSP | CMPSP | — | — |
-| **4x**| NEGA | — | — | COMA | LSRA | — | RORA | ASRA | ASLA | ROLA | DECA | — | INCA | TSTA | — | CLRA |
-| **5x**| NEGB | — | — | COMB | LSRB | — | RORB | ASRB | ASLB | ROLB | DECB | — | INCB | TSTB | — | CLRB |
+| **3x**| LEA X | LEA Y | LEA SP | CMP D | CMP Y | CMP SP | JMP | JMP | CMP D | CMP D | CMP Y | CMP Y | CMP SP | CMP SP | — | — |
+| **4x**| NEG A | — | — | COM A | LSR A | — | ROR A | ASR A | ASL A | ROL A | DEC A | — | INC A | TST A | — | CLR A |
+| **5x**| NEG B | — | — | COM B | LSR B | — | ROR B | ASR B | ASL B | ROL B | DEC B | — | INC B | TST B | — | CLR B |
 | **6x**| NEG | — | — | COM | LSR | — | ROR | ASR | ASL | ROL | DEC | — | INC | TST | — | CLR |
 | **7x**| NEG | — | — | COM | LSR | — | ROR | ASR | ASL | ROL | DEC | — | INC | TST | — | CLR |
-| **8x**| SUBA | CMPA | SBCA | SUBD | ANDA | BITA | LDA | — | EORA | ADCA | ORA | ADDA | CMPX | — | LDX | — |
-| **9x**| SUBA | CMPA | SBCA | SUBD | ANDA | BITA | LDA | STA | EORA | ADCA | ORA | ADDA | CMPX | JSR | LDX | STX |
-| **Ax**| SUBA | CMPA | SBCA | SUBD | ANDA | BITA | LDA | STA | EORA | ADCA | ORA | ADDA | CMPX | JSR | LDX | STX |
+| **8x**| SUB A | CMP A | SBC A | SUB D | AND A | BIT A | LD A | — | EOR A | ADC A | OR A | ADD A | CMP X | — | LD X | — |
+| **9x**| SUB A | CMP A | SBC A | SUB D | AND A | BIT A | LD A | ST A | EOR A | ADC A | OR A | ADD A | CMP X | JSR | LD X | ST X |
+| **Ax**| SUB A | CMP A | SBC A | SUB D | AND A | BIT A | LD A | ST A | EOR A | ADC A | OR A | ADD A | CMP X | JSR | LD X | ST X |
 | **Bx**| LBRA | LBRN | LBHI | LBLS | LBCC | LBCS | LBNE | LBEQ | LBVC | LBVS | LBPL | LBMI | LBGE | LBLT | LBGT | LBLE |
-| **Cx**| SUBB | CMPB | SBCB | ADDD | ANDB | BITB | LDB | — | EORB | ADCB | ORB | ADDB | LDD | — | LDY | — |
-| **Dx**| SUBB | CMPB | SBCB | ADDD | ANDB | BITB | LDB | STB | EORB | ADCB | ORB | ADDB | LDD | STD | LDY | STY |
-| **Ex**| SUBB | CMPB | SBCB | ADDD | ANDB | BITB | LDB | STB | EORB | ADCB | ORB | ADDB | LDD | STD | LDY | STY |
-| **Fx**| LDSP | LDSP | STSP | STSP | LDSP | ADCD | ADCD | ADCD | SBCD | SBCD | SBCD | ASLD | LSRD | ASRD | — | — |
+| **Cx**| SUB B | CMP B | SBC B | ADD D | AND B | BIT B | LD B | — | EOR B | ADC B | OR B | ADD B | LD D | — | LD Y | — |
+| **Dx**| SUB B | CMP B | SBC B | ADD D | AND B | BIT B | LD B | ST B | EOR B | ADC B | OR B | ADD B | LD D | ST D | LD Y | ST Y |
+| **Ex**| SUB B | CMP B | SBC B | ADD D | AND B | BIT B | LD B | ST B | EOR B | ADC B | OR B | ADD B | LD D | ST D | LD Y | ST Y |
+| **Fx**| LD SP | LD SP | ST SP | ST SP | LD SP | ADC D | ADC D | ADC D | SBC D | SBC D | SBC D | ASL D | LSR D | ASR D | — | — |
 
 Mode/length per cell where it isn't obvious from the band:
 
-- **`3x`:** `0x33/0x38/0x39` = `CMPD` imm/indexed/extended; `0x34/0x3A/0x3B` = `CMPY`
-  imm/indexed/extended; `0x35/0x3C/0x3D` = `CMPSP` imm/indexed/extended; `0x36`=`JMP`
-  indexed, `0x37`=`JMP` extended.
+- **`3x`:** `0x33/0x38/0x39` = `CMP D` imm/indexed/extended; `0x34/0x3A/0x3B` = `CMP Y`
+  imm/indexed/extended; `0x35/0x3C/0x3D` = `CMP SP` imm/indexed/extended; `0x36` = `JMP`
+  indexed (bare target, e.g. `JMP X`), `0x37` = `JMP` extended (`JMP $nnnn`).
 - **`1x` relocated system ops:** `0x19 TAS` indexed (atomic test-and-set);
-  `0x1A TFRU`/`0x1B EXGU` = the privileged `TFR`/`EXG` *USP-banking* forms (postbyte
-  with register code `USP`); `0x1C LDMMU`/`0x1D STMMU` take an `#imm8` page-table
-  entry index (data via `D`).
-- **`Fx`:** `0xF0` `LDSP` indexed, `0xF1` `LDSP` extended, `0xF2` `STSP` indexed,
-  `0xF3` `STSP` extended, `0xF4` `LDSP #imm16`. `0xF5` `ADCD #imm16`, `0xF6` `ADCD`
-  indexed, `0xF7` `ADCD` extended; `0xF8` `SBCD #imm16`, `0xF9` `SBCD` indexed,
-  `0xFA` `SBCD` extended (16-bit add/subtract-with-carry on `D`). `0xFB` `ASLD #n`,
-  `0xFC` `LSRD #n`, `0xFD` `ASRD #n` — shift `D` by the immediate count byte `n`
-  (length 2). See §8.8.
-- **Lengths:** inherent = 1; `#imm8` / mask / `#imm8`-selector = 2; `#imm16` /
-  extended / `rel16` = 3; `rel8` = 2; postbyte ops (`TFR`/`EXG`/`PSHS`/`PULS`) = 2;
+  `0x1A`/`0x1B` = the privileged *USP-banking* moves — the `LD`/`XCHG` transfer/exchange
+  opcode with `USP` as a register operand (`LD USP,X` / `XCHG X,USP`), distinct from the
+  unprivileged register moves at `0x06`/`0x07`; `0x1C LDMMU`/`0x1D STMMU` take an `imm8`
+  page-table entry index (bare `$`-hex; data via `D`).
+- **`Fx`:** `0xF0` `LD SP` indexed, `0xF1` `LD SP` extended, `0xF2` `ST SP` indexed,
+  `0xF3` `ST SP` extended, `0xF4` `LD SP,$nnnn` (immediate). `0xF5–0xF7` `ADC D`
+  imm/indexed/extended, `0xF8–0xFA` `SBC D` imm/indexed/extended (16-bit
+  add/subtract-with-carry on `D`). `0xFB` `ASL D,$n`, `0xFC` `LSR D,$n`, `0xFD`
+  `ASR D,$n` — shift `D` by the immediate count `n` (length 2). See §8.8.
+- **Lengths:** inherent = 1; `imm8` / mask / entry-selector = 2; `imm16` / extended /
+  `rel16` = 3; `rel8` = 2; postbyte ops (`LD`/`XCHG reg,reg`, `PSHS`/`PULS`) = 2;
   **indexed = 2–4** (opcode + postbyte + 0/1/2 offset bytes).
 
 ### 8.3 Indexed postbyte
@@ -406,25 +432,25 @@ indirect (one extra level of dereference):
 
 | `TTTT` | Mode | Extra bytes |
 |--------|------|-------------|
-| `0000` | `,R+` auto-inc by 1 (post) | 0 — `I` must be 0 |
-| `0001` | `,R++` auto-inc by 2 (post) | 0 |
-| `0010` | `,-R` auto-dec by 1 (pre) | 0 — `I` must be 0 |
-| `0011` | `,--R` auto-dec by 2 (pre) | 0 |
-| `0100` | `,R` zero offset | 0 |
-| `0101` | `B,R` accumulator-B offset | 0 |
-| `0110` | `A,R` accumulator-A offset | 0 |
-| `1000` | `n,R` 8-bit signed offset | 1 |
-| `1001` | `n,R` 16-bit signed offset | 2 (LE) |
-| `1011` | `D,R` accumulator-D offset | 0 |
-| `1100` | `n,PCR` 8-bit PC-relative | 1 (RR→PC) |
-| `1101` | `n,PCR` 16-bit PC-relative | 2 (RR→PC) |
-| `1111` | `[addr16]` extended-indirect | 2 (requires `I`=1) |
+| `0000` | `(R+)` auto-inc by 1 (post) | 0 — `I` must be 0 |
+| `0001` | `(R++)` auto-inc by 2 (post) | 0 |
+| `0010` | `(-R)` auto-dec by 1 (pre) | 0 — `I` must be 0 |
+| `0011` | `(--R)` auto-dec by 2 (pre) | 0 |
+| `0100` | `(R)` zero offset | 0 |
+| `0101` | `(R+B)` accumulator-B offset | 0 |
+| `0110` | `(R+A)` accumulator-A offset | 0 |
+| `1000` | `(R+n)` 8-bit signed offset | 1 |
+| `1001` | `(R+n)` 16-bit signed offset | 2 (LE) |
+| `1011` | `(R+D)` accumulator-D offset | 0 |
+| `1100` | `(PC+n)` 8-bit PC-relative | 1 (RR→PC) |
+| `1101` | `(PC+n)` 16-bit PC-relative | 2 (RR→PC) |
+| `1111` | `(($nnnn))` extended-indirect | 2 (requires `I`=1) |
 | `0111`,`1010`,`1110` | reserved | — |
 
 There is one canonical encoding per (mode, register, width, indirect) tuple, so the
 assembler/disassembler round-trips. The privileged USP-banking moves (`0x1A`/`0x1B`)
-do **not** use this postbyte — they use the `TFR`/`EXG` register-code postbyte (§8.4)
-with the `USP` code.
+do **not** use this postbyte — they use the register-move (`LD`/`XCHG`) register-code
+postbyte (§8.4) with the `USP` code.
 
 ### 8.4 Register & flag encoding
 
@@ -434,10 +460,12 @@ bit2 `Z`, bit1 `V`, bit0 `C`. `M` lives in `CC` so it saves/restores automatical
 with `CC` on trap/`RTI`, and it is **supervisor-write-only** (user-mode `CC` writes
 can't change it — §8.7).
 
-**`TFR`/`EXG` postbyte:** `src(7:4) | dst(3:0)`, each a 4-bit register code; source
-and destination must be the same width.
-- 16-bit: `D`=0, `X`=1, `Y`=2, `SP`=3, `PC`=4. (e.g. `TFR D,X` = `0x01`.)
-- 8-bit: `A`=8, `B`=9, `CC`=`0xA`. (e.g. `EXG A,B` = `0x89`.)
+**Register-move (`LD`/`XCHG`) postbyte:** `src(7:4) | dst(3:0)`, each a 4-bit register
+code; source and destination must be the same width. (A copy is written
+destination-first, `LD dst,src`, but the postbyte keeps `src` in the high nibble;
+`XCHG` is symmetric.)
+- 16-bit: `D`=0, `X`=1, `Y`=2, `SP`=3, `PC`=4. (e.g. `LD X,D` = `0x01`.)
+- 8-bit: `A`=8, `B`=9, `CC`=`0xA`. (e.g. `XCHG A,B` = `0x89`.)
 - `USP`=`0xF` — referencing it is the **privileged** USP-banking form (`0x1A`/`0x1B`),
   which traps in user mode. Codes `5`,`6`,`7`,`B`–`E` reserved.
 
@@ -453,20 +481,21 @@ Notation: `*` set from result, `0`/`1` forced, `-` unaffected, `?` undefined.
 
 | Class | N | Z | V | C | H |
 |-------|---|---|---|---|---|
-| `LDr` / `STr` | * | * | 0 | - | - |
+| `LD` / `ST` (memory/immediate) | * | * | 0 | - | - |
+| `LD` / `XCHG` (register↔register) | - | - | - | - | - |
 | `CLR` | 0 | 1 | 0 | 0 | - |
 | `ADD`/`ADC` (8-bit) | * | * | * | * | * |
-| `ADDD`/`ADCD` (16-bit) | * | * | * | * | - |
+| `ADD D`/`ADC D` (16-bit) | * | * | * | * | - |
 | `SUB`/`SBC`/`CMP` (8-bit) | * | * | * | * | ? |
-| `SUBD`/`SBCD`/`CMPD`/`CMPX`/`CMPY`/`CMPSP` | * | * | * | * | - |
+| `SUB D`/`SBC D`/`CMP D`/`CMP X`/`CMP Y`/`CMP SP` | * | * | * | * | - |
 | `AND`/`OR`/`EOR`/`BIT`/`TST` | * | * | 0 | - | - |
 | `INC`/`DEC` | * | * | * | - | - |
 | `NEG` | * | * | * | * | ? |
 | `COM` | * | * | 0 | 1 | - |
-| `ASL`/`ROL`/`LSR`/`ROR`/`ASR`, `ASLD`/`LSRD`/`ASRD` | * | * | * | * | ? |
+| `ASL`/`ROL`/`LSR`/`ROR`/`ASR`, `ASL D`/`LSR D`/`ASR D` | * | * | * | * | ? |
 | `TAS` | * | * | 0 | - | - |
-| `LEAX`/`LEAY` | - | * | - | - | - |
-| `LEASP`, `TFR`/`EXG`, `JMP`/`JSR`/`BSR`/`LBSR`/`RTS`, `Bcc`/`LBcc`, `ABX`, `NOP`, `SYNC`, `HALT` | - | - | - | - | - |
+| `LEA X`/`LEA Y` | - | * | - | - | - |
+| `LEA SP`, `JMP`/`JSR`/`BSR`/`LBSR`/`RTS`, `Bcc`/`LBcc`, `ABX`, `NOP`, `SYNC`, `HALT` | - | - | - | - | - |
 | `SEI`/`CLI` | - | - | - | - | - |
 | `LDMMU`/`STMMU` | - | - | - | - | - |
 | `SEX` | * | * | 0 | - | - |
@@ -482,24 +511,24 @@ Going single-page meant packing the ops that had been on prefix pages into holes
 
 - **Long branches** `LBcc` fill row `0xB0–0xBF` (low nibble = condition, mirroring
   `0x20–0x2F`), so one condition-decoder serves both.
-- **Wide compares** `CMPD/CMPY/CMPSP` (9 forms) take the `0x30`-row holes (`0x33–0x3D`).
-- **Interrupt-mask** `SEI/CLI` → `0x0C/0x0D`; **USP banking** `TFRU/EXGU` →
-  `0x1A/0x1B`; **MMU** `LDMMU/STMMU` → `0x1C/0x1D`; **`TAS`** → `0x19`; **`HALT`** →
-  `0x18`.
+- **Wide compares** `CMP D/CMP Y/CMP SP` (9 forms) take the `0x30`-row holes (`0x33–0x3D`).
+- **Interrupt-mask** `SEI/CLI` → `0x0C/0x0D`; **USP banking** (the `LD`/`XCHG` USP
+  forms) → `0x1A/0x1B`; **MMU** `LDMMU/STMMU` → `0x1C/0x1D`; **`TAS`** → `0x19`;
+  **`HALT`** → `0x18`.
 
 **Reserved (free for growth):** `0x0E/0x0F`; `0x1E/0x1F`; `0x3E/0x3F`; the RMW holes
 (low nibbles `1/2/5/B/E` in each of `0x4x–0x7x`); the immediate-row holes
 `0x87/0x8D/0x8F` (A/D) and `0xC7/0xCD/0xCF` (B/wide); and `0xFE/0xFF`. ~34 slots in
-all — the hard 256 ceiling is accepted (D-21). (`0xF5–0xFD` now hold `ADCD`/`SBCD`
+all — the hard 256 ceiling is accepted (D-21). (`0xF5–0xFD` now hold `ADC D`/`SBC D`
 and the `D` shifts — D-23.)
 
 ### 8.7 Privilege & the user-mode `CC` mask
 
 Privileged instructions (trap in user mode): `SYNC` (`0x01`), `RTI` (`0x11`),
-`SEI`/`CLI` (`0x0C`/`0x0D`), `HALT` (`0x18`), `TFRU`/`EXGU` (`0x1A`/`0x1B`),
-`LDMMU`/`STMMU` (`0x1C`/`0x1D`). `SWI`/`SWI2`/`SWI3` are **unprivileged** — the
-syscall gateway. Plain `TFR`/`EXG` (`0x06`/`0x07`) stay unprivileged; only the
-USP-banking variants are privileged.
+`SEI`/`CLI` (`0x0C`/`0x0D`), `HALT` (`0x18`), the USP-banking `LD`/`XCHG`
+(`0x1A`/`0x1B`), `LDMMU`/`STMMU` (`0x1C`/`0x1D`). `SWI`/`SWI2`/`SWI3` are
+**unprivileged** — the syscall gateway. The plain register moves `LD`/`XCHG`
+(`0x06`/`0x07`) stay unprivileged; only the USP-banking variants are privileged.
 
 Because `ANDCC`/`ORCC`/`CWAI` and `PULS CC` write `CC` directly, they would
 otherwise let user code change its own **mode** (`M`) or clear the **`I`** interrupt
@@ -511,23 +540,23 @@ actually hold.
 
 ### 8.8 Multi-word arithmetic and wide shifts
 
-`ADCD`/`SBCD` are 16-bit add/subtract **with carry-in** — the chaining partners of
-`ADDD`/`SUBD` (which deposit `C`, §8.5). A 32-bit or wider integer is then added or
-subtracted 16 bits at a time — `ADDD` the low halves, `ADCD` the high halves —
+`ADC D`/`SBC D` are 16-bit add/subtract **with carry-in** — the chaining partners of
+`ADD D`/`SUB D` (which deposit `C`, §8.5). A 32-bit or wider integer is then added or
+subtracted 16 bits at a time — `ADD D` the low halves, `ADC D` the high halves —
 instead of dropping to the 8-bit `ADC`/`SBC` and threading the carry through four
 steps. This keeps multi-word integer add/subtract on the non-emulated 16-bit path
 (R-ISA-6) and makes the compiler's `long` helpers compact (R-BUILD-1). Their flags
-follow `ADDD`/`SUBD` (§8.5).
+follow `ADD D`/`SUB D` (§8.5).
 
-`ASLD`/`LSRD`/`ASRD #n` shift the 16-bit accumulator `D` by an immediate count `n` in
-one instruction: left (logical = arithmetic), logical right (unsigned `>>`), and
-arithmetic right (signed `>>`). They close two gaps — the base set has **no** 16-bit
-shift on `D` at all (it otherwise costs an `ASLB`+`ROLA`-style pair *per bit*), and a
-constant multi-bit shift (scaling by a power of two, field extraction — the dominant
-C case) collapses to a single instruction (R-ISA-6, R-BUILD-1). The count is an
-immediate byte; the microcode shifts `n` positions and saturates at 16 (C leaves
-shifts ≥ the operand width undefined, so conforming code never relies on a larger
-count).
+`ASL D,$n` / `LSR D,$n` / `ASR D,$n` shift the 16-bit accumulator `D` by an immediate
+count `n` in one instruction: left (logical = arithmetic), logical right (unsigned
+`>>`), and arithmetic right (signed `>>`). They close two gaps — the base set has
+**no** 16-bit shift on `D` at all (it otherwise costs an `ASL B`+`ROL A`-style pair
+*per bit*), and a constant multi-bit shift (scaling by a power of two, field
+extraction — the dominant C case) collapses to a single instruction (R-ISA-6,
+R-BUILD-1). The count is an immediate byte; the microcode shifts `n` positions and
+saturates at 16 (C leaves shifts ≥ the operand width undefined, so conforming code
+never relies on a larger count).
 
 A **runtime-variable** shift count is deliberately not encoded: the value occupies
 `D = A:B`, so a register-held count would have to live in `X`/`Y` — the pointer and
@@ -543,7 +572,9 @@ profiling shows runtime-variable shifts are hot.
    `PC`/`SP`.
 
 *Decided:* registers `A B D X Y SP` (no `U`/`DP`); little-endian; privilege with
-banked `SSP`/`USP` and the mode bit as separate state (not in `CC`); internal MMU
+banked `SSP`/`USP` and the mode bit in `CC` (D-22); internal MMU
 (physical external bus, 16 MB / 8 KB pages, identity-mapped at reset, programmed by
-privileged `LDMMU`/`STMMU`); calling convention (§7); and the full **single-page**
-encoding, indexed postbyte, and 256-entry opcode table (§8).
+privileged `LDMMU`/`STMMU`); calling convention (§7); the full **single-page**
+encoding, indexed postbyte, and 256-entry opcode table (§8); and the assembly
+notation house style (§4.1 — verb/register split, bare `$`-hex immediates,
+parenthesised memory, `LD`/`XCHG` register moves; D-25).

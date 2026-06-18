@@ -38,6 +38,7 @@
 | D-22 | Drop FIRQ; mode bit in CC; minimal interrupt frame | Decided |
 | D-23 | Adopt `ADCD`/`SBCD` and `D` multi-bit shifts (`ASLD`/`LSRD`/`ASRD`) | Decided |
 | D-24 | Dispatch by microaddress formation (no mapping PROM) | Decided |
+| D-25 | Assembly notation house style (verb/register split, `$`-hex, parens=memory, `LD`/`XCHG`) | Decided |
 
 ---
 
@@ -398,6 +399,41 @@ shifts), and dropping jumps breaks microcode sharing. The blow-up in WCS and boo
 costs far more than the few packages of next-address logic it would save. The
 addressing trick is therefore used only where the field is constant for the whole
 instruction (opcode, postbyte-mode).
+
+## D-25 — Assembly notation house style
+**Status:** Decided (2026-06-18)
+**Context:** BLIP began with a 6809-style notation (register baked into the mnemonic —
+`LDA`, `SUBA`; `#imm` immediates; bare `addr16`; `n,X` indexed). A column-by-column
+comparison against Z80, STM8, 6502, Magic-1, 8080, and 8086 (non-normative
+[isa-comparison.md](isa-comparison.md)) was used to settle one consistent house style.
+**Decision:** Four rules, now applied throughout [isa.md](isa.md) (§4.1 and the §8 tables):
+1. **Verb/register split** — the operand register is separated from the verb:
+   `LDA`→`LD A`, `SUBA`→`SUB A`, `NEGB`→`NEG B`, `CMPX`→`CMP X`, `STA`→`ST A`,
+   `LEAX`→`LEA X`. Mnemonics with no register designator are unchanged.
+2. **Immediates are bare `$`-hex** — `#$05`→`$05` (the `#` is dropped).
+3. **Parentheses mean memory (dereference)** — `(addr)` is the contents at `addr`:
+   register-indirect `(X)`, displacement `(X+6)`, accumulator `(X+B)`, auto-inc/dec
+   `(X+)`/`(-X)`, absolute `($1234)`, indirect `((X+6))`. An operand that names an
+   *address* rather than its contents stays bare — a `LEA` result (`LEA X,X+4`) and a
+   jump/branch target (`JMP X`, vs the indirect `JMP (X)`).
+4. **Register↔register moves use `LD`/`XCHG`** — `TFR src,dst`→`LD dst,src` (operands
+   swap: `LD` is destination-first), `EXG`→`XCHG`. `TFR`/`EXG` retire as mnemonics; the
+   assembler emits the transfer/exchange opcode when both operands are registers (one
+   `LD` verb over register/immediate/memory operands).
+**Why:** A single, unambiguous notation lowers friction for hand-written kernel code and
+for reading compiler output (R-BUILD-2); the parens-mean-memory convention removes the
+immediate-vs-memory ambiguity the old `#`/bare split papered over. It is a *notational*
+choice only — opcodes, encodings, and semantics are unchanged (a register copy is still
+the transfer opcode; a load still sets `N/Z`).
+**Notes / consequences:** (a) The opcode matrix now shows several `LD` cells (the
+memory/immediate loads, the register move at `0x06`, the USP-banking form at `0x1A`) —
+expected when one verb is overloaded; the assembler disambiguates by operand kind.
+(b) A behavioural wrinkle surfaced by the unification: a memory/immediate `LD` sets
+`N/Z`, but the register-move `LD` (old `TFR`) sets no flags, so `LD`'s flag effect
+depends on operand kind. Left as-is for now (preserves `TFR` behaviour); making the
+register-move form also set `N/Z` for uniformity is a possible future tweak.
+**Influences (non-normative):** Z80 (one `LD` verb, parens = memory) and 8086 (`XCHG`,
+bracket-memory) — sources of the spelling, not its justification.
 
 ---
 
