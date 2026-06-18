@@ -2,7 +2,7 @@
 
 > The **functional interface**: the fixed set of external signals through which the
 > CPU connects to memory and I/O. This signal set *is* the boundary between the CPU
-> and the rest of the machine (goal **G6**). For *why* this boundary exists see
+> and the rest of the machine (goal **G7**). For *why* this boundary exists see
 > [docs/goals.md](goals.md); for the programmer's model see [docs/isa.md](isa.md);
 > for the internals behind these signals see [docs/hardware.md](hardware.md).
 >
@@ -65,7 +65,7 @@ Address translation and protection are internal, so this bus already carries the
 final physical address; it conveys no logical address, privilege level, or
 translation fault ([D-14](decision-log.md)). The bus is non-multiplexed and held
 valid for the whole cycle, so it is always legible to the front panel and
-blinkenlights (goal **G5**). Tri-stated on bus grant (§4.6).
+blinkenlights (goal **G6**). Tri-stated on bus grant (§4.6).
 
 ### 3.2 Data bus — `D[7:0]` (bidirectional)
 Eight bits, one byte per transfer; multi-byte values are little-endian in memory
@@ -83,14 +83,14 @@ decode glue. `/RD` and `/WR` are tri-stated on bus grant.
 
 `/WAIT` is an input by which slow memory or a slow device **stretches** a cycle: while
 it is asserted at the sample point, the CPU inserts wait states and holds the bus
-stable (§4.3). This keeps the fast common case at full clock speed (goal **G8**)
+stable (§4.3). This keeps the fast common case at full clock speed (goal **G9**)
 while still admitting slow devices.
 
 ### 3.4 Clock and reset — `CLK`, `/RESET` (inputs)
 `CLK` is an **input**: a clock-generator module (a permitted support function, see
 goals §3) supplies the single master timing reference to which all interface timing
 is referenced (satisfies `R-IF-3`). Sourcing the clock externally lets it be gated
-or single-stepped for bring-up and blinkenlights (goal **G5**).
+or single-stepped for bring-up and blinkenlights (goal **G6**).
 
 `/RESET` is an asynchronous input that drives the CPU to its reset state (§4.4):
 supervisor mode, interrupts masked, the low-64 KB identity map, and the reset
@@ -219,7 +219,7 @@ part of the contract:
 
 ## 7. Debug interface (deferred)
 
-Displaying and single-stepping the machine (goal **G5**) needs visibility of CPU
+Displaying and single-stepping the machine (goal **G6**) needs visibility of CPU
 *internal* state — registers and sequencing — which the functional interface does
 not expose. That is provided by a separate **privileged debug interface**, reachable
 by the **front panel only** ([D-13](decision-log.md); satisfies `R-DBG-5`). Its
@@ -238,7 +238,7 @@ and sequencer visibility and single-step control, expose —
   so the panel (or a logic analyser) can track instruction boundaries.
 
 Both were considered for the *functional* interface and deliberately placed here: no
-functional peripheral consumes them, and their value is observation (goal **G5**), so
+functional peripheral consumes them, and their value is observation (goal **G6**), so
 they belong on the privileged debug channel rather than the stable functional
 contract (`R-IF-1`, `R-IF-6`).
 

@@ -54,7 +54,26 @@ address translation, while preserving a **flat 16-bit logical view per process**
 so that ordinary C code and pointers never have to know memory is paged. Going
 big must not corrupt G2.
 
-### G5 — Functional blinkenlights
+### G5 — A legible, component-level architecture
+The machine's architecture must be *physically legible*: every architectural
+element — each register, the ALU, the flags, the internal buses — is realized as
+its own identifiable component you can point to and watch change. Architectural
+state must **not** be collapsed into opaque, addressed, or time-multiplexed storage
+(for example a register file hidden inside an SRAM), even where that part would
+itself be discrete logic.
+
+- this binds the CPU's **register set** (`A B X Y SP PC CC` and the working
+  registers `MAR`, `MDR`, `IR`, temporaries), the ALU, and the internal buses;
+- memory-like **arrays** — main memory, the writable control store, and the MMU
+  translation table — stay bulk storage, read out rather than lit element by element;
+- the payoff is comprehension: you understand and debug the machine by looking at
+  it, and its structure teaches.
+
+It is stronger than G1 (which permits standard SRAM) and is the structural
+precondition for G6 — you can only light each register if each register physically
+exists.
+
+### G6 — Functional blinkenlights
 The machine must always be *meaningfully displayable*. LEDs are not decoration
 bolted on at the end; they are a design constraint:
 
@@ -65,7 +84,7 @@ bolted on at the end; they are a design constraint:
   nothing and to debug it without external tools;
 - the display is genuinely useful for debugging, not just pretty.
 
-### G6 — A defined CPU/system interface
+### G7 — A defined CPU/system interface
 The CPU shall be a self-contained module that connects to the *functional* parts
 of the system — memory and I/O peripherals —
 **only through a fixed, documented set of external signals** (the *functional
@@ -77,12 +96,12 @@ reimplemented — in hardware or in simulation — without disturbing anything
 attached to it, as long as the interface holds.
 
 **One privileged exception: the front panel.** Displaying and single-stepping the
-machine (G5) inherently requires seeing *inside* the CPU — its registers and
+machine (G6) inherently requires seeing *inside* the CPU — its registers and
 sequencing state — which is more than the functional interface exposes. The front
 panel is therefore the sole party allowed to reach past the boundary, through a
 separate privileged *debug interface*. No functional peripheral may use it.
 
-### G7 — The ISA lives in microcode
+### G8 — The ISA lives in microcode
 The instruction set is realized **entirely** in microcode, not hard-wired: every
 instruction's decode, operand fetch, execution, and flag effects are defined by the
 control-store image, with no instruction-specific behaviour in fixed logic. The
@@ -92,10 +111,10 @@ control store is **writable** (fast SRAM), loaded at power-on from non-volatile
 **EEPROM**, so the ISA can be corrected, extended, or **redefined — in development or
 in the field — by reflashing the EEPROM, never by respinning a board**. The fixed
 substrate (the register set and widths, the ALU's primitive operations, the
-datapath/bus topology, the internal MMU, and the G6 interface) is what bounds what
+datapath/bus topology, the internal MMU, and the G7 interface) is what bounds what
 microcode can change; everything above that line is software.
 
-### G8 — ~10 MHz aspirational clock
+### G9 — ~10 MHz aspirational clock
 A 10 MHz target clock is the performance *aspiration* that keeps the design
 honest — it rules out lazy, deeply sequential microarchitecture and pushes
 toward a pipelined, registered control path. It is **not a hard gate**: when
@@ -111,20 +130,24 @@ proposal — confirm or reorder it, because the rest of the design cites it.**
 2. **G2 Genuine C target** — the ISA exists to serve the compiler.
 3. **G3 Run FUZIX** — the proof that G2 and G4 are real.
 4. **G4 >64 KB with a flat per-process view** — required by G3, must not break G2.
-5. **G5 Functional blinkenlights** — the machine must stay fully observable; this
-   outranks how the ISA is realized (G7) and how the interface is drawn (G6). (The
+5. **G5 Legible component architecture** — the machine is built from individually
+   visible components; this outranks observability of *values* (G6), the interface
+   (G7), how the ISA is realized (G8), and the clock (G9), but yields to the
+   functional goals above it.
+6. **G6 Functional blinkenlights** — the machine must stay fully observable; this
+   outranks how the ISA is realized (G8) and how the interface is drawn (G7). (The
    ISA's *shape* still answers to G2 above it — blinkenlights drive the datapath's
    observability, not the instruction set.)
-6. **G6 Defined CPU/system interface** — a structural commitment; the CPU is
+7. **G7 Defined CPU/system interface** — a structural commitment; the CPU is
    revised *within* the boundary, not around it.
-7. **G7 The ISA lives in microcode** — the means by which the ISA is realized;
-   reprogrammable, but it yields to observability (G5) and the interface (G6).
-8. **G8 ~10 MHz** — pushed for hard, but yields to every other goal.
+8. **G8 The ISA lives in microcode** — the means by which the ISA is realized;
+   reprogrammable, but it yields to observability (G6) and the interface (G7).
+9. **G9 ~10 MHz** — pushed for hard, but yields to every other goal.
 
 Read it as: *I will not give up discrete logic to go faster; I will not cripple
 C to save gates; I will not break flat per-process pointers to get more RAM; and I
-will keep the machine observable (G5) and its interface clean (G6) before reaching
-for microcode flexibility (G7).*
+will keep the machine built from visible components (G5), observable (G6), and its
+interface clean (G7) before reaching for microcode flexibility (G8).*
 
 ## 3. Non-goals (for now)
 
@@ -162,12 +185,12 @@ for microcode flexibility (G7).*
   running FUZIX (G3), or do you want FUZIX as the top functional goal?
 - **Is video/sound truly out of scope**, or do you want a stated "future" goal so
   the bus/timing design leaves room for it?
-- **G6 boundary placement (decided):** the address-translation unit sits *inside*
+- **G7 boundary placement (decided):** the address-translation unit sits *inside*
   the CPU; the external address bus carries the **physical** address. Translation
   and protection are internal, so the functional interface is a plain physical bus
   that conveys neither privilege nor translation faults. The programmer's model
   stays 16-bit logical (R-MEM-1).
 - **Realization (decided):** v1 is proven in **simulation first**
   (Logisim/Digital/Verilog), then built in hardware against the sim as a reference
-  — so G8's 10 MHz need only hold in simulation for v1, with the hardware clock
+  — so G9's 10 MHz need only hold in simulation for v1, with the hardware clock
   measured later.

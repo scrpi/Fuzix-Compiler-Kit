@@ -9,6 +9,12 @@
 >
 > Each entry: a stable ID, status, the question at stake, the decision, the
 > requirement-grounded rationale, and (where relevant) alternatives/influences.
+>
+> **Goal numbers** in older entries reflect the numbering current when they were
+> written; [goals.md](goals.md) is authoritative for current numbers. Entries are
+> **not** retroactively renumbered (this supersedes D-27's earlier approach), so the
+> renumber/reprioritise entries (e.g. D-26, D-27, D-32) record the mapping of their
+> era.
 
 ## Index
 
@@ -45,6 +51,8 @@
 | D-29 | Functional CPU/system interface: sync bus + `/WAIT`, separate `/RD`/`/WR`, separate buses, fixed-vector IRQ/NMI, REQ/GRANT | Decided |
 | D-30 | Exception entry: auto-mask `CC.I` on entry; fixed pointer-slot vectors (RESET hardwired) | Decided |
 | D-31 | Reset vector & physical memory map: reset entry `0x000000`, monitor/loader boots kernel from block device | Decided |
+| D-32 | Add goal G5 (legible component architecture); renumber G5–G8 → G6–G9 | Decided |
+| D-33 | Discrete architectural registers (no SRAM register file) | Decided |
 
 ---
 
@@ -631,6 +639,46 @@ region is sized generously (16 KB) for the monitor/loader (which must include a
 block-device driver); the means of locating the kernel on the device remains open. In
 simulation the block device is a disk image, so the same loader path works from first
 bring-up (D-10).
+
+## D-32 — Add goal G5 (legible component architecture); renumber G5–G8 → G6–G9
+**Status:** Decided (2026-06-18)
+**Context:** Wanting discrete registers "so I can see them" exposed a property no goal
+captured: G1 permits standard SRAM, and blinkenlights only require register *values* be
+displayable — neither forbids collapsing architectural state into one opaque package.
+**Decision:** Add a new Tier-1 goal **G5 — a legible, component-level architecture**:
+each architectural element (registers, ALU, flags, internal buses) is its own
+identifiable physical component, not collapsed into opaque / addressed / time-
+multiplexed storage; memory-like arrays (main memory, control store, MMU table) are
+exempt. Rank it **just above blinkenlights**, so the existing goals shift: old
+G5→G6, G6→G7, G7→G8, G8→G9 (G1–G4 unchanged). New requirement **R-HW-4 ⟸ G5**.
+**Why:** It is the structural precondition for blinkenlights (you can only light a
+register that physically exists) and a strengthening of G1's discreteness toward
+*legibility* — the soul of a bench machine you watch think at the component level.
+Ranked below the functional goals (G1–G4), which it never conflicts with, but above
+blinkenlights, the interface, microcode, and clock — the things it is traded against
+(density / part-count / speed), where visibility is ranked higher.
+**Scope of renumber:** applied to the normative docs (goals.md, requirements.md,
+hardware.md, interface.md). The decision log is **not** retroactively renumbered —
+older entries keep the numbering of their era and goals.md is authoritative (see the
+index note; this supersedes D-27's renumber-the-log approach).
+
+## D-33 — Discrete architectural registers (no SRAM register file)
+**Status:** Decided (2026-06-18)
+**Context:** The first structural choice for the internal datapath: how the register
+set is realized. (Bus count and the rest of the datapath follow from this plus the ALU
+and address path, not the other way around.)
+**Decision:** The architectural and working registers are **discrete registers** — one
+physical register per element, individually buffered for display — **not** an SRAM
+register file. Memory-like arrays stay SRAM.
+**Why:** Required by **R-HW-4 (⟸ G5)** — each register must be an individually visible
+component, which an SRAM file hides as addresses inside one chip. It also gives
+blinkenlights (G6) a per-register latch to display directly, and a discrete register is
+typically *faster* than an addressed file (no read-port arbitration), so it does not
+cost G9.
+**Notes:** This is an input to the high-level datapath architecture (to be written in
+hardware.md); the internal **bus count / topology** falls out of the register ports +
+ALU routing + address path. The earlier 1/2/3-bus cycle analysis becomes *evidence*
+(it shows a single shared bus is too slow), not a standalone decision.
 
 ---
 
