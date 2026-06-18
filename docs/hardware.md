@@ -12,9 +12,11 @@
 
 ## 1. Build constraints that shape everything
 
-- **74-series only for the CPU** (goal **G1**). Working family: **74AHCT** —
-  fast enough (a few ns/gate) to chase 10 MHz, 5 V, TTL-compatible inputs so it
-  mixes with the slower glue and memory.
+- **74-series only for the CPU** (goal **G1**). Working families: **74AHCT** for SSI
+  (gates, buffers, registers, latches) and **74ACT** for the MSI parts AHCT does not offer
+  (counters, and the ALU/adder slices). Both are 5 V with TTL-compatible inputs, so they
+  share one signaling regime and mix with the slower glue and memory; a few ns/gate, fast
+  enough to chase 10 MHz (D-02, D-37).
 - **Legible at the component level** (goal **G5**): the architectural registers,
   the ALU, and the internal buses are *individually visible discrete parts*
   (R-HW-4) — never collapsed into an addressed register-file SRAM. You can point at
@@ -73,9 +75,10 @@ results return on a third:
   chip-count reasoning, §8/§9). The trade: `anyreg OP scratch` and `anyreg OP const` are
   **one** microcycle, but `anyreg OP anyreg` is **two** (stage the second operand into a
   scratch first).
-- **Constant generator.** A small unit places `0`, `1`, `2`, or `-1` on RIGHT, so `reg+1`,
-  `reg-1`, `reg+2`, and `reg+0` (= move) are single ALU ops on *any* register, with no
-  register tied up holding a small constant.
+- **Constant generator.** A small unit places `-2`, `-1`, `0`, `+1`, or `+2` on RIGHT, so
+  `reg±1`, `reg±2`, and `reg+0` (= move) are single ALU ops on *any* register, with no
+  register tied up holding a small constant. The `±2` cases cover 16-bit stack steps
+  (`SP±2`) and word-pointer `++`/`--` (D-36).
 - **16-bit ALU.** add/sub, logic, shifts, inc/dec, compare; flags `N Z V C` + half-carry
   --> `CC`. Part choice TBD (§9).
 - **Memory interface.** `MDR` interfaces the **8-bit** external data bus `D[7:0]`; 16-bit
@@ -83,14 +86,86 @@ results return on a third:
   MMU (§3). To keep the front-panel shadow display (§6) correct, **every register write is
   posted on the Z bus** — including `MDR` on a memory read.
 
-> **Open (this direction):**
-> - **Address increment vs overlap.** D-34 added a dedicated *off-bus* incrementer for
->   `PC`/`MAR`. The constant generator now does `reg+1`/`reg+2` through the ALU --> Z, which
->   is simpler and keeps the write visible on Z (the §6 shadow needs *all* writes on Z) —
->   but loses the off-bus overlap. Open: drop the incrementer, keep it for overlap, or have
->   it also post its result on Z.
-> - **One scratch register or two?** Two allow holding two staged operands (and
->   `scratch OP scratch`); one may suffice. Decide once the microcode shows real demand.
+> **Decided (D-36):** address increment — off-bus `+1` up-counters on `PC`/`MAR`/`X`/`Y`;
+> `USP`/`SSP` and all `+2`/`-1`/`-2` via the ALU + constant generator (§2.1).
+>
+> **Open:** one scratch register or two? Two allow holding two staged operands (and
+> `scratch OP scratch`); one may suffice — decide once the microcode shows real demand.
+
+### 2.1 Address increment — off-bus counters
+
+**Decided (D-36):** `PC`, `MAR`, `X`, and `Y` are **loadable synchronous up-counters**, so
+`+1` is a control line on the register — internal to the chip and clear of the LEFT/RIGHT/Z
+buses and the ALU. `USP`/`SSP` and all `+2`/`-1`/`-2` steps use the ALU + constant generator
+instead (see *which registers, and why only `+1`* below). The off-bus incrementer is **not**
+a separate adder block — the count is folded into the register.
+
+- **Per register:** 4× **74ACT163** (4-bit synchronous binary counter with synchronous
+  load), cascaded via the terminal-count → count-enable chain into one 16-bit counter, plus
+  a `'244` pair to gate the value onto LEFT. Three operations:
+  - **load** (`/PE`) — parallel-load from Z (branch, computed `EA`, reset vector);
+  - **count** (`CEP`/`CET`) — `+1`, off the buses and the ALU;
+  - **hold** — neither.
+  The `'163` outputs are permanent, so they feed the LEDs / shadow directly. The counters
+  are **up-only**; decrements are not a counter operation here.
+- **Cost:** ~4 chips for a 16-bit counter vs ~2 for a plain latch — about **+2 chips per
+  register** (on top of the `'244` both need anyway), plus one count strobe routed to the
+  panel shadow (below).
+- **Shadow.** A counter's `+1` never appears on Z, so each panel shadow for a counter
+  register is *itself* a counter, advanced by the same count strobe (routed to the panel
+  alongside Z and the load strobes, §6) — keeping the shadow correct without giving up the
+  off-bus increment.
+- **Shared-adder alternative (rejected):** one 16-bit `'283`-based adder with a constant on
+  one input and the selected register muxed onto the other — more chips and muxing, only
+  worth it as a shared `+N` unit. Counters are cleaner for plain `+1`.
+
+**Which registers, and why only `+1`.** A `'163` counter is a `+1`, up-only, off-bus device,
+so it earns its place only where `+1` dominates; for `+2`/`-1`/`-2` the ALU + constant
+generator already does the job in one cycle and a counter offers nothing.
+
+- **`PC`, `MAR` — pure `+1`.** Fetch walks the instruction stream byte-by-byte (`PC+1`); a
+  multi-byte access walks consecutive bytes (`MAR+1`). ~100% `+1` → the counter is ideal.
+- **`X`, `Y` — `+1` for byte pointers.** `char *p++` and byte copy/compare loops
+  (`*d++ = *s++`) step `+1`; making *both* index registers counters lets them advance
+  off-bus and overlap the memory access — the hot FUZIX idiom. Word `*p++` (`+2`) and
+  pre-decrement fall back to the ALU.
+- **`USP`, `SSP` — no counter.** Stack traffic is `±2`-and-decrement dominated (every call
+  is `SP-2`; 16-bit save/restore is `±2`; frame setup/teardown is `±N`). The only `+1` case
+  (8-bit pull) is a minority, and its partner 8-bit push is a `-1` a counter can't do. So
+  `SP` steps through the ALU + constant generator (`±1`/`±2`) and the ALU (`±N`).
+
+**`±1` vs `±2` frequency** (the basis for the split): `+1` dominates raw counts — fetch
+(every byte) and multi-byte byte-stepping are the highest-frequency steps in the machine.
+`+2` is the main non-unit step (word pointers, 16-bit stack); `-1`/`-2` are rarer
+(pre-decrement). The constant generator covers all of `{-2, -1, 0, +1, +2}` in one ALU
+cycle, so the non-`+1` cases need no dedicated hardware.
+
+### 2.2 Why a memory-address register (MAR)
+
+`MAR` holds the 16-bit logical address presented to the MMU for a memory access. It earns
+a dedicated register on three grounds:
+
+- **A computed address has no other home.** The common access `LD A,(X+n)` forms its
+  address as `X + offset` in the ALU — a transient value on Z, held in no architectural
+  register. Capturing it in `MAR` frees Z and the ALU the instant the access starts, so the
+  datapath can move on while memory responds.
+- **The address must stay valid across the whole access.** External memory is 8-bit, so a
+  16-bit access is two byte-cycles, and any access can be stretched by `/WAIT`. A latched
+  `MAR` holds the address stable for the full (possibly multi-cycle) access without freezing
+  a bus or tying up an architectural register.
+- **It decouples the address from its source.** Latching the address into `MAR` lets `PC`
+  advance (and the datapath begin the next step) while the read is in flight, and gives the
+  MMU one well-defined input to translate and to display.
+
+**Why `MAR` increments.** A 16-bit memory access touches two consecutive bytes — the
+address and the address + 1 — because the external bus is 8-bit. The running address lives
+only in `MAR`: for a computed effective address there is no register to recompute `+1`
+from, and for a register base (`(X)`) stepping the base would clobber the register. So
+`MAR` must **step itself by +1** to reach the second (and any further) byte while
+preserving the source — the byte-stepping §2.1 identifies as the dominant `+1` case. `MAR`
+only ever counts **up** (multi-byte operands are walked low-to-high; decrements belong to
+`SP` and the index registers). `MAR` is realised as an off-bus `+1` up-counter (§2.1,
+D-36).
 
 ---
 
@@ -208,7 +283,7 @@ field directly enables a datapath action), with a **writable control store**.
 ## 5. Clocking & timing (the 10 MHz aspiration)
 
 - **Target:** 10 MHz (100 ns) is the *aspiration* (goal G9), not a gate.
-- **Budget reality:** at ~5 ns/gate for 74AHCT, a 100 ns cycle allows perhaps a
+- **Budget reality:** at ~5 ns/gate for 74AHCT/ACT, a 100 ns cycle allows perhaps a
   dozen gate-delays — workable for a registered datapath but tight once SRAM
   access, ALU carry propagation, and bus turnaround are counted. The registered
   WCS (§4) and a short, registered datapath are what make it plausible.
@@ -250,9 +325,10 @@ deposit/examine panels (Altair/PDP-8 lineage):
   efficient integrated latch+driver parts (§2). It also defines, cheaply, the
   register-visibility half of the privileged debug interface (D-13): the panel observes
   Z + the load strobes rather than every register.
-  - *Correctness condition:* the shadows are accurate only if **every register write is
-    posted on Z** (see §2) — which is why the address-increment question (§2) matters
-    here too; an off-bus increment would silently desync the shadow.
+  - *Correctness condition:* the shadows track only what appears on **Z**. The counter
+    registers (`PC`/`MAR`/`X`/`Y`, D-36) increment *off* Z, so each of their shadows is
+    itself a counter advanced by the same count strobe (routed to the panel alongside Z +
+    the load strobes); every other register write is posted on Z.
 - **Bus & sequencing display.** The LEFT, RIGHT, and Z buses plus key sequencing state
   (`IR`, `CC`, `µPC`, MMU page regs) are buffered to LED banks; because each displayed
   point is a latch output, the lights stay legible free-running, single-stepped, or
@@ -290,9 +366,9 @@ The minimum board to boot FUZIX to a shell (goal **G3**):
 
 | Subsystem | Realizes goal | Key open question |
 |-----------|---------------|-------------------|
-| Discrete 74AHCT datapath (16-bit; LEFT/RIGHT/Z — tentative) | G1, G5, G9 | scratch count · incrementer (§9) |
-| Discrete register file (16-bit, + 2 scratch) | G2, G5 | 1 vs 2 scratch (§9) |
-| 16-bit ALU + constant generator (`0/1/2/-1`) | G2, G9 | ALU parts · incrementer (§9) |
+| Discrete 74AHCT/ACT datapath (16-bit; LEFT/RIGHT/Z — tentative) | G1, G5, G9 | scratch count (§9) |
+| Discrete register file (16-bit, + 2 scratch; PC/MAR/X/Y are counters) | G2, G5 | 1 vs 2 scratch (§9) |
+| 16-bit ALU + constant generator (`-2..+2`) | G2, G9 | ALU parts (§9) |
 | Internal MMU (logical→physical) | G3, G4 | extra map sets (§3) |
 | Microsequencer + writable control store | G8, G9 | microcode width, pipelining (§4) |
 | Boot-copy ROM→SRAM circuit | G8 | — |
@@ -305,10 +381,9 @@ The minimum board to boot FUZIX to a shell (goal **G3**):
 
 1. **Datapath architecture (tentative — refines D-34, see §2):** 16-bit core; **LEFT**
    bus (all registers) + **RIGHT** bus (the two scratch registers + a constant generator
-   `0/1/2/-1`) into the ALU, results on the **Z** bus; discrete registers. Open:
-   **(a)** keep D-34's off-bus `PC`/`MAR` incrementer, drop it for `reg+const` through the
-   ALU → Z, or have it post on Z (the §6 shadow needs every write on Z); **(b)** **two
-   scratch registers or one?**
+   `{-2,-1,0,+1,+2}`) into the ALU, results on the **Z** bus; discrete registers. Address
+   increment is **decided** — off-bus `+1` counters on `PC`/`MAR`/`X`/`Y`, the rest via the
+   ALU (D-36, §2.1). Still open: **two scratch registers or one?**
 2. **ALU implementation:** discrete adders + logic-op mux vs 74-181/381 slices; flag
    generation; the constant generator on RIGHT.
 3. **MMU:** *(decided: 8 KB pages, 16 MB physical, kernel/user map sets.)*

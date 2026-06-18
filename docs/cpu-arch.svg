@@ -109,7 +109,7 @@
   <text x="566" y="300" class="sm" text-anchor="start">posts on Z</text>
 
   <!-- footnote: incrementer open -->
-  <text x="300" y="492" class="sm" text-anchor="start" fill="#94a3b8">address increments via ALU + const-gen — dedicated off-bus incrementer is open (§2)</text>
+  <text x="300" y="492" class="sm" text-anchor="start" fill="#94a3b8">PC/MAR/X/Y are off-bus +1 up-counters; +2/-1/-2 via ALU + const-gen (D-36)</text>
 
   <!-- ===== control ===== -->
   <text x="44" y="504" class="lbl">Microcoded control (G8) — dispatch by microaddress formation (D-24); WCS boot-copied from EEPROM (D-03)</text>

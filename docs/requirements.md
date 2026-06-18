@@ -23,9 +23,10 @@ by reaching past them to a goal or to another design.
   unit) shall be built from commodity discrete logic and standard memory devices.
   No single device may implement the processor's core function (no integrated
   CPU, microcontroller, or programmable-logic soft-core acting as the CPU).
-- **R-HW-2** (⟸ G1, G9) — All core logic shall be drawn from a single logic
-  family that is fast enough to meet R-CLK-1 and presents consistent signaling
-  levels across the machine.
+- **R-HW-2** (⟸ G1, G9) — All core logic shall be drawn from a small, mutually
+  level-compatible set of logic families sharing one signaling regime (5 V, TTL-level
+  CMOS), fast enough to meet R-CLK-1, so signaling levels are uniform across the machine.
+  (In practice 74AHCT for SSI and 74ACT for MSI — see decision log D-37.)
 - **R-HW-3** (⟸ G1) — Peripheral and support functions that are not the
   processor itself (console, clock generation, mass storage interface, glue)
   may use dedicated devices and are exempt from R-HW-1.

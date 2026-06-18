@@ -55,6 +55,8 @@
 | D-33 | Discrete architectural registers (no SRAM register file) | Decided |
 | D-34 | High-level datapath: 16-bit core, two-bus (S+R + ALU latch), dedicated address incrementer | Decided |
 | D-35 | Rename internal buses to LEFT / RIGHT / Z (Z replaces R, avoids clash with RIGHT) | Decided |
+| D-36 | Off-bus `+1` up-counters on PC/MAR/X/Y; USP/SSP & `+2`/`-1`/`-2` via ALU + const-gen `{-2..+2}` | Decided |
+| D-37 | Logic family refined: 74AHCT (SSI) + 74ACT (MSI) — AHCT has no counters/ALU | Decided |
 
 ---
 
@@ -736,6 +738,58 @@ unambiguously.
 **History note:** Earlier entries — notably **D-34** — keep their original `S`/`R`
 naming and are **not** retroactively edited (per the log policy in the index note).
 hardware.md and later specs use LEFT / RIGHT / Z.
+
+## D-36 — Off-bus address increment: `+1` up-counters on PC/MAR/X/Y
+**Status:** Decided (2026-06-19)
+**Context:** D-34's off-bus incrementer was left open in hardware.md §2 (keep / drop /
+post-on-Z), and the constant generator (`reg+const` via ALU → Z) overlapped its job. We
+needed to fix *which* registers get a dedicated incrementer, and how wide.
+**Decision:**
+- **Off-bus `+1` up-counters on `PC`, `MAR`, `X`, `Y`** — each a 16-bit loadable
+  synchronous counter (4× `74ACT163` — AHCT has no MSI counters, see D-37), so `+1` is a
+  control line internal to the register,
+  clear of the LEFT/RIGHT/Z buses and the ALU (hardware.md §2.1).
+- **`USP`/`SSP` are not counters;** they and all `+2`/`-1`/`-2` steps go through the **ALU +
+  constant generator**, whose set is finalised as **`{-2, -1, 0, +1, +2}`**.
+- The front-panel shadow (D-13, §6) stays correct by making each counter register's shadow
+  a counter too, advanced by the same count strobe.
+**Why:** a `+1` up-counter only helps where `+1` dominates; for `+2`/`-1`/`-2` the ALU +
+constant generator already does the step in one cycle, so a counter offers nothing there.
+- `PC`/`MAR` are ~100% `+1` (instruction-stream fetch; multi-byte byte-stepping) → ideal
+  (G9).
+- `X`/`Y` are `+1` for byte-pointer loops (`*p++`, `*d++ = *s++` — pervasive in C/FUZIX,
+  G2); making *both* index registers counters lets them advance off-bus and overlap memory.
+  Word (`+2`) and pre-decrement fall back to the ALU.
+- `USP`/`SSP` stepping is `±2`-and-decrement dominated (every call is `SP-2`; 16-bit
+  save/restore `±2`; frames `±N`); the lone `+1` case (8-bit pull) is a minority and its
+  8-bit-push partner is a `-1` a counter can't do — so an up-only counter would sit idle.
+- `-2` is required by the call path (`SP-2`), hence its addition to the constant set.
+**Alternatives:** shared `'283` adder (rejected — more muxing, no advantage over
+per-register counters for `+1`); `reg+const` through the ALU for *all* increments (rejected
+for `PC`/`MAR`/`X`/`Y` — loses the off-bus overlap on the hot paths); up/down counters on
+`X`/`Y` for off-bus pre-decrement (deferred — revisit only if microcode timing shows
+pre-decrement loops are hot).
+**Notes:** Resolves the address-increment open question in hardware.md §2/§2.1. The
+"one scratch register or two?" question remains open.
+
+## D-37 — Logic family refined: 74AHCT for SSI, 74ACT for MSI
+**Status:** Decided (2026-06-19)
+**Context:** D-02 chose **74AHCT** as the working family, but AHCT is an SSI-focused line —
+it carries gates, buffers, registers, and latches but **no MSI**: no synchronous counters
+(and no ALU/adder slices). The off-bus address counters (D-36) and the ALU need MSI parts.
+**Decision:** Use **74AHCT** for SSI and the common functions (gates, buffers `'244`/`'245`,
+registers `'574`/`'377`, latches), and **74ACT** for the MSI parts AHCT does not offer —
+beginning with the address counters (`74ACT163`, D-36). MSI parts that ACT also lacks (some
+ALU/adder slices) are taken from the nearest TTL-level family as availability dictates; the
+ALU's family is fixed with the ALU part choice (hardware.md §9).
+**Why:** AHCT has no counter/ALU MSI, so the core cannot be single-family in the literal
+sense. AHCT and ACT are both **5 V, TTL-input CMOS**, so they interoperate at consistent
+signaling levels — preserving the *intent* of R-HW-2 (uniform levels, fast enough for
+R-CLK-1) even though two part-families are used. This refines D-02 and relaxes R-HW-2's
+"single family" to "one consistent TTL-level CMOS signaling regime."
+**Notes:** D-02 is left as the original record (not retroactively edited). ACT has faster
+edges and higher drive than AHCT, so decoupling/layout get the usual care; electrically the
+two mix cleanly. Touches hardware.md §1/§2.1 and R-HW-2.
 
 ---
 
