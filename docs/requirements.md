@@ -184,6 +184,9 @@ by reaching past them to a goal or to another design.
 
 ## CPU/system interface (IF)
 
+> The functional interface is specified in [interface.md](interface.md) (decision
+> [D-29](decision-log.md)); the privileged debug interface (R-DBG-5) is deferred.
+
 - **R-IF-1** (⟸ G6) — All interaction between the CPU and the *functional* parts
   of the system (memory, translation, I/O peripherals) shall occur through one
   documented set of external signals — the functional interface — and no
@@ -193,8 +196,9 @@ by reaching past them to a goal or to another design.
   the control signals that qualify and time a bus transfer (transfer direction, a
   validity/strobe indication, and a timing reference).
 - **R-IF-3** (⟸ G6, G3) — The interface shall carry the asynchronous system
-  control lines: a reset input, the interrupt request inputs (maskable, fast, and
-  non-maskable), and the clock/timing reference. (supports R-CPU-3)
+  control lines: a reset input, the interrupt request inputs (maskable and
+  non-maskable), and the clock/timing reference. (supports R-CPU-3; the fast
+  interrupt was dropped — D-22)
 - **R-IF-4** (⟸ G6, G5) — The interface shall provide a bus-request / bus-grant
   handshake by which an external master can take ownership of the buses while the
   CPU tri-states its bus drivers. (supports R-DBG-2)

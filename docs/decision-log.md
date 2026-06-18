@@ -42,6 +42,8 @@
 | D-26 | Strengthen G7 (ISA fully in microcode, field-reprogrammable); reprioritise blinkenlights > interface > microcode | Decided |
 | D-27 | Renumber goals so numbering matches priority order (G5↔G7, G6↔G8) | Decided |
 | D-28 | Memory-mapped I/O: one 8 KB physical I/O page inside the boot identity window | Decided |
+| D-29 | Functional CPU/system interface: sync bus + `/WAIT`, separate `/RD`/`/WR`, separate buses, fixed-vector IRQ/NMI, REQ/GRANT | Decided |
+| D-30 | Exception entry: auto-mask `CC.I` on entry; fixed pointer-slot vectors (RESET hardwired) | Decided |
 
 ---
 
@@ -517,6 +519,71 @@ translates to a physical address the system decodes to a peripheral.
   must not fall inside `0xE000–0xFFFF`, which the boot identity map exposes as the
   I/O page.
 
+## D-29 — Functional CPU/system interface
+**Status:** Decided (2026-06-18)
+**Context:** `R-IF-1…6` set the interface requirements; we needed to fix the concrete
+signalling. The privileged debug interface ([D-13](decision-log.md)) is deferred.
+**Decision:** Specify the functional interface in [interface.md](interface.md):
+a **24-bit physical** address output ([D-14](decision-log.md)), an **8-bit**
+bidirectional data bus, a **synchronous** bus referenced to a single **`CLK` input**
+with a **`/WAIT`** extension, **separate `/RD` and `/WR`** strobes, **fully separate
+(non-multiplexed)** buses, **fixed-vector (software-polled)** interrupts on a **level `/IRQ`** + **edge
+`/NMI`**, and a **two-line `/BUSREQ`/`/BUSGRANT`** arbitration handshake — 41
+architectural signals.
+**Why (per fork):**
+- *Synchronous + `/WAIT`* over async handshake: full speed in the common case (G8),
+  trivial for fast SRAM, still admits slow devices; async adds a per-cycle return
+  path that works against G8.
+- *Separate `/RD`/`/WR`* over R/W + strobe: map straight onto SRAM `/OE`/`/WE` and
+  peripheral enables with no glue; memory-mapped I/O (D-28) removes any
+  memory-vs-I/O qualifier.
+- *Separate buses* over multiplexed: the address is always valid and legible for
+  blinkenlights (G5); part count is a non-goal, so the pin saving isn't worth the
+  lost observability and the ALE timing tax.
+- *Fixed-vector, software-polled* over device-vectored: no acknowledge cycle and no
+  vector lines on the boundary (keeps `R-IF-6` minimal); fits FUZIX's modest device
+  set; the handler polls to find the source.
+- *`CLK` input* over output: the clock can be gated or single-stepped externally for
+  bring-up and blinkenlights (G5); the oscillator is a permitted support module.
+- *Level `/IRQ` + edge `/NMI`*: level IRQ allows wire-OR sharing and poll-to-source
+  (matches the poll-to-find-source model); edge NMI fires once per event.
+- *Two-line REQ/GRANT, release at cycle boundary*: the simplest handshake that meets
+  `R-IF-4`; a third grant-acknowledge line only earns its keep with multiple masters.
+**Notes:** Exact CLK-edge timing waits on the datapath bus count (pending). The
+reset-vector address and physical memory map remain open ([isa.md](isa.md) §9). The
+interrupt/trap *entry* mechanism (hardwired entry vs fixed memory slot) is settled in
+[D-30](decision-log.md) — a fixed pointer-slot vector table, `RESET` hardwired — with
+only the table's physical address deferred to the memory-map decision. This entry
+also removes the stale "fast interrupt" from `R-IF-3`, consistent with D-22.
+
+## D-30 — Exception entry: auto-mask on entry, fixed pointer-slot vectors
+**Status:** Decided (2026-06-18)
+**Context:** D-29 fixed interrupts as fixed-vector / software-polled but left two
+details open: whether interrupt acceptance masks further interrupts, and how an
+exception reaches its handler.
+**Decision:**
+- **Auto-mask on entry.** Accepting any interrupt or trap (`IRQ`, `NMI`, `SWI`, the
+  fault traps) saves the old `CC`, then sets `CC.I`, so the handler runs with `IRQ`
+  masked; `RTI` restores the saved `CC`. The kernel re-enables interrupts (`CLI`)
+  when it is safe. (`NMI` itself stays non-maskable; the entry masking only blocks
+  `IRQ` nesting.)
+- **Fixed pointer-slot vectors.** `NMI`/`IRQ`/`SWI`/traps each dispatch through a
+  fixed table of pointer slots holding handler addresses; the CPU loads `PC` from the
+  slot (resolved in the kernel map that entry selects). The kernel installs handlers
+  by writing the table at init. `RESET` is special — RAM is invalid at reset, so it
+  uses a hardwired entry into boot ROM, not a slot.
+**Why:**
+- Auto-mask suits a simple, largely non-reentrant kernel (G3): handlers start in a
+  known masked state and choose when to re-enable (R-CPU-3). Without it every handler
+  would have to mask by hand before touching shared state, and a tick could nest
+  immediately.
+- A pointer-slot table lets the OS install and change handlers at runtime (G3) with
+  no microcode change, at the cost of one memory indirection per exception. Hardwired
+  entries (no table) were rejected as too rigid for an OS; device-supplied vectors
+  were already rejected (D-29) as needing an acknowledge cycle on the interface.
+**Notes:** The table's physical address is fixed with the memory map / reset vector
+([isa.md](isa.md) §9, still open).
+
 ---
 
 ## Pending (not yet decided)
@@ -524,6 +591,10 @@ translates to a physical address the system decodes to a peripheral.
 Tracked in the docs' own "Open questions" sections; the load-bearing ones:
 
 - **Datapath bus count** — one shared 8-bit bus vs two/three. ([hardware.md](hardware.md) §9)
-- **Concrete interface spec** — formalize the functional + debug signal lists.
+- **Reset vector & physical memory map** — boot ROM/RAM/I/O layout, the reset entry
+  address, and the exception vector table location (D-30). ([isa.md](isa.md) §9,
+  constrained by D-28)
+- **Debug interface spec** — the privileged front-panel signal list (functional
+  interface now done — D-29 / [interface.md](interface.md)).
 - **Step-3 retrofit** — scrub remaining architecture names from the normative
   parts of isa/hardware/README into *Influences* sections.

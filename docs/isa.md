@@ -260,12 +260,27 @@ D-18).
   unprivileged. So a process can't change its own mode or unmask interrupts,
   user-mode `CC` writes (`ANDCC`/`ORCC`/`CWAI`/`PULS CC`) cannot alter the `M` or
   `I` bits (see §8.7).
-- **Interrupts.** One maskable `IRQ` (mask `CC.I`) plus a non-maskable `NMI`. Entry
-  stacks a **minimal frame** (`PC` and `CC`) on `SSP`; the handler saves any other
-  registers it uses with `PSHS`/`PULS` (matching the caller-saves ABI). `RTI`
-  restores `CC` (hence the mode) and `PC`.
+- **Interrupts.** One maskable `IRQ` (mask `CC.I`) plus a non-maskable `NMI`. `IRQ`
+  is level-sensitive — devices wire-OR onto it and the handler polls each source —
+  and `NMI` is edge-triggered (see [interface.md](interface.md) §3.5). Entry stacks
+  a **minimal frame** (`PC` and `CC`) on `SSP` and then **sets `CC.I`**, so the
+  handler runs with `IRQ` masked and is not re-entered until it clears the mask or
+  returns. The handler saves any other registers it uses with `PSHS`/`PULS`
+  (matching the caller-saves ABI). `RTI` restores `CC` (hence the prior mask and
+  mode) and `PC`.
 - **System call / trap.** A software interrupt (`SWI`, possibly `SWI2`/`SWI3`) is
-  FUZIX's kernel-entry trap: it enters supervisor mode with a saved frame.
+  FUZIX's kernel-entry trap: it enters supervisor mode with a saved frame, likewise
+  **setting `CC.I`** so the kernel begins with interrupts masked and re-enables them
+  (`CLI`) when ready.
+- **Exception vectors.** Every interrupt and trap reaches its handler through a
+  **fixed table of pointer slots** — one each for `NMI`, `IRQ`, `SWI` (and
+  `SWI2`/`SWI3` if kept), and the fault traps (illegal opcode, privilege violation) —
+  each holding the handler's address. On acceptance the CPU loads `PC` from the slot,
+  resolved in the kernel map that entry has already selected, so the kernel installs
+  its own handlers simply by writing the table at init. **`RESET` is the exception:**
+  RAM is not valid at reset, so it uses a fixed hardwired entry into boot ROM rather
+  than a slot (R-CPU-7). The table's physical address is fixed with the memory map
+  (§9). (D-30.)
 - **MMU control.** Address translation is internal to the CPU (see
   [docs/hardware.md](hardware.md) §3); its page table is an internal privileged
   register file, written only in supervisor mode by dedicated instructions
@@ -284,7 +299,8 @@ D-18).
   either stall interrupts for the whole transfer or require restartable microcode,
   so it is deliberately not provided.
 - **Reset.** On reset the CPU enters supervisor mode with interrupts masked and
-  begins at a fixed reset vector (R-CPU-7). **There is no "translation off" state —
+  begins at a fixed, hardwired reset entry in boot ROM (R-CPU-7; not a vector-table
+  slot — see *Exception vectors* above). **There is no "translation off" state —
   only the identity map.** Address translation is always active; at reset it is the
   transparent **identity map of the low 64 KB** (logical = physical for
   `0x0000–0xFFFF`), so the machine runs before software has configured any map
@@ -581,9 +597,10 @@ profiling shows runtime-variable shifts are hot.
 
 ## 9. Open questions for this document
 
-1. **Reset details (§6):** the reset-vector location and the exact reset values of
-   `PC`/`SP`. The vector must lie **outside** `0xE000–0xFFFF`, which the boot
-   identity map exposes as the memory-mapped I/O page (D-28).
+1. **Reset details (§6):** the reset-entry location, the physical address of the
+   exception vector table (§6, D-30), and the exact reset values of `PC`/`SP`. The
+   reset entry must lie **outside** `0xE000–0xFFFF`, which the boot identity map
+   exposes as the memory-mapped I/O page (D-28).
 
 *Decided:* registers `A B D X Y SP` (no `U`/`DP`); little-endian; privilege with
 banked `SSP`/`USP` and the mode bit in `CC` (D-22); internal MMU
