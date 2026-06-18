@@ -41,6 +41,7 @@
 | D-25 | Assembly notation house style (verb/register split, `$`-hex, parens=memory, `LD`/`XCHG`) | Decided |
 | D-26 | Strengthen G7 (ISA fully in microcode, field-reprogrammable); reprioritise blinkenlights > interface > microcode | Decided |
 | D-27 | Renumber goals so numbering matches priority order (G5↔G7, G6↔G8) | Decided |
+| D-28 | Memory-mapped I/O: one 8 KB physical I/O page inside the boot identity window | Decided |
 
 ---
 
@@ -483,6 +484,39 @@ relabelling — no goal, requirement, or decision changed in substance.
 interface, added under D-12, is **G6** — though it was introduced as G8); the log tracks
 the live design, not its numbering history.
 
+## D-28 — Memory-mapped I/O in a physical I/O page (no separate I/O space)
+**Status:** Decided (2026-06-18)
+**Context:** With the MMU internal and the external bus physical (D-14), we had to
+choose how peripherals are addressed: a separate I/O space — its own qualifier line
+and `IN`/`OUT` instructions — or memory-mapped into the ordinary address space.
+**Decision:** I/O is **memory-mapped**. There is no separate I/O address space, no
+`IN`/`OUT` instructions, and no "memory vs I/O" qualifier on the functional
+interface. Peripherals are decoded — *outside* the CPU — from a reserved region of
+the 24-bit **physical** space: a single 8 KB **I/O page** at physical
+`0x00E000–0x00FFFF` (frame 7, the top frame of the low 64 KB), device registers at
+fixed offsets within it. A device access is an ordinary `LD`/`ST` that the MMU
+translates to a physical address the system decodes to a peripheral.
+**Why:**
+- *Minimal, stable interface (R-IF-2, R-IF-6).* No extra bus line and no I/O
+  opcodes — the functional interface stays address + data + transfer-qualifying
+  control, and nothing about I/O is wired into the CPU.
+- *C-friendly (G2).* Drivers touch device registers as ordinary `volatile` pointers
+  through the existing load/store addressing modes. BLIP has no data cache and does
+  not reorder loads/stores, so no hardware ordering machinery is needed.
+- *Protection for free (D-18).* The only way to reach the I/O page is a map entry,
+  and only supervisor code writes maps (D-16). A user map that omits frame 7 cannot
+  touch hardware; the kernel maps frame 7 into its own map for drivers — the same
+  mechanism that isolates memory gates devices.
+- *Boot reachability (D-15, R-MEM-7).* The I/O page sits inside the reset identity
+  window, so the boot ROM reaches the console and storage with no MMU setup.
+**Consequences:**
+- The I/O region is page-granular (8 KB): the whole frame maps as a unit; devices
+  share it at offsets. An 8 KB hole at physical `0x00E000` is never handed out as
+  RAM (negligible against 16 MB).
+- Constrains the still-open reset-vector location ([isa.md](isa.md) §9): reset entry
+  must not fall inside `0xE000–0xFFFF`, which the boot identity map exposes as the
+  I/O page.
+
 ---
 
 ## Pending (not yet decided)
@@ -490,8 +524,6 @@ the live design, not its numbering history.
 Tracked in the docs' own "Open questions" sections; the load-bearing ones:
 
 - **Datapath bus count** — one shared 8-bit bus vs two/three. ([hardware.md](hardware.md) §9)
-- **I/O addressing** — separate I/O space vs fully memory-mapped.
-  ([requirements.md](requirements.md))
 - **Concrete interface spec** — formalize the functional + debug signal lists.
 - **Step-3 retrofit** — scrub remaining architecture names from the normative
   parts of isa/hardware/README into *Influences* sections.

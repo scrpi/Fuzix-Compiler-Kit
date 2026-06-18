@@ -284,9 +284,22 @@ D-18).
   either stall interrupts for the whole transfer or require restartable microcode,
   so it is deliberately not provided.
 - **Reset.** On reset the CPU enters supervisor mode with interrupts masked and
-  begins at a fixed reset vector (R-CPU-7); the page table comes up as an identity
-  map of the low 64 KB (logical = physical), so the machine runs before any
-  translation is configured (R-MEM-7).
+  begins at a fixed reset vector (R-CPU-7). **There is no "translation off" state —
+  only the identity map.** Address translation is always active; at reset it is the
+  transparent **identity map of the low 64 KB** (logical = physical for
+  `0x0000–0xFFFF`), so the machine runs before software has configured any map
+  (R-MEM-7). The kernel later replaces it with real per-process maps via
+  `LDMMU`/`STMMU`.
+- **Memory-mapped I/O.** Peripherals have no separate address space and no I/O
+  instructions: they are decoded (outside the CPU) from a reserved region of the
+  **physical** space — a single 8 KB **I/O page** at physical `0x00E000–0x00FFFF`,
+  device registers at fixed offsets within it. A device access is an ordinary
+  `LD`/`ST` that the MMU translates like any other access; software reaches a device
+  by mapping the I/O page into a logical window, so the same map mechanism that
+  isolates memory also gates device access — a user map that omits the I/O page
+  cannot touch hardware (D-18). The I/O page sits inside the reset identity window
+  (above), so the boot ROM reaches the console and storage with no MMU setup
+  (R-MEM-7). The external decode is part of the functional interface (D-28).
 - **Atomicity.** At minimum, disabling interrupts around critical sections; a
   test-and-set-like primitive is a possible convenience (TBD).
 
@@ -569,12 +582,14 @@ profiling shows runtime-variable shifts are hot.
 ## 9. Open questions for this document
 
 1. **Reset details (§6):** the reset-vector location and the exact reset values of
-   `PC`/`SP`.
+   `PC`/`SP`. The vector must lie **outside** `0xE000–0xFFFF`, which the boot
+   identity map exposes as the memory-mapped I/O page (D-28).
 
 *Decided:* registers `A B D X Y SP` (no `U`/`DP`); little-endian; privilege with
 banked `SSP`/`USP` and the mode bit in `CC` (D-22); internal MMU
 (physical external bus, 16 MB / 8 KB pages, identity-mapped at reset, programmed by
-privileged `LDMMU`/`STMMU`); calling convention (§7); the full **single-page**
+privileged `LDMMU`/`STMMU`); memory-mapped I/O in a single physical I/O page reached
+through the MMU (D-28); calling convention (§7); the full **single-page**
 encoding, indexed postbyte, and 256-entry opcode table (§8); and the assembly
 notation house style (§4.1 — verb/register split, bare `$`-hex immediates,
 parenthesised memory, `LD`/`XCHG` register moves; D-25).

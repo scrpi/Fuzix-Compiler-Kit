@@ -236,6 +236,7 @@ by reaching past them to a goal or to another design.
 - **Interface boundary (decided):** translation sits *inside* the CPU; the external
   address bus is the **physical** address (R-IF-5 retired). The functional interface
   is a plain physical bus — no privilege or fault lines.
-- **I/O addressing:** does the interface carry a separate "memory vs I/O" qualifier
-  (a distinct I/O space), or is all I/O memory-mapped? (A spec choice, but it
-  shapes R-IF-2.)
+- **I/O addressing (decided):** all I/O is **memory-mapped** — no separate I/O space
+  and no "memory vs I/O" qualifier on the interface. Peripherals are decoded from a
+  reserved physical I/O page (see [isa.md](isa.md) §6 and decision log D-28), so
+  R-IF-2's signal set stays address + data + transfer control only.
