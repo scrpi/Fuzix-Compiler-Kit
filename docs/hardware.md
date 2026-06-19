@@ -220,7 +220,12 @@ physical space and its partitioning are invisible to ordinary code.
 ## 4. Microcode engine
 
 The control unit is a microsequencer driving a **horizontal** control word (each
-field directly enables a datapath action), with a **writable control store**.
+field directly enables a datapath action), with a **writable control store**. The
+word is **80 bits / 10 bytes** — fully horizontal (no overlay): every datapath field
+has one fixed meaning, with a single context-typed wide-operand window for the
+far-branch target / privileged specials. Its full field map, the sequencer detail, and
+worked microroutines are specified in [microcode.md](microcode.md) (D-38). This section
+is the engine in outline.
 
 ```
         opcode (from IR) + flags + condition select
@@ -255,7 +260,12 @@ field directly enables a datapath action), with a **writable control store**.
   lives in the patchable boot-copied image (R-CTRL-1, R-CTRL-2, R-CTRL-3).
 - **Control word:** wide (horizontal) so most datapath actions are one microstep;
   fields gate bus drivers, latch registers, select the ALU op, drive `MAR`/MMU,
-  and assert memory read/write. **Width and field layout: TBD** (see §9).
+  and assert memory read/write. **Decided (D-38):** an **80-bit /
+  10-byte**, **fully horizontal** word — every datapath field has one fixed meaning
+  (self-describing on the LED bank), per-flag flag control is direct (no PLA), and the
+  only context-typed field is a 9-bit wide-operand window (far-branch target *or*
+  privileged special, selected by `USEQ_OP`) that never aliases a datapath control. Full
+  field map and budget in [microcode.md](microcode.md) §3.
 - **Writable control store (WCS):** the control word ROM image lives in **fast
   static RAM** at runtime. This (a) keeps the control-store access fast enough to
   chase 10 MHz, and (b) lets microcode be patched at the bench instead of burning
@@ -274,9 +284,10 @@ field directly enables a datapath action), with a **writable control store**.
   the SRAM access off the critical path. Instruction fetch likewise overlaps
   where possible. (Goal G9.)
 
-> **Open:** horizontal vs partly-vertical microcode (width vs ROM size);
-> single-level vs nano/two-level store; how deep to pipeline (more stages = more
-> clock, more hazards to manage in microcode).
+> **Decided (D-38):** horizontal, single-level, **80-bit / 10-byte** word, fully
+> self-describing (no overlay); see [microcode.md](microcode.md). Narrower words (a 64-bit
+> format-overlay word; 48/56-bit) were evaluated and rejected for spending legibility and
+> hot-path/loop speed (decision log D-38). **Open:** how deep to pipeline (microcode.md §7).
 
 ---
 
@@ -370,7 +381,7 @@ The minimum board to boot FUZIX to a shell (goal **G3**):
 | Discrete register file (16-bit, + 2 scratch; PC/MAR/X/Y are counters) | G2, G5 | 1 vs 2 scratch (§9) |
 | 16-bit ALU + constant generator (`-2..+2`) | G2, G9 | ALU parts (§9) |
 | Internal MMU (logical→physical) | G3, G4 | extra map sets (§3) |
-| Microsequencer + writable control store | G8, G9 | microcode width, pipelining (§4) |
+| Microsequencer + writable control store (80-bit word — [microcode.md](microcode.md)) | G8, G9 | pipeline depth (§4) |
 | Boot-copy ROM→SRAM circuit | G8 | — |
 | Front panel + bus mastering | G6 | step granularity (§6) |
 | UART / timer / storage / IRQ | G3 | parts allowance under G1 (§7) |
@@ -388,8 +399,9 @@ The minimum board to boot FUZIX to a shell (goal **G3**):
    generation; the constant generator on RIGHT.
 3. **MMU:** *(decided: 8 KB pages, 16 MB physical, kernel/user map sets.)*
    Remaining: translation-only vs per-page protection bits.
-4. **Microcode:** control-word width and field layout; horizontal vs two-level;
-   pipeline depth.
+4. **Microcode:** *(decided: horizontal 80-bit / 10-byte fully-self-describing word —
+   D-38, [microcode.md](microcode.md); `PC`-direct fetch baked in.)*
+   Remaining: pipeline depth (microcode.md §7).
 5. **Front panel:** instruction-step vs microstep default; **shadow-register**
    display (§6, leading) vs a multiplexed "selected register" display.
 6. **Peripherals & G1 boundary:** confirm which non-74-series support chips are

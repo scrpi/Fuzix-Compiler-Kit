@@ -57,6 +57,7 @@
 | D-35 | Rename internal buses to LEFT / RIGHT / Z (Z replaces R, avoids clash with RIGHT) | Decided |
 | D-36 | Off-bus `+1` up-counters on PC/MAR/X/Y; USP/SSP & `+2`/`-1`/`-2` via ALU + const-gen `{-2..+2}` | Decided |
 | D-37 | Logic family refined: 74AHCT (SSI) + 74ACT (MSI) — AHCT has no counters/ALU | Decided |
+| D-38 | Microcode control-word format: 80-bit horizontal control word (10 SRAMs, fully self-describing); one scratch sufficient for the ISA core (two retained) | Decided |
 
 ---
 
@@ -791,14 +792,117 @@ R-CLK-1) even though two part-families are used. This refines D-02 and relaxes R
 edges and higher drive than AHCT, so decoupling/layout get the usual care; electrically the
 two mix cleanly. Touches hardware.md §1/§2.1 and R-HW-2.
 
+## D-38 — Microcode control-word format (80-bit horizontal control word)
+**Status:** Decided (2026-06-19)
+**Context:** The datapath was settled (D-33/D-34/D-35/D-36) and dispatch by
+microaddress-formation was settled (D-24), but hardware.md §4/§9 still listed the
+control-word **width and field layout** as TBD. With the datapath fixed, the control word
+that drives it could be enumerated, sized, and chosen. *(This entry squashes the
+pre-commit width exploration — earlier 96-bit and 64-bit drafts — into the single landed
+decision; the rejected widths are recorded under Alternatives below.)*
+**Decision:** A single **horizontal, registered, 80-bit (10-byte) control word** — ten
+8-bit-wide WCS SRAMs in parallel — specified in [microcode.md](microcode.md). The word is
+**fully self-describing**: every datapath field has one fixed meaning (no mode/format bit
+re-reads any datapath control), so the lit word reads directly on the front-panel LED bank
+(G5/G6). Structure:
+- **Sequencer:** `uPC` up-counter + next-address mux, no explicit next-address field per
+  word and no mapping PROM (D-24). `USEQ_OP` (8 codes) is the sole field on the
+  next-address path; conditional micro-branches take a common 5-bit near displacement
+  (`UBR_NEAR`, which rides the same word as a full ALU op + a `ULOOP` decrement, so loop
+  bodies are one cycle); the rare far target is an unconditional `JUMP` to `WIDE_TARGET`.
+- **Datapath fields:** LEFT-bus source + lane; a dedicated RIGHT+ALU region (RIGHT source
+  incl. the constant generator `{-2..+2}`, ALU op, shift, carry-in, width); `Z_DEST`+lane;
+  the four off-bus counter controls (each owns its load-from-Z latch, so a counter and a
+  non-counter can latch the same Z in one cycle); `MEM_OP`; `MMU_ADDR_SRC` (incl. a
+  `translate-PC` stream-fetch path that removes the `PC→MAR` copy) and `MMU_MAP_SEL`;
+  `SP_BANK`; `ULOOP_CTRL`; `TAS_LOCK`.
+- **Flags:** **per-flag** one-hot write-enables (`FLAG_WE`) + `V_SRC`/`C_SRC`
+  force-selects + `Z_ACCUM`, matching isa.md §8.5 exactly, each its own lit bit (no PLA).
+- **The one context-typed field** is a 9-bit **wide-operand window**: `WIDE_TARGET` (a far
+  microaddress) when `USEQ_OP=JUMP`, or the privileged `SPECIAL` sub-fields
+  (`CC_WRITE_SRC`, `CC_MI_LOAD`, `MMU_PT_OP`, + spare) when `USEQ_OP=SPECIAL`. It is a
+  *sequencing* operand — never a datapath control — so the datapath stays fully horizontal.
+- **Scratch registers:** **one is sufficient for the validated ISA core; two are retained
+  in the substrate** as provisional (see below).
+**Why:**
+- *Horizontal, one action per microcycle, self-describing* keeps the C-critical addressing
+  paths a single step each (G2) and the cycle count honest (G9), makes the datapath a
+  complete microcode substrate with no instruction-specific fixed logic (R-CTRL-1,
+  R-CTRL-4), and keeps the control word point-and-readable on the LED bank (G5/G6).
+- *Registered word* overlaps the WCS lookup for step *n+1* with execution of step *n*,
+  keeping the store off the critical path (R-CTRL-2, R-CLK-2).
+- *Width = 80 bits / 10 SRAMs.* Part count is an explicit non-goal, so the store width is
+  chosen to serve the ranked goals rather than to minimise chips: 80 bits is the narrowest
+  *fully self-describing* word — no field re-read under a mode bit, per-flag visibility
+  intact — that also leaves headroom (a `TAS_LOCK` bit and spare `SPECIAL` codes) for
+  adding privileged primitives by reflashing, not a respin (G8 / R-CTRL-3). Narrower words
+  were evaluated and rejected (below).
+**Validation:** Multi-agent workflows hand-assembled the canonical microroutines (FETCH,
+`ADD A,$nn`, `LD A,(X+n)`, `ST A,(X+n)`, `Bcc rel8` taken/not, `JSR`, `IRQ` entry,
+`LDMMU`, and the `ASL D,$n` micro-loop) against competing formats. Findings folded into
+the design: the maximum scratch registers simultaneously live is **one** (`SCR2` never
+asserted); five corrections (CC as a `LEFT_SRC`; an active-`SP` write-back gated by
+`SP_BANK`; runtime page-table slot from imm8; cross-map `MMU_MAP_SEL` override; a
+fixed-physical emit path for the vector slots); and the `IRQ` ordering (`CC.M/I` commit
+*after* the `CC` push). Hand-assembly also caught two physically-impossible fused steps in
+an early worked-routine draft (a read fused with the `MAR` load that addressed it; a push
+driving LEFT from two registers at once) — corrected in microcode.md §5.
+**Alternatives weighed (the width curve):**
+- **48 bits / 6 chips — rejected.** Reaching 48 needs a multi-format vertical overlay;
+  hand-assembly measured indexed loads/fetch free but indexed stores/calls/IRQ ~1.3–1.45×
+  and tight microcoded **loops ~2.1–3×** (the loop body splits across three
+  mutually-exclusive formats — ~3× on the kernel's `copyin`/`copyout`), plus a loss of the
+  self-describing word and two correctness holes. A bad trade against G2/G3/G5/G6 for
+  chips the goals do not reward.
+- **56 bits / 7 chips — rejected.** Reachable only by re-opening the `FETCH`/`JSR`/push
+  splits a wider word avoids.
+- **64 bits / 8 chips — evaluated and superseded.** A single-overlay word (a `FORMAT` bit
+  re-reading the idle ALU-operand bits as the far-branch/special window, plus a 4-bit
+  flag-class PLA) hits every hot path and loop at baseline speed in 8 SRAMs — the
+  minimum-compromise point. But it spends two things on legibility (the dual-use window
+  and the flag PLA) and leaves zero slack, so a new control primitive would need hardware
+  not a reflash. Since part count is a non-goal and the chip budget could move to 10, 80
+  bits buys both back (de-overlay + per-flag visibility + the `PC`-direct path + headroom)
+  for two SRAMs the priority order does not penalise.
+- **96 bits — the first draft.** Over-wide (generous slack, redundant `ALU_CIN_SRC`,
+  separate `MEM_REQ`/`MEM_DIR`/`MDR_SRC`); tightened where it cost nothing (`MEM_OP`
+  merge, `ALU_CIN` dedup, imm8-only MMU slot, hardware-wired `M`/`I` protection and
+  bus-grant tri-state).
+- **Two-level nano-store and per-word explicit next-address** — rejected (more total chips
+  + a lookup stage; or 8 bits/word for only "go to named successor"), against
+  R-CLK-2/R-CTRL-2 and D-24.
+- **Magic-1 cross-check** (non-normative): Bill Buzbee's 40-bit / 512-word TTL control
+  store independently validates opcode-as-direct-microaddress with no mapping PROM (D-24)
+  and the asymmetric narrow-RIGHT + constant-generator datapath; its narrowness comes from
+  doing materially less per microword (4-bit ALU, no off-bus counters, simple flags) on a
+  slower machine, so it is not evidence BLIP's width is bloated — width tracks datapath
+  richness, depth tracks ISA breadth.
+- **Scratch: keep two, commit later.** The canonical set omits the routines that
+  classically force two live operands (`anyreg OP anyreg` staging, `MUL`, cross-map copy);
+  the second scratch costs only a `RIGHT_SRC` code, a `Z_DEST` code, and one register, and
+  removing it later is free while adding it later is not — so retain it until those are
+  hand-assembled (matches the D-36 / hardware.md §2 open note).
+**Process:** designed and adversarially validated by multi-agent workflows
+(enumerate → competing formats → hand-assembled microroutine validation → judged against
+the goal ordering), with explicit cost/value passes at each width fork; the field set and
+80-bit width are the synthesized result, the width confirmed by Ben.
+**Notes:** `WIDE_TARGET` stays sized to the actually-placed microcode (the on-hand WCS
+SRAM is 8K×8 = 4096 words, so depth is ample; microcode.md §7); `TAS_LOCK` is provisioned
+pending the isa.md §9 atomicity decision. The exploratory width analyses
+(`control-word-field-analysis`, `control-word-48bit-analysis` and their renderings) were
+non-normative working notes and have been removed now the width is settled.
+**Resolves:** hardware.md §4/§9 control-word width & layout; creates
+[microcode.md](microcode.md). **Touches:** hardware.md §4/§8/§9.
+
 ---
 
 ## Pending (not yet decided)
 
 Tracked in the docs' own "Open questions" sections; the load-bearing ones:
 
-- **Datapath detail** — microcode control-word format, pipeline depth, and ALU part
-  choice (the high-level datapath is decided — D-34 / [hardware.md](hardware.md) §2, §9).
+- **Datapath detail** — pipeline depth and ALU part choice (the high-level datapath is
+  decided — D-34; the microcode control-word format is decided — D-38 /
+  [microcode.md](microcode.md)).
 - **Debug interface spec** — the privileged front-panel signal list (functional
   interface now done — D-29 / [interface.md](interface.md)).
 - **Step-3 retrofit** — scrub remaining architecture names from the normative

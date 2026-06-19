@@ -128,9 +128,11 @@ automatically per-process via the MMU — is the cheaper way to get it; see
 
 ### 2.1 Internal (non-programmer-visible) registers
 Used by microcode only; documented here for completeness and because they drive
-the blinkenlights: `MAR` (memory address register, 16-bit logical), `IR`
-(instruction register), `µPC` (microprogram counter), and ALU operand/temp
-latches `TA`/`TB`. See [docs/hardware.md](hardware.md).
+the blinkenlights: `MAR` (memory address register, 16-bit logical), `MDR` (memory
+data register, 8-bit, to the external bus), `IR` (instruction register), `µPC`
+(microprogram counter), and the scratch registers `SCR1`/`SCR2` (ALU operand
+staging). See [docs/hardware.md](hardware.md) §2 and the control-word format in
+[docs/microcode.md](microcode.md).
 
 ---
 
