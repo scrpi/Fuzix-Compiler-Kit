@@ -74,6 +74,7 @@
 | D-41 | ISA flattened: indexed postbyte removed; two specified pages — page 0 (hot) + page 1 (cold, `0x80` prefix); locks Option B (µPC 12→13 bit / 8192-word store, `DISPATCH_PAGE` 1 bit) | Decided |
 | D-42 | Microcode subroutines: `CALL`/`RETURN` micro-ops + a single return-address register (`µSR`); `USEQ_OP` 6→8 codes | Decided |
 | D-43 | Single boot EEPROM fanned out to the 13 control-store SRAMs (chip-major slicing); microcode toolchain realized (assembler + field-definition); boot-copy in the standard sim path | Decided |
+| D-44 | Microcode source is register-transfer notation (`.uc`), superseding the `field=value` (`.uasm`) form; strict one-statement-per-microword | Decided |
 
 ---
 
@@ -1250,7 +1251,9 @@ hardware.md §4 (the `µSR` register + its mux input) when the next datapath pas
 ## D-43 — Single boot EEPROM fanned out to the 13 control-store SRAMs; microcode toolchain realized
 **Status:** Decided (2026-06-20)
 **Supersedes:** —
-**Superseded by:** —
+**Superseded by:** D-44 *(partial — the microcode **source language** and file extension only:
+`field=value` (`blip.uasm`) → register-transfer (`blip.uc`). D-43's field definition,
+single-EEPROM image, chip-major loader, and boot-copy-in-the-sim-path all stand.)*
 **Context:** The microcode toolchain (R-BUILD-3) and the boot-copy circuit (D-03) were
 specified but unbuilt. Implementing the assembler forced two realization questions, plus a
 spec detail that was still open:
@@ -1331,6 +1334,57 @@ by the field definition). **Creates:** `microcode/` (`control_word.toml` field d
 `check_fields.py`, `uasm.py` assembler, `blip.uasm` first routines), `rtl/mem/{rom,sram}.v`,
 `rtl/ctrl/boot_loader.v`, `sim/loader/` (testbench + runner). **Follow-on (pending):** structural
 loader + datasheet timing; opcode byte-value assignment.
+
+---
+
+## D-44 — Microcode source is register-transfer notation (`.uc`), superseding the field=value form
+**Status:** Decided (2026-06-21)
+**Supersedes:** D-43 *(partial — the microcode **source language** and file extension only: the
+source moves from symbolic `field=value` assignments (`blip.uasm`) to a register-transfer
+notation (`blip.uc`). D-43's field definition, single-EEPROM image, chip-major loader, and the
+boot-copy-in-the-sim-path all stand.)*
+**Superseded by:** —
+**Context:** D-43 built the toolchain with a source that mirrored the microcode.md §5
+worked-routine notation — one microword per line as `field=value` assignments. On review that
+notation was judged ergonomically wrong: the readable intent lives in the comment
+(`MAR <- X + offset`) while the `field=value` tokens hand-encode it, so each step is written
+**twice** and the legible half (the comment) can drift from the bits. The assignments also sit
+at the plumbing altitude (which bus, which latch) rather than the operation altitude.
+**Decision:**
+- **Adopt a register-transfer source language** ([microcode-source.md](microcode-source.md)): a
+  step is written as the transfer it performs (`MAR <- X + SCR1`, `A <- [MAR] : nz, v=0`), and
+  the assembler derives the control-word fields from the field definition (D-43, §3.1).
+- **Strict 1:1 — one statement is one microword is one cycle.** No hidden expansion; counting
+  lines counts cycles, and a transfer the hardware cannot do in one word (e.g. an immediate on
+  the RIGHT bus) is a **compile error**, not a silent extra cycle. Reuse is via `CALL`/`RETURN`
+  (D-42), not macro expansion.
+- **Source files use the `.uc` extension**, not `.uasm` — the source is no longer assembly.
+  `microcode/blip.uasm` → `microcode/blip.uc`; the assembler front-end is rewritten to parse the
+  notation (the bit-packer, image emit, and loader are unchanged).
+**Why:**
+- *Legibility (G5, R-HW-4).* The source reads like the register transfers the front panel and
+  microcode.md §5 already use — one artifact, no comment-vs-encoding drift.
+- *Cycle transparency (R-CLK-1).* Strict 1:1 keeps the §5 cycle counts meaningful and makes the
+  bus-staging tax (microcode.md §7.3) visible where it is paid, not hidden inside a macro.
+- *Same single source of truth (R-BUILD-3).* The bit-level field definition (D-43) is unchanged;
+  this is a front-end over it, so the spec, the tool, and the doc still cannot drift.
+**Alternatives weighed:**
+- **Keep `field=value` / `.uasm`** — rejected: writes intent twice at the plumbing altitude, the
+  ergonomic problem that prompted the review.
+- **Higher-level notation with macro expansion** — rejected as the default: terser, but the cycle
+  count and the staging tax vanish from the page, against R-CLK-1 and legibility. (Per-routine
+  inlining via `CALL`/`RETURN` remains available.)
+- **A Python eDSL** — rejected: programmable, but the spec becomes code and is less legible as a
+  standalone source.
+**Notes:** This **addresses D-43's now-stale "`blip.uasm` first routines" reference** — the file is
+`blip.uc` and the routines are register-transfer (D-43 is locked; its `Superseded by` is appended).
+The grammar's **§14 open syntax questions** (transfer arrow, flag-clause spelling, loop form,
+MMU/CC clauses, opcode binding) remain open and may refine **without a new decision** — D-44 fixes
+the *direction*, not every glyph. Opcode byte values are still unassigned (D-41), so `.opcode`
+bindings use placeholder sequential indices per page. **Touches (applied):** toolchain.md §3.2
+(source language → register-transfer, points at microcode-source.md); microcode-source.md (promoted
+from proposed to this decision); renames `microcode/blip.uasm` → `blip.uc`; `uasm.py` front-end
+rewritten.
 
 Tracked in the docs' own "Open questions" sections; the load-bearing ones:
 

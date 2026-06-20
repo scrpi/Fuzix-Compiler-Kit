@@ -1,11 +1,10 @@
 # BLIP — Microcode Source Language (register-transfer notation)
 
-> **Tier-3 spec — PROPOSED, for review.** This defines the human-readable source
-> language the microcode assembler ([toolchain.md](toolchain.md) §3) compiles into
-> the 88-bit control word ([microcode.md](microcode.md) §3). It is **not yet
-> ratified**: review this document, then it is locked in as decision **D-44** and
-> [toolchain.md §3.2](toolchain.md) (which currently mandates a `field=value`
-> notation) is updated to point here.
+> **Tier-3 spec — Decided (D-44).** This defines the human-readable source language
+> the microcode assembler ([toolchain.md](toolchain.md) §3) compiles into the 88-bit
+> control word ([microcode.md](microcode.md) §3). [toolchain.md §3.2](toolchain.md)
+> points here. D-44 fixes the *direction* (register transfers, strict 1:1, `.uc`); the
+> **§14 open syntax questions** (specific glyphs) remain refinable without a new decision.
 >
 > Answers to **`R-BUILD-3`** (a microcode toolchain compiles the microcode from a
 > human-readable source). Serves **G5/G6** (a legible machine you can read and
@@ -242,7 +241,7 @@ routine FETCH:
                                        #   PC_CTRL=count USEQ_OP=DISPATCH_IR
 ```
 
-**LD A,(X+n8)** (≈4 cycles) — cf. the field-soup version in [blip.uasm](../microcode/blip.uasm):
+**LD A,(X+n8)** (≈4 cycles) — assembled from [blip.uc](../microcode/blip.uc):
 ```
 .opcode page0 LD A,(X+n8)
 routine LD A,(X+n8):
@@ -306,7 +305,7 @@ Two datapath behaviours the language relies on, both now pinned:
 
 ---
 
-## 14. Open questions (decide in review, before D-44)
+## 14. Open questions (syntax details — refinable; D-44 fixed the direction, not these)
 
 1. **Transfer arrow:** `<-` (used here) vs `:=` vs `=`.
 2. **Flag-clause syntax:** `: nz, v=0` (here) vs `flags(nz, v=0)` vs trailing `!nzvc`.
