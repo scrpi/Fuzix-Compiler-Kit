@@ -272,12 +272,14 @@ section is the engine in outline.
   static RAM** at runtime. This (a) keeps the control-store access fast enough to
   chase 10 MHz, and (b) lets microcode be patched at the bench instead of burning
   ROMs.
-- **Boot-copy circuit:** at power-on/reset, a small hardware state machine copies
-  the microcode image from a non-volatile **ROM/EEPROM** into the WCS SRAM **and the
-  opcode→start-address map SRAM** (D-40), then releases the CPU to run. (Independent of
-  the CPU — it's just a counter + the ROM + the SRAM + a little sequencing.) This is the
-  mechanism behind goal G8's
-  "fast at runtime, hackable at the bench."
+- **Boot-copy circuit:** at power-on/reset, a small hardware state machine copies a
+  **single non-volatile EEPROM image** out to all **13 control-store SRAMs** — the 11 WCS
+  chips and the 2 opcode→start-address map chips (D-40) — then releases the CPU to run. The
+  image is chip-major with uniform 8 Kword segments, so the loader is **pure binary
+  address-slicing** (D-43): a counter walks the EEPROM, its high bits select the chip (a
+  4→16 decoder strobes one SRAM's `/WE`), its low 13 bits are the shared SRAM address.
+  (Independent of the CPU — just a counter, a decoder, the EEPROM, and the SRAMs.) This is
+  the mechanism behind goal G8's "fast at runtime, hackable at the bench."
 - **Privilege & traps in microcode:** the user→supervisor switch on traps/
   interrupts (and its reversal on `RTI`), the `SSP`/`USP` bank select, the MMU
   map-set switch, and privileged-instruction checks are all handled in microcode
@@ -368,8 +370,11 @@ The minimum board to boot FUZIX to a shell (goal **G3**):
 - **Interrupts:** `IRQ`/`NMI` lines (see [isa §6](isa.md#6-system--privileged-behaviour-for-fuzix))
   with a simple priority/vectoring scheme; a small interrupt controller or
   daisy-chain. **TBD.**
-- **Boot ROM:** holds the microcode image (for the WCS boot-copy, §4) and an
-  initial bootstrap/monitor.
+- **Boot ROM:** a single **128 KB control-store EEPROM** (D-43) holds both the microcode
+  image (the low ~104 KiB, for the WCS boot-copy, §4) and an initial bootstrap/monitor in its
+  spare upper region. The current build populates this with an in-stock **SST39SF040** (512 KB
+  flash) with its upper address pins (A17–A18) tied to ground; a true 128 KB part substitutes
+  directly — the design is not tied to the larger device.
 
 > **Open:** are these support chips (UART, CF/IDE, interrupt glue) acceptable as
 > non-CPU peripherals under G1's "support functions" allowance? (They were never
@@ -386,7 +391,7 @@ The minimum board to boot FUZIX to a shell (goal **G3**):
 | 16-bit ALU + constant generator (`-2..+2`) | G2, G9 | ALU parts (§9) |
 | Internal MMU (logical→physical) | G3, G4 | extra map sets (§3) |
 | Microsequencer + writable control store (88-bit word, 2 sections — [microcode.md](microcode.md)) | G8, G9 | pipeline depth (§4) |
-| Boot-copy ROM→SRAM circuit | G8 | — |
+| Boot-copy: one EEPROM → 13 SRAMs (chip-major fan-out, D-43) | G8 | — |
 | Front panel + bus mastering | G6 | step granularity (§6) |
 | UART / timer / storage / IRQ | G3 | parts allowance under G1 (§7) |
 

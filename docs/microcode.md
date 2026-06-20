@@ -127,6 +127,12 @@ Every field belongs to exactly one section; **no field is shared and no bit is r
 under a mode/format selector.** **Enc** = `bin` binary-encoded (one decoder) · `lit`
 literal/direct (one-hot or a value).
 
+> **Bit positions are fixed by the field definition.** The widths, encodings, and
+> two-section SRAM grouping below are normative; the *exact bit offset* of each field
+> within its section is set by the single machine-readable field-definition file the
+> assembler's bit-packer is generated from (toolchain.md §3.1, D-43). Each field's `0`
+> code is its inert state, so the all-zero control word is a NOP.
+
 ### 3.1 Sequencer section — 3 SRAMs (24 bits)
 
 | Field | Bits | Enc | Role |

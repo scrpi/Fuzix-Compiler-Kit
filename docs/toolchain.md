@@ -55,9 +55,9 @@ Four principles shape the whole flow; everything below is their consequence.
    SOURCES (single source of truth)                 DERIVED ARTIFACTS / CONSUMERS
    ┌───────────────────────────┐
    │ microcode source (.uasm)  │   assemble    ┌─────────────────────────────┐
-   │  + field-definition file  │ ────────────► │ 11 WCS device images         │──► EEPROM burner
-   │   (the 88-bit word spec)  │               │ opcode→addr map image (D-40) │──► boot ROM payload
-   └───────────────────────────┘               │ (.hex / .bin, same bytes)    │──► sim $readmemh
+   │  + field-definition file  │ ────────────► │ ONE EEPROM image             │──► EEPROM burner
+   │   (the 88-bit word spec)  │               │  = 13 SRAMs (11 WCS + 2 map) │──► boot loader fans out
+   └───────────────────────────┘               │ (.hex / .bin, same bytes)    │──► sim $readmemh (image)
                 │ generates                     └─────────────────────────────┘
                 ▼                                              │ loaded into
    ┌───────────────────────────┐                              ▼
@@ -109,14 +109,20 @@ source stays DRY.
 
 ### 3.3 Outputs
 
-- **WCS image** as **11 byte-wide device images** (88 bits = 11 SRAMs), each ready
-  to burn to its EEPROM and to load into the matching simulated SRAM.
-- **Opcode→start-address map image** (D-40), indexed by `{PAGE, IR}` (512 entries),
-  whose entries are 13-bit microaddresses (the µPC width, D-41). 13 bits needs two
-  byte-wide devices (low byte + high 5 bits), so the full burn set is the 11 WCS
-  images plus the map image(s).
-- Emitted in both a burner format (raw binary / Intel HEX) and `$readmemh`/`$readmemb`
-  form — **the same bytes**, so the device the machine runs is the device the sim ran.
+- **One EEPROM image** holding all 13 control-store SRAMs (D-43): the 11 WCS chips
+  (88 bits = 11 byte-wide SRAMs) and the 2 opcode→start-address map chips (D-40 —
+  `{PAGE, IR}`, 512 entries × 13-bit `µPC`, split low byte + high 5 bits). The boot
+  loader fans this single image out to the 13 SRAMs at power-on (§3.5); there is **one**
+  burnable part, not thirteen.
+- **Chip-major, uniform-segment layout.** The image is 13 contiguous 2¹³-byte segments —
+  segment *k* is SRAM *k*'s full contents — so the loader is pure binary address-slicing
+  (`eeprom_addr = (segment << 13) | sram_addr`). Total 13 × 8192 = 106 496 bytes — the low
+  region of a 128 KB control-store EEPROM (the design size, D-43; the physical part is a
+  hardware/BOM choice the toolchain need not know); map segments are zero-padded above their
+  512 used entries; unused bytes are `0x00`, the inert NOP control word.
+- Emitted both as the **burner image** (raw binary) and in `$readmemh` form — **the same
+  bytes**, so the device the machine runs is the device the sim ran. Per-SRAM slices are
+  also emitted as an optional direct-load *bypass* (§3.5).
 
 ### 3.4 What the assembler owns
 
@@ -127,12 +133,15 @@ combinations before a single bit is burned.
 
 ### 3.5 Boot path vs. simulation load
 
-On hardware, a boot loader copies the EEPROM contents into the WCS SRAM at power-on
-(D-03, R-CTRL-3). In simulation the same image is loaded directly into the WCS model
-via `$readmemh`. Either way the running control store holds identical bytes — the
-boot-copy is modeled only when its fidelity is itself under test (a harness
-parameter selects: default direct `$readmemh`, or opt-in the modeled boot-copy
-circuit).
+On hardware, the boot loader copies the single EEPROM image out to the 13 control-store
+SRAMs at power-on — the 11 WCS chips and the 2 opcode-map chips — then releases the CPU
+(D-03, D-43, R-CTRL-3). **Simulation loads that same single image and runs the same
+loader**, so the boot-copy circuit is exercised on every functional run (D-43): the image
+the machine is burned with is the image the sim fans out (R-SIM-2), with no separately
+maintained per-SRAM slices to drift. A direct per-SRAM `$readmemh` **bypass** is available
+as an opt-in to isolate a loader fault from a microcode fault, but it is **not** the
+default — putting the loader in the standard path means a loader regression is caught by
+the ordinary functional suite (R-SIM-4), not only by a dedicated test.
 
 ---
 
