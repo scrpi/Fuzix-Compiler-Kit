@@ -27,16 +27,16 @@ module ttl_574 (
     // run unrepresentative.
     initial q_int = 8'h00;
 
+    // clk->Q tpd via intra-assignment delay: Icarus honors `#`, Verilator ignores
+    // it (zero-delay) — so the same cell serves both engines. A `specify` clk->Q
+    // path drove Q to x under -gspecify here (a flop has no combinational CLK->Q
+    // path, and the path interacts badly with the tristate output assign).
+    // Standardizing sequential-cell timing (specify edge paths / SDF vs this) is an
+    // open methodology question — toolchain.md §10.3 / §10.4.
     always @(posedge CLK)
-        q_int <= D;
+        q_int <= #8 D;
 
     assign Q = OE_n ? 8'bz : q_int;
-
-    specify
-        // Edge-sensitive clk->Q path (a flop has no *combinational* CLK->Q path;
-        // the earlier full-path form `(CLK *> Q)` drove Q to x under -gspecify).
-        (posedge CLK *> (Q : D)) = 8.0;   // tpd clk -> Q (typ; full conn, 1->8)
-        $setup(D, posedge CLK, 5.0);      // documented; not enforced by Icarus
-        $hold(posedge CLK, D, 0.0);
-    endspecify
+    // setup/hold (D->CLK) are a worst-case/STA concern, toolchain.md §5.2 —
+    // not enforced in this functional model (Icarus has no timing-check tasks).
 endmodule
