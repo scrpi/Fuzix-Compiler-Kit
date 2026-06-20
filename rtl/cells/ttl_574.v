@@ -21,6 +21,12 @@ module ttl_574 (
 );
     reg [7:0] q_int;
 
+    // Sim power-on / reset state (R-CPU-7): a real FF is X until reset, but the
+    // machine comes up in a defined state (front-panel deposit / reset). Without
+    // this the benchmark accumulator stays X and never toggles, making the timed
+    // run unrepresentative.
+    initial q_int = 8'h00;
+
     always @(posedge CLK)
         q_int <= D;
 

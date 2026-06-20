@@ -22,27 +22,15 @@ path. Cells live in [rtl/cells/](../../rtl/cells/).
 > 74AHCT/ACT placeholders, **not** yet datasheet-sourced (toolchain.md §10.3).
 > The benchmark measures simulator *throughput*, not timing correctness.
 
-## Running (in WSL, repo mounted at /mnt/z)
+## Running (WSL, repo cloned at ~/dev/blip)
 
 ```bash
-cd /mnt/z/dev/blip
-
-# --- Icarus: timed gate-level run ---
-iverilog -g2012 -gspecify -o /tmp/tb_icarus \
-    sim/bench/tb_icarus.v sim/bench/add_accum.v rtl/cells/ttl_283.v rtl/cells/ttl_574.v
-time vvp /tmp/tb_icarus
-
-# --- Verilator: zero-delay fast run (build off the network share, in /tmp) ---
-verilator --cc --exe --build -j 0 --Mdir /tmp/vbench \
-    --top-module add_accum \
-    -Irtl/cells \
-    rtl/cells/ttl_283.v rtl/cells/ttl_574.v sim/bench/add_accum.v \
-    sim/bench/bench_verilator.cpp -o bench_verilator
-/tmp/vbench/bench_verilator
+bash sim/bench/run.sh
 ```
 
-Icarus rate = `N` (in `tb_icarus.v`) ÷ the `real` time from `time vvp`.
-Verilator prints its own Mcyc/s.
+`run.sh` builds both engines (into `/tmp`, off the repo tree) and prints each
+rate: Icarus = `N` (parameter in `tb_icarus.v`) ÷ wall-clock; Verilator prints
+its own Mcyc/s.
 
 ## Status
 

@@ -20,7 +20,7 @@ module ttl_283 (
     input  [3:0] B,
     input        C0
 );
-    assign {C4, S} = A + B + C0;
+    assign {C4, S} = {1'b0, A} + {1'b0, B} + {4'b0, C0};
 
     specify
         (A  *> S)  = 6.0;
