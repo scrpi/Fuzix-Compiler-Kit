@@ -48,6 +48,66 @@ optimizing C compiler emit good code, and can I still build it on a bench from
 - [docs/decision-log.md](docs/decision-log.md) — chronological record of
   decisions and their rationale. *(Non-normative.)*
 
+## Repository layout
+
+```
+blip/
+├── README.md  AGENTS.md  CLAUDE.md  Makefile
+├── docs/
+│   ├── (Tier 1–3 normative + decision-log.md)
+│   └── reference/          # datasheets/, isa-comparison.md, d41-isa-refinement.md, *.svg
+│
+├── hdl/              ◀ SOURCE OF TRUTH #1 — structural Verilog (the CPU netlist = the BOM)
+│   ├── cells/              # 74-series library, one model per chip + specify timing
+│   ├── cpu/               # datapath, alu, registers, mmu, sequencer, control-store
+│   ├── boot/              # boot-copy loader, reset
+│   └── cpu.v              # top: ports = the functional interface ONLY (R-SIM-3)
+│
+├── microcode/        ◀ SOURCE OF TRUTH #2 — the control-store image (data + its validator)
+│   ├── control_word.toml  # the field definition (the spine)
+│   ├── check_fields.py    # field-def validator — lives next to control_word.toml
+│   ├── src/               # the .uc routines
+│   └── build/ (gitignored)  # the EEPROM image: control store ONLY (WCS + map SRAMs)
+│
+├── tools/            # HOST-side tooling
+│   ├── uasm/              # microcode assembler (uasm.py); args: <field-def> <source>, with defaults
+│   ├── cc/               # C compiler backend (submodule, later)
+│   ├── asm/  link/       # ISA assembler + linker (R-BUILD-1/2)
+│   └── viz/              # netlistsvg / DigitalJS / GTKWave generators (P3)
+│
+├── sim/              # verification — two engines, one source
+│   ├── tb/               # testbenches per module (+ the system tb)
+│   ├── models/           # bus-attached peripheral models: uart, timer, memory, system-ROM… (P4)
+│   ├── tests/            # ISA functional programs + pinned vectors
+│   ├── sta/              # static timing analysis
+│   └── bench/            # engine benchmark
+│
+├── src/              # software that RUNS on blip (target)
+│   ├── monitor/          # bootstrap/monitor → its OWN system ROM (NOT the microcode ROM)
+│   ├── lib/  examples/  fuzix/(later)
+│
+├── hw/               ◀ PHYSICAL — one subdir per board
+│   ├── <board>/          # schematic/  pcb/  bom/   gerbers/(gitignored)
+│   └── …                 # e.g. cpu-card, front-panel, memory, io, backplane
+```
+
+Peripherals (a UART, timer, storage) are deliberately **not** in `hdl/`: the CPU
+module's only ports are the functional interface (R-SIM-3), so peripherals live as
+bus-attached models in `sim/models/` and as physical parts in `hw/`. The microcode
+EEPROM stores **only** the control store; the firmware monitor is a separate system
+ROM in the memory map (D-31).
+
+**Two standing rules:**
+
+1. **Generated artifacts are never committed.** Only the `hdl/` netlist and the
+   `microcode/` source/field-definition are tracked; *everything derived* — the
+   EEPROM image, simulation outputs, schematics, waveforms, generated views, the
+   BOM — is rebuilt, never stored in git (toolchain.md P1/P3).
+2. **New artifacts go in an existing top-level domain, never a new top-level
+   folder.** The domains above (`docs hdl microcode tools sim src hw`) are
+   exhaustive by design; a new kind of file belongs inside one of them. This keeps
+   the top level stable as the project grows.
+
 ## Status
 
 Early design. The goals are settled; the ISA register model and addressing modes
