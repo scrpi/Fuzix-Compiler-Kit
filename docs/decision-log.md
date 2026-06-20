@@ -73,6 +73,7 @@
 | D-40 | Opcode→microinstruction map (boot-loaded SRAM, pipelined) for dispatch; supersedes D-24's direct microaddress formation | Decided |
 | D-41 | ISA flattened: indexed postbyte removed; two specified pages — page 0 (hot) + page 1 (cold, `0x80` prefix); locks Option B (µPC 12→13 bit / 8192-word store, `DISPATCH_PAGE` 1 bit) | Decided |
 | D-42 | Microcode subroutines: `CALL`/`RETURN` micro-ops + a single return-address register (`µSR`); `USEQ_OP` 6→8 codes | Decided |
+| D-43 | Single boot EEPROM fanned out to the 13 control-store SRAMs (chip-major slicing); microcode toolchain realized (assembler + field-definition); boot-copy in the standard sim path | Decided |
 
 ---
 
@@ -1243,6 +1244,93 @@ unaffected. **Touches (applied):** microcode.md §2 (`USEQ_OP` code list 6→8 �
 `CALL`/`RETURN`; `µSR` added to the next-`µPC` mux), §3.1 (`USEQ_OP` role "6 of 8" → "8 of 8
 codes used"). **Follow-on (pending):** microcode.md §5 (a worked shared-EA subroutine) and
 hardware.md §4 (the `µSR` register + its mux input) when the next datapath pass lands.
+
+---
+
+## D-43 — Single boot EEPROM fanned out to the 13 control-store SRAMs; microcode toolchain realized
+**Status:** Decided (2026-06-20)
+**Supersedes:** —
+**Superseded by:** —
+**Context:** The microcode toolchain (R-BUILD-3) and the boot-copy circuit (D-03) were
+specified but unbuilt. Implementing the assembler forced two realization questions, plus a
+spec detail that was still open:
+- *Output shape.* toolchain.md §3.3 described the burn set as **eleven** separate WCS device
+  images plus the map image(s) — implying one EEPROM per SRAM.
+- *Where the boot-copy sits in simulation.* toolchain.md §3.5 made the modeled boot-copy
+  **opt-in**, defaulting simulation to load the SRAM models directly via `$readmemh` — leaving
+  the loading circuit outside the standard test path.
+- *Bit positions.* microcode.md §3 fixed the 88-bit word's field widths and SRAM grouping but
+  left each field's exact **bit offset** "to firm up in simulation."
+**Decision:**
+- **One EEPROM image, not thirteen.** The assembler emits a **single** image holding all 13
+  control-store SRAMs — the 11 WCS chips (the 88-bit word) and the 2 opcode→start-address map
+  chips (D-40; 512 × 13-bit `µPC`, split low byte + high 5 bits). At power-on the **boot loader
+  fans this one image out** to the 13 SRAMs, then releases the CPU. One reflashable part.
+- **Chip-major, uniform-segment layout → a trivial loader.** The image is 13 contiguous
+  2¹³-byte segments (segment *k* = SRAM *k*'s full contents), so the loader is pure binary
+  address-slicing: `eeprom_addr = (segment << 13) | sram_addr`. A 17-bit counter walks the
+  image; its high 4 bits select the chip (a 4→16 decoder strobes one SRAM's `/WE`), its low 13
+  bits are the SRAM address broadcast to all. Total 13 × 8192 = 106 496 bytes — the low
+  region of a **128 KB control-store EEPROM** (the design size; the physical part is a BOM
+  choice the toolchain need not know). Map segments are zero-padded above their 512 used
+  entries; unused bytes are `0x00`, the inert NOP control word, so an unprogrammed
+  microaddress is harmless.
+- **The single image is the simulation input, and the loader is in the standard path.**
+  Simulation loads the one image into the EEPROM model and runs the **same** loader to populate
+  the SRAMs, so the boot-copy circuit is exercised on every functional run (reversing §3.5's
+  opt-in default). A direct per-SRAM `$readmemh` *bypass* is retained only to isolate a loader
+  fault from a microcode fault; it is not the default.
+- **A field-definition file fixes the bit-level encoding.** The 88-bit word's per-field bit
+  positions and symbolic value codes are fixed in one machine-readable field-definition file
+  from which the assembler's bit-packer is generated (toolchain.md §3.1). Convention: each
+  field's `0` code is its inert state, so the all-zero control word is a safe NOP.
+**Why:**
+- *One reflashable image, literally (R-CTRL-3).* A single EEPROM is the strongest form of
+  "field-reprogrammable microcode": one part to reflash, one artifact to version.
+- *What simulation verifies is what the machine runs (R-SIM-2).* The sim loads the same single
+  image the EEPROM is burned with and fans it out through the same loader, so the burned device
+  and the simulated device hold identical bytes by construction — no separate slices to drift.
+- *The loading circuit is itself tested (R-SIM-1, R-SIM-4).* Putting the boot-copy in the
+  standard path makes a loader regression fail the ordinary suite, not only a dedicated test;
+  the loader is discrete hardware (R-HW-1) and must be verified like the rest.
+- *A legible, minimal loader (R-HW-4, G5).* Uniform segments collapse the loader to a counter +
+  one decoder + shared buses — a circuit readable off the board. The ~15 KiB of zero-padded map
+  segment buys that simplicity; part count is a non-goal, so the priority order rewards the trade.
+- *Part-independent, substitutable boot store (R-CTRL-1, R-HW-3).* The image targets a 128 KB
+  control-store EEPROM (support logic, exempt from R-HW-1) and the assembler is told nothing
+  more — the physical part is a BOM choice, swappable without touching the toolchain. The
+  microcode occupies the low ~104 KiB; the bootstrap/monitor (hardware.md §7) shares the spare.
+  (The current build populates it with an in-stock 512 KB part, upper address pins grounded; a
+  true 128 KB part drops in unchanged.)
+- *Single source of truth for the word (R-BUILD-3).* Generating the bit-packer from one field
+  definition keeps the spec, the assembler, and the doc table from drifting.
+**Validation:** A behavioral sim (EEPROM + loader + 13 SRAM models) loads the single image, runs
+the loader, and verifies every SRAM byte equals `image[k·8192 + a]` — all 106 496 bytes
+reconstruct (`sim/loader`). The assembler round-trips every packed microword and map entry through
+the emitted image.
+**Alternatives weighed:**
+- **Eleven WCS EEPROMs + map EEPROM(s), each loaded directly** (the prior §3.3 shape) — rejected:
+  more parts to burn and version, and it invites per-chip slices that can drift from the burned
+  set; the single image removes both.
+- **Default direct `$readmemh` of per-SRAM slices in sim, boot-copy opt-in** (prior §3.5) —
+  rejected: it keeps the loading circuit out of the regression path, so a loader fault hides until
+  a dedicated test runs. The slices survive only as an opt-in bypass.
+- **Word-major / interleaved image** (byte *k* of every word contiguous) — rejected: the chip
+  index would fall on a mod-11 boundary, needing a mod-N counter and comparator; chip-major makes
+  it free binary slicing.
+- **Smaller map segments (512, not 8192)** — rejected: non-uniform segment lengths reintroduce
+  per-chip special-casing in the loader to save ~15 KiB on a non-goal axis.
+**Notes:** The boot loader is currently a **functional** model; its structural 74-series form (a
+`'161` counter chain + a `'154` decoder) and datasheet timing are a later pass (toolchain.md §4.1),
+needed only for timing sign-off (R-SIM-1). Opcode **byte values are still unassigned** (D-41), so
+the opcode→address map is keyed by placeholder indices until that pass. **Touches (applied):**
+toolchain.md §2 (pipeline: one EEPROM image), §3.3 (outputs: single image + layout), §3.5 (boot
+path / sim load: loader in the standard path, slices as bypass); hardware.md §4 (boot-copy: one
+EEPROM fanned out by chip-major slicing), §8 (boot-copy row); microcode.md §3 (bit positions fixed
+by the field definition). **Creates:** `microcode/` (`control_word.toml` field definition,
+`check_fields.py`, `uasm.py` assembler, `blip.uasm` first routines), `rtl/mem/{rom,sram}.v`,
+`rtl/ctrl/boot_loader.v`, `sim/loader/` (testbench + runner). **Follow-on (pending):** structural
+loader + datasheet timing; opcode byte-value assignment.
 
 Tracked in the docs' own "Open questions" sections; the load-bearing ones:
 
