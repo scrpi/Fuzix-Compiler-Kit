@@ -7,8 +7,19 @@
 > that informed a choice** — kept here so the normative docs stay
 > architecture-name-free.
 >
-> Each entry: a stable ID, status, the question at stake, the decision, the
-> requirement-grounded rationale, and (where relevant) alternatives/influences.
+> Each entry has a fixed set of fields: a stable **ID**, **Status**, **Supersedes**,
+> **Superseded by**, the **Context** (question at stake), the **Decision**, the
+> requirement-grounded rationale (**Why**), and — where relevant — **Validation** /
+> **Alternatives** / **Influences** / **Notes**.
+>
+> **Immutability.** Once an entry is committed its fields are **locked** — the permanent
+> record, not edited or re-argued — with **one exception: `Superseded by`**, which may be
+> appended retroactively when a later decision supersedes this one (supersession is
+> forward-looking, so an entry cannot name its own successor when written). Any other
+> change to a committed entry requires explicit owner approval. **`Supersedes`** names the
+> earlier decision(s) this one replaces or amends; **`Superseded by`** names the later
+> decision(s) that replace or amend it; both are `—` when none, and a link is *partial*
+> when only one aspect is affected (the link says which).
 >
 > **Goal numbers** in older entries reflect the numbering current when they were
 > written; [goals.md](goals.md) is authoritative for current numbers. Entries are
@@ -64,6 +75,8 @@
 
 ## D-01 — 10 MHz is an aspiration, not a hard gate
 **Status:** Decided (2026-06-17)
+**Supersedes:** —
+**Superseded by:** —
 **Context:** G8 sets a 10 MHz target; we needed to know how binding it is when it
 collides with other goals.
 **Decision:** Treat 10 MHz as an aspiration; the achievable clock is whatever the
@@ -74,6 +87,8 @@ R-CLK-1).
 
 ## D-02 — Logic family: 74AHCT
 **Status:** Decided (2026-06-17)
+**Supersedes:** —
+**Superseded by:** D-37 *(partial — logic-family rule relaxed from a single 74AHCT family to 74AHCT SSI + 74ACT MSI; the AHCT choice for SSI stands)*
 **Context:** The core must be one discrete-logic family (R-HW-1), fast enough for
 the clock target and level-compatible across the machine (R-HW-2).
 **Decision:** Build the core from 74AHCT.
@@ -82,6 +97,8 @@ interoperates with slower glue and memory (R-HW-2).
 
 ## D-03 — Microcode in a writable control store, ROM-loaded at boot
 **Status:** Decided (2026-06-17)
+**Supersedes:** —
+**Superseded by:** —
 **Context:** Control must be developable/correctable (R-CTRL-1, R-CTRL-3) yet fast
 at runtime (R-CTRL-2).
 **Decision:** Microcode runs from fast SRAM (a writable control store); a small
@@ -93,6 +110,8 @@ boots unattended (R-CTRL-3).
 ## D-04 — Extend memory by paged translation, flat per-process view
 **Status:** Decided (2026-06-17) — supersedes an initial "accept window-banking
 with near/far pointers" idea.
+**Supersedes:** — *(an earlier idea, not a logged decision)*
+**Superseded by:** —
 **Context:** Going past 64 KB (R-MEM-2) must not corrupt the C pointer model
 (R-MEM-1, R-ISA-*).
 **Decision:** Use paged address translation so each process sees a flat 16-bit
@@ -103,6 +122,8 @@ to the compiler and break R-MEM-1.
 
 ## D-05 — ISA shape: register-memory, stack-relative + indexed
 **Status:** Decided (2026-06-17)
+**Supersedes:** —
+**Superseded by:** —
 **Context:** Be a genuine C target (G2 → R-ISA-1…8).
 **Decision:** A small register file with a 16-bit accumulator and index registers;
 stack-relative displacement addressing for locals; indexed / auto-inc / accumulator-
@@ -115,6 +136,8 @@ STM8 register shape.
 ## D-06 — Toolchain: a new SDCC backend
 **Status:** Decided (2026-06-17) — reworded goal #3 from "SDCC" to "a real
 optimizing C compiler; plan: SDCC".
+**Supersedes:** —
+**Superseded by:** —
 **Context:** Need an optimizing C compiler that targets BLIP and can build the OS
 (R-BUILD-1); BLIP is a clean-sheet ISA, so *some* backend must be written.
 **Decision:** Write a new SDCC backend; document GCC as the heavier alternative.
@@ -126,6 +149,8 @@ that FUZIX builds its 6809 targets with GCC is an availability accident — no S
 
 ## D-07 — Register model: `A B D X Y SP PC CC`; no `U`, no `DP`
 **Status:** Decided (2026-06-17)
+**Supersedes:** —
+**Superseded by:** —
 **Context:** Choose the register file for the C target (R-ISA-3/6/7).
 **Decision:** Two 8-bit accumulators `A`/`B` pairing into a 16-bit `D`; two 16-bit
 index registers `X`/`Y`; a stack pointer `SP`; `PC`; `CC`. No second user stack
@@ -138,6 +163,8 @@ A 16-bit `SP` displacement removes any need for a frame-pointer register (R-ISA-
 
 ## D-08 — Privilege: supervisor/user with banked `SSP`/`USP`
 **Status:** Decided (2026-06-17)
+**Supersedes:** —
+**Superseded by:** —
 **Context:** Two motivations: (1) a clear separation between kernel and user-space
 execution, and (2) clean, robust plumbing for interrupts and system calls.
 **Decision:** Two CPU modes (a `CC.M` mode bit); the stack pointer is banked
@@ -152,12 +179,16 @@ not per-page protection.
 
 ## D-09 — Byte order: little-endian
 **Status:** Decided (2026-06-17)
+**Supersedes:** —
+**Superseded by:** —
 **Context:** Byte order is arbitrary but has toolchain consequences (R-BUILD-1).
 **Decision:** Little-endian.
 **Why:** Minimizes friction in the C backend (R-BUILD-1).
 
 ## D-10 — Realization: simulation-first, then hardware
 **Status:** Decided (2026-06-17)
+**Supersedes:** —
+**Superseded by:** —
 **Context:** Validate the ISA and microcode before committing to hardware.
 **Decision:** Prove v1 in a logic simulator, then build hardware against the sim
 as a reference model.
@@ -166,6 +197,8 @@ correctness leads and the real clock is measured later (R-CLK-1).
 
 ## D-11 — MMU sizing: 8 KB pages, 24-bit physical (16 MB)
 **Status:** Decided (2026-06-17)
+**Supersedes:** —
+**Superseded by:** —
 **Context:** Pick translation granularity and physical size (R-MEM-2, R-MEM-6).
 **Decision:** 8 KB pages; 24-bit physical address = 16 MB (2048 pages). A 16-bit
 logical address therefore has 8 page slots.
@@ -175,6 +208,8 @@ swapping (R-MEM-2); 8 KB balances internal waste against translation-table size
 
 ## D-12 — Add goal G6: a fixed external CPU/system interface
 **Status:** Decided (2026-06-17)
+**Supersedes:** —
+**Superseded by:** —
 **Context:** We wanted the CPU to be a self-contained module with a stable
 boundary to the rest of the system.
 **Decision:** Added goal G6 — functional peripherals attach only through a fixed,
@@ -184,6 +219,8 @@ memory/I/O/panel get one well-understood place to attach.
 
 ## D-13 — Two interfaces: functional + privileged debug
 **Status:** Decided (2026-06-17)
+**Supersedes:** —
+**Superseded by:** —
 **Context:** Displaying internal registers (R-DBG-1) needs more than the functional
 interface exposes, but R-IF-1 forbids functional peripherals from touching CPU
 internals.
@@ -195,6 +232,8 @@ contract stays clean.
 ## D-14 — MMU is internal to the CPU (external bus is physical)
 **Status:** Decided (2026-06-17) — supersedes an earlier lean toward an external
 MMU.
+**Supersedes:** — *(an earlier lean, not a logged decision)*
+**Superseded by:** —
 **Context:** Where does the translation unit sit relative to the G6 boundary? It
 affects timing, the interface, and the front panel.
 **Decision:** Translation and protection are inside the CPU; the external bus
@@ -213,6 +252,8 @@ physical).
 
 ## D-15 — Reset state: identity map + deterministic CPU state
 **Status:** Decided (2026-06-17)
+**Supersedes:** —
+**Superseded by:** —
 **Context:** The machine must be runnable before software configures translation
 (R-DBG-3, first bring-up), and reset must be deterministic.
 **Decision:** On reset, translation defaults to a transparent identity map of the
@@ -224,6 +265,8 @@ restores easy "MMU-less" bring-up that an internal MMU (D-14) would otherwise lo
 
 ## D-16 — MMU control via privileged `LDMMU`/`STMMU`
 **Status:** Decided (2026-06-17)
+**Supersedes:** —
+**Superseded by:** —
 **Context:** How does software program the now-internal translation (R-CPU-4,
 R-MEM-5)?
 **Decision:** The page table is an internal privileged register file, written by
@@ -234,6 +277,8 @@ map set follows the privilege mode (R-MEM-5).
 
 ## D-17 — Documentation method: three-tier model + AGENTS.md
 **Status:** Decided (2026-06-17)
+**Supersedes:** —
+**Superseded by:** —
 **Context:** We wanted self-justifying, traceable rationale rather than appeals to
 authority or cargo-culting.
 **Decision:** Goals → requirements (stable IDs, each `⟸` a goal) → specs (which
@@ -243,6 +288,8 @@ influences are quarantined (e.g. to this log). Recorded in [AGENTS.md](../AGENTS
 
 ## D-18 — Protection: map-isolation + privileged instructions; per-page is a non-goal
 **Status:** Decided (2026-06-17)
+**Supersedes:** —
+**Superseded by:** —
 **Context:** Given D-08's mode bit, how much protection to *enforce* in hardware.
 Three layers were on the table: (A) banked stacks + mode bit [D-08], (B)
 instruction-level privilege, (C) per-page access protection (read-only/no-access
@@ -262,6 +309,8 @@ and it is not needed for isolation.
 
 ## D-19 — Calling convention: register args, `Y` callee-saved
 **Status:** Decided (2026-06-17)
+**Supersedes:** —
+**Superseded by:** —
 **Context:** Fix the one stable ABI (R-ABI-1) and resolve the R-ABI-2 ↔ R-ABI-4
 tension over a finite register file.
 **Decision:** Reentrant, stack-based locals (`n,SP`, no frame pointer). Leading
@@ -284,6 +333,8 @@ the hidden-pointer path so `Y` stays unambiguously preserved.
 
 ## D-20 — Instruction encoding & the full 256-entry opcode table
 **Status:** Decided (2026-06-17)
+**Supersedes:** —
+**Superseded by:** D-21 *(partial — opcode encoding: prefix pages → single 256-opcode page)*; D-22 *(partial — interrupt & mode model: drop FIRQ, move the mode bit into `CC`)*
 **Context:** With the register model (D-07), addressing modes, and calling
 convention (D-19) settled, freeze the full opcode table.
 **Decision:** A single 256-opcode page (no prefix pages — see D-21): regular
@@ -311,6 +362,8 @@ bus count (hardware.md §9) is decided.
 ## D-21 — Single opcode page (no prefix pages)
 **Status:** Decided (2026-06-17) — supersedes the initial prefix-page encoding under
 D-20.
+**Supersedes:** D-20 *(partial — opcode-page structure: prefix pages → single 256-opcode page)*
+**Superseded by:** —
 **Context:** The first encoding used a primary page plus two prefix pages
 (`0x10`/`0x11`) for long branches, wide compares, and system/MMU ops. Keep that, or
 hard-limit to one 256-opcode page?
@@ -335,6 +388,8 @@ design.
 ## D-22 — Drop FIRQ; mode bit in CC; minimal interrupt frame
 **Status:** Decided (2026-06-17) — supersedes D-20's mode-location choice; realigns
 with D-08 (which always had the mode in `CC`).
+**Supersedes:** D-20 *(partial — interrupt & mode-bit model: drop FIRQ/`E`-bit, move the mode bit into `CC`)*
+**Superseded by:** —
 **Context:** The early design carried a fast interrupt `FIRQ` (mask `CC.F`, minimal
 frame) and an `E` "entire-frame" bit, both inherited from the 6809 influence without
 a requirement behind them. `R-CPU-3` calls only for a maskable IRQ + timer + NMI.
@@ -357,6 +412,8 @@ case a second interrupt level is ever justified.
 
 ## D-23 — Adopt `ADCD`/`SBCD` and `D` multi-bit shifts
 **Status:** Decided (2026-06-18)
+**Supersedes:** —
+**Superseded by:** —
 **Context:** A study of another homebrew TTL CPU (Magic-1) surfaced two capabilities
 BLIP lacked that a C target benefits from: 16-bit add/subtract **with carry-in**, and
 a multi-bit shift of the 16-bit accumulator. (See the influence note below.)
@@ -388,6 +445,8 @@ not its justification; the requirements above are.
 
 ## D-24 — Dispatch by microaddress formation (no mapping PROM)
 **Status:** Decided (2026-06-18)
+**Supersedes:** —
+**Superseded by:** —
 **Context:** hardware.md §4 listed "dispatch on `IR`" as a next-address capability but
 not its implementation; working through the fetch/decode path raised whether the
 opcode→microroutine selection should be a mapping PROM.
@@ -422,6 +481,8 @@ instruction (opcode, postbyte-mode).
 
 ## D-25 — Assembly notation house style
 **Status:** Decided (2026-06-18)
+**Supersedes:** —
+**Superseded by:** —
 **Context:** BLIP began with a 6809-style notation (register baked into the mnemonic —
 `LDA`, `SUBA`; `#imm` immediates; bare `addr16`; `n,X` indexed). A column-by-column
 comparison against Z80, STM8, 6502, Magic-1, 8080, and 8086 (non-normative
@@ -457,6 +518,8 @@ bracket-memory) — sources of the spelling, not its justification.
 
 ## D-26 — Strengthen G7 (ISA fully in microcode) and reprioritise
 **Status:** Decided (2026-06-18)
+**Supersedes:** —
+**Superseded by:** —
 **Context:** G7 and R-CTRL-1/3 already said the instruction set could be "developed,
 corrected, and extended without rewiring," but framed it as bench-time editing of
 *decoding/sequencing*. Ben wants the stronger property as a first-class goal: the ISA
@@ -487,6 +550,8 @@ which outranks all three.
 
 ## D-27 — Renumber goals to priority order
 **Status:** Decided (2026-06-18)
+**Supersedes:** —
+**Superseded by:** D-32 *(partial — its renumber-the-log approach; the log is now frozen rather than retroactively renumbered)*
 **Context:** After D-26 reprioritised the goals, the goal *numbers* no longer matched
 their priority rank — confusing, since the numbering is cited throughout the docs.
 **Decision:** Renumber so the number *is* the priority rank. Mapping `G5↔G7` and `G6↔G8`
@@ -503,6 +568,8 @@ the live design, not its numbering history.
 
 ## D-28 — Memory-mapped I/O in a physical I/O page (no separate I/O space)
 **Status:** Decided (2026-06-18)
+**Supersedes:** —
+**Superseded by:** —
 **Context:** With the MMU internal and the external bus physical (D-14), we had to
 choose how peripherals are addressed: a separate I/O space — its own qualifier line
 and `IN`/`OUT` instructions — or memory-mapped into the ordinary address space.
@@ -536,6 +603,8 @@ translates to a physical address the system decodes to a peripheral.
 
 ## D-29 — Functional CPU/system interface
 **Status:** Decided (2026-06-18)
+**Supersedes:** —
+**Superseded by:** —
 **Context:** `R-IF-1…6` set the interface requirements; we needed to fix the concrete
 signalling. The privileged debug interface ([D-13](decision-log.md)) is deferred.
 **Decision:** Specify the functional interface in [interface.md](interface.md):
@@ -573,6 +642,8 @@ also removes the stale "fast interrupt" from `R-IF-3`, consistent with D-22.
 
 ## D-30 — Exception entry: auto-mask on entry, fixed pointer-slot vectors
 **Status:** Decided (2026-06-18)
+**Supersedes:** —
+**Superseded by:** —
 **Context:** D-29 fixed interrupts as fixed-vector / software-polled but left two
 details open: whether interrupt acceptance masks further interrupts, and how an
 exception reaches its handler.
@@ -601,6 +672,8 @@ resident common region (logical `0xFFE0–0xFFFF`).
 
 ## D-31 — Reset vector & physical memory map
 **Status:** Decided (2026-06-18)
+**Supersedes:** —
+**Superseded by:** —
 **Context:** isa.md §9 left open the reset-entry address, the reset `PC`/`SP` values,
 the exception vector-table location ([D-30](decision-log.md)), and where ROM/RAM/I/O
 sit in physical space. D-15 (identity-map boot) and D-28 (I/O page) constrain it.
@@ -648,6 +721,8 @@ bring-up (D-10).
 
 ## D-32 — Add goal G5 (legible component architecture); renumber G5–G8 → G6–G9
 **Status:** Decided (2026-06-18)
+**Supersedes:** D-27 *(partial — its renumber-the-log approach; the log is now frozen rather than retroactively renumbered)*
+**Superseded by:** —
 **Context:** Wanting discrete registers "so I can see them" exposed a property no goal
 captured: G1 permits standard SRAM, and blinkenlights only require register *values* be
 displayable — neither forbids collapsing architectural state into one opaque package.
@@ -670,6 +745,8 @@ index note; this supersedes D-27's renumber-the-log approach).
 
 ## D-33 — Discrete architectural registers (no SRAM register file)
 **Status:** Decided (2026-06-18)
+**Supersedes:** —
+**Superseded by:** —
 **Context:** The first structural choice for the internal datapath: how the register
 set is realized. (Bus count and the rest of the datapath follow from this plus the ALU
 and address path, not the other way around.)
@@ -688,6 +765,8 @@ ALU routing + address path. The earlier 1/2/3-bus cycle analysis becomes *eviden
 
 ## D-34 — High-level datapath architecture (16-bit core, two-bus, address incrementer)
 **Status:** Decided (2026-06-18)
+**Supersedes:** —
+**Superseded by:** D-35 *(partial — internal-bus naming/topology: result bus `R` → `Z`, the `RIGHT` source bus added)*; D-36 *(partial — off-bus address increment: the dedicated `PC`/`MAR` incrementer → `+1` counters on `PC`/`MAR`/`X`/`Y`)*
 **Context:** With discrete registers fixed (D-33), the internal datapath needed its
 high-level shape — and the **bus count was to fall out of that design**, not be picked
 first (the principle behind D-33).
@@ -722,6 +801,8 @@ width/format, pipeline depth) is hardware.md §9.
 
 ## D-35 — Rename internal buses: LEFT / RIGHT / Z
 **Status:** Decided (2026-06-18)
+**Supersedes:** D-34 *(partial — internal-bus naming: result bus `R` → `Z`; `LEFT`/`RIGHT` source naming)*
+**Superseded by:** —
 **Context:** The working datapath direction ([hardware.md](hardware.md) §2) adds a
 second, sparsely-driven ALU source bus named **RIGHT**. D-34's result bus was called
 **R**, which now reads ambiguously against RIGHT.
@@ -743,6 +824,8 @@ hardware.md and later specs use LEFT / RIGHT / Z.
 
 ## D-36 — Off-bus address increment: `+1` up-counters on PC/MAR/X/Y
 **Status:** Decided (2026-06-19)
+**Supersedes:** D-34 *(partial — address increment: the dedicated `PC`/`MAR` incrementer → off-bus `+1` counters on `PC`/`MAR`/`X`/`Y`, others via ALU + const-gen)*
+**Superseded by:** —
 **Context:** D-34's off-bus incrementer was left open in hardware.md §2 (keep / drop /
 post-on-Z), and the constant generator (`reg+const` via ALU → Z) overlapped its job. We
 needed to fix *which* registers get a dedicated incrementer, and how wide.
@@ -776,6 +859,8 @@ pre-decrement loops are hot).
 
 ## D-37 — Logic family refined: 74AHCT for SSI, 74ACT for MSI
 **Status:** Decided (2026-06-19)
+**Supersedes:** D-02 *(partial — logic family: single 74AHCT → 74AHCT for SSI + 74ACT for MSI)*
+**Superseded by:** —
 **Context:** D-02 chose **74AHCT** as the working family, but AHCT is an SSI-focused line —
 it carries gates, buffers, registers, and latches but **no MSI**: no synchronous counters
 (and no ALU/adder slices). The off-bus address counters (D-36) and the ALU need MSI parts.
@@ -795,6 +880,8 @@ two mix cleanly. Touches hardware.md §1/§2.1 and R-HW-2.
 
 ## D-38 — Microcode control-word format (80-bit horizontal control word)
 **Status:** Decided (2026-06-19)
+**Supersedes:** —
+**Superseded by:** D-39 *(control-word structure & width: 80-bit single-overlay / 10 SRAMs → 88-bit two clean sections / 11 SRAMs; the per-flag, `PC`-direct, and scratch findings carry forward)*
 **Context:** The datapath was settled (D-33/D-34/D-35/D-36) and dispatch by
 microaddress-formation was settled (D-24), but hardware.md §4/§9 still listed the
 control-word **width and field layout** as TBD. With the datapath fixed, the control word
@@ -898,6 +985,8 @@ non-normative working notes and have been removed now the width is settled.
 ## D-39 — Control word restructured into two clean sections (sequencer + datapath)
 **Status:** Decided (2026-06-20) — refines D-38 (the 80-bit single-overlay word, left
 frozen as committed history).
+**Supersedes:** D-38 *(control-word structure & width: 80-bit single-overlay / 10 SRAMs → 88-bit two clean sections (sequencer + datapath) / 11 SRAMs)*
+**Superseded by:** —
 **Context:** D-38's 80-bit word packed sequencing and datapath bits together: a
 `FORMAT`-overlaid 9-bit window held either the far-branch target (`WIDE_TARGET`) or the
 `CC`/MMU "SPECIAL" controls, and branching used a near/far pair (`UBR_NEAR` common + the
