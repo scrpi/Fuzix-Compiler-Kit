@@ -1,0 +1,16 @@
+# Generated microcode images — rebuilt from microcode/*.uasm by uasm.py.
+# The source of truth is the .uasm + control_word.toml, never the burned bytes.
+microcode/build/
+
+# Python
+__pycache__/
+*.pyc
+
+# Simulation artifacts (the sims build into /tmp, but guard the tree anyway)
+*.vcd
+*.fst
+*.vvp
+obj_dir/
+
+# Windows / WSL download metadata (alternate-data-stream sidecars)
+*:Zone.Identifier
