@@ -33,7 +33,9 @@ module ttl_574 (
     assign Q = OE_n ? 8'bz : q_int;
 
     specify
-        (CLK *> Q) = 8.0;                 // tpd clk -> Q (typ)
+        // Edge-sensitive clk->Q path (a flop has no *combinational* CLK->Q path;
+        // the earlier full-path form `(CLK *> Q)` drove Q to x under -gspecify).
+        (posedge CLK => (Q : D)) = 8.0;   // tpd clk -> Q (typ)
         $setup(D, posedge CLK, 5.0);      // documented; not enforced by Icarus
         $hold(posedge CLK, D, 0.0);
     endspecify
