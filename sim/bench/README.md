@@ -32,8 +32,22 @@ bash sim/bench/run.sh
 rate: Icarus = `N` (parameter in `tb_icarus.v`) ÷ wall-clock; Verilator prints
 its own Mcyc/s.
 
-## Status
+## Results (first run, 2026-06-20)
 
-First-draft scaffold — not yet run (the WSL toolchain install is the prerequisite).
-Expect to fix bring-up issues on the first run (e.g. Verilator tri-state / specify
-warnings); that iteration is the point of the benchmark.
+3-cell slice (two `ttl_283` + one `ttl_574`), WSL Ubuntu-24.04, Verilator 5.020 / Icarus 12:
+
+| Engine | Rate | Sanity |
+|--------|------|--------|
+| Verilator (zero-delay) | **~15.9 Mcyc/s** | `acc=0` ✓ (2e7 mod 256) |
+| Icarus (timed, `-gspecify`) | **~1.2 Mcyc/s** | `acc=128` ✓ (2e6 mod 256) |
+
+Confirms the two-engine strategy: Verilator clears the ≥1 MHz functional target by
+~16× and is ~13× faster than Icarus even on this tiny slice (the gap widens with
+design size). These are **3-cell** numbers — whole-CPU rates differ (Verilator stays
+fast; timed Icarus drops sharply, reinforcing that timing runs stay bounded,
+toolchain.md §5.1).
+
+Caveats: the flop clk→Q is modeled with an intra-assignment `#` delay (Icarus honors
+it; Verilator ignores it via `--no-timing`) rather than `specify` — sequential-cell
+timing methodology is open (toolchain.md §10.3/§10.4). Cell delay values are
+provisional (§10.3).
