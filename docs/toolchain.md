@@ -100,12 +100,14 @@ combinations (e.g. `MEM_OP` may not co-assert read and write, R-IF-2) live here 
 
 ### 3.2 Source language
 
-The source mirrors the worked-routine notation already in
-[microcode.md §5](microcode.md): one microword per line as symbolic `field=value`
-assignments, with `SEQ{…}` grouping the sequencer fields, labels for branch/call
-targets, and comments. With `CALL`/`RETURN` available (D-42), shared prologues
-(effective-address computation, push/pop) are written once and called, so the
-source stays DRY.
+The source is a **register-transfer notation** — `MAR <- X + SCR1`, not raw
+`field=value` — with **one statement per microword** (strict 1:1), so counting lines
+counts cycles. The assembler derives the control-word fields from the field definition
+(§3.1). The full grammar — operand/operator vocabulary, the memory/flag/sequencer
+clauses, and the realizability rules — is specified in
+**[microcode-source.md](microcode-source.md)** (`.uc` source files). With `CALL`/`RETURN`
+available (D-42), shared prologues (effective-address computation, push/pop) are written
+once and called, so the source stays DRY.
 
 ### 3.3 Outputs
 
