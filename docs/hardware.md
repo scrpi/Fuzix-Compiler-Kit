@@ -373,11 +373,11 @@ The minimum board to boot FUZIX to a shell (goal **G3**):
 - **Interrupts:** `IRQ`/`NMI` lines (see [isa §6](isa.md#6-system--privileged-behaviour-for-fuzix))
   with a simple priority/vectoring scheme; a small interrupt controller or
   daisy-chain. **TBD.**
-- **Boot ROM:** a single **128 KB control-store EEPROM** (D-43) holds both the microcode
-  image (the low ~104 KiB, for the WCS boot-copy, §4) and an initial bootstrap/monitor in its
-  spare upper region. The current build populates this with an in-stock **SST39SF040** (512 KB
-  flash) with its upper address pins (A17–A18) tied to ground; a true 128 KB part substitutes
-  directly — the design is not tied to the larger device.
+- **Boot ROM:** a small **system ROM** holding the firmware monitor/loader, mapped at the reset
+  entry `0x000000` (D-31) — what the CPU executes from after reset. This is a **separate device**
+  from the microcode control-store EEPROM (§4, D-43): that part holds **only** the control-store
+  image (the WCS + opcode-map SRAMs), is read solely by the boot-copy circuit, and stores nothing
+  else; the monitor ROM lives in the CPU's physical memory map.
 
 > **Open:** are these support chips (UART, CF/IDE, interrupt glue) acceptable as
 > non-CPU peripherals under G1's "support functions" allowance? (They were never

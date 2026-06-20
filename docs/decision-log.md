@@ -1302,9 +1302,12 @@ spec detail that was still open:
 - *Part-independent, substitutable boot store (R-CTRL-1, R-HW-3).* The image targets a 128 KB
   control-store EEPROM (support logic, exempt from R-HW-1) and the assembler is told nothing
   more — the physical part is a BOM choice, swappable without touching the toolchain. The
-  microcode occupies the low ~104 KiB; the bootstrap/monitor (hardware.md §7) shares the spare.
-  (The current build populates it with an in-stock 512 KB part, upper address pins grounded; a
-  true 128 KB part drops in unchanged.)
+  microcode occupies the low ~104 KiB; the remaining capacity is **unused** — this EEPROM holds
+  only the control-store image. (The firmware monitor/loader is a *separate* system boot ROM in
+  the physical memory map, D-31, not this part.) The current build populates it with an in-stock
+  512 KB part, upper address pins grounded; a true 128 KB part drops in unchanged.
+  *[Corrected 2026-06-21: this bullet originally said the monitor shared the spare — it does not;
+  the microcode EEPROM stores nothing but the control store.]*
 - *Single source of truth for the word (R-BUILD-3).* Generating the bit-packer from one field
   definition keeps the spec, the assembler, and the doc table from drifting.
 **Validation:** A behavioral sim (EEPROM + loader + 13 SRAM models) loads the single image, runs

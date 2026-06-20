@@ -1,7 +1,8 @@
 // Behavioral ROM — models the single boot EEPROM (the 128 KB control-store part,
 // D-03/D-43). Async (combinational) read — the boot loader only reads at power-on.
-// The microcode image occupies the low ~104 KiB; the rest holds the bootstrap/
-// monitor (hardware.md §7). The physical board may populate this with a larger
+// This EEPROM holds ONLY the control-store image (WCS + opcode-map SRAMs); its
+// spare capacity is unused (the firmware monitor/loader is a separate system ROM
+// in the memory map, D-31). The physical board may populate this with a larger
 // in-stock part whose upper address pins are grounded — it presents identically,
 // so the model stays at the 128 KB design size. FUNCTIONAL model; datasheet specify
 // timing is attached later (toolchain.md §10.3) when the boot-copy fidelity is
