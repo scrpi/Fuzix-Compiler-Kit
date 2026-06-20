@@ -244,20 +244,19 @@ section is the engine in outline.
   (a) increment, (b) jump to an opcode's microroutine (dispatch on `IR`),
   (c) conditionally branch on a selected flag/condition, and (d) return to the
   fetch routine. Built from counters/registers + a next-address mux.
-- **Dispatch — how `µPC` reaches a routine (concrete).** A routine is selected by
-  *forming the microaddress from instruction bits*, not by a lookup table: the opcode
-  in `IR` supplies the high bits of `µPC` (each opcode owns a fixed block of the
-  control store) and the within-routine step supplies the low bits, so "dispatch on
-  `IR`" is address wiring plus an increment — no decode memory in the path. The indexed
-  **postbyte** is treated the same way: its mode field is OR'd into a base microaddress
-  to land on the *shared* effective-address sub-routine, while its register-select field
-  rides along as a datapath mux setting, so one EA routine serves every index register.
-  There is deliberately **no mapping PROM/ROM** (and no separate lookup memory) on the
-  dispatch path: a non-volatile lookup would reintroduce the per-cycle access latency
-  that R-CTRL-2 — and the boot-copy of microcode into fast SRAM
-  ([decision-log](decision-log.md) D-03) — exist to remove. Dispatch indexes the same
-  fast WCS the rest of the microcode runs from, and routine placement (hence the "map")
-  lives in the patchable boot-copied image (R-CTRL-1, R-CTRL-2, R-CTRL-3).
+- **Dispatch — how `µPC` reaches a routine (concrete).** A routine is selected through an
+  **opcode→start-address map**: the opcode in `IR` indexes a small **boot-loaded SRAM**
+  whose 12-bit output is the routine's start microaddress, loaded into `µPC` (D-40,
+  superseding D-24's direct microaddress formation). Microroutines are placed **freely and
+  densely** in the WCS — no fixed per-opcode block, no word cap — and many opcodes can
+  share a routine by holding the same map entry. The map read is **pipelined into the fetch
+  cycle** (opcode→`IR`→map→registered start address) on a fast (~10 ns) SRAM, so dispatch
+  adds no steady-state cycle and the lookup stays off the cycle-time budget (R-CTRL-2). The
+  indexed **postbyte** dispatch is unchanged (D-24): its mode field is OR'd into the
+  microcode-supplied `NEXT_ADDR` base to land on the *shared* effective-address sub-routine,
+  its register-select riding along as a datapath mux setting, so one EA routine serves every
+  index register. Both the map SRAM and the WCS are loaded at reset by the boot-copy circuit
+  from EEPROM, so routine placement (the map) is patchable in the field (R-CTRL-1, R-CTRL-3).
 - **Control word:** wide (horizontal) so most datapath actions are one microstep;
   fields gate bus drivers, latch registers, select the ALU op, drive `MAR`/MMU,
   and assert memory read/write. **Decided (D-39, refining D-38):** an **88-bit /
@@ -272,9 +271,10 @@ section is the engine in outline.
   chase 10 MHz, and (b) lets microcode be patched at the bench instead of burning
   ROMs.
 - **Boot-copy circuit:** at power-on/reset, a small hardware state machine copies
-  the microcode image from a non-volatile **ROM/EEPROM** into the WCS SRAM, then
-  releases the CPU to run. (Independent of the CPU — it's just a counter + the
-  ROM + the SRAM + a little sequencing.) This is the mechanism behind goal G8's
+  the microcode image from a non-volatile **ROM/EEPROM** into the WCS SRAM **and the
+  opcode→start-address map SRAM** (D-40), then releases the CPU to run. (Independent of
+  the CPU — it's just a counter + the ROM + the SRAM + a little sequencing.) This is the
+  mechanism behind goal G8's
   "fast at runtime, hackable at the bench."
 - **Privilege & traps in microcode:** the user→supervisor switch on traps/
   interrupts (and its reversal on `RTI`), the `SSP`/`USP` bank select, the MMU

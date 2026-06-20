@@ -45,8 +45,9 @@ datapath op** — loop bodies and conditional-compute stay one cycle (§5).
 ## 2. The microsequencer
 
 The sequencer section's four fields *fully* determine the next µPC; nothing in the
-datapath section touches it. Next-microaddress is formed from instruction bits — **no
-mapping PROM** (D-24); the straight-line case is a free counter increment.
+datapath section touches it. The straight-line case is a free counter increment; opcode
+dispatch indexes a boot-loaded **opcode→start-address map** SRAM (D-40, superseding D-24's
+direct microaddress formation).
 
 ```
    IR (opcode/postbyte)   CC flags + microconditions
@@ -57,9 +58,9 @@ mapping PROM** (D-24); the straight-line case is a free counter increment.
         |                 +--------+---------+
         |                          | taken?
    +----v----+   +-----------------v---------------------+
-   |  high   |   |  next-uPC mux  (selected by USEQ_OP)  |
-   |  uPC <- |-->|  uPC+1 | NEXT_ADDR | IR-formed |       |
-   |  IR     |   |        | NEXT_ADDR|postbyte | trap-ent |
+   | opcode  |   |  next-uPC mux  (selected by USEQ_OP)  |
+   | map SRAM|-->|  uPC+1 | NEXT_ADDR | map[IR] |         |
+   | [IR]    |   |        | NEXT_ADDR|postbyte | trap-ent |
    +---------+   +-------------------+-------------------+
                                      |
                                +-----v-----+   registered
@@ -76,9 +77,11 @@ mapping PROM** (D-24); the straight-line case is a free counter increment.
     `uPC+1`.
   - **`JUMP`** — unconditional `uPC ← NEXT_ADDR` (= `BRANCH` on the always-true condition;
     kept as its own code for clarity).
-  - **`DISPATCH_IR`** — `uPC ← {opcode from IR, low zeros}`: the opcode is wired into the
-    high µPC bits, each opcode owning a fixed WCS block (pure address formation, no lookup,
-    D-24). `NEXT_ADDR` is unused.
+  - **`DISPATCH_IR`** — `uPC ← map[IR]`: the opcode in `IR` indexes a boot-loaded
+    **opcode→start-address map** SRAM whose output is the routine's start microaddress
+    (D-40, superseding D-24's direct formation). Routines are placed freely/densely — no
+    fixed per-opcode block — and the map read is pipelined into the fetch cycle (~10 ns
+    SRAM), adding no steady-state cycle. `NEXT_ADDR` is unused.
   - **`DISPATCH_POSTBYTE`** — `uPC ← NEXT_ADDR` with the postbyte mode field OR'd into its
     low bits, so `NEXT_ADDR` is the **EA-routine base** and one shared routine serves every
     index register (`PB_RR_MUX`, in the datapath section, carries the register select).

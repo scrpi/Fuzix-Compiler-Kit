@@ -70,6 +70,7 @@
 | D-37 | Logic family refined: 74AHCT (SSI) + 74ACT (MSI) — AHCT has no counters/ALU | Decided |
 | D-38 | Microcode control-word format: 80-bit horizontal control word (10 SRAMs, fully self-describing); one scratch sufficient for the ISA core (two retained) | Decided |
 | D-39 | Control word restructured into two clean chip-aligned sections (sequencer + datapath), single 12-bit next-address; 88-bit / 11 SRAMs | Decided |
+| D-40 | Opcode→microinstruction map (boot-loaded SRAM, pipelined) for dispatch; supersedes D-24's direct microaddress formation | Decided |
 
 ---
 
@@ -446,7 +447,7 @@ not its justification; the requirements above are.
 ## D-24 — Dispatch by microaddress formation (no mapping PROM)
 **Status:** Decided (2026-06-18)
 **Supersedes:** —
-**Superseded by:** —
+**Superseded by:** D-40 *(partial — opcode-dispatch mechanism: direct microaddress formation → a boot-loaded opcode→start-address map SRAM; D-24's postbyte / one-shared-EA-routine dispatch stands)*
 **Context:** hardware.md §4 listed "dispatch on `IR`" as a next-address capability but
 not its implementation; working through the fetch/decode path raised whether the
 opcode→microroutine selection should be a mapping PROM.
@@ -1043,6 +1044,55 @@ in one self-contained field, not borrowing the `IR` nibble. The micro-loop count
 encoder's exact priority order and entry placement are deferred to the interrupt-controller
 / debug-interface work (microcode.md §7). **Touches:** microcode.md (full),
 hardware.md §4/§8/§9.
+
+## D-40 — Opcode→microinstruction map (boot-loaded SRAM) for dispatch
+**Status:** Decided (2026-06-20)
+**Supersedes:** D-24 *(partial — opcode-dispatch mechanism: direct microaddress formation
+→ a boot-loaded opcode→start-address map SRAM; D-24's postbyte / one-shared-EA-routine
+dispatch stands)*
+**Superseded by:** —
+**Context:** D-24 dispatched by *forming* the microaddress from the opcode (opcode = high
+`µPC` bits, each opcode owning a fixed block), explicitly rejecting a mapping table on
+dispatch-latency grounds. With the design evolved (12-bit `µPC`, 4096-word store, single
+`NEXT_ADDR` — D-39), the fixed-block layout was reconsidered: it caps every routine at the
+block size (~16 words) and forces microcode into rigid per-opcode blocks at fixed addresses.
+**Decision:** Dispatch through an **opcode→start-address map**: a **boot-loaded SRAM** of
+256 entries × 12-bit `µPC` start address, indexed by the opcode in `IR`.
+`USEQ_OP=DISPATCH_IR` now loads `µPC ← map[IR]` (was: opcode wired into the high `µPC`
+bits). Microroutines are placed **freely and densely** anywhere in the store — no fixed
+per-opcode block, no word cap; `INC` walks within a routine and `NEXT_ADDR` jumps/branches.
+The map read is **pipelined into the fetch cycle** (opcode→`IR`→map→registered start
+address), and a fast (~10 ns) SRAM keeps it off the cycle-time budget, so dispatch adds no
+steady-state cycle. The boot-copy circuit (D-03) loads this map SRAM from EEPROM alongside
+the WCS. `DISPATCH_POSTBYTE` is unchanged — it ORs the postbyte mode into the
+microcode-supplied `NEXT_ADDR` base (already flexible), and the postbyte register-select
+(`PB_RR_MUX`) and one-shared-EA-routine idea from D-24 stand. **The 88-bit control word
+(D-39) is unchanged** — this is a sequencer-hardware change, not a control-word change.
+**Why:**
+- *Flexibility (the deciding factor).* The map decouples opcode assignment from microcode
+  layout: routines can be any length and packed densely, and many opcodes can point at one
+  shared routine via identical map entries — no reliance on opcode-encoding regularity for
+  sharing, and no fixed addresses. Removes D-24's per-opcode word cap.
+- *Per-opcode redirection.* Because the map is writable SRAM, an instruction can be
+  repointed to a different routine by one map-entry write — finer reprogram granularity (G8).
+- *The cost is accepted.* D-24's dispatch-latency objection is mitigated by pipelining the
+  map read into fetch and using a ~10 ns SRAM, so it does not lengthen the cycle (R-CTRL-2
+  preserved); ~2–4 extra ICs (map SRAM + a 12-bit pipeline register + minor boot
+  sequencing) are fine against a part-count non-goal; and the legibility change (`µPC` is
+  no longer the opcode) is explicitly accepted — an opcode-independent `µPC` fits the
+  owner's mental model better.
+**Alternatives weighed:**
+- **Keep D-24 direct formation** — rejected: rigid per-opcode blocks and a fixed
+  word-per-routine cap; its wins (zero dispatch latency, no chips, `µPC`=opcode legibility)
+  were judged not worth the loss of layout flexibility for this machine.
+- **ROM map instead of SRAM** — rejected: an SRAM map is boot-loaded like the WCS
+  (consistent), reflashable, and allows runtime per-opcode redirection; a fixed ROM gives
+  that up for no offsetting benefit.
+- **Map the postbyte too** — not adopted: the postbyte EA dispatch already uses a
+  microcode-supplied `NEXT_ADDR` base (flexible), so a second map earns nothing.
+**Notes:** The map's start-address width tracks the `µPC` width (12 bits / 4096 words). The
+control-block IC budget rises ~3–4 ICs over the earlier estimate. **Touches:**
+microcode.md §2 (dispatch), hardware.md §4 (dispatch + boot-copy).
 
 ---
 
