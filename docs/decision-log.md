@@ -976,10 +976,12 @@ driving LEFT from two registers at once) — corrected in microcode.md §5.
 the goal ordering), with explicit cost/value passes at each width fork; the field set and
 80-bit width are the synthesized result, the width confirmed by Ben.
 **Notes:** `WIDE_TARGET` stays sized to the actually-placed microcode (the on-hand WCS
-SRAM is 8K×8 = 4096 words, so depth is ample; microcode.md §7); `TAS_LOCK` is provisioned
+SRAM is 8K×8 = 8192 words (a 12-bit next-address uses 4096), so depth is ample; microcode.md §7); `TAS_LOCK` is provisioned
 pending the isa.md §9 atomicity decision. The exploratory width analyses
 (`control-word-field-analysis`, `control-word-48bit-analysis` and their renderings) were
-non-normative working notes and have been removed now the width is settled.
+non-normative working notes and have been removed now the width is settled. *(2026-06-20
+erratum, owner-approved retroactive fix: the part figure above read "8K×8 = 4096 words"; an
+8K×8 SRAM is 8192 words / 13 address lines.)*
 **Resolves:** hardware.md §4/§9 control-word width & layout; creates
 [microcode.md](microcode.md). **Touches:** hardware.md §4/§8/§9.
 
@@ -1020,8 +1022,10 @@ D-38's structure and width.
   shared the ALU-operand bits; with a dedicated sequencer section the single 12-bit
   `NEXT_ADDR` is always present, so **any** branch co-occurs with a full datapath op —
   strictly more capable than D-38 (every branch, not just near) and simpler (one target).
-- *12-bit next-address* gives a 4096-word microprogram store, matching the on-hand 8K×8
-  WCS SRAM depth.
+- *12-bit next-address* gives a 4096-word microprogram store — the lower half of the
+  on-hand 8K×8 (8192-word / 13-address-line) WCS SRAM. *(2026-06-20 erratum,
+  owner-approved: this line read "matching the on-hand 8K×8 WCS SRAM depth"; an 8K×8
+  SRAM is 8192 words, so 4096 is half the part.)*
 - *Cost accepted and small.* 11 SRAMs vs D-38's 10 — about +3 ICs (one WCS SRAM + one
   pipeline `'574` + one boot-image plane). Part count is a non-goal, so this spends nothing
   the priority order rewards while buying the separation, the uniform next-address, and the
