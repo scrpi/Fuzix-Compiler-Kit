@@ -17,8 +17,8 @@ OUT=/tmp/blip_loader
 mkdir -p "$OUT"
 
 iverilog -g2012 -Wall -D IMG="\"$IMG\"" -o "$OUT/tb" \
-    "$ROOT/hdl/cells/rom.v" \
-    "$ROOT/hdl/cells/sram.v" \
+    "$ROOT/hdl/cells/sst39sf010a.v" \
+    "$ROOT/hdl/cells/is61c64.v" \
     "$ROOT/hdl/boot/boot_loader.v" \
     "$ROOT/sim/tb/loader/tb_loader.v"
 

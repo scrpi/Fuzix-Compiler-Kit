@@ -2,7 +2,20 @@
 //
 // Loads the SINGLE assembler image into the EEPROM model, runs the boot loader,
 // and verifies it reconstructs all 13 control-store SRAMs byte-for-byte. The
-// loader's correctness criterion is exactly the chip-major slicing contract:
+// SRAMs are the real async part (is61c64), wired the way the board wires them:
+//
+//   /CE  tied LOW (chips always selected)
+//   /OE  HIGH during the copy (loader drives the shared write-data bus), LOW
+//        afterward so the checker can read every chip back
+//   /WE  the loader's one-hot select gated into a per-chip write pulse — this is
+//        the 4->16 decoder strobing exactly one chip's /WE (hardware.md, D-43)
+//
+// The loader updates its counter on posedge clk, so the write pulse is asserted
+// while clk is LOW (address/data set up) and released at the next posedge, which
+// latches the byte present before the counter advances. /WE therefore terminates
+// the write with the address still valid (is61c64 captures on posedge /WE).
+//
+// The loader's correctness criterion is exactly the chip-major slicing contract:
 //
 //     SRAM[k] addr a  ==  image[k * 2^SEG_AW + a]
 //
@@ -31,14 +44,17 @@ module tb_loader;
     wire loading;
 
     // The loader drives the SRAM address during the copy; the checker drives it
-    // afterward to read every location back.
+    // afterward to read every location back. One shared address bus to all chips.
     reg  [12:0] vaddr = 13'd0;
     wire [12:0] sram_addr = loading ? ld_addr : vaddr;
 
-    // 128 KB control-store EEPROM (the design size; a larger in-stock part with
-    // grounded upper pins presents identically). Loads exactly the microcode image.
-    rom #(.AW(17), .DW(8), .FILE(`IMG), .LOADW(NSEG*DEPTH)) eeprom (
-        .addr(rom_addr), .data(rom_data)
+    // 128 KB control-store EEPROM — the real flash part (sst39sf010a). The loader
+    // only reads, so CE#/OE# are tied LOW (continuously selected/output-enabled)
+    // and WE# HIGH (no in-system program). A larger pin-compatible part with
+    // grounded upper pins presents identically. Loads exactly the microcode image.
+    sst39sf010a #(.AW(17), .DW(8), .FILE(`IMG), .LOADW(NSEG*DEPTH)) eeprom (
+        .a(rom_addr), .dq(rom_data),
+        .ce_n(1'b0), .oe_n(1'b0), .we_n(1'b1)
     );
 
     boot_loader #(.NSEG(NSEG), .SEG_AW(SEG_AW)) loader (
@@ -48,12 +64,22 @@ module tb_loader;
         .we(we), .loading(loading)
     );
 
-    wire [7:0] rdata [0:NSEG-1];
+    // Board wiring of the 13 real SRAMs (is61c64).
+    wire [7:0] io [0:NSEG-1];           // per-chip bidirectional data bus
     genvar g;
     generate for (g = 0; g < NSEG; g = g + 1) begin : chip
-        sram #(.AW(SEG_AW), .DW(8)) u (
-            .clk(clk), .addr(sram_addr), .wdata(ld_wdata),
-            .we(we[g]), .rdata(rdata[g])
+        // /WE: low while a byte is presented (clk low), released at posedge to
+        // latch — but only for the chip this byte's segment selects (we[g]).
+        wire we_n = loading ? ~(we[g] & ~clk) : 1'b1;
+        // /OE: outputs off during the copy, on for read-back.
+        wire oe_n = loading;
+        // Shared write-data bus the loader drives during the copy; released
+        // (High-Z) afterward so the chip drives its own data for read-back.
+        assign io[g] = loading ? ld_wdata : 8'bz;
+
+        is61c64 #(.AW(SEG_AW), .DW(8)) u (
+            .a(sram_addr), .io(io[g]),
+            .ce_n(1'b0), .oe_n(oe_n), .we_n(we_n)
         );
     end endgenerate
 
@@ -71,10 +97,10 @@ module tb_loader;
         checked = 0;
         for (a = 0; a < DEPTH; a = a + 1) begin
             vaddr = a[12:0];
-            #1;                              // settle async SRAM read
+            #1;                              // settle async SRAM read (zero-delay)
             for (k = 0; k < NSEG; k = k + 1) begin
                 expb = eeprom.mem[k*DEPTH + a];
-                gotb = rdata[k];
+                gotb = io[k];
                 checked = checked + 1;
                 if (gotb !== expb) begin
                     errors = errors + 1;
