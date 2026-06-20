@@ -72,6 +72,7 @@
 | D-39 | Control word restructured into two clean chip-aligned sections (sequencer + datapath), single 12-bit next-address; 88-bit / 11 SRAMs | Decided |
 | D-40 | Opcode→microinstruction map (boot-loaded SRAM, pipelined) for dispatch; supersedes D-24's direct microaddress formation | Decided |
 | D-41 | ISA flattened: indexed postbyte removed; two specified pages — page 0 (hot) + page 1 (cold, `0x80` prefix); locks Option B (µPC 12→13 bit / 8192-word store, `DISPATCH_PAGE` 1 bit) | Decided |
+| D-42 | Microcode subroutines: `CALL`/`RETURN` micro-ops + a single return-address register (`µSR`); `USEQ_OP` 6→8 codes | Decided |
 
 ---
 
@@ -990,7 +991,7 @@ erratum, owner-approved retroactive fix: the part figure above read "8K×8 = 409
 **Status:** Decided (2026-06-20) — refines D-38 (the 80-bit single-overlay word, left
 frozen as committed history).
 **Supersedes:** D-38 *(control-word structure & width: 80-bit single-overlay / 10 SRAMs → 88-bit two clean sections (sequencer + datapath) / 11 SRAMs)*
-**Superseded by:** D-41 *(partial — `µPC` depth 12→13 bit / 8192-word store; the two sequencer-section spare bits reallocated to `DISPATCH_PAGE` and the wider `NEXT_ADDR`; `PB_RR_MUX` removed from the datapath section. The two clean sections / 88-bit structure stands.)*
+**Superseded by:** D-41 *(partial — `µPC` depth 12→13 bit / 8192-word store; the two sequencer-section spare bits reallocated to `DISPATCH_PAGE` and the wider `NEXT_ADDR`; `PB_RR_MUX` removed from the datapath section. The two clean sections / 88-bit structure stands.)*; D-42 *(partial — the sequencer-section `USEQ_OP` field gains `CALL`/`RETURN`, completing its 8-code space, and a registered return-address register `µSR` joins the next-`µPC` mux; widths and the two-section split are unchanged.)*
 **Context:** D-38's 80-bit word packed sequencing and datapath bits together: a
 `FORMAT`-overlaid 9-bit window held either the far-branch target (`WIDE_TARGET`) or the
 `CC`/MMU "SPECIAL" controls, and branching used a near/far pair (`UBR_NEAR` common + the
@@ -1174,7 +1175,74 @@ assignment, not a design step. **Creates** [d41-isa-refinement.md](d41-isa-refin
 
 ---
 
-## Pending (not yet decided)
+## D-42 — Microcode subroutines: `CALL`/`RETURN` + a single return-address register (`µSR`)
+**Status:** Decided (2026-06-20)
+**Supersedes:** D-39 *(partial — the sequencer-section `USEQ_OP` field gains the `CALL` and
+`RETURN` codes, completing its 8-code space; a registered return-address register `µSR` is
+added as a next-`µPC` source. Field widths and the two clean sections are unchanged.)*
+**Superseded by:** —
+**Context:** D-24's indexed postbyte gave every indexed-capable opcode a **single shared**
+effective-address microroutine, reached through `DISPATCH_POSTBYTE`. Removing the postbyte
+(D-41) expanded `op × mode` into distinct opcodes, which dropped that sharing: the identical
+EA prologue — e.g. `(X+n8)`: sign-extend the offset, `MAR ← X + offset` — is now wanted by
+dozens of routines (`LD`/`ST`/`ADD`/`AND`/… `A,(X+n8)`) that differ only in their final
+step, and the D-40 opcode map can fold only **end-to-end-identical** routines, so it cannot
+share a common prologue across differing bodies. The question: should the microsequencer be
+able to call and return from a shared microroutine, and with how much nesting state?
+
+The 8192-word WCS (D-41) makes inlining every shared prologue affordable on space, so a call
+mechanism is an **optimization, not a requirement**. Two `USEQ_OP` codes are unused (6 of 8
+after D-41).
+**Decision:**
+- **Add `CALL` and `RETURN` to `USEQ_OP`.** `CALL`: `µSR ← µPC+1`, `µPC ← NEXT_ADDR` (save
+  the next sequential step, jump to the subroutine entry). `RETURN`: `µPC ← µSR`. This
+  consumes the field's last two codes — `USEQ_OP` is now **8 of 8 used** (INC, BRANCH, JUMP,
+  DISPATCH_IR, RETURN_FETCH, WAIT, CALL, RETURN), a complete sequencer op-set.
+- **One return-address register (`µSR`), single level.** `µSR` is a registered output feeding
+  the next-`µPC` mux. A micro-subroutine is **leaf-only by convention** — it may not itself
+  `CALL` (one nesting level). Caller and callee **share all datapath state** (scratch, `MAR`,
+  `MDR`, flags): a micro-subroutine is a `GOSUB`, not an isolated frame — only the return
+  microaddress is saved, and the caller owns knowledge of what the callee clobbers.
+- **`µSR` is execution-local.** It is live only within one instruction's execution and is
+  don't-care at fetch; interrupts are recognized at `RETURN_FETCH` (instruction boundaries),
+  so `µSR` never needs saving across a trap.
+- **No new control-word field, no width change.** `CALL` reuses `NEXT_ADDR` for the entry
+  address exactly as `JUMP` does; `RETURN` needs no address field. The control word stays
+  **88-bit / 11 SRAMs**. Because the sequencer and datapath sections are independent (D-39), a
+  `CALL` or `RETURN` microword still drives a full datapath op — a leaf subroutine's last
+  working step *is* its `RETURN`, with no dead cycle.
+**Why:**
+- *Recovers the sharing D-41 gave up, at substrate cost ≈ one register (G5, R-HW-4).* A single
+  `µSR` is one `'574`, readable on the front-panel LED bank — the minimum hidden state that
+  makes microcode subroutines possible, so the legible-component goal stands.
+- *Off the critical path (R-CLK-2).* `µSR` is registered, so on `RETURN` it is a stable signal
+  at the next-`µPC` mux — the same timing class as `NEXT_ADDR`; `CALL`'s capture of `µPC+1`
+  lands at the clock edge, not on the combinational next-address path. Neither is slower than
+  `BRANCH`/`JUMP`.
+- *Cost model matches the hot/cold split.* The only runtime tax is the `CALL` redirect (~+1
+  cycle when the call site has no setup work to ride along). Inline-vs-share is therefore the
+  same trade as page-0/page-1 (D-41): **inline the hot** inner-loop EA (pay words, save the
+  cycle); **factor the cold**, bulky routines — `MUL`, the cross-map block copy, the
+  privileged/trap sequences — where the cycle is immaterial and the word savings are largest.
+- *Reversible upgrade (R-CTRL-1).* If a routine later needs nesting, `µSR` deepens into a small
+  (2–4-entry) micro-stack **without changing the `USEQ_OP` codes or the control-word format** —
+  microcode written against `CALL`/`RETURN` keeps working.
+**Alternatives weighed:**
+- **No call mechanism — inline everything.** Viable on space (8192 words). Not adopted as the
+  default: it re-duplicates the EA prologue D-24 had shared and forgoes a cheap, panel-legible
+  factoring for cold routines. Inlining remains the right choice *per routine* for hot inner
+  loops — the mechanism is opt-in, not mandatory.
+- **Multi-level micro-stack now.** Rejected as premature: realistic BLIP nesting is one level
+  (instruction → EA-compute / push16 / pop16, all leaf); a stack adds ICs and hidden state for
+  depth nothing yet uses. Retained as the documented upgrade path.
+- **Lean on the D-40 map for sharing.** The map shares only whole identical routines; after
+  D-41's `op × mode` expansion the bodies differ, so it cannot factor a shared prologue.
+  Complementary, not a substitute.
+**Notes:** This is a **substrate mechanism, invisible to the programmer** — isa.md is
+unaffected. **Touches (applied):** microcode.md §2 (`USEQ_OP` code list 6→8 — add
+`CALL`/`RETURN`; `µSR` added to the next-`µPC` mux), §3.1 (`USEQ_OP` role "6 of 8" → "8 of 8
+codes used"). **Follow-on (pending):** microcode.md §5 (a worked shared-EA subroutine) and
+hardware.md §4 (the `µSR` register + its mux input) when the next datapath pass lands.
 
 Tracked in the docs' own "Open questions" sections; the load-bearing ones:
 

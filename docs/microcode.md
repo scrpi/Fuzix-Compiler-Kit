@@ -5,7 +5,7 @@
 > outline see [hardware.md](hardware.md) §4; for the programmer's contract see
 > [isa.md](isa.md); for *why* see [goals.md](goals.md).
 >
-> **Status:** v0 design direction (D-41, refining D-39/D-38). The **88-bit control word is
+> **Status:** v0 design direction (D-42/D-41, refining D-39/D-38). The **88-bit control word is
 > split into two clean, chip-aligned sections** — a 3-SRAM **sequencer section** and an
 > 8-SRAM **datapath section**, with **no field shared between them**. Settled in outline;
 > a few sub-field widths firm up in simulation (D-10); cycle counts here are approximate.
@@ -13,7 +13,9 @@
 > D-39 separated sequencing from datapath and replaced the near/far pair with one
 > next-address. D-41 then removed the indexed postbyte — dropping `DISPATCH_POSTBYTE` and
 > `PB_RR_MUX` — widened `NEXT_ADDR` to 13 bits (8192-word store) and added a 1-bit
-> `DISPATCH_PAGE` for the two-page opcode map.)*
+> `DISPATCH_PAGE` for the two-page opcode map. D-42 then filled the last two `USEQ_OP` codes
+> with `CALL`/`RETURN` and added a single return-address register (`uSR`) for one-level
+> microcode subroutines — no width change.)*
 
 ---
 
@@ -63,7 +65,7 @@ formation and the indexed postbyte).
    +----v------+   +---------------v----------------------+
    | opcode    |   |  next-uPC mux  (selected by USEQ_OP) |
    | map SRAM  |-->|  uPC+1 | NEXT_ADDR | map[{PAGE,IR}]  |
-   | [PAGE,IR] |   |                    | trap-entry      |
+   | [PAGE,IR] |   |  trap-entry | uSR (RETURN)          |
    +-----------+   +-------------------------------------+
         ^
         |  DISPATCH_PAGE (1) selects page 0 / page 1
@@ -75,8 +77,13 @@ formation and the indexed postbyte).
 
 - **`uPC`** is a loadable synchronous up-counter; default `uPC+1` (count-enable) needs no
   address field.
+- **`uSR`** (micro-subroutine return register) is a single registered microaddress holding
+  the return point of a `CALL` (D-42). It is one nesting level — a micro-subroutine is
+  **leaf-only** (it may not itself `CALL`) — and execution-local: live only within one
+  instruction and don't-care at fetch, so it never survives a trap. Its output is a
+  next-`uPC` mux input, read by `RETURN`.
 - **`USEQ_OP`** (3 bits, the *microsequencer opcode*) is the sole field on the
-  next-address combinational path (R-CLK-2). Seven codes:
+  next-address combinational path (R-CLK-2). Eight codes (the full 3-bit space, D-42):
   - **`INC`** — `uPC+1` (default).
   - **`BRANCH`** — if `(UCOND_SEL condition) ⊕ UCOND_POL` then `uPC ← NEXT_ADDR`, else
     `uPC+1`.
@@ -96,6 +103,13 @@ formation and the indexed postbyte).
     priority logic replaces D-38's `FETCH_ENTRY_SEL` field, §3.1).
   - **`WAIT`** — hold `uPC` (disable load/count) for a `/WAIT`-stretched bus cycle or a
     panel single-step (R-DBG-4).
+  - **`CALL`** — `uSR ← uPC+1`; `uPC ← NEXT_ADDR` (D-42). Enter a shared microroutine,
+    saving the next sequential step as the return point. Reuses `NEXT_ADDR` exactly as
+    `JUMP` does; the datapath section still drives a full op in the same word.
+  - **`RETURN`** — `uPC ← uSR` (D-42). Resume the caller at the saved step; needs no
+    address field, and a leaf subroutine's last working step *is* its `RETURN` (no dead
+    cycle). Distinct from `RETURN_FETCH`, which returns to the fetch entry (and is
+    trap-intercepted); `RETURN` stays inside the executing instruction.
 - **Condition (`UCOND_SEL` 4 + `UCOND_POL` 1).** `UCOND_SEL` selects one of **16 base
   conditions**; `UCOND_POL` inverts it, so both senses of each are reachable (32 in all —
   covering the ISA's 16 `Bcc` conditions and their complements):
@@ -117,7 +131,7 @@ literal/direct (one-hot or a value).
 
 | Field | Bits | Enc | Role |
 |-------|------|-----|------|
-| `USEQ_OP` | 3 | bin | microsequencer opcode (§2): INC / BRANCH / JUMP / DISPATCH_IR / RETURN_FETCH / WAIT (6 of 8 codes used) |
+| `USEQ_OP` | 3 | bin | microsequencer opcode (§2): INC / BRANCH / JUMP / DISPATCH_IR / RETURN_FETCH / WAIT / CALL / RETURN (8 of 8 codes used — D-42 added CALL/RETURN) |
 | `NEXT_ADDR` | 13 | lit | the single next-microaddress (8192-deep store — the full 8K×8 WCS) |
 | `UCOND_SEL` | 4 | bin | condition select — 16 base conditions (8 CC-derived + 8 internal, §2) |
 | `UCOND_POL` | 1 | lit | condition polarity (both senses of each condition) |
@@ -300,6 +314,13 @@ stays until those routines are hand-assembled.
 4. **Trap-vector priority encoder** (hardware, replaces D-38's `FETCH_ENTRY_SEL`): confirm
    the exception priority order and entry-address placement when the front-panel / debug
    and interrupt-controller details are specified.
+5. **Micro-subroutine nesting depth** (D-42). The `CALL`/`RETURN` mechanism currently backs
+   onto a **single return register `uSR`** (one nesting level, leaf-only subroutines). Whether
+   that suffices, or whether a small (2–4-entry) **micro-stack** is warranted, is **deferred
+   until after full microcode synthesis and simulation** — once the real routines (`MUL`,
+   cross-map copy, the privileged/trap sequences) are written we will know the actual maximum
+   call depth. The `USEQ_OP` codes and control-word format are unaffected either way, so
+   deepening `uSR` into a stack later is an encoding-compatible hardware change (D-42).
 
 *Settled by D-39 / D-41:* `NEXT_ADDR` is **13 bits** (8192-word store, D-41; D-39 set the
 two-section split at 12-bit / 4096); the sequencer and datapath sections are cleanly
