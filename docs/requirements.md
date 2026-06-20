@@ -187,6 +187,30 @@ by reaching past them to a goal or to another design.
 - **R-BUILD-2** (⟸ G2) — The C toolchain shall interoperate with hand-written
   assembly through the convention of R-ABI-1, so low-level kernel code can be
   written by hand and linked with compiled code.
+- **R-BUILD-3** (⟸ G8) — A microcode toolchain shall compile the microcode from a
+  human-readable source into the binary image(s) of the control store, in a form
+  suitable both for loading into simulation and for programming the non-volatile
+  store from which the control store is loaded at power-on (R-CTRL-3).
+
+## Simulation & verification (SIM)
+
+- **R-SIM-1** (⟸ G1, G9) — The complete CPU shall be simulable at the level of its
+  individual logic components, exercising their real propagation and timing
+  behaviour, so that the discrete design's logical correctness and its timing against
+  the target clock (R-CLK-1) can be verified before, and independently of, physical
+  construction. A model that only reproduces instruction results does not satisfy
+  this: the structure under test shall be the design that is built.
+- **R-SIM-2** (⟸ G8) — The microcode image that drives the simulated control
+  sequencer shall be the identical image loaded into the hardware control store
+  (R-CTRL-3), so that what simulation verifies is what the machine runs.
+- **R-SIM-3** (⟸ G7) — Simulation shall exercise the CPU through its functional
+  interface (R-IF-1), with memory and peripherals represented as models outside the
+  CPU under test, so any peripheral can be substituted without altering the CPU.
+- **R-SIM-4** (⟸ G1, G8) — A change to the hardware or to the microcode shall be
+  validated by an automated regression suite — one that fails when a behaviour which
+  previously met its specification no longer does — covering both functional
+  behaviour (instruction results, flags, memory, and bus transactions) and
+  worst-case timing (against R-CLK-1).
 
 ## CPU/system interface (IF)
 
@@ -224,15 +248,15 @@ by reaching past them to a goal or to another design.
 
 | Goal | Requirements |
 |------|--------------|
-| **G1** Discrete logic | R-HW-1, R-HW-2, R-HW-3 |
+| **G1** Discrete logic | R-HW-1, R-HW-2, R-HW-3, R-SIM-1, R-SIM-4 |
 | **G2** Genuine C target | R-ISA-1…8, R-ABI-1…4, R-BUILD-1, R-BUILD-2 |
 | **G3** Run FUZIX | R-ISA-8, R-CPU-1…7, R-MEM-2…5, R-MEM-7, R-IF-3, R-BUILD-1 |
 | **G4** >64 KB, flat per-process | R-MEM-1…6, R-CPU-4 |
 | **G5** Legible component architecture | R-HW-4 |
 | **G6** Functional blinkenlights | R-DBG-1…5, R-IF-4, R-CPU-7, R-MEM-7 |
-| **G7** Defined CPU/system interface | R-IF-1…4, R-IF-6, R-DBG-5 |
-| **G8** The ISA lives in microcode | R-CTRL-1, R-CTRL-2, R-CTRL-3, R-CTRL-4 |
-| **G9** ~10 MHz | R-HW-2, R-CLK-1, R-CLK-2, R-CTRL-2 |
+| **G7** Defined CPU/system interface | R-IF-1…4, R-IF-6, R-DBG-5, R-SIM-3 |
+| **G8** The ISA lives in microcode | R-CTRL-1, R-CTRL-2, R-CTRL-3, R-CTRL-4, R-BUILD-3, R-SIM-2, R-SIM-4 |
+| **G9** ~10 MHz | R-HW-2, R-CLK-1, R-CLK-2, R-CTRL-2, R-SIM-1 |
 
 ## Open questions for this document
 
