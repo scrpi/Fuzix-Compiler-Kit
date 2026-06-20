@@ -71,6 +71,7 @@
 | D-38 | Microcode control-word format: 80-bit horizontal control word (10 SRAMs, fully self-describing); one scratch sufficient for the ISA core (two retained) | Decided |
 | D-39 | Control word restructured into two clean chip-aligned sections (sequencer + datapath), single 12-bit next-address; 88-bit / 11 SRAMs | Decided |
 | D-40 | Opcode→microinstruction map (boot-loaded SRAM, pipelined) for dispatch; supersedes D-24's direct microaddress formation | Decided |
+| D-41 | ISA flattened: indexed postbyte removed; two specified pages — page 0 (hot) + page 1 (cold, `0x80` prefix); locks Option B (µPC 12→13 bit / 8192-word store, `DISPATCH_PAGE` 1 bit) | Decided |
 
 ---
 
@@ -447,7 +448,7 @@ not its justification; the requirements above are.
 ## D-24 — Dispatch by microaddress formation (no mapping PROM)
 **Status:** Decided (2026-06-18)
 **Supersedes:** —
-**Superseded by:** D-40 *(partial — opcode-dispatch mechanism: direct microaddress formation → a boot-loaded opcode→start-address map SRAM; D-24's postbyte / one-shared-EA-routine dispatch stands)*
+**Superseded by:** D-40 *(partial — opcode-dispatch mechanism: direct microaddress formation → a boot-loaded opcode→start-address map SRAM)*; D-41 *(the postbyte / one-shared-EA-routine dispatch — the indexed postbyte is removed from the ISA and the substrate, so D-24 is now fully superseded)*
 **Context:** hardware.md §4 listed "dispatch on `IR`" as a next-address capability but
 not its implementation; working through the fetch/decode path raised whether the
 opcode→microroutine selection should be a mapping PROM.
@@ -989,7 +990,7 @@ erratum, owner-approved retroactive fix: the part figure above read "8K×8 = 409
 **Status:** Decided (2026-06-20) — refines D-38 (the 80-bit single-overlay word, left
 frozen as committed history).
 **Supersedes:** D-38 *(control-word structure & width: 80-bit single-overlay / 10 SRAMs → 88-bit two clean sections (sequencer + datapath) / 11 SRAMs)*
-**Superseded by:** —
+**Superseded by:** D-41 *(partial — `µPC` depth 12→13 bit / 8192-word store; the two sequencer-section spare bits reallocated to `DISPATCH_PAGE` and the wider `NEXT_ADDR`; `PB_RR_MUX` removed from the datapath section. The two clean sections / 88-bit structure stands.)*
 **Context:** D-38's 80-bit word packed sequencing and datapath bits together: a
 `FORMAT`-overlaid 9-bit window held either the far-branch target (`WIDE_TARGET`) or the
 `CC`/MMU "SPECIAL" controls, and branching used a near/far pair (`UBR_NEAR` common + the
@@ -1054,7 +1055,7 @@ hardware.md §4/§8/§9.
 **Supersedes:** D-24 *(partial — opcode-dispatch mechanism: direct microaddress formation
 → a boot-loaded opcode→start-address map SRAM; D-24's postbyte / one-shared-EA-routine
 dispatch stands)*
-**Superseded by:** —
+**Superseded by:** D-41 *(partial — `DISPATCH_POSTBYTE` and `PB_RR_MUX` removed with the indexed postbyte; the opcode→start-address map is retained and extended to `{PAGE, IR}` for the 2-page prefix, its output widened 12→13 bit)*
 **Context:** D-24 dispatched by *forming* the microaddress from the opcode (opcode = high
 `µPC` bits, each opcode owning a fixed block), explicitly rejecting a mapping table on
 dispatch-latency grounds. With the design evolved (12-bit `µPC`, 4096-word store, single
@@ -1097,6 +1098,79 @@ microcode-supplied `NEXT_ADDR` base (already flexible), and the postbyte registe
 **Notes:** The map's start-address width tracks the `µPC` width (12 bits / 4096 words). The
 control-block IC budget rises ~3–4 ICs over the earlier estimate. **Touches:**
 microcode.md §2 (dispatch), hardware.md §4 (dispatch + boot-copy).
+
+## D-41 — ISA flattened: indexed postbyte removed; two specified pages (page 0 hot + page 1 cold)
+**Status:** Decided (2026-06-20)
+**Supersedes:** D-24 *(remaining — the indexed postbyte and its one-shared-EA-routine
+dispatch are removed from the ISA and the substrate; with D-40's partial supersession, D-24
+is now fully superseded)*; D-39 *(partial — `µPC` depth 12→13 bit / 8192-word store,
+sequencer-spare reallocation, `PB_RR_MUX` removed)*; D-40 *(partial — `DISPATCH_POSTBYTE`
+and `PB_RR_MUX` removed; opcode map extended to `{PAGE, IR}`)*
+**Superseded by:** —
+**Context:** The indexed **postbyte** (isa.md §8.3) bought register×mode orthogonality across
+the indexed-capable opcodes at the cost of one extra byte per indexed instruction plus the
+`DISPATCH_POSTBYTE` mode-OR machinery and the `PB_RR_MUX` datapath field (D-24, retained
+through D-40). Expanding every `opcode × RR × TTTT` combination (2640 in all, indirect
+dropped) against a priority rubric derived from the C/FUZIX requirements found the
+genuinely-useful subset small — the hot, competitive core fits within one 256-entry page (the
+cold tail going to page 1; isa.md §8.2) — so the orthogonality the postbyte encodes is largely
+unused. Separately,
+the on-hand WCS SRAM is 8K×8 = 8192 words (D-38 erratum), so the 12-bit `µPC` (D-39)
+addressed only half the part.
+**Decision:**
+- **Remove the indexed postbyte** from the ISA and the substrate. The addressing modes it
+  selected become **distinct opcodes** (a flat ISA); **indirect** addressing becomes
+  programmer-explicit (an extra `LD`), and the 5-bit Form-A offset folds into the 8-bit
+  offset (no postbyte to pack it). The `DISPATCH_POSTBYTE` microsequencer code and the
+  `PB_RR_MUX` datapath field are deleted. *(The register-move selector and the `PSHS`/`PULS`
+  mask are operand bytes, not the indexed postbyte, and are retained.)*
+- **Two specified pages (page 0 hot, page 1 cold)**, each ~231 opcodes, triaged by the
+  priority rubric and a runtime-hotness placement axis. The criteria, the removed/relegated
+  set, and the **full per-page instruction inventory** are in
+  [d41-isa-refinement.md](d41-isa-refinement.md).
+- **Two specified pages (not optional).** Base opcode **`0x80` is the page-1 prefix**: its
+  microroutine re-enters fetch with `DISPATCH_PAGE=1`, so the opcode→start-address map is
+  indexed by `{PAGE, IR}` (512 entries). **Page-0 decode pays nothing** (the page bit idles
+  at 0, parallel to the map address); a **page-1 instruction costs +1 byte and +1 cycle**
+  (the prefix fetch-and-dispatch). The prefix value is a reflashable map entry, not wired.
+- **Bit allocation (Option B).** The two D-39 sequencer-section spare bits go to
+  **`DISPATCH_PAGE` (1 bit)** and **widening `NEXT_ADDR` 12→13 bit** (8192-word store, the
+  full 8K×8 WCS chip). Removing `PB_RR_MUX` returns one bit to the datapath-section spare.
+  The control word stays **88-bit / 11 SRAMs**; `USEQ_OP` loses the `DISPATCH_POSTBYTE` code.
+  The opcode-map output width tracks `µPC` (now 13 bit).
+**Why:**
+- *Density and speed (R-CLK-1).* Flattening removes the postbyte byte and its dispatch step
+  from every former indexed instruction; decode is a single `DISPATCH_IR`.
+- *Simpler substrate (G5, R-HW-4).* The `DISPATCH_POSTBYTE` mode-OR path and `PB_RR_MUX`
+  leave the hardware; the next-address logic shortens (R-CLK-2).
+- *Growth preserved without taxing the common case (R-CTRL-1, R-CTRL-3).* The prefix reuses
+  the existing `DISPATCH_IR` map, not the postbyte mechanism; >256 opcodes stay reachable by
+  reflash, and page-0 instructions are unaffected.
+- *Depth is the free, irreversible axis.* The depth bit costs no WCS data chips (the part
+  already holds 8192) and `µPC` width cannot grow later without a board change, whereas 512
+  opcodes already over-cover a flat-256 ISA; confirmed by an adversarial multi-lens analysis
+  (all lenses → Option B; both adversaries' objections failed).
+- *Re-carvability (R-CTRL-1) lowers the stakes.* The exact page-0/page-1 split need not be
+  perfect now; it is reflashable.
+**Alternatives weighed:**
+- **Keep the postbyte** — rejected: a whole byte plus dispatch machinery for orthogonality
+  that is largely unused.
+- **Postbyte-free single page, no prefix** — rejected: forecloses >256 growth, which only a
+  board change could restore (against R-CTRL-1/R-CTRL-3).
+- **4 pages + 12-bit depth (Option A)** — rejected: spends the irreversible bit on
+  speculative opcode capacity while stranding half the WCS.
+- **4th sequencer SRAM → 4 pages + 13-bit depth (Option C)** — not adopted now: 2 pages
+  over-cover a flat-256 ISA; available later within D-39's ≤12-SRAM budget if opcode
+  pressure appears.
+- **Reach pages 2–3 by nested prefixing** — noted as a +1-cycle escape valve if 512 ever
+  proves tight, needing no new substrate bit.
+**Notes:** Removing the postbyte fully obsoletes D-24 (with D-40). **Touches (applied):**
+isa.md §4/§5/§8 (postbyte removed, two-page encoding, full instruction inventory in §8.2,
+stale privilege/USP byte-value citations dropped); microcode.md §2/§3/§5/§7
+(`DISPATCH_POSTBYTE`/`PB_RR_MUX` out, `NEXT_ADDR` 13-bit, `DISPATCH_PAGE` in, worked routine);
+hardware.md §2/§4/§9 (two-page dispatch map `{PAGE, IR}`, 13-bit / 8192, prefix). The
+set is a flat list — no opcode grids — so concrete byte values are a mechanical sequential
+assignment, not a design step. **Creates** [d41-isa-refinement.md](d41-isa-refinement.md).
 
 ---
 

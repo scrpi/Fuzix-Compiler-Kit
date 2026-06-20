@@ -68,7 +68,7 @@ results return on a third:
   ALU does data, pointer, and effective-address math.
 - **Discrete register file (G5 / R-HW-4 / D-33).** `D`(=`A:B`), `X`, `Y`, `USP`/`SSP`
   (active `SP` gated by `CC.M`), `PC`, `MAR`, and **two scratch registers** `SCR1`/`SCR2`,
-  plus 8-bit `IR` / postbyte. The scratch registers can drive LEFT, RIGHT, or both at once.
+  plus 8-bit `IR`. The scratch registers can drive LEFT, RIGHT, or both at once.
 - **Asymmetric source buses.** Putting *all* registers only on LEFT and limiting RIGHT to
   the scratch registers + constants is the cheap part of a third source bus — RIGHT carries
   a handful of drivers, so it avoids a second bus buffer on every register (see the
@@ -245,24 +245,26 @@ section is the engine in outline.
   (c) conditionally branch on a selected flag/condition, and (d) return to the
   fetch routine. Built from counters/registers + a next-address mux.
 - **Dispatch — how `µPC` reaches a routine (concrete).** A routine is selected through an
-  **opcode→start-address map**: the opcode in `IR` indexes a small **boot-loaded SRAM**
-  whose 12-bit output is the routine's start microaddress, loaded into `µPC` (D-40,
-  superseding D-24's direct microaddress formation). Microroutines are placed **freely and
-  densely** in the WCS — no fixed per-opcode block, no word cap — and many opcodes can
-  share a routine by holding the same map entry. The map read is **pipelined into the fetch
-  cycle** (opcode→`IR`→map→registered start address) on a fast (~10 ns) SRAM, so dispatch
-  adds no steady-state cycle and the lookup stays off the cycle-time budget (R-CTRL-2). The
-  indexed **postbyte** dispatch is unchanged (D-24): its mode field is OR'd into the
-  microcode-supplied `NEXT_ADDR` base to land on the *shared* effective-address sub-routine,
-  its register-select riding along as a datapath mux setting, so one EA routine serves every
-  index register. Both the map SRAM and the WCS are loaded at reset by the boot-copy circuit
-  from EEPROM, so routine placement (the map) is patchable in the field (R-CTRL-1, R-CTRL-3).
+  **opcode→start-address map**: the opcode in `IR` (with the 1-bit `DISPATCH_PAGE`) indexes
+  a small **boot-loaded SRAM** of 512 entries whose 13-bit output is the routine's start
+  microaddress, loaded into `µPC` (D-40; D-41 added the page bit and removed the indexed
+  postbyte). Microroutines are placed **freely and densely** in the WCS — no fixed
+  per-opcode block, no word cap — and many opcodes can share a routine by holding the same
+  map entry. The map read is **pipelined into the fetch cycle** (opcode→`IR`→map→registered
+  start address) on a fast (~10 ns) SRAM, so dispatch adds no steady-state cycle and the
+  lookup stays off the cycle-time budget (R-CTRL-2). The ISA is **two opcode pages** (D-41):
+  page 0 is the base; page 1 is reached by the prefix byte `0x80`, an ordinary page-0 opcode
+  whose one-step routine re-fetches the next byte into `IR` and re-dispatches with
+  `DISPATCH_PAGE=1` — page-0 decode pays nothing, a page-1 instruction costs +1 byte and
+  +1 cycle. There is **no indexed postbyte**; addressing modes are distinct opcodes. Both
+  the map SRAM and the WCS are loaded at reset by the boot-copy circuit from EEPROM, so
+  routine placement (the map) is patchable in the field (R-CTRL-1, R-CTRL-3).
 - **Control word:** wide (horizontal) so most datapath actions are one microstep;
   fields gate bus drivers, latch registers, select the ALU op, drive `MAR`/MMU,
-  and assert memory read/write. **Decided (D-39, refining D-38):** an **88-bit /
+  and assert memory read/write. **Decided (D-41, refining D-39/D-38):** an **88-bit /
   11-byte** word in **two clean sections** — a 24-bit **sequencer section** (`USEQ_OP`, a
-  single 12-bit `NEXT_ADDR`, `UCOND_SEL`, `UCOND_POL`, the `ULOOP` loop counter) and a
-  64-bit **datapath section**
+  single 13-bit `NEXT_ADDR`, `UCOND_SEL`, `UCOND_POL`, the `ULOOP` loop counter, and the
+  1-bit `DISPATCH_PAGE`) and a 64-bit **datapath section**
   (everything that drives a register/bus/ALU/memory/flag/MMU). No field is shared and
   there is no overlay; per-flag flag control is direct. Full field map and budget in
   [microcode.md](microcode.md) §3.
@@ -285,9 +287,10 @@ section is the engine in outline.
   the SRAM access off the critical path. Instruction fetch likewise overlaps
   where possible. (Goal G9.)
 
-> **Decided (D-39, refining D-38):** horizontal, single-level, **88-bit / 11-byte** word
-> in two clean chip-aligned sections (sequencer 3 SRAMs + datapath 8 SRAMs), no shared
-> field, no overlay, with a single 12-bit `NEXT_ADDR` (4096-word store); see
+> **Decided (D-41, refining D-39/D-38):** horizontal, single-level, **88-bit / 11-byte**
+> word in two clean chip-aligned sections (sequencer 3 SRAMs + datapath 8 SRAMs), no shared
+> field, no overlay, with a single 13-bit `NEXT_ADDR` (8192-word store) and a 1-bit
+> `DISPATCH_PAGE` for the two-page opcode map; the indexed postbyte is removed. See
 > [microcode.md](microcode.md). **Open:** how deep to pipeline (microcode.md §7).
 
 ---
@@ -401,8 +404,9 @@ The minimum board to boot FUZIX to a shell (goal **G3**):
 3. **MMU:** *(decided: 8 KB pages, 16 MB physical, kernel/user map sets.)*
    Remaining: translation-only vs per-page protection bits.
 4. **Microcode:** *(decided: horizontal 88-bit / 11-byte word in two clean sections
-   (sequencer + datapath) — D-39 (refining D-38), [microcode.md](microcode.md);
-   single 12-bit `NEXT_ADDR`, `PC`-direct fetch.)* Remaining: pipeline depth (microcode.md §7).
+   (sequencer + datapath) — D-41 (refining D-39/D-38), [microcode.md](microcode.md);
+   single 13-bit `NEXT_ADDR`, two-page opcode map (`DISPATCH_PAGE`), no postbyte,
+   `PC`-direct fetch.)* Remaining: pipeline depth (microcode.md §7).
 5. **Front panel:** instruction-step vs microstep default; **shadow-register**
    display (§6, leading) vs a multiplexed "selected register" display.
 6. **Peripherals & G1 boundary:** confirm which non-74-series support chips are

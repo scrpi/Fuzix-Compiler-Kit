@@ -5,13 +5,15 @@
 > outline see [hardware.md](hardware.md) §4; for the programmer's contract see
 > [isa.md](isa.md); for *why* see [goals.md](goals.md).
 >
-> **Status:** v0 design direction (D-39, refining D-38). The **88-bit control word is
+> **Status:** v0 design direction (D-41, refining D-39/D-38). The **88-bit control word is
 > split into two clean, chip-aligned sections** — a 3-SRAM **sequencer section** and an
 > 8-SRAM **datapath section**, with **no field shared between them**. Settled in outline;
 > a few sub-field widths firm up in simulation (D-10); cycle counts here are approximate.
 > *(D-38 was an 80-bit word with a format-overlaid window and a near/far branch pair;
-> D-39 separates sequencing from datapath into dedicated sections and replaces the
-> near/far pair with one 12-bit next-address — see decision log D-39.)*
+> D-39 separated sequencing from datapath and replaced the near/far pair with one
+> next-address. D-41 then removed the indexed postbyte — dropping `DISPATCH_POSTBYTE` and
+> `PB_RR_MUX` — widened `NEXT_ADDR` to 13 bits (8192-word store) and added a 1-bit
+> `DISPATCH_PAGE` for the two-page opcode map.)*
 
 ---
 
@@ -44,24 +46,27 @@ datapath op** — loop bodies and conditional-compute stay one cycle (§5).
 
 ## 2. The microsequencer
 
-The sequencer section's four fields *fully* determine the next µPC; nothing in the
-datapath section touches it. The straight-line case is a free counter increment; opcode
-dispatch indexes a boot-loaded **opcode→start-address map** SRAM (D-40, superseding D-24's
-direct microaddress formation).
+The sequencer section's fields *fully* determine the next µPC; nothing in the datapath
+section touches it. The straight-line case is a free counter increment; opcode dispatch
+indexes a boot-loaded **opcode→start-address map** SRAM by `{DISPATCH_PAGE, IR}` (D-40;
+D-41 added the page bit for the two opcode pages, superseding D-24's direct microaddress
+formation and the indexed postbyte).
 
 ```
-   IR (opcode/postbyte)   CC flags + microconditions
+   IR (opcode)            CC flags + microconditions
         |                          |
         |                 +--------v---------+
         |                 | condition mux    | <- UCOND_SEL (4)
         |                 | 16:1 -> XOR pol  | <- UCOND_POL (1)
         |                 +--------+---------+
         |                          | taken?
-   +----v----+   +-----------------v---------------------+
-   | opcode  |   |  next-uPC mux  (selected by USEQ_OP)  |
-   | map SRAM|-->|  uPC+1 | NEXT_ADDR | map[IR] |         |
-   | [IR]    |   |        | NEXT_ADDR|postbyte | trap-ent |
-   +---------+   +-------------------+-------------------+
+   +----v------+   +---------------v----------------------+
+   | opcode    |   |  next-uPC mux  (selected by USEQ_OP) |
+   | map SRAM  |-->|  uPC+1 | NEXT_ADDR | map[{PAGE,IR}]  |
+   | [PAGE,IR] |   |                    | trap-entry      |
+   +-----------+   +-------------------------------------+
+        ^
+        |  DISPATCH_PAGE (1) selects page 0 / page 1
                                      |
                                +-----v-----+   registered
                                |  uPC reg  |--> control word --> datapath
@@ -77,14 +82,13 @@ direct microaddress formation).
     `uPC+1`.
   - **`JUMP`** — unconditional `uPC ← NEXT_ADDR` (= `BRANCH` on the always-true condition;
     kept as its own code for clarity).
-  - **`DISPATCH_IR`** — `uPC ← map[IR]`: the opcode in `IR` indexes a boot-loaded
-    **opcode→start-address map** SRAM whose output is the routine's start microaddress
-    (D-40, superseding D-24's direct formation). Routines are placed freely/densely — no
-    fixed per-opcode block — and the map read is pipelined into the fetch cycle (~10 ns
-    SRAM), adding no steady-state cycle. `NEXT_ADDR` is unused.
-  - **`DISPATCH_POSTBYTE`** — `uPC ← NEXT_ADDR` with the postbyte mode field OR'd into its
-    low bits, so `NEXT_ADDR` is the **EA-routine base** and one shared routine serves every
-    index register (`PB_RR_MUX`, in the datapath section, carries the register select).
+  - **`DISPATCH_IR`** — `uPC ← map[{DISPATCH_PAGE, IR}]`: the opcode in `IR` indexes a
+    boot-loaded **opcode→start-address map** SRAM (512 entries) whose output is the
+    routine's start microaddress (D-40; D-41 added the page bit). Routines are placed
+    freely/densely — no fixed per-opcode block — and the map read is pipelined into the
+    fetch cycle (~10 ns SRAM), adding no steady-state cycle. The **page-1 prefix** (`0x80`)
+    is an ordinary page-0 opcode whose one-step routine re-fetches the next byte into `IR`
+    and re-runs `DISPATCH_IR` with `DISPATCH_PAGE=1`. `NEXT_ADDR` is unused.
   - **`RETURN_FETCH`** — return to the fetch entry, **except** a hardware **trap-vector
     priority encoder** intercepts it: when an exception is pending (NMI > IRQ > SWI >
     illegal > privilege) it redirects µPC to that trap's fixed entry instead of FETCH.
@@ -98,7 +102,7 @@ direct microaddress formation).
   - **8 CC-derived:** `Z`, `C`, `N`, `V`, `C∨Z`, `N⊻V`, `Z∨(N⊻V)`, `true`.
   - **8 internal microconditions:** loop-terminal-zero (`ULOOP`), pending-`IRQ` (with
     `CC.I` clear), pending-`NMI`, `/WAIT`-ready, multi-byte-last, privilege-violation,
-    illegal-opcode, postbyte-indirect.
+    illegal-opcode, and one spare (`postbyte-indirect`, retired with the postbyte — D-41).
   This is a single self-contained condition field — it does not borrow the `IR` nibble.
 
 ---
@@ -113,21 +117,21 @@ literal/direct (one-hot or a value).
 
 | Field | Bits | Enc | Role |
 |-------|------|-----|------|
-| `USEQ_OP` | 3 | bin | microsequencer opcode (§2): INC / BRANCH / JUMP / DISPATCH_IR / DISPATCH_POSTBYTE / RETURN_FETCH / WAIT |
-| `NEXT_ADDR` | 12 | lit | the single next-microaddress (4096-deep store); also the base `DISPATCH_POSTBYTE` ORs the postbyte mode into |
+| `USEQ_OP` | 3 | bin | microsequencer opcode (§2): INC / BRANCH / JUMP / DISPATCH_IR / RETURN_FETCH / WAIT (6 of 8 codes used) |
+| `NEXT_ADDR` | 13 | lit | the single next-microaddress (8192-deep store — the full 8K×8 WCS) |
 | `UCOND_SEL` | 4 | bin | condition select — 16 base conditions (8 CC-derived + 8 internal, §2) |
 | `UCOND_POL` | 1 | lit | condition polarity (both senses of each condition) |
 | `ULOOP_CTRL` | 2 | bin | micro-loop counter: hold / load / decrement; its terminal-zero is the `loop-zero` condition `UCOND_SEL` reads (a sequencing aux, not a datapath resource) |
-| *(spare)* | 2 | — | sequencer-section headroom |
+| `DISPATCH_PAGE` | 1 | lit | opcode-map page on `DISPATCH_IR`: page 0 (base) / page 1 (the `0x80`-prefixed cold page); 0 on every non-dispatch microword (D-41) |
 
-These are the **only** bits that sequence the microprogram — next-address selection plus
-the loop counter whose terminal-zero feeds the `loop-zero` condition. Their inputs — `IR` contents,
-`CC` flags, the microcondition lines — are *signals*, not shared control-word fields. Trap
-entry is hardware-vectored (the priority encoder above), so even `RETURN_FETCH` needs no
-field. This is the clean separation D-38's overlay prevented; a bonus is that one 12-bit
-`NEXT_ADDR` — always present — lets **any** branch co-occur with a full datapath op (no
-near/far distinction; the near/far pair only existed because D-38's far target shared the
-ALU-operand bits).
+These are the **only** bits that sequence the microprogram — next-address selection, the
+opcode-map page select, and the loop counter whose terminal-zero feeds the `loop-zero`
+condition. Their inputs — `IR` contents, `CC` flags, the microcondition lines — are
+*signals*, not shared control-word fields. Trap entry is hardware-vectored (the priority
+encoder above), so even `RETURN_FETCH` needs no field. This is the clean separation D-38's
+overlay prevented; a bonus is that one 13-bit `NEXT_ADDR` — always present — lets **any**
+branch co-occur with a full datapath op (no near/far distinction; the near/far pair only
+existed because D-38's far target shared the ALU-operand bits).
 
 ### 3.2 Datapath section — 8 SRAMs (64 bits)
 
@@ -135,8 +139,7 @@ Everything that drives a register / bus / ALU / memory / flag / MMU, always pres
 
 | Field | Bits | Enc | Drives / notes |
 |-------|------|-----|----------------|
-| `IR_LOAD` | 2 | bin | hold / latch opcode→`IR` / latch postbyte |
-| `PB_RR_MUX` | 1 | lit | EA register select: microcode literal / postbyte `RR` at runtime (one shared EA routine, D-24) |
+| `IR_LOAD` | 2 | bin | hold / latch opcode→`IR` (also the page-1 prefix's second opcode byte) |
 | `LEFT_SRC` | 4 | bin | LEFT driver → ALU left: `D X Y USP SSP PC MAR SCR1 SCR2 MDR IR-imm MMU-entry CC NONE` |
 | `LEFT_LANE` | 2 | bin | lane steer (8-bit bus): full16 / low / sign-ext / high→low |
 | `RIGHT_SRC` | 3 | bin | RIGHT driver → ALU right: `SCR1 SCR2` + const `{-2..+2}` (const-gen, D-36) |
@@ -162,15 +165,16 @@ Everything that drives a register / bus / ALU / memory / flag / MMU, always pres
 | `MMU_PT_OP` | 2 | bin | page-table access: idle / write entry (`LDMMU`) / read entry (`STMMU`) |
 | `SP_BANK` | 1 | lit | implicit-`SP` alias: follow-`CC.M` / force-SSP (USP reached as an explicit `LEFT_SRC`/`Z_DEST` code) |
 | `TAS_LOCK` | 1 | lit | hold the bus across an RMW (test-and-set indivisible) — atomicity primitive (isa.md §9) |
-| *(spare)* | 5 | — | datapath-section headroom |
+| *(spare)* | 6 | — | datapath-section headroom (was 5; +1 from removing `PB_RR_MUX`, D-41) |
 
-**Total = 88 bits (81 used + 7 spare), 11 SRAMs.** The counter `*_CTRL` fields own the
+**Total = 88 bits (82 used + 6 spare), 11 SRAMs** (D-41: `PB_RR_MUX` removed, `NEXT_ADDR`
+12→13, `DISPATCH_PAGE` added; net same width). The counter `*_CTRL` fields own the
 `PC`/`MAR`/`X`/`Y` load (the "load-from-Z" op *is* that register's latch — **not** also a
 `Z_DEST` code — so a counter and a non-counter can latch the same Z in one cycle, the
 stack-frame move). The dedicated loop counter `ULOOP_CTRL` (sequencer section, §3.1) means
 data-dependent loops never steal a scratch.
 
-### 3.3 Why two sections / 88 bits (D-39, superseding D-38)
+### 3.3 Why two sections / 88 bits (D-39, superseding D-38; refined by D-41)
 
 - **D-38 (80-bit)** packed sequencing and datapath bits together, with a `FORMAT`-overlaid
   9-bit window (far-branch `WIDE_TARGET` vs the `CC`/MMU `SPECIAL` controls, typed by
@@ -185,6 +189,11 @@ data-dependent loops never steal a scratch.
   plane). Accepted for the clean sequencer/datapath separation, the uniform single
   next-address, and 4096-word depth. Part count is a non-goal, so this spends nothing the
   priority order rewards.
+- **D-41** removed the indexed postbyte — dropping `DISPATCH_POSTBYTE` (a `USEQ_OP` code)
+  and `PB_RR_MUX` (a datapath bit) — widened `NEXT_ADDR` to **13 bits** (8192-word store,
+  the full 8K×8 WCS), and added the 1-bit `DISPATCH_PAGE` for the two-page opcode map. The
+  word stays **88 bits / 11 SRAMs**: the freed `PB_RR_MUX` bit returns to datapath spare,
+  and the two reclaimed sequencer spare bits become `NEXT_ADDR[12]` and `DISPATCH_PAGE`.
 
 ---
 
@@ -219,14 +228,13 @@ F0  SEQ{USEQ_OP=DISPATCH_IR}  MMU_ADDR_SRC=translate-PC MEM_OP=read
     IR_LOAD=opcode PC_CTRL=count                 ; read opcode @ PC -> IR, PC+1, dispatch
 ```
 
-**LD A,(X+n)**, 8-bit signed offset (≈5 cycles):
+**LD A,(X+n8)**, 8-bit signed offset (≈4 cycles) — the opcode names the register and mode,
+so `FETCH`'s `DISPATCH_IR` lands here directly (no postbyte step, D-41):
 ```
-L0  SEQ{USEQ_OP=DISPATCH_POSTBYTE, NEXT_ADDR=EA-base}
-    MMU_ADDR_SRC=translate-PC MEM_OP=read IR_LOAD=postbyte PC_CTRL=count   ; postbyte -> dispatch
-L1  MMU_ADDR_SRC=translate-PC MEM_OP=read PC_CTRL=count                    ; offset @ PC -> MDR
-L2  LEFT_SRC=MDR LEFT_LANE=sign-ext Z_DEST=SCR1                            ; SCR1 <- sign-extend(offset)
-L3  LEFT_SRC=X(via PB_RR_MUX) RIGHT_SRC=SCR1 ALU_OP=ADD MAR_CTRL=load      ; MAR <- X + offset (EA)
-L4  MMU_ADDR_SRC=translate-MAR MEM_OP=read
+L0  MMU_ADDR_SRC=translate-PC MEM_OP=read PC_CTRL=count                    ; offset @ PC -> MDR
+L1  LEFT_SRC=MDR LEFT_LANE=sign-ext Z_DEST=SCR1                            ; SCR1 <- sign-extend(offset)
+L2  LEFT_SRC=X RIGHT_SRC=SCR1 ALU_OP=ADD MAR_CTRL=load                     ; MAR <- X + offset (EA)
+L3  MMU_ADDR_SRC=translate-MAR MEM_OP=read
     Z_DEST=D Z_LANE=low FLAG_WE=N,Z V_SRC=force-0                          ; A <- (EA), set N/Z, V=0
 ```
 
@@ -293,6 +301,8 @@ stays until those routines are hand-assembled.
    the exception priority order and entry-address placement when the front-panel / debug
    and interrupt-controller details are specified.
 
-*Settled by D-39:* `NEXT_ADDR` is 12 bits (4096-word store); the sequencer and datapath
-sections are cleanly separated (no shared field, no overlay); and a single next-address
-replaces the near/far branch pair, so any branch co-occurs with a datapath op.
+*Settled by D-39 / D-41:* `NEXT_ADDR` is **13 bits** (8192-word store, D-41; D-39 set the
+two-section split at 12-bit / 4096); the sequencer and datapath sections are cleanly
+separated (no shared field, no overlay); a single next-address replaces the near/far branch
+pair, so any branch co-occurs with a datapath op; and the indexed postbyte is gone
+(`DISPATCH_PAGE` selects the two-page opcode map).

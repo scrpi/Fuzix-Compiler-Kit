@@ -5,9 +5,12 @@
 > [docs/hardware.md](hardware.md).
 >
 > **Status:** the rationale, register model, addressing modes, and encoding map
-> below are a **v0 proposal** under active design review. The §8 opcode table is the
-> full 256-entry assignment (generated and adversarially checked — D-20), and the
-> assembly notation follows the house style of §4.1 (D-25).
+> below are a **v0 proposal** under active design review. The §8 opcode set is the flat
+> **two-page** instruction inventory (D-41, after removing the indexed postbyte —
+> superseding the single-page postbyte table of D-20/D-21). It is a **flat one-dimensional
+> list** — no opcode grids — since the opcode→start-address map (D-40) decouples the opcode
+> number from the microroutine, so concrete byte values are a mechanical sequential
+> assignment. The assembly notation follows the house style of §4.1 (D-25).
 
 ---
 
@@ -168,8 +171,7 @@ one proven to make a code generator happy.
 | Indexed: zero offset | `(X)` | pointer dereference |
 | Indexed: accumulator offset | `(X+A)` `(X+B)` `(X+D)` | `array[i]` in one instruction |
 | Indexed: auto inc/dec | `(X+)` `(X++)` `(-X)` `(--X)` | `*p++`, stack-walks |
-| Indexed: indirect | `((X+n))` `((X++))` | pointer-to-pointer, jump tables |
-| PC-relative | `(PC+n)` `((PC+n))` | position-independent code/data |
+| PC-relative | `(PC+n)` | position-independent code/data |
 | Relative (branch) | `label` | conditional/unconditional branches (8- and 16-bit) |
 
 The two that earn their keep for C:
@@ -181,9 +183,11 @@ The two that earn their keep for C:
   arithmetic stays cheap. `LEA` names the *address*, so its operand is written
   **bare** (`LEA X,X+4`), not parenthesised.
 
-Constant offsets come in **5-bit**, **8-bit**, and **16-bit** widths (chosen by
-the postbyte, §5.2) so small frames and struct accesses stay compact while large
-frames still work.
+Constant offsets come in **8-bit** and **16-bit** widths — the width is part of the
+opcode (there is no postbyte; D-41) — so small frames and struct accesses stay compact
+while large frames still work. **Indirect addressing is not provided:** a
+pointer-to-pointer dereference or a jump through a memory slot is an explicit extra
+`LD` (D-41 §3.1).
 
 ### 4.1 Assembly notation
 
@@ -198,8 +202,8 @@ other architectures see the non-normative [isa-comparison.md](isa-comparison.md)
 3. **Parentheses mean memory.** `(addr)` is the *contents* at `addr`; a bare token
    is the value itself. The address inside may be a register (register-indirect,
    `(X)`), register + displacement (`(X+6)`, `(SP-8)`), register + accumulator
-   (`(X+B)`), an auto-inc/dec form (`(X+)`, `(-X)`), an absolute address (`($1234)`),
-   or a further indirection (`((X+6))`). An operand that *names an address* rather
+   (`(X+B)`), an auto-inc/dec form (`(X+)`, `(-X)`), or an absolute address (`($1234)`).
+   An operand that *names an address* rather
    than dereferencing it stays bare — a `LEA` result and a jump/branch target (so
    `JMP X` jumps to the address in `X`, whereas `JMP (X)` jumps *through* it).
 4. **Register↔register moves are `LD` / `XCHG`.** A copy is `LD dst,src`; a swap is
@@ -210,29 +214,41 @@ other architectures see the non-normative [isa-comparison.md](isa-comparison.md)
 
 ## 5. Instruction encoding
 
-### 5.1 Opcode space — a single page
-There is exactly **one 256-entry opcode page** — no prefix bytes. Every instruction
-is one opcode byte followed by 0–3 trailing bytes: an optional indexed postbyte,
-then 0–2 offset / immediate / address bytes. Decode is microcoded, so the opcode
-byte need not be bit-field-structured; the full table is §8.
+### 5.1 Opcode space — two pages
+There are **two 256-entry opcode pages**, page 0 (base) and page 1 (cold), reached
+through the opcode→microinstruction map (D-40, D-41). A page-0 instruction needs no
+prefix; a page-1 instruction is reached by the single prefix byte **`0x80`**, whose
+microroutine re-enters decode on page 1. **There is no postbyte** (D-41): each
+addressing mode is its own opcode. Every instruction is one opcode byte (preceded by
+the `0x80` prefix on page 1) followed by 0–2 offset / immediate / address bytes;
+decode is microcoded, so the opcode byte need not be bit-field-structured.
 
 ```
-[ opcode ] [ postbyte? ] [ operand bytes 0..2 ]
+page 0:  [ opcode ] [ operand bytes 0..2 ]
+page 1:  [ 0x80 ]   [ opcode ] [ operand bytes 0..2 ]
 ```
 
-### 5.2 The indexed **postbyte**
-Indexed-mode instructions carry one postbyte that selects the index register and
-the sub-mode (zero/constant/accumulator offset, auto inc/dec, indirect, PC-rel).
-The full bit layout is specified in §8.3; the *set* of modes it must encode is
-fixed by §4.
+Page 0 holds the hot instructions (no decode tax); page 1 holds the cold tail at a
+cost of **+1 byte and +1 cycle**. The hot/cold split criteria and the full per-page
+inventory are §8 (full opcode set) and [d41-isa-refinement.md](d41-isa-refinement.md)
+(the placement rationale).
+
+### 5.2 Addressing is in the opcode (no postbyte)
+With the indexed postbyte removed (D-41), an indexed instruction's index register and
+sub-mode (zero / constant / accumulator offset, auto inc/dec) are encoded by the
+**opcode itself**, not a trailing selector byte. Indirect addressing is dropped
+(programmer-explicit, §4) and the 5-bit constant offset folds into the 8-bit form. The
+trailing **selector bytes that remain are not the indexed postbyte**: the register-move
+byte for `LD`/`XCHG reg,reg` and the `PSHS`/`PULS` mask (§8.4) are operand data and are
+retained.
 
 ### 5.3 Branch offsets
-Short (conditional) branches use an 8-bit signed offset (`Bcc`, `0x20–0x2F`); long
-branches use a 16-bit signed offset (`LBcc`, `0xB0–0xBF`) so the compiler is never
-boxed in by ±128 bytes.
+Short (conditional) branches use an 8-bit signed offset (`Bcc`, page 0); long branches
+use a 16-bit signed offset (`LBcc`, page 1 — a function large enough to need the longer
+reach tolerates the prefix) so the compiler is never boxed in by ±128 bytes.
 
-> **Resolved:** single opcode page (no prefix pages); the postbyte bit layout is in
-> §8.3 and operands are little-endian (§3).
+> **Resolved:** two opcode pages (page 0 + the `0x80`-prefixed page 1, D-41); no
+> postbyte; operands are little-endian (§3).
 
 ---
 
@@ -376,116 +392,118 @@ displacement removes any need for `Y` as a frame pointer (R-ISA-2).
 
 ## 8. Opcode table
 
-> The full instruction encoding, on a **single 256-opcode page** (no prefix pages —
-> see [decision-log.md](decision-log.md) D-21). It was generated exhaustively and
-> checked by independent adversarial passes (collisions/coverage, flag-effect
-> consistency, addressing/operand lengths, completeness); coverage is **256/256,
-> collision-free**, and the fixes applied are recorded in D-20. **Byte lengths and
-> flag effects are exact**; cycle counts are deferred until the datapath bus count
-> ([hardware.md](hardware.md) §9) is settled, since they depend on it.
+> The full instruction set, on **two 256-opcode pages** — page 0 (hot, no prefix) and
+> page 1 (cold, reached by the `0x80` prefix) — after the indexed postbyte was removed
+> and addressing was flattened into the opcode (D-41, superseding the single-page
+> postbyte model of D-20/D-21). §8.2 is the **complete instruction inventory** per page,
+> verified for budget, hot/cold placement, and requirement coverage (D-41 build pass);
+> the placement rationale is [d41-isa-refinement.md](d41-isa-refinement.md). The set is a
+> **flat one-dimensional list** (no opcode grids — see §8.1); concrete byte values are a
+> mechanical sequential assignment. Flag effects are per §8.5; cycle counts are deferred
+> until the datapath bus count ([hardware.md](hardware.md) §9) is settled.
 
 ### 8.1 Encoding model
 
-Every instruction is **one opcode byte** plus 0–3 trailing bytes: an optional
-indexed postbyte (§8.3), then 0–2 offset/immediate/address bytes. No prefix bytes;
-maximum length is 4 (opcode + postbyte + 2). Decode is microcoded, so the opcode
-need not be bit-structured — but the regular grids below are kept because they let
-shared microcode serve a whole band.
+Every instruction is **one opcode byte** plus 0–2 trailing offset/immediate/address
+bytes, preceded by the `0x80` prefix byte on page 1 (§5.1). There is no postbyte;
+addressing modes are distinct opcodes (D-41). Maximum length is **3 on page 0**
+(opcode + 2) and **4 on page 1** (prefix + opcode + 2). Decode is microcoded, so the
+opcode need not be bit-structured.
 
-| Band | Contents |
-|------|----------|
-| `0x00–0x1F` | Inherent / system / inter-register (incl. relocated `SEI/CLI`, USP banking, `LDMMU/STMMU`, `TAS`) |
-| `0x20–0x2F` | Short branches `Bcc rel8` — **low nibble = condition** |
-| `0x30–0x3F` | Effective address, `JMP`, and the wide compares `CMP D/CMP Y/CMP SP` |
-| `0x40–0x7F` | Read-modify-write unary ops — a **4×16 grid**: high nibble = operand (`4`=A, `5`=B, `6`=indexed, `7`=extended), low nibble = operation |
-| `0x80–0xAF` | A/D ALU & load group — **3×16**: high nibble = mode (`8`=immediate, `9`=indexed, `A`=extended), low nibble = operation |
-| `0xB0–0xBF` | Long branches `LBcc rel16` — **low nibble = condition** (mirrors `0x20–0x2F`) |
-| `0xC0–0xEF` | B / wide-register group — **3×16**: (`C`=immediate, `D`=indexed, `E`=extended) |
-| `0xF0–0xFF` | 16-bit wide ops: `SP` load/store (`0xF0–0xF4`), `ADC D`/`SBC D` (`0xF5–0xFA`), `D` multi-bit shifts (`0xFB–0xFD`); `0xFE/0xFF` reserved |
+The opcode set is a **flat one-dimensional list** (§8.2) — there are **no opcode grids**.
+The single-page table used nibble-aligned grids so direct microaddress formation (D-24) could
+let one decoded band share microcode; the opcode→start-address map (D-40) removed that
+coupling — shared microcode now comes from several map entries pointing at one routine,
+independent of the opcode number — so byte values are assigned sequentially down §8.2 with no
+geometry to satisfy. The conventions:
 
-Stores (low nibble `7`/`D`/`F`) and `JSR` (low nibble `D`) exist only in the
-memory-operand rows; the immediate rows leave those slots reserved (store-immediate
-and JSR-immediate are meaningless) — intentional, not a gap.
+- **Lengths.** inherent = 1; `imm8` / mask / `rel8` / entry-selector = 2; `imm16` /
+  extended / `rel16` = 3; an 8-bit indexed offset adds 1 byte, a 16-bit indexed offset
+  adds 2. Add 1 byte to any **page-1** instruction for the `0x80` prefix.
+- **Stores and `JSR`** exist only in the memory-operand forms; there is no
+  store-immediate or `JSR`-immediate (meaningless) — intentional, not a gap.
 
-### 8.2 Primary opcode matrix (the whole 256-byte page)
+### 8.2 Instruction inventory (the two pages)
 
-Rows = high nibble, columns = low nibble; `—` = reserved. A cell shows the operation
-and (where it has one) its target register in the house style of §4.1 — e.g. `LD A`,
-`SUB D`, `CMP SP`. As in any `LD`-unified ISA the `LD` verb appears in several cells:
-the memory/immediate loads (`LD A`, `LD X`, …), the register-move at `0x06`, and the
-USP-banking form at `0x1A`; the assembler picks the opcode from the operands. Addressing
-mode and length are given per band below.
+The complete instruction set, grouped by family. **Page 0 = 231 opcodes** (24 free of
+the 255 usable after `0x80` is reserved as the page-1 prefix); **page 1 = 231 opcodes**
+(25 free of 256). Each entry is one opcode; operand bytes (offset / immediate / mask)
+follow per §8.1. This is a **flat list** (no opcode grids, §8.1): byte values run
+sequentially in listing order — on page 0, `0x80` is reserved for the page-1 prefix and the
+unused high values are the free slots. The *set* is verified for budget, hot/cold placement,
+and requirement coverage (D-41 build pass). Placement rationale:
+[d41-isa-refinement.md](d41-isa-refinement.md).
 
-|       | x0 | x1 | x2 | x3 | x4 | x5 | x6 | x7 | x8 | x9 | xA | xB | xC | xD | xE | xF |
-|-------|----|----|----|----|----|----|----|----|----|----|----|----|----|----|----|----|
-| **0x**| NOP | SYNC | DAA | SEX | MUL | ABX | LD | XCHG | PSHS | PULS | ANDCC | ORCC | SEI | CLI | — | — |
-| **1x**| RTS | RTI | SWI | SWI2 | SWI3 | CWAI | BSR | LBSR | HALT | TAS | LD | XCHG | LDMMU | STMMU | — | — |
-| **2x**| BRA | BRN | BHI | BLS | BCC | BCS | BNE | BEQ | BVC | BVS | BPL | BMI | BGE | BLT | BGT | BLE |
-| **3x**| LEA X | LEA Y | LEA SP | CMP D | CMP Y | CMP SP | JMP | JMP | CMP D | CMP D | CMP Y | CMP Y | CMP SP | CMP SP | — | — |
-| **4x**| NEG A | — | — | COM A | LSR A | — | ROR A | ASR A | ASL A | ROL A | DEC A | — | INC A | TST A | — | CLR A |
-| **5x**| NEG B | — | — | COM B | LSR B | — | ROR B | ASR B | ASL B | ROL B | DEC B | — | INC B | TST B | — | CLR B |
-| **6x**| NEG | — | — | COM | LSR | — | ROR | ASR | ASL | ROL | DEC | — | INC | TST | — | CLR |
-| **7x**| NEG | — | — | COM | LSR | — | ROR | ASR | ASL | ROL | DEC | — | INC | TST | — | CLR |
-| **8x**| SUB A | CMP A | SBC A | SUB D | AND A | BIT A | LD A | — | EOR A | ADC A | OR A | ADD A | CMP X | — | LD X | — |
-| **9x**| SUB A | CMP A | SBC A | SUB D | AND A | BIT A | LD A | ST A | EOR A | ADC A | OR A | ADD A | CMP X | JSR | LD X | ST X |
-| **Ax**| SUB A | CMP A | SBC A | SUB D | AND A | BIT A | LD A | ST A | EOR A | ADC A | OR A | ADD A | CMP X | JSR | LD X | ST X |
-| **Bx**| LBRA | LBRN | LBHI | LBLS | LBCC | LBCS | LBNE | LBEQ | LBVC | LBVS | LBPL | LBMI | LBGE | LBLT | LBGT | LBLE |
-| **Cx**| SUB B | CMP B | SBC B | ADD D | AND B | BIT B | LD B | — | EOR B | ADC B | OR B | ADD B | LD D | — | LD Y | — |
-| **Dx**| SUB B | CMP B | SBC B | ADD D | AND B | BIT B | LD B | ST B | EOR B | ADC B | OR B | ADD B | LD D | ST D | LD Y | ST Y |
-| **Ex**| SUB B | CMP B | SBC B | ADD D | AND B | BIT B | LD B | ST B | EOR B | ADC B | OR B | ADD B | LD D | ST D | LD Y | ST Y |
-| **Fx**| LD SP | LD SP | ST SP | ST SP | LD SP | ADC D | ADC D | ADC D | SBC D | SBC D | SBC D | ASL D | LSR D | ASR D | — | — |
+#### Page 0 — hot (no prefix), 231 opcodes
 
-Mode/length per cell where it isn't obvious from the band:
+**Byte load/store (A, B) — 38.**
+`LD A,$nn`, `LD A,(SP+n8)`, `LD A,(SP)`, `LD A,(X)`, `LD A,(X+n8)`, `LD A,(X+)`, `LD A,(X+D)`, `LD A,($nnnn)`, `LD A,(Y)`, `LD A,(Y+)`, `LD A,(Y+n8)`, `LD B,$nn`, `LD B,(SP+n8)`, `LD B,(SP)`, `LD B,(X)`, `LD B,(X+n8)`, `LD B,(X+)`, `LD B,(X+D)`, `LD B,($nnnn)`, `LD B,(Y)`, `LD B,(Y+)`, `LD B,(Y+n8)`, `ST A,(SP+n8)`, `ST A,(X)`, `ST A,(X+n8)`, `ST A,(X+)`, `ST A,($nnnn)`, `ST A,(Y)`, `ST A,(Y+n8)`, `ST A,(Y+)`, `ST B,(SP+n8)`, `ST B,(X)`, `ST B,(X+n8)`, `ST B,(X+)`, `ST B,($nnnn)`, `ST B,(Y)`, `ST B,(Y+n8)`, `ST B,(Y+)`.
 
-- **`3x`:** `0x33/0x38/0x39` = `CMP D` imm/indexed/extended; `0x34/0x3A/0x3B` = `CMP Y`
-  imm/indexed/extended; `0x35/0x3C/0x3D` = `CMP SP` imm/indexed/extended; `0x36` = `JMP`
-  indexed (bare target, e.g. `JMP X`), `0x37` = `JMP` extended (`JMP $nnnn`).
-- **`1x` relocated system ops:** `0x19 TAS` indexed (atomic test-and-set);
-  `0x1A`/`0x1B` = the privileged *USP-banking* moves — the `LD`/`XCHG` transfer/exchange
-  opcode with `USP` as a register operand (`LD USP,X` / `XCHG X,USP`), distinct from the
-  unprivileged register moves at `0x06`/`0x07`; `0x1C LDMMU`/`0x1D STMMU` take an `imm8`
-  page-table entry index (bare `$`-hex; data via `D`).
-- **`Fx`:** `0xF0` `LD SP` indexed, `0xF1` `LD SP` extended, `0xF2` `ST SP` indexed,
-  `0xF3` `ST SP` extended, `0xF4` `LD SP,$nnnn` (immediate). `0xF5–0xF7` `ADC D`
-  imm/indexed/extended, `0xF8–0xFA` `SBC D` imm/indexed/extended (16-bit
-  add/subtract-with-carry on `D`). `0xFB` `ASL D,$n`, `0xFC` `LSR D,$n`, `0xFD`
-  `ASR D,$n` — shift `D` by the immediate count `n` (length 2). See §8.8.
-- **Lengths:** inherent = 1; `imm8` / mask / entry-selector = 2; `imm16` / extended /
-  `rel16` = 3; `rel8` = 2; postbyte ops (`LD`/`XCHG reg,reg`, `PSHS`/`PULS`) = 2;
-  **indexed = 2–4** (opcode + postbyte + 0/1/2 offset bytes).
+**16-bit load/store (D, X, Y, SP) — 28.**
+`LD D,$nnnn`, `LD X,$nnnn`, `LD Y,$nnnn`, `LD SP,$nnnn`, `LD D,($nnnn)`, `LD X,($nnnn)`, `LD Y,($nnnn)`, `ST D,($nnnn)`, `ST X,($nnnn)`, `ST Y,($nnnn)`, `LD D,(X)`, `ST D,(X)`, `LD D,(X+n8)`, `ST D,(X+n8)`, `LD D,(X++)`, `ST D,(X++)`, `LD D,(SP+n8)`, `LD X,(SP+n8)`, `LD Y,(SP+n8)`, `ST D,(SP+n8)`, `ST X,(SP+n8)`, `ST Y,(SP+n8)`, `LD D,(X+D)`, `ST D,(X+D)`, `LD D,(Y)`, `ST D,(Y)`, `LD D,(Y+n8)`, `ST D,(Y+n8)`.
 
-### 8.3 Indexed postbyte
+**Byte ALU (ADD/SUB/CMP/AND/OR on A, B) — 67.**
+`ADD A,$nn`, `ADD A,(X)`, `ADD A,(X+n8)`, `ADD A,(X+D)`, `ADD A,(SP+n8)`, `ADD A,($nnnn)`, `ADD A,(X+)`, `ADD A,(Y)`, `ADD B,$nn`, `ADD B,(X)`, `ADD B,(X+n8)`, `ADD B,(X+D)`, `ADD B,(SP+n8)`, `ADD B,($nnnn)`, `ADD B,(X+)`, `ADD B,(Y)`, `SUB A,$nn`, `SUB A,(X)`, `SUB A,(X+n8)`, `SUB A,(X+D)`, `SUB A,(SP+n8)`, `SUB A,($nnnn)`, `SUB A,(X+)`, `SUB A,(Y)`, `SUB B,$nn`, `SUB B,(X)`, `SUB B,(X+n8)`, `SUB B,(X+D)`, `SUB B,(SP+n8)`, `SUB B,($nnnn)`, `SUB B,(X+)`, `SUB B,(Y)`, `CMP A,$nn`, `CMP A,(X)`, `CMP A,(X+n8)`, `CMP A,(SP+n8)`, `CMP A,($nnnn)`, `CMP A,(Y)`, `CMP B,$nn`, `CMP B,(X)`, `CMP B,(X+n8)`, `CMP B,($nnnn)`, `CMP B,(Y)`, `AND A,$nn`, `AND A,(X)`, `AND A,(X+n8)`, `AND A,($nnnn)`, `AND A,(X+)`, `AND A,(Y)`, `AND B,$nn`, `AND B,(X)`, `AND B,(X+n8)`, `AND B,($nnnn)`, `AND B,(X+)`, `AND B,(Y)`, `OR A,$nn`, `OR A,(X)`, `OR A,(X+n8)`, `OR A,($nnnn)`, `OR A,(X+)`, `OR A,(Y)`, `OR B,$nn`, `OR B,(X)`, `OR B,(X+n8)`, `OR B,($nnnn)`, `OR B,(X+)`, `OR B,(Y)`.
 
-One postbyte follows the opcode for any indexed instruction; bit 7 picks the form.
-Register field `RR`: `00`=X, `01`=Y, `10`=SP, `11`=PC.
+**16-bit ALU, wide compare & D shifts — 18.**
+`ADD D,$nnnn`, `ADD D,($nnnn)`, `ADD D,(SP+n8)`, `ADD D,(X)`, `ADD D,(X+n8)`, `ADD D,(X+D)`, `SUB D,$nnnn`, `SUB D,($nnnn)`, `SUB D,(SP+n8)`, `CMP D,$nnnn`, `CMP D,($nnnn)`, `CMP D,(SP+n8)`, `CMP X,$nnnn`, `CMP Y,$nnnn`, `CMP SP,$nnnn`, `ASL D,$n`, `LSR D,$n`, `ASR D,$n`.
 
-**Form A — 5-bit constant offset (bit7 = 0):** `0 | RR(6:5) | nnnnn(4:0)` — signed
-5-bit offset −16…+15, no extra bytes, no indirect. The assembler's densest case.
+**RMW & register-direct unary — 26.**
+`INC A`, `DEC A`, `CLR A`, `TST A`, `LSR A`, `ASR A`, `ASL A`, `INC B`, `DEC B`, `CLR B`, `TST B`, `LSR B`, `ASR B`, `ASL B`, `INC (X)`, `INC (X+n8)`, `INC (SP+n8)`, `DEC (X)`, `DEC (X+n8)`, `DEC (SP+n8)`, `CLR (X)`, `CLR (X+n8)`, `TST (X)`, `TST (X+n8)`, `INC ($nnnn)`, `DEC ($nnnn)`.
 
-**Form B — general (bit7 = 1):** `1 | RR(6:5) | I(4) | TTTT(3:0)`, where `I` =
-indirect (one extra level of dereference):
+**Control flow — 29.**
+`BRA rel8`, `BRN rel8`, `BHI rel8`, `BLS rel8`, `BCC rel8`, `BCS rel8`, `BNE rel8`, `BEQ rel8`, `BVC rel8`, `BVS rel8`, `BPL rel8`, `BMI rel8`, `BGE rel8`, `BLT rel8`, `BGT rel8`, `BLE rel8`, `BSR rel8`, `RTS`, `JMP $nnnn`, `JMP X`, `JMP Y`, `JMP (X)`, `JMP (X+n8)`, `JMP (X+D)`, `JSR $nnnn`, `JSR (X)`, `JSR Y`, `JSR (X+n8)`, `JSR (X+D)`.
 
-| `TTTT` | Mode | Extra bytes |
-|--------|------|-------------|
-| `0000` | `(R+)` auto-inc by 1 (post) | 0 — `I` must be 0 |
-| `0001` | `(R++)` auto-inc by 2 (post) | 0 |
-| `0010` | `(-R)` auto-dec by 1 (pre) | 0 — `I` must be 0 |
-| `0011` | `(--R)` auto-dec by 2 (pre) | 0 |
-| `0100` | `(R)` zero offset | 0 |
-| `0101` | `(R+B)` accumulator-B offset | 0 |
-| `0110` | `(R+A)` accumulator-A offset | 0 |
-| `1000` | `(R+n)` 8-bit signed offset | 1 |
-| `1001` | `(R+n)` 16-bit signed offset | 2 (LE) |
-| `1011` | `(R+D)` accumulator-D offset | 0 |
-| `1100` | `(PC+n)` 8-bit PC-relative | 1 (RR→PC) |
-| `1101` | `(PC+n)` 16-bit PC-relative | 2 (RR→PC) |
-| `1111` | `(($nnnn))` extended-indirect | 2 (requires `I`=1) |
-| `0111`,`1010`,`1110` | reserved | — |
+**System / inherent / LEA / moves — 25.**
+`NOP`, `SEX`, `MUL`, `ABX`, `PSHS mask8`, `PULS mask8`, `ANDCC $nn`, `ORCC $nn`, `LD reg,reg`, `XCHG reg,reg`, `TAS (X)`, `TAS (X+n8)`, `LEA X,X+n8`, `LEA X,X+A`, `LEA X,X+B`, `LEA X,X+D`, `LEA X,X+`, `LEA X,X++`, `LEA X,-X`, `LEA X,Y+n8`, `LEA X,SP+n8`, `LEA Y,Y+n8`, `LEA Y,SP+n8`, `LEA SP,SP+n8`, `LEA SP,X+n8`.
 
-There is one canonical encoding per (mode, register, width, indirect) tuple, so the
-assembler/disassembler round-trips. The privileged USP-banking moves (`0x1A`/`0x1B`)
-do **not** use this postbyte — they use the register-move (`LD`/`XCHG`) register-code
-postbyte (§8.4) with the `USP` code.
+#### Page 1 — cold (`0x80` prefix), 231 opcodes
+
+**System / privileged / cold TAS & LEA — 31.**
+`DAA`, `SYNC`, `RTI`, `SWI`, `SWI2`, `SWI3`, `CWAI $nn`, `SEI`, `CLI`, `HALT`, `LDMMU $nn`, `STMMU $nn`, `LD USP,X`, `LD USP,Y`, `LD USP,D`, `LD X,USP`, `LD Y,USP`, `LD D,USP`, `XCHG X,USP`, `XCHG Y,USP`, `XCHG D,USP`, `TAS (Y)`, `TAS (Y+n8)`, `TAS (SP+n8)`, `TAS ($nnnn)`, `LEA X,X+n16`, `LEA Y,Y+n16`, `LEA SP,SP+n16`, `LEA X,PC+n8`, `LEA Y,PC+n8`, `LEA SP,Y+n8`.
+
+**Control flow — long branches & cold JMP/JSR — 40.**
+`LBRA rel16`, `LBRN rel16`, `LBHI rel16`, `LBLS rel16`, `LBCC rel16`, `LBCS rel16`, `LBNE rel16`, `LBEQ rel16`, `LBVC rel16`, `LBVS rel16`, `LBPL rel16`, `LBMI rel16`, `LBGE rel16`, `LBLT rel16`, `LBGT rel16`, `LBLE rel16`, `LBSR rel16`, `JMP (X+n16)`, `JMP (X+A)`, `JMP (X+B)`, `JMP (Y)`, `JMP (Y+n8)`, `JMP (Y+n16)`, `JMP (Y+A)`, `JMP (Y+B)`, `JMP (Y+D)`, `JMP (PC+n8)`, `JMP (PC+n16)`, `JSR (X+n16)`, `JSR (X+A)`, `JSR (X+B)`, `JSR X`, `JSR (Y)`, `JSR (Y+n8)`, `JSR (Y+n16)`, `JSR (Y+A)`, `JSR (Y+B)`, `JSR (Y+D)`, `JSR (PC+n8)`, `JSR (PC+n16)`.
+
+**Byte load/store (cold modes) — 36.**
+`ST A,(SP)`, `ST B,(SP)`, `LD A,(X++)`, `LD B,(X++)`, `LD A,(--X)`, `LD B,(--X)`, `LD A,(-X)`, `LD B,(-X)`, `ST A,(X++)`, `ST B,(X++)`, `ST A,(--X)`, `ST B,(--X)`, `ST A,(-X)`, `ST B,(-X)`, `LD A,(X+A)`, `LD A,(X+B)`, `LD B,(X+A)`, `LD B,(X+B)`, `ST A,(X+A)`, `ST A,(X+B)`, `ST A,(X+D)`, `ST B,(X+A)`, `ST B,(X+B)`, `ST B,(X+D)`, `LD A,(X+n16)`, `LD B,(X+n16)`, `ST A,(X+n16)`, `ST B,(X+n16)`, `LD A,(SP+n16)`, `LD B,(SP+n16)`, `ST A,(SP+n16)`, `ST B,(SP+n16)`, `LD A,(-Y)`, `LD B,(-Y)`, `ST A,(-Y)`, `ST B,(-Y)`.
+
+**16-bit load/store (cold modes) — 42.**
+`LD X,(Y)`, `ST X,(Y)`, `LD Y,(X)`, `ST Y,(X)`, `LD D,(SP)`, `LD X,(SP)`, `LD Y,(SP)`, `ST D,(SP)`, `ST X,(SP)`, `ST Y,(SP)`, `LD X,(X++)`, `LD Y,(X++)`, `ST Y,(X++)`, `LD D,(Y++)`, `ST D,(Y++)`, `LD X,(Y++)`, `ST X,(Y++)`, `LD D,(--X)`, `ST D,(--X)`, `ST Y,(--X)`, `LD D,(--Y)`, `ST D,(--Y)`, `ST X,(--Y)`, `LD Y,(X+n8)`, `ST Y,(X+n8)`, `LD X,(Y+n8)`, `ST X,(Y+n8)`, `LD D,(X+n16)`, `LD X,(X+n16)`, `ST D,(X+n16)`, `ST X,(X+n16)`, `LD D,(SP+n16)`, `LD X,(SP+n16)`, `LD Y,(SP+n16)`, `ST D,(SP+n16)`, `ST X,(SP+n16)`, `ST Y,(SP+n16)`, `LD Y,(X+D)`, `ST Y,(X+D)`, `LD D,(Y+D)`, `LD SP,($nnnn)`, `ST SP,($nnnn)`.
+
+**Byte ALU (cold modes + ADC/SBC/EOR/BIT) — 46.**
+`ADD A,(SP)`, `ADD B,(SP)`, `SUB A,(SP)`, `SUB B,(SP)`, `CMP A,(SP)`, `CMP B,(SP)`, `AND A,(SP)`, `AND B,(SP)`, `OR A,(SP)`, `OR B,(SP)`, `ADC A,$nn`, `ADC B,$nn`, `ADC A,($nnnn)`, `ADC B,($nnnn)`, `ADC A,(X)`, `ADC B,(X)`, `ADC A,(X+n8)`, `ADC B,(X+n8)`, `ADC A,(SP+n8)`, `ADC B,(SP+n8)`, `SBC A,$nn`, `SBC B,$nn`, `SBC A,($nnnn)`, `SBC B,($nnnn)`, `SBC A,(X)`, `SBC B,(X)`, `SBC A,(X+n8)`, `SBC B,(X+n8)`, `SBC A,(SP+n8)`, `SBC B,(SP+n8)`, `EOR A,$nn`, `EOR B,$nn`, `EOR A,($nnnn)`, `EOR B,($nnnn)`, `EOR A,(X)`, `EOR B,(X)`, `EOR A,(X+n8)`, `EOR B,(X+n8)`, `BIT A,$nn`, `BIT B,$nn`, `BIT A,($nnnn)`, `BIT B,($nnnn)`, `BIT A,(X)`, `BIT B,(X)`, `BIT A,(X+n8)`, `BIT B,(X+n8)`.
+
+**16-bit ALU & wide compare (cold) — 22.**
+`ADC D,$nnnn`, `ADC D,($nnnn)`, `ADC D,(SP+n8)`, `ADC D,(X)`, `ADC D,(X+n8)`, `SBC D,$nnnn`, `SBC D,($nnnn)`, `SBC D,(SP+n8)`, `SBC D,(X)`, `SBC D,(X+n8)`, `ADD D,(X++)`, `ADD D,(--X)`, `SUB D,(X)`, `SUB D,(X+n8)`, `SUB D,(X+D)`, `CMP D,(X)`, `CMP D,(X+n8)`, `CMP X,($nnnn)`, `CMP Y,($nnnn)`, `CMP SP,($nnnn)`, `CMP X,(SP+n8)`, `CMP X,(X)`.
+
+**RMW & register-direct unary (cold ops) — 14.**
+`NEG A`, `COM A`, `ROL A`, `ROR A`, `NEG B`, `COM B`, `ROL B`, `ROR B`, `INC (X+)`, `DEC (X+)`, `INC (Y)`, `DEC (Y)`, `CLR (Y)`, `TST (Y)`.
+
+### 8.3 Indexed addressing (encoded in the opcode)
+
+There is no indexed postbyte (D-41): the index register and sub-mode are part of the
+**opcode**, so a given (operation, register, mode) is one opcode (§8.2). The sub-modes:
+
+| Mode | Syntax | Extra bytes |
+|------|--------|-------------|
+| zero offset | `(R)` | 0 |
+| 8-bit signed offset | `(R+n8)` | 1 |
+| 16-bit signed offset | `(R+n16)` | 2 (LE) |
+| auto-inc by 1 / by 2 (post) | `(R+)` / `(R++)` | 0 |
+| auto-dec by 1 / by 2 (pre) | `(-R)` / `(--R)` | 0 |
+| accumulator offset | `(R+A)` `(R+B)` `(R+D)` | 0 |
+| PC-relative (load / `JMP` only) | `(PC+n8)` `(PC+n16)` | 1 / 2 |
+
+The index register `R` is `X`, `Y`, or `SP` as the opcode names it (and `PC` for the
+PC-relative forms); which (register × mode × operation) combinations exist, and on which
+page, is the §8.2 inventory. **Indirect addressing is not provided** (D-41 §3.1) — `((…))`
+becomes an explicit second `LD` — and the **5-bit constant offset** folds into the 8-bit
+form (no postbyte to pack it).
+
+The privileged USP-banking moves and the plain register moves use no indexed encoding —
+they carry the register-move selector byte (§8.4), which is operand data, not a postbyte,
+and is retained.
 
 ### 8.4 Register & flag encoding
 
@@ -495,14 +513,15 @@ bit2 `Z`, bit1 `V`, bit0 `C`. `M` lives in `CC` so it saves/restores automatical
 with `CC` on trap/`RTI`, and it is **supervisor-write-only** (user-mode `CC` writes
 can't change it — §8.7).
 
-**Register-move (`LD`/`XCHG`) postbyte:** `src(7:4) | dst(3:0)`, each a 4-bit register
+**Register-move (`LD`/`XCHG`) selector byte:** `src(7:4) | dst(3:0)`, each a 4-bit register
 code; source and destination must be the same width. (A copy is written
-destination-first, `LD dst,src`, but the postbyte keeps `src` in the high nibble;
-`XCHG` is symmetric.)
+destination-first, `LD dst,src`, but the selector keeps `src` in the high nibble;
+`XCHG` is symmetric.) This byte is operand data, not the indexed postbyte (which is gone,
+D-41); it is retained.
 - 16-bit: `D`=0, `X`=1, `Y`=2, `SP`=3, `PC`=4. (e.g. `LD X,D` = `0x01`.)
 - 8-bit: `A`=8, `B`=9, `CC`=`0xA`. (e.g. `XCHG A,B` = `0x89`.)
-- `USP`=`0xF` — referencing it is the **privileged** USP-banking form (`0x1A`/`0x1B`),
-  which traps in user mode. Codes `5`,`6`,`7`,`B`–`E` reserved.
+- `USP`=`0xF` — referencing it is the **privileged** USP-banking form (a page-1 opcode,
+  §8.2), which traps in user mode. Codes `5`,`6`,`7`,`B`–`E` reserved.
 
 **`PSHS`/`PULS` mask byte** (one bit per register; push high-address-first, pull
 reverse, so the same mask round-trips): bit0 `CC`, bit1 `A`, bit2 `B`, bit3
@@ -540,30 +559,24 @@ Notation: `*` set from result, `0`/`1` forced, `-` unaffected, `?` undefined.
 | `RTI`, `PULS CC` | all `CC` restored from stack | | | | |
 | `SWI`/`SWI2`/`SWI3` | set `I`; no N/Z/V/C/H | | | | |
 
-### 8.6 Relocations & reserved slots
+### 8.6 Free slots & growth
 
-Going single-page meant packing the ops that had been on prefix pages into holes:
-
-- **Long branches** `LBcc` fill row `0xB0–0xBF` (low nibble = condition, mirroring
-  `0x20–0x2F`), so one condition-decoder serves both.
-- **Wide compares** `CMP D/CMP Y/CMP SP` (9 forms) take the `0x30`-row holes (`0x33–0x3D`).
-- **Interrupt-mask** `SEI/CLI` → `0x0C/0x0D`; **USP banking** (the `LD`/`XCHG` USP
-  forms) → `0x1A/0x1B`; **MMU** `LDMMU/STMMU` → `0x1C/0x1D`; **`TAS`** → `0x19`;
-  **`HALT`** → `0x18`.
-
-**Reserved (free for growth):** `0x0E/0x0F`; `0x1E/0x1F`; `0x3E/0x3F`; the RMW holes
-(low nibbles `1/2/5/B/E` in each of `0x4x–0x7x`); the immediate-row holes
-`0x87/0x8D/0x8F` (A/D) and `0xC7/0xCD/0xCF` (B/wide); and `0xFE/0xFF`. ~34 slots in
-all — the hard 256 ceiling is accepted (D-21). (`0xF5–0xFD` now hold `ADC D`/`SBC D`
-and the `D` shifts — D-23.)
+The two pages each leave room for growth (D-41): **page 0 has 24 free slots** (of the 255
+usable, `0x80` being spent as the page-1 prefix) and **page 1 has 25 free** (of 256). The
+single-page "pack the prefix-page ops into holes" exercise (the former D-20/D-21
+constraint) is retired — the cold tail (long branches, the cold ALU/wide-compare modes,
+the privileged ops, …) lives on page 1 rather than competing for page-0 holes (§8.2).
+Because the instruction set is microcode-defined and reflashable (R-CTRL-1), the page
+assignment can be re-carved without rewiring; the free slots are residual headroom, not a
+forced reserve ([d41-isa-refinement.md](d41-isa-refinement.md) §4.4).
 
 ### 8.7 Privilege & the user-mode `CC` mask
 
-Privileged instructions (trap in user mode): `SYNC` (`0x01`), `RTI` (`0x11`),
-`SEI`/`CLI` (`0x0C`/`0x0D`), `HALT` (`0x18`), the USP-banking `LD`/`XCHG`
-(`0x1A`/`0x1B`), `LDMMU`/`STMMU` (`0x1C`/`0x1D`). `SWI`/`SWI2`/`SWI3` are
-**unprivileged** — the syscall gateway. The plain register moves `LD`/`XCHG`
-(`0x06`/`0x07`) stay unprivileged; only the USP-banking variants are privileged.
+Privileged instructions (trap in user mode): `SYNC`, `RTI`, `SEI`/`CLI`, `HALT`, the
+USP-banking `LD`/`XCHG` (the `USP`-referencing register moves, §8.4), and `LDMMU`/`STMMU`
+— all page-1 opcodes (§8.2). `SWI`/`SWI2`/`SWI3` are **unprivileged** — the syscall
+gateway. The plain register moves `LD`/`XCHG` stay unprivileged; only the USP-banking
+variants are privileged.
 
 Because `ANDCC`/`ORCC`/`CWAI` and `PULS CC` write `CC` directly, they would
 otherwise let user code change its own **mode** (`M`) or clear the **`I`** interrupt
@@ -612,7 +625,7 @@ banked `SSP`/`USP` and the mode bit in `CC` (D-22); internal MMU
 privileged `LDMMU`/`STMMU`); memory-mapped I/O in a single physical I/O page reached
 through the MMU (D-28); reset vector and physical memory map (reset entry `0x000000`,
 common at `0xE000`, vector table at `0xFFE0`; firmware monitor/loader boots the kernel
-from a block device — D-31); calling convention (§7); the full **single-page**
-encoding, indexed postbyte, and 256-entry opcode table (§8); and the assembly
+from a block device — D-31); calling convention (§7); the **two-page** flat encoding
+(no postbyte) and the instruction inventory (§8; D-41); and the assembly
 notation house style (§4.1 — verb/register split, bare `$`-hex immediates,
 parenthesised memory, `LD`/`XCHG` register moves; D-25).
