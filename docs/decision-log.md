@@ -75,6 +75,7 @@
 | D-42 | Microcode subroutines: `CALL`/`RETURN` micro-ops + a single return-address register (`µSR`); `USEQ_OP` 6→8 codes | Decided |
 | D-43 | Single boot EEPROM fanned out to the 13 control-store SRAMs (chip-major slicing); microcode toolchain realized (assembler + field-definition); boot-copy in the standard sim path | Decided |
 | D-44 | Microcode source is register-transfer notation (`.uc`), superseding the `field=value` (`.uasm`) form; strict one-statement-per-microword | Decided |
+| D-45 | Repository layout: two sources of truth (`hdl/` + `microcode/`), a domain-stable top level; canonical map in README.md | Decided |
 
 ---
 
@@ -1388,6 +1389,58 @@ bindings use placeholder sequential indices per page. **Touches (applied):** too
 (source language → register-transfer, points at microcode-source.md); microcode-source.md (promoted
 from proposed to this decision); renames `microcode/blip.uasm` → `blip.uc`; `uasm.py` front-end
 rewritten.
+
+---
+
+## D-45 — Repository layout: two sources of truth, a domain-stable top level
+**Status:** Decided (2026-06-21)
+**Supersedes:** —
+**Superseded by:** —
+**Context:** The repo had grown incrementally — a new top-level folder appeared with each new
+kind of artifact (`rtl/`, `microcode/`, `sim/`, …). With the toolchain decisions settled and
+software (C toolchain, monitor, FUZIX) and physical hardware (multiple boards) still to come, an
+ad-hoc top level would keep sprouting folders. A deliberate, forward-looking structure was wanted
+that stays stable as those artifacts land.
+**Decision:**
+- **Adopt the repository layout documented in [README.md](../README.md) ("Repository layout").**
+  The repo mirrors the machine: two **co-equal sources of truth** — `hdl/` (the structural Verilog
+  netlist) and `microcode/` (the control-store image) — surrounded by `tools/` (host build tooling),
+  `sim/` (verification), `src/` (target software), `hw/` (physical boards, one subdir each), and
+  `docs/` (design docs). The **canonical map lives in README.md**, not a separate doc.
+- **Two standing rules.** (1) *Generated artifacts are never committed* — only the `hdl/` netlist
+  and the `microcode/` source/field-definition are tracked; the EEPROM image, sim outputs,
+  schematics, waveforms, generated views, and the BOM are all rebuilt (P1/P3). (2) *New artifacts
+  go in an existing top-level domain, never a new top-level folder* — the domains are exhaustive by
+  design, so growth is additive.
+- **Key namings/placements.** `hdl/` not `rtl/` (the Verilog is *structural*, and "RTL" collides
+  with the microcode's register-transfer notation, D-44); `hw/` holds physical boards (each its own
+  subdir); the microcode assembler is `tools/uasm/` while `microcode/` stays data (field definition
+  + validator + `src/` routines); the microcode EEPROM/`build` is the control store **only** (the
+  monitor is a separate system ROM, D-31).
+**Why:**
+- *Two sources of truth, made structural (P1).* `hdl/` and `microcode/` are prominent peers;
+  everything else is derived from them or builds/verifies them.
+- *Legibility (G5, R-HW-4).* The layout names *artifacts*, not media — the netlist is the BOM (one
+  cell = one chip), and `hdl/` (logic) vs `hw/` (boards) is an unambiguous split.
+- *The CPU boundary, enforced (P4, R-SIM-3).* Peripherals live as `sim/models/` and `hw/` parts,
+  never in `hdl/`, so nothing peripheral leaks into the CPU's source-of-truth tree.
+- *Stability.* Fixing the top-level domains stops the per-artifact-folder sprawl that prompted this.
+**Alternatives weighed:**
+- **Keep `rtl/`** — rejected: misdescribes a structural chip netlist and collides with D-44's
+  register-transfer notation.
+- **A separate `docs/repo-layout.md`** — rejected: the map is the first thing a reader needs, so it
+  belongs in README (owner preference).
+- **`hw/` grouping the Verilog and the boards** — rejected: would bury a source of truth; `hdl/`
+  (logic) and `hw/` (boards) are clean top-level peers.
+**Notes:** Realized by `git mv` — `rtl/` → `hdl/` (reorg into `cells/` + `boot/`),
+`microcode/uasm.py` → `tools/uasm/`, `microcode/blip.uc` → `microcode/src/`, `sim/loader/` →
+`sim/tb/loader/`, the non-normative material → `docs/reference/`. The assembler now takes
+`<source>` and `--field-def` arguments with cross-tree defaults. **Prior decisions' path references
+are historical** — D-43's `Creates`/`Touches` (`microcode/uasm.py`, `rtl/...`) and D-44's
+`blip.uasm` name the locations of their day; current locations follow the README map. `logisim/` is
+left in place (a non-authoritative sketch). Future domains (`src/`, `hw/`, parts of `tools/`) are
+created as their first artifacts land. **Touches:** README.md (the canonical map); `run.sh` paths
+and `uasm.py` defaults updated to the new tree.
 
 Tracked in the docs' own "Open questions" sections; the load-bearing ones:
 

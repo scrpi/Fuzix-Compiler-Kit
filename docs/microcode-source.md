@@ -241,7 +241,7 @@ routine FETCH:
                                        #   PC_CTRL=count USEQ_OP=DISPATCH_IR
 ```
 
-**LD A,(X+n8)** (≈4 cycles) — assembled from [blip.uc](../microcode/blip.uc):
+**LD A,(X+n8)** (≈4 cycles) — assembled from [blip.uc](../microcode/src/blip.uc):
 ```
 .opcode page0 LD A,(X+n8)
 routine LD A,(X+n8):

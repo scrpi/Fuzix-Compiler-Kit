@@ -16,7 +16,7 @@ netlist, to replace the §5.3 speed *estimates* with real numbers:
 `add_accum` (a *representative* slice, not real BLIP): an 8-bit registered
 accumulator built structurally from the cell library — two `ttl_283` adders +
 one `ttl_574` register, with the register→adder→register feedback as the timed
-path. Cells live in [rtl/cells/](../../rtl/cells/).
+path. Cells live in [hdl/cells/](../../hdl/cells/).
 
 > **Provisional timing.** The cell `specify` delays are representative
 > 74AHCT/ACT placeholders, **not** yet datasheet-sourced (toolchain.md §10.3).

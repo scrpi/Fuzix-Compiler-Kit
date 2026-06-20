@@ -57,7 +57,10 @@ import tomllib
 from pathlib import Path
 
 HERE = Path(__file__).parent
-SPEC = HERE / "control_word.toml"
+ROOT = HERE.parent.parent                                # repo root (tools/uasm/ -> tools -> root)
+DEFAULT_SPEC = ROOT / "microcode" / "control_word.toml"  # the field definition
+DEFAULT_SRC  = ROOT / "microcode" / "src" / "blip.uc"    # the microcode source
+OUTDIR       = ROOT / "microcode" / "build"              # the image lands here (gitignored)
 
 # --- single-EEPROM geometry -------------------------------------------------
 WCS_DEPTH   = 8192          # 2**13 microwords (NEXT_ADDR is 13 bits, D-41)
@@ -493,11 +496,16 @@ def roundtrip(img: bytearray, words, cmap, fields: Fields):
 
 
 def main(argv: list[str]) -> int:
-    if len(argv) != 2:
-        print("usage: uasm.py <source.uc>", file=sys.stderr)
-        return 2
-    src = Path(argv[1])
-    with SPEC.open("rb") as f:
+    import argparse
+    p = argparse.ArgumentParser(description="BLIP microcode assembler")
+    p.add_argument("source", nargs="?", default=str(DEFAULT_SRC),
+                   help=f"microcode source (.uc)  [default: {DEFAULT_SRC}]")
+    p.add_argument("-f", "--field-def", default=str(DEFAULT_SPEC),
+                   help=f"control-word field definition  [default: {DEFAULT_SPEC}]")
+    args = p.parse_args(argv[1:])
+
+    src = Path(args.source)
+    with open(args.field_def, "rb") as f:
         fields = Fields(tomllib.load(f))
 
     try:
@@ -508,7 +516,7 @@ def main(argv: list[str]) -> int:
         print(f"error: {e}", file=sys.stderr)
         return 1
 
-    outdir = HERE / "build"
+    outdir = OUTDIR
     emit(img, outdir)
 
     used = sum(1 for b in img if b != FILL)

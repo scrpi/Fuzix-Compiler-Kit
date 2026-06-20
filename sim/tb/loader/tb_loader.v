@@ -11,7 +11,7 @@
 // standard test path (toolchain.md §3.5): a functional run loads the one image
 // and the loader fans it out, rather than pre-slicing the SRAMs.
 //
-// Build/run via sim/loader/run.sh, which passes -D IMG="<path to .hex>".
+// Build/run via sim/tb/loader/run.sh, which passes -D IMG="<path to .hex>".
 `timescale 1ns/1ps
 `default_nettype none
 module tb_loader;

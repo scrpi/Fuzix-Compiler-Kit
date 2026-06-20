@@ -7,7 +7,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-CELLS=("$ROOT/rtl/cells/ttl_283.v" "$ROOT/rtl/cells/ttl_574.v")
+CELLS=("$ROOT/hdl/cells/ttl_283.v" "$ROOT/hdl/cells/ttl_574.v")
 SLICE="$ROOT/sim/bench/add_accum.v"
 ICARUS_N=2000000          # must match parameter N in tb_icarus.v
 

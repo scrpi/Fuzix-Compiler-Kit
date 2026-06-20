@@ -4,12 +4,12 @@
 # Build artifacts go to /tmp (off the repo tree).
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 IMG="$ROOT/microcode/build/blip_microcode.hex"
 
 if [ ! -f "$IMG" ]; then
     echo "missing $IMG"
-    echo "  run: python3 microcode/uasm.py microcode/blip.uc"
+    echo "  run: python3 tools/uasm/uasm.py"
     exit 1
 fi
 
@@ -17,9 +17,9 @@ OUT=/tmp/blip_loader
 mkdir -p "$OUT"
 
 iverilog -g2012 -Wall -D IMG="\"$IMG\"" -o "$OUT/tb" \
-    "$ROOT/rtl/mem/rom.v" \
-    "$ROOT/rtl/mem/sram.v" \
-    "$ROOT/rtl/ctrl/boot_loader.v" \
-    "$ROOT/sim/loader/tb_loader.v"
+    "$ROOT/hdl/cells/rom.v" \
+    "$ROOT/hdl/cells/sram.v" \
+    "$ROOT/hdl/boot/boot_loader.v" \
+    "$ROOT/sim/tb/loader/tb_loader.v"
 
 vvp "$OUT/tb"
