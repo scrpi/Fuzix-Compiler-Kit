@@ -22,7 +22,7 @@ awk -v n="$ICARUS_N" -v a="$t0" -v b="$t1" \
 
 echo
 echo "=== Verilator (zero-delay, compiled) ==="
-verilator --cc --exe --build -j 0 -Wno-fatal --Mdir /tmp/vbench \
+verilator --cc --exe --build -j 0 -Wno-fatal --no-timing --Mdir /tmp/vbench \
     --top-module add_accum \
     "${CELLS[@]}" "$SLICE" "$ROOT/sim/bench/bench_verilator.cpp" -o bench_verilator
 /tmp/vbench/bench_verilator
