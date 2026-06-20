@@ -35,7 +35,7 @@ module ttl_574 (
     specify
         // Edge-sensitive clk->Q path (a flop has no *combinational* CLK->Q path;
         // the earlier full-path form `(CLK *> Q)` drove Q to x under -gspecify).
-        (posedge CLK => (Q : D)) = 8.0;   // tpd clk -> Q (typ)
+        (posedge CLK *> (Q : D)) = 8.0;   // tpd clk -> Q (typ; full conn, 1->8)
         $setup(D, posedge CLK, 5.0);      // documented; not enforced by Icarus
         $hold(posedge CLK, D, 0.0);
     endspecify
