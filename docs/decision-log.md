@@ -58,6 +58,7 @@
 | D-36 | Off-bus `+1` up-counters on PC/MAR/X/Y; USP/SSP & `+2`/`-1`/`-2` via ALU + const-gen `{-2..+2}` | Decided |
 | D-37 | Logic family refined: 74AHCT (SSI) + 74ACT (MSI) — AHCT has no counters/ALU | Decided |
 | D-38 | Microcode control-word format: 80-bit horizontal control word (10 SRAMs, fully self-describing); one scratch sufficient for the ISA core (two retained) | Decided |
+| D-39 | Control word restructured into two clean chip-aligned sections (sequencer + datapath), single 12-bit next-address; 88-bit / 11 SRAMs | Decided |
 
 ---
 
@@ -894,6 +895,66 @@ non-normative working notes and have been removed now the width is settled.
 **Resolves:** hardware.md §4/§9 control-word width & layout; creates
 [microcode.md](microcode.md). **Touches:** hardware.md §4/§8/§9.
 
+## D-39 — Control word restructured into two clean sections (sequencer + datapath)
+**Status:** Decided (2026-06-20) — refines D-38 (the 80-bit single-overlay word, left
+frozen as committed history).
+**Context:** D-38's 80-bit word packed sequencing and datapath bits together: a
+`FORMAT`-overlaid 9-bit window held either the far-branch target (`WIDE_TARGET`) or the
+`CC`/MMU "SPECIAL" controls, and branching used a near/far pair (`UBR_NEAR` common + the
+overlaid `WIDE_TARGET`). The requirement: (a) a strict separation between the bits that
+drive internal microsequencing and the bits that drive the datapath — no field doing both;
+and (b) a single next-address field plus one condition-select, one condition-polarity, and
+one microsequencer-opcode field, with `NEXT_ADDR` 12 bits wide (4096-word store); budget up
+to 12 SRAMs.
+**Decision:** Restructure the control word into **two clean, chip-aligned sections with no
+field shared**, totalling **88 bits / 11 WCS SRAMs**:
+- **Sequencer section — 24 bits / 3 SRAMs (chips 0–2):** `USEQ_OP` (3), a single
+  `NEXT_ADDR` (12), `UCOND_SEL` (4), `UCOND_POL` (1), `ULOOP_CTRL` (2), + 2 spare. The
+  bits that sequence the microprogram — next-address selection plus the loop counter whose
+  terminal-zero feeds the `loop-zero` condition.
+- **Datapath section — 64 bits / 8 SRAMs (chips 3–10):** every field that drives a
+  register/bus/ALU/memory/flag/MMU (59 used + 5 spare), now including the former overlay
+  "SPECIAL" controls (`CC_WRITE_SRC`, `CC_MI_LOAD`, `MMU_PT_OP`) as plain always-present
+  fields.
+The near/far branch pair collapses to the single 12-bit `NEXT_ADDR`; `FETCH_ENTRY_SEL` is
+removed as a control-word field, trap entry being selected by a fixed **hardware priority
+encoder** (NMI > IRQ > SWI > illegal > privilege) that intercepts `RETURN_FETCH`. No
+overlay, no `FORMAT` bit. Full layout in [microcode.md](microcode.md) §3; supersedes
+D-38's structure and width.
+**Why:**
+- *Clean delineation.* Separating sequencer bits from datapath bits onto a chip boundary
+  makes the two concerns independently legible and reasoned about (G5/G6) and removes the
+  one place D-38 re-read bits under a selector. It is the structural form of G8's
+  "fixed substrate, ISA in microcode": the sequencer is one well-bounded block.
+- *The near/far split was an overlay artifact.* It existed only because D-38's far target
+  shared the ALU-operand bits; with a dedicated sequencer section the single 12-bit
+  `NEXT_ADDR` is always present, so **any** branch co-occurs with a full datapath op —
+  strictly more capable than D-38 (every branch, not just near) and simpler (one target).
+- *12-bit next-address* gives a 4096-word microprogram store, matching the on-hand 8K×8
+  WCS SRAM depth.
+- *Cost accepted and small.* 11 SRAMs vs D-38's 10 — about +3 ICs (one WCS SRAM + one
+  pipeline `'574` + one boot-image plane). Part count is a non-goal, so this spends nothing
+  the priority order rewards while buying the separation, the uniform next-address, and the
+  depth.
+**Alternatives weighed:**
+- **12 SRAMs / 96 bits** (a 9th datapath SRAM for ~11 spare bits of reflash headroom) —
+  offered, declined for the leaner 11-SRAM minimum; the design fits cleanly in 11 with
+  byte-aligned sections, and each section already carries some spare.
+- **Keeping D-38's overlay (80 bits / 10 SRAMs)** — rejected: it mixes the two concerns
+  and forces the near/far split, the things this change removes.
+- **`FETCH_ENTRY_SEL` as a sequencer field** — rejected: the sequencer section is exactly
+  the four requested fields, so trap-entry selection moves to fixed hardware (a priority
+  encoder), where D-38 had already placed the gating ("boundary microconditions").
+**Notes:** `NEXT_ADDR` is the branch/jump target and doubles as the `DISPATCH_POSTBYTE`
+base (the postbyte mode is OR'd into its low bits). `UCOND_SEL` (4) + `UCOND_POL` (1) cover
+16 base conditions × both senses (32) — the 16 ISA `Bcc` conditions and their complements —
+in one self-contained field, not borrowing the `IR` nibble. The micro-loop counter
+`ULOOP_CTRL` sits in the sequencer section, not the datapath one — its terminal-zero feeds
+`UCOND_SEL`, so it is a sequencing aux. The trap-vector priority
+encoder's exact priority order and entry placement are deferred to the interrupt-controller
+/ debug-interface work (microcode.md §7). **Touches:** microcode.md (full),
+hardware.md §4/§8/§9.
+
 ---
 
 ## Pending (not yet decided)
@@ -901,8 +962,8 @@ non-normative working notes and have been removed now the width is settled.
 Tracked in the docs' own "Open questions" sections; the load-bearing ones:
 
 - **Datapath detail** — pipeline depth and ALU part choice (the high-level datapath is
-  decided — D-34; the microcode control-word format is decided — D-38 /
-  [microcode.md](microcode.md)).
+  decided — D-34; the microcode control-word format is decided — D-38, restructured into
+  two clean sections by D-39 / [microcode.md](microcode.md)).
 - **Debug interface spec** — the privileged front-panel signal list (functional
   interface now done — D-29 / [interface.md](interface.md)).
 - **Step-3 retrofit** — scrub remaining architecture names from the normative
