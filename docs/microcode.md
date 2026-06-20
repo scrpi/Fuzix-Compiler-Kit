@@ -160,7 +160,7 @@ Everything that drives a register / bus / ALU / memory / flag / MMU, always pres
 | Field | Bits | Enc | Drives / notes |
 |-------|------|-----|----------------|
 | `IR_LOAD` | 2 | bin | hold / latch opcode→`IR` (also the page-1 prefix's second opcode byte) |
-| `LEFT_SRC` | 4 | bin | LEFT driver → ALU left: `D X Y USP SSP PC MAR SCR1 SCR2 MDR IR-imm MMU-entry CC NONE` |
+| `LEFT_SRC` | 4 | bin | LEFT driver → ALU left: `D X Y USP SSP ACTIVE_SP PC MAR SCR1 SCR2 MDR IR-imm MMU-entry CC NONE` (`ACTIVE_SP` = active SP via `SP_BANK`, symmetric with `Z_DEST`) |
 | `LEFT_LANE` | 2 | bin | lane steer (8-bit bus): full16 / low / sign-ext / high→low |
 | `RIGHT_SRC` | 3 | bin | RIGHT driver → ALU right: `SCR1 SCR2` + const `{-2..+2}` (const-gen, D-36) |
 | `ALU_OP` | 4 | bin | `PASS_L PASS_R ADD ADC SUB SBC AND OR EOR COM NEG SHIFT` (`ADC`/`SBC` bake cin=`CC.C`) |
@@ -268,10 +268,10 @@ Ln  ALU_OP=SHIFT ALU_SHIFT=ASL ALU_WIDTH=16 Z_DEST=D
 **JSR** (extended target) — one scratch (`SCR1`, the target); `SP±` is const-gen:
 ```
 J*   ... fetch 16-bit target into SCR1 (two byte cycles, Z_LANE low/high) ...
-Jn   LEFT_SRC=SP RIGHT_SRC=const(-1) ALU_OP=ADD SP_BANK=follow-M
+Jn   LEFT_SRC=ACTIVE_SP RIGHT_SRC=const(-1) ALU_OP=ADD SP_BANK=follow-M
      Z_DEST=ACTIVE_SP MAR_CTRL=load                ; SP <- SP-1, MAR <- new SP (one Z, two latches)
 Jn+1 LEFT_SRC=PC LEFT_LANE=high MEM_OP=write       ; push PC high
-Jn+2 LEFT_SRC=SP RIGHT_SRC=const(-1) ALU_OP=ADD Z_DEST=ACTIVE_SP MAR_CTRL=load
+Jn+2 LEFT_SRC=ACTIVE_SP RIGHT_SRC=const(-1) ALU_OP=ADD Z_DEST=ACTIVE_SP MAR_CTRL=load
 Jn+3 LEFT_SRC=PC LEFT_LANE=low MEM_OP=write        ; push PC low
 Jn+4 LEFT_SRC=SCR1 ALU_OP=PASS_L PC_CTRL=load      ; PC <- target
 ```

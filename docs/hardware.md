@@ -68,7 +68,10 @@ results return on a third:
   ALU does data, pointer, and effective-address math.
 - **Discrete register file (G5 / R-HW-4 / D-33).** `D`(=`A:B`), `X`, `Y`, `USP`/`SSP`
   (active `SP` gated by `CC.M`), `PC`, `MAR`, and **two scratch registers** `SCR1`/`SCR2`,
-  plus 8-bit `IR`. The scratch registers can drive LEFT, RIGHT, or both at once.
+  plus 8-bit `IR`. The scratch registers can drive LEFT, RIGHT, or both at once. The
+  **active `SP`** (whichever of `USP`/`SSP` `CC.M`/`SP_BANK` selects) is reachable on both
+  LEFT and Z as a single `ACTIVE_SP` source/dest, so stack steps need not name the bank;
+  `USP`/`SSP` remain addressable explicitly.
 - **Asymmetric source buses.** Putting *all* registers only on LEFT and limiting RIGHT to
   the scratch registers + constants is the cheap part of a third source bus — RIGHT carries
   a handful of drivers, so it avoids a second bus buffer on every register (see the

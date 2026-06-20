@@ -1,0 +1,351 @@
+# BLIP microcode control-word field definition
+# =============================================
+# The single machine-readable source of truth for the 88-bit horizontal control
+# word (microcode.md §3). Per toolchain.md §3.1, BOTH the assembler's bit-packer
+# AND the documentation field table derive from this file, so the spec, the tool,
+# and the doc cannot drift.
+#
+# What this file fixes vs. what it inherits:
+#   - Field NAMES, WIDTHS, ENCODINGS, and the two-section / 11-SRAM grouping follow
+#     microcode.md §3.1-§3.2 exactly (88 bits = 24 sequencer + 64 datapath).
+#   - Field BIT POSITIONS within each section are DEFINED HERE. microcode.md §3
+#     leaves them to "firm up in simulation"; this file is now their authority.
+#     Fields pack LSB-first in declaration order within their section; the
+#     validator (check_fields.py) derives and checks the exact ranges.
+#   - SYMBOLIC VALUE ENCODINGS (e.g. ALU_OP=ADD -> 2) are defined here. Convention:
+#     value 0 is the inert / hold / idle choice wherever one exists, so the all-zero
+#     control word is a safe NOP that only counts uPC+1 (USEQ_OP=INC=0).
+#
+# Bit numbering: bit 0 = LSB. SRAM n holds bits [8n .. 8n+7]. A field may straddle
+# an SRAM boundary (e.g. NEXT_ADDR); image emission splits per-SRAM byte.
+
+[word]
+bits  = 88
+srams = 11
+
+# ---- sections --------------------------------------------------------------
+# Declaration order matters: fields are packed LSB-first within their section,
+# the sequencer section starting at bit 0, the datapath section at bit 24.
+
+[[section]]
+name  = "sequencer"          # WCS SRAMs 0-2, bits 0..23 — the ONLY bits that
+srams = [0, 1, 2]            # compute the next microaddress (microcode.md §3.1)
+bits  = 24
+
+[[section]]
+name  = "datapath"          # WCS SRAMs 3-10, bits 24..87 — everything that drives
+srams = [3, 4, 5, 6, 7, 8, 9, 10]   # a register/bus/ALU/memory/flag/MMU (§3.2)
+bits  = 64
+
+# ===========================================================================
+# SEQUENCER SECTION (microcode.md §3.1) — 24 bits
+# ===========================================================================
+
+[[field]]
+name    = "USEQ_OP"
+section = "sequencer"
+width   = 3
+enc     = "bin"
+role    = "microsequencer opcode (microcode.md §2)"
+default = "INC"
+values   = { INC = 0, BRANCH = 1, JUMP = 2, DISPATCH_IR = 3, RETURN_FETCH = 4, WAIT = 5, CALL = 6, RETURN = 7 }
+
+[[field]]
+name    = "NEXT_ADDR"
+section = "sequencer"
+width   = 13
+enc     = "lit"
+role    = "single next-microaddress (8192-deep WCS); a label resolves to this"
+
+[[field]]
+name    = "UCOND_SEL"
+section = "sequencer"
+width   = 4
+enc     = "bin"
+role    = "condition select: 16 base conditions (8 CC-derived + 8 internal, §2)"
+default = "TRUE"
+# 8 CC-derived then 8 internal microconditions. SPARE is the retired postbyte-indirect.
+values   = { Z = 0, C = 1, N = 2, V = 3, C_OR_Z = 4, N_XOR_V = 5, Z_OR_NXORV = 6, TRUE = 7, ULOOP = 8, IRQ_PENDING = 9, NMI_PENDING = 10, WAIT_READY = 11, MULTIBYTE_LAST = 12, PRIV_VIOLATION = 13, ILLEGAL_OPCODE = 14, SPARE = 15 }
+
+[[field]]
+name    = "UCOND_POL"
+section = "sequencer"
+width   = 1
+enc     = "lit"
+role    = "condition polarity — XOR'd with the selected condition (both senses)"
+values   = { ASSERT = 0, NEGATE = 1 }
+
+[[field]]
+name    = "ULOOP_CTRL"
+section = "sequencer"
+width   = 2
+enc     = "bin"
+role    = "micro-loop counter: its terminal-zero feeds the ULOOP condition"
+default = "HOLD"
+values   = { HOLD = 0, LOAD = 1, DECREMENT = 2 }
+
+[[field]]
+name    = "DISPATCH_PAGE"
+section = "sequencer"
+width   = 1
+enc     = "lit"
+role    = "opcode-map page on DISPATCH_IR; 0 on every non-dispatch microword (D-41)"
+values   = { PAGE0 = 0, PAGE1 = 1 }
+
+# ===========================================================================
+# DATAPATH SECTION (microcode.md §3.2) — 64 bits (58 used + 6 spare)
+# ===========================================================================
+
+[[field]]
+name    = "IR_LOAD"
+section = "datapath"
+width   = 2
+enc     = "bin"
+role    = "hold / latch opcode->IR (also the page-1 prefix's second opcode byte)"
+default = "HOLD"
+values   = { HOLD = 0, OPCODE = 1 }
+
+[[field]]
+name    = "LEFT_SRC"
+section = "datapath"
+width   = 4
+enc     = "bin"
+role    = "LEFT bus driver -> ALU left (ACTIVE_SP = active SP via SP_BANK, symmetric with Z_DEST)"
+default = "NONE"
+values   = { NONE = 0, D = 1, X = 2, Y = 3, USP = 4, SSP = 5, PC = 6, MAR = 7, SCR1 = 8, SCR2 = 9, MDR = 10, IR_IMM = 11, MMU_ENTRY = 12, CC = 13, ACTIVE_SP = 14 }
+
+[[field]]
+name    = "LEFT_LANE"
+section = "datapath"
+width   = 2
+enc     = "bin"
+role    = "lane steer on the 8-bit bus"
+default = "FULL16"
+values   = { FULL16 = 0, LOW = 1, SIGN_EXT = 2, HIGH_TO_LOW = 3 }
+
+[[field]]
+name    = "RIGHT_SRC"
+section = "datapath"
+width   = 3
+enc     = "bin"
+role    = "RIGHT bus driver -> ALU right: the two scratch regs + const-gen (D-36)"
+default = "SCR1"
+values   = { SCR1 = 0, SCR2 = 1, CONST_M2 = 2, CONST_M1 = 3, CONST_0 = 4, CONST_P1 = 5, CONST_P2 = 6 }
+
+[[field]]
+name    = "ALU_OP"
+section = "datapath"
+width   = 4
+enc     = "bin"
+role    = "ALU operation (ADC/SBC bake cin=CC.C)"
+default = "PASS_L"
+values   = { PASS_L = 0, PASS_R = 1, ADD = 2, ADC = 3, SUB = 4, SBC = 5, AND = 6, OR = 7, EOR = 8, COM = 9, NEG = 10, SHIFT = 11 }
+
+[[field]]
+name    = "ALU_SHIFT"
+section = "datapath"
+width   = 3
+enc     = "bin"
+role    = "qualifies ALU_OP=SHIFT"
+default = "ASL"
+values   = { ASL = 0, LSR = 1, ASR = 2, ROL = 3, ROR = 4 }
+
+[[field]]
+name    = "ALU_CIN"
+section = "datapath"
+width   = 1
+enc     = "lit"
+role    = "residual carry-in not implied by the op"
+values   = { ZERO = 0, CC_C = 1 }
+
+[[field]]
+name    = "ALU_WIDTH"
+section = "datapath"
+width   = 1
+enc     = "lit"
+role    = "8-bit low lane / 16-bit full"
+values   = { W8 = 0, W16 = 1 }
+
+[[field]]
+name    = "FLAG_WE"
+section = "datapath"
+width   = 5
+enc     = "mask"
+role    = "per-flag one-hot write-enables (isa.md §8.5); .uasm takes a flag list"
+# mask bits, LSB-first: comma-list in source, e.g. FLAG_WE=N,Z
+bits_   = { WE_H = 0, WE_N = 1, WE_Z = 2, WE_V = 3, WE_C = 4 }
+
+[[field]]
+name    = "V_SRC"
+section = "datapath"
+width   = 2
+enc     = "bin"
+role    = "V source when WE_V"
+default = "FROM_ALU"
+values   = { FROM_ALU = 0, FORCE_0 = 1, FORCE_1 = 2 }
+
+[[field]]
+name    = "C_SRC"
+section = "datapath"
+width   = 2
+enc     = "bin"
+role    = "C source when WE_C"
+default = "FROM_ALU"
+values   = { FROM_ALU = 0, FORCE_0 = 1, FORCE_1 = 2 }
+
+[[field]]
+name    = "Z_ACCUM"
+section = "datapath"
+width   = 1
+enc     = "lit"
+role    = "AND this lane's Z with prior lane (16-bit Z over two byte cycles)"
+values   = { NO = 0, ACCUM = 1 }
+
+[[field]]
+name    = "CC_WRITE_SRC"
+section = "datapath"
+width   = 2
+enc     = "bin"
+role    = "whole/masked CC write (RTI, PULS CC, ANDCC/ORCC)"
+default = "ALU_FLAGS"
+values   = { ALU_FLAGS = 0, WHOLE_Z = 1, AND_MASK = 2, OR_MASK = 3 }
+
+[[field]]
+name    = "CC_MI_LOAD"
+section = "datapath"
+width   = 2
+enc     = "bin"
+role    = "privileged M/I bits"
+default = "HOLD"
+values   = { HOLD = 0, SET_ON_ENTRY = 1, FROM_Z = 2, EXPLICIT = 3 }
+
+[[field]]
+name    = "Z_DEST"
+section = "datapath"
+width   = 4
+enc     = "bin"
+role    = "latch-from-Z dest; the strobe also clocks the panel shadow (R-DBG-1)"
+default = "NONE"
+values   = { NONE = 0, D = 1, USP = 2, SSP = 3, ACTIVE_SP = 4, SCR1 = 5, SCR2 = 6, MDR = 7, IR = 8, CC = 9 }
+
+[[field]]
+name    = "Z_LANE"
+section = "datapath"
+width   = 2
+enc     = "bin"
+role    = "which lane the dest latches"
+default = "FULL16"
+values   = { FULL16 = 0, LOW = 1, HIGH = 2 }
+
+[[field]]
+name    = "PC_CTRL"
+section = "datapath"
+width   = 2
+enc     = "bin"
+role    = "PC counter (D-36)"
+default = "HOLD"
+values   = { HOLD = 0, LOAD = 1, COUNT = 2 }
+
+[[field]]
+name    = "MAR_CTRL"
+section = "datapath"
+width   = 2
+enc     = "bin"
+role    = "MAR counter (load captures EA)"
+default = "HOLD"
+values   = { HOLD = 0, LOAD = 1, COUNT = 2 }
+
+[[field]]
+name    = "X_CTRL"
+section = "datapath"
+width   = 2
+enc     = "bin"
+role    = "X counter"
+default = "HOLD"
+values   = { HOLD = 0, LOAD = 1, COUNT = 2 }
+
+[[field]]
+name    = "Y_CTRL"
+section = "datapath"
+width   = 2
+enc     = "bin"
+role    = "Y counter"
+default = "HOLD"
+values   = { HOLD = 0, LOAD = 1, COUNT = 2 }
+
+[[field]]
+name    = "MEM_OP"
+section = "datapath"
+width   = 2
+enc     = "bin"
+role    = "idle/read/write — read and write can never co-assert (R-IF-2)"
+default = "IDLE"
+values   = { IDLE = 0, READ = 1, WRITE = 2 }
+
+[[field]]
+name    = "MMU_ADDR_SRC"
+section = "datapath"
+width   = 2
+enc     = "bin"
+role    = "address source the MMU translates"
+default = "TRANSLATE_MAR"
+values   = { TRANSLATE_MAR = 0, TRANSLATE_PC = 1, DIRECT_PHYSICAL = 2 }
+
+[[field]]
+name    = "MMU_MAP_SEL"
+section = "datapath"
+width   = 2
+enc     = "bin"
+role    = "active map"
+default = "FOLLOW_M"
+values   = { FOLLOW_M = 0, FORCE_KERNEL = 1, FORCE_USER = 2, FROM_IMM8 = 3 }
+
+[[field]]
+name    = "MMU_PT_OP"
+section = "datapath"
+width   = 2
+enc     = "bin"
+role    = "page-table access (LDMMU/STMMU)"
+default = "IDLE"
+values   = { IDLE = 0, WRITE_ENTRY = 1, READ_ENTRY = 2 }
+
+[[field]]
+name    = "SP_BANK"
+section = "datapath"
+width   = 1
+enc     = "lit"
+role    = "implicit-SP alias (USP reached as an explicit LEFT_SRC/Z_DEST code)"
+values   = { FOLLOW_M = 0, FORCE_SSP = 1 }
+
+[[field]]
+name    = "TAS_LOCK"
+section = "datapath"
+width   = 1
+enc     = "lit"
+role    = "hold the bus across an RMW — atomicity primitive (isa.md §9)"
+values   = { OFF = 0, LOCK = 1 }
+
+[[field]]
+name    = "SPARE"
+section = "datapath"
+width   = 6
+enc     = "lit"
+role    = "datapath-section headroom (D-41: was 5, +1 from removing PB_RR_MUX)"
+
+# ===========================================================================
+# Illegal-combination rules the assembler validates before emitting bits.
+# (toolchain.md §3.1/§3.4. MEM_OP read/write mutual exclusion is automatic —
+#  a single 2-bit field cannot co-assert — so it needs no rule here.)
+# ===========================================================================
+
+[[rule]]
+name = "dispatch_page_zero_off_dispatch"
+desc = "DISPATCH_PAGE must be PAGE0 unless USEQ_OP=DISPATCH_IR (microcode.md §3.1)"
+when = { field = "USEQ_OP", not_in = ["DISPATCH_IR"] }
+require = { field = "DISPATCH_PAGE", eq = "PAGE0" }
+
+[[rule]]
+name = "next_addr_needs_branchy_op"
+desc = "NEXT_ADDR is only meaningful for BRANCH/JUMP/CALL; must be 0 otherwise"
+when = { field = "USEQ_OP", not_in = ["BRANCH", "JUMP", "CALL"] }
+require = { field = "NEXT_ADDR", eq = 0 }
