@@ -97,6 +97,19 @@ bus-attached models in `sim/models/` and as physical parts in `hw/`. The microco
 EEPROM stores **only** the control store; the firmware monitor is a separate system
 ROM in the memory map (D-31).
 
+**Design vs. test harness.** `hdl/` is the *machine that gets built*; `sim/` is the
+*bench around it*. A module like [hdl/cpu.v](hdl/cpu.v) is the **device under test** —
+real-chip instances and wiring only, enforced by the structural-only gate (R-SIM-5). Its
+testbench (`sim/tb/cpu/tb_cpu.v`) is **not** built hardware: it's simulation-only
+equipment that instantiates the DUT and surrounds it with the clock, the power-on-reset
+stimulus, and the checks, in behavioral Verilog the structural rule deliberately does not
+apply to. The CPU knows nothing of its testbench — they meet only at the functional
+interface (R-SIM-3, P4). *(Scaffold caveat, while the design is young: the system
+testbench also holds the **board-attached memory** — the boot EEPROM and the control-store
+SRAMs — plus the boot-write glue. Those are real hardware modeled in the bench, which
+R-HW-4 permits for memory arrays, and they migrate into `hdl/` once the control-store data
+path is designed.)*
+
 **Two standing rules:**
 
 1. **Generated artifacts are never committed.** Only the `hdl/` netlist and the
