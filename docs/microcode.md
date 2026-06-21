@@ -184,7 +184,7 @@ Everything that drives a register / bus / ALU / memory / flag / MMU, always pres
 | `MMU_MAP_SEL` | 2 | bin | active map: follow-`CC.M` / force-kernel / force-user / from-imm8 (cross-map copy) |
 | `MMU_PT_OP` | 2 | bin | page-table access: idle / write entry (`LDMMU`) / read entry (`STMMU`) |
 | `SP_BANK` | 1 | lit | implicit-`SP` alias: follow-`CC.M` / force-SSP (USP reached as an explicit `LEFT_SRC`/`Z_DEST` code) |
-| `TAS_LOCK` | 1 | lit | hold the bus across an RMW (test-and-set indivisible) — atomicity primitive (isa.md §9) |
+| `TAS_LOCK` | 1 | lit | hold the bus across an RMW (test-and-set indivisible) — the `TAS` atomicity primitive (isa.md §6, §8.5; D-48) |
 | *(spare)* | 6 | — | datapath-section headroom (was 5; +1 from removing `PB_RR_MUX`, D-41) |
 
 **Total = 88 bits (82 used + 6 spare), 11 SRAMs** (D-41: `PB_RR_MUX` removed, `NEXT_ADDR`
@@ -311,8 +311,9 @@ stays until those routines are hand-assembled.
 
 1. **Final scratch count** — confirm one vs two after `MUL` / variable-`D`-shift /
    cross-map-copy microcode is written (§6).
-2. **Atomicity primitive.** `TAS_LOCK` is wired but its exact RMW semantics depend on the
-   still-open isa.md §9 test-and-set decision.
+2. **`TAS` RMW timing.** `TAS_LOCK` is wired and `TAS` is now ISA-ratified (isa.md §6, §8.5;
+   D-48); the open microcode detail is the exact read-modify-write bus sequence, to settle when
+   the `TAS` microroutine is written.
 3. **Asymmetric-bus staging tax.** `anyreg`/immediate/`MDR` cannot drive RIGHT, so every
    immediate and signed-offset add stages `MDR→SCR1` first (step L2). A datapath
    consequence (hardware.md §2), not a control-word defect; a future `RIGHT_SRC=MDR` option

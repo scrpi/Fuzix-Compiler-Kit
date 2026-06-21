@@ -78,6 +78,7 @@
 | D-45 | Repository layout: two sources of truth (`hdl/` + `microcode/`), a domain-stable top level; canonical map in README.md | Decided |
 | D-46 | Structural-only DUT enforced by a `yosys` gate: every `hdl/` module outside the cell library is real-chip instances + interconnect only; placeholders quarantined, not exempted | Decided |
 | D-47 | Timed simulation always-on: Icarus always `-gspecify` (timed), Verilator the zero-delay functional engine; every cell carries timing; enforced by `timing_lint` | Decided |
+| D-48 | Instruction set ratified: opcode bytes assigned (single-source `isa/opcodes.toml` + generator/lint); `JSR X` promoted to page 0; atomic `TAS` ratified; `PC` move-source rule | Decided |
 
 ---
 
@@ -1112,7 +1113,8 @@ dispatch are removed from the ISA and the substrate; with D-40's partial superse
 is now fully superseded)*; D-39 *(partial — `µPC` depth 12→13 bit / 8192-word store,
 sequencer-spare reallocation, `PB_RR_MUX` removed)*; D-40 *(partial — `DISPATCH_POSTBYTE`
 and `PB_RR_MUX` removed; opcode map extended to `{PAGE, IR}`)*
-**Superseded by:** —
+**Superseded by:** D-48 *(partial — the 231/231 split becomes 232/230 with `JSR X` promoted to
+page 0; D-41's deferred opcode-byte assignment is performed in `isa/opcodes.toml`)*
 **Context:** The indexed **postbyte** (isa.md §8.3) bought register×mode orthogonality across
 the indexed-capable opcodes at the cost of one extra byte per indexed instruction plus the
 `DISPATCH_POSTBYTE` mode-OR machinery and the `PB_RR_MUX` datapath field (D-24, retained
@@ -1542,6 +1544,45 @@ are exercised; it `$fatal`s on mismatch. `cd74act161` gained a `#15` clk->Q (it 
 untimed cell). **Creates:** `tools/lint/timing_lint.py`. **Touches:** requirements.md (adds
 R-SIM-6); `cd74act161.v` (#15 + ENT->RCO specify); `sim/tb/loader/{run.sh,tb_loader.v}` (timed,
 self-check); `sim/bench/tb_icarus.v` (self-check + 50 ns period); toolchain.md (engine policy).
+
+---
+
+## D-48 — Instruction set ratified: opcode bytes assigned; single-source `isa/opcodes.toml`
+**Status:** Decided (2026-06-21)
+**Supersedes:** D-41 *(partial — the page-0/page-1 split becomes 232/230 with `JSR X` promoted
+to page 0, and D-41's deferred "mechanical" opcode-byte assignment is now performed)*
+**Superseded by:** —
+**Context:** D-41 specified the two-page inventory ([isa.md](isa.md) §8.2) but left the
+concrete opcode bytes unassigned (a "mechanical sequential assignment"), left an atomicity
+primitive open ([isa.md](isa.md) §9), and carried two small inconsistencies (`JSR X` cold while
+`JSR Y` was hot; no `PSHS`/`PULS` flag row). The assembler's mnemonic table (the FCK `as6-blip`
+target) cannot be written until the bytes are pinned, so the set is ratified to one stable
+encoding.
+**Decision:**
+1. **Single source of truth** — `isa/opcodes.toml` holds the opcode map; [isa.md](isa.md) §8.2,
+   the assembler mnemonic table, and the D-40 opcode→start-address map are **generated** from it
+   by `tools/isa/gen_opcodes.py`, which also lints the map (dense, unique, in-range, length
+   budget). Doc, tool, and map cannot drift (toolchain.md P1).
+2. **Bytes assigned** mechanically and sequentially per page, `0x80` reserved as the page-1
+   prefix (skipped on page 0): **page 0 = 232** (`0x00–0xE8`, 23 free); **page 1 = 230**
+   (`0x00–0xE5`, 26 free).
+3. **`JSR X` promoted to page 0** (both register-direct calls now hot), refining D-41: `X` is the
+   primary pointer/return register, so a register-direct / function-pointer call is at least as
+   hot as `JSR Y`.
+4. **Atomic `TAS`** (test-and-set) ratified for kernel locks; closes [isa.md](isa.md) §9 open
+   question 1.
+5. **`PC` is a register-move source only** (`LD X,PC` reads the PC); `LD PC,…` and `XCHG …,PC`
+   are not provided, so a computed transfer is always `JMP`/`JSR` — no redundant encoding.
+6. Minor: a flag row for `PSHS`/`PULS` (registers other than `CC`) added to [isa.md](isa.md) §8.5.
+**Why:** R-ABI-1 / R-BUILD-2 need one stable, documented encoding shared by the C toolchain and
+hand-written assembly; pinning the bytes in a single linted source keeps the assembler table, the
+doc, and the microcode dispatch map consistent (R-CTRL-1 makes the encoding *data*, so the
+safeguard is a generator + lint, not hand-sync). `TAS` serves kernel critical sections (R-CPU-6).
+The dense, sequential assignment keeps the D-40 map and decode trivial.
+**Influences:** none external.
+**Creates:** `isa/opcodes.toml`, `tools/isa/gen_opcodes.py`. **Touches:** [isa.md](isa.md)
+(§8 banner; §8.2 now generated; §8.4 PC move-source rule; §8.5 `PSHS`/`PULS` row; §8.6 free-slot
+counts; §6 `TAS`; §9), [d41-isa-refinement.md](reference/d41-isa-refinement.md) (page counts).
 
 ---
 
