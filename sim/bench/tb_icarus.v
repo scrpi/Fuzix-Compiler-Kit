@@ -4,9 +4,10 @@
 // (run iverilog with -gspecify). Measures throughput as wall-clock around `vvp`
 // (see sim/bench/README.md): cycles / wall-second = the timed-sim rate.
 //
-// Period (20 ns) is chosen so the provisional 8 ns reg + 6 ns adder delays settle
-// within a half-period; it is a throughput probe, not a timing-margin check
-// (worst-case timing is a separate concern, toolchain.md §5.2).
+// Period (50 ns) lets the timed feedback loop settle: the sn74ahct574 clk->Q (8 ns)
+// plus the cascaded sn74f283 carry path (add_lo A->C4 10.5 ns + add_hi C0->S 14 ns
+// ~= 24.5 ns) is ~32.5 ns, comfortably inside one period. It is a throughput probe,
+// not a timing-margin check (worst-case timing is a separate concern, toolchain.md §5.2).
 
 `timescale 1ns / 1ps
 
@@ -23,8 +24,8 @@ module tb;
     integer i;
     initial begin
         for (i = 0; i < N; i = i + 1) begin
-            #10 clk = 1'b1;
-            #10 clk = 1'b0;
+            #25 clk = 1'b1;
+            #25 clk = 1'b0;
         end
         $display("ICARUS done: %0d cycles, final acc=%0d, sim_time=%0t", N, acc, $time);
         $finish;

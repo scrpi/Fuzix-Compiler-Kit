@@ -14,13 +14,14 @@ netlist, to replace the §5.3 speed *estimates* with real numbers:
 ## What it simulates
 
 `add_accum` (a *representative* slice, not real BLIP): an 8-bit registered
-accumulator built structurally from the cell library — two `ttl_283` adders +
-one `ttl_574` register, with the register→adder→register feedback as the timed
+accumulator built structurally from the cell library — two `sn74f283` adders +
+one `sn74ahct574` register, with the register→adder→register feedback as the timed
 path. Cells live in [hdl/cells/](../../hdl/cells/).
 
-> **Provisional timing.** The cell `specify` delays are representative
-> 74AHCT/ACT placeholders, **not** yet datasheet-sourced (toolchain.md §10.3).
-> The benchmark measures simulator *throughput*, not timing correctness.
+> **Mixed timing.** The `sn74f283` adder carries datasheet-sourced `specify`
+> delays (SN74F283); the `sn74ahct574` register delay is still a placeholder, not
+> yet datasheet-sourced (toolchain.md §10.3). Either way the benchmark measures
+> simulator *throughput*, not timing correctness.
 
 ## Running (WSL, repo cloned at ~/dev/blip)
 
@@ -34,7 +35,7 @@ its own Mcyc/s.
 
 ## Results (first run, 2026-06-20)
 
-3-cell slice (two `ttl_283` + one `ttl_574`), WSL Ubuntu-24.04, Verilator 5.020 / Icarus 12:
+3-cell slice (two `sn74f283` + one `sn74ahct574`), WSL Ubuntu-24.04, Verilator 5.020 / Icarus 12:
 
 | Engine | Rate | Sanity |
 |--------|------|--------|

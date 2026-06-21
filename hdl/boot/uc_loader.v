@@ -1,54 +1,77 @@
-// Microcode loader (uc_loader) — fans the single EEPROM image out to the 13 control-store SRAMs
-// at power-on, then releases the CPU (D-03, R-CTRL-3; refined by the single-
-// EEPROM decision). One reflashable image; the loader distributes it.
+// Microcode loader (uc_loader) — structural netlist of real chips.
 //
-// The image is CHIP-MAJOR with uniform 2^SEG_AW segments, so the loader is pure
-// binary address-slicing — no mod-N counter, no per-chip depth special-casing:
+// At power-on it copies the single boot EEPROM image into the 13 control-store
+// SRAMs, then releases the CPU (D-03, R-CTRL-3; single-EEPROM model D-43). It is
+// independent of the CPU — just a counter, a decoder, the EEPROM, and the SRAMs.
 //
-//     a 17-bit counter walks 0 .. NSEG*2^SEG_AW - 1
-//        rom_addr   = cnt                         (drive the EEPROM)
-//        sram_addr  = cnt[SEG_AW-1:0]             (shared to all 13 SRAMs)
-//        we one-hot = decode(cnt[.. :SEG_AW])     (cnt's high bits pick the chip)
-//        sram_wdata = rom_data                    (EEPROM byte, async)
+// Structure (the BOM — R-SIM-1, R-SIM-5):
+//   * 5x cd74act161  -> a 17-bit binary address counter `cnt`. Async-cleared to 0 by
+//     the active-low boot reset; ripple-carry cascade (RCO -> next ENT).
+//   * 2x sn74ahct138  -> a 4->16 decoder of the chip field seg = cnt[16:13] (a '154 is
+//     unobtainable). The low 3 seg bits drive A,B,C of both; cnt[16] picks the
+//     half via the complementary enable polarities, so NO inverter is needed.
 //
-//   In hardware: a 74-series counter ('161 chain) + a 4:16 decoder ('154) on the
-//   high bits + a shared write-data/address bus. This is the FUNCTIONAL model of
-//   that circuit; structural 74-series form + datasheet timing come later
-//   (toolchain.md §4.1). `loading` is high during the copy and gates the CPU.
+// The decoder does triple duty and removes all glue logic:
+//   * Y0..Y12  -> the 13 active-low per-chip selects (`cs_n`).
+//   * Y13      -> the done/`loading` line. It is HIGH while seg<13 (copying) and
+//     LOW once the counter reaches seg 13 (one past the last chip). Fed back as
+//     the count enable, it stops the counter on itself — no comparator, no
+//     loading flip-flop. (Y14, Y15 are unused.)
+//
+// Reset is taken ACTIVE-LOW (`rst_n`, the natural POR/supervisor convention) so it
+// drives the '161 CLR# directly and the '138 halves with no inverter. During reset
+// the counter is held at 0, so chip 0 address 0 is (harmlessly, idempotently)
+// written its own byte; `loading` is HIGH, holding the CPU off.
+//
+// The actual /WE pulse per chip is the decoder select combined with a clock phase
+// (a clean strobe so the byte latches with the address stable) — that clock-gating
+// lives in the board/testbench, not here, so this module stays purely structural.
 `timescale 1ns/1ps
 `default_nettype none
 module uc_loader #(
-    parameter NSEG   = 13,      // 11 WCS + 2 opcode-map
-    parameter SEG_AW = 13       // uniform 8 Kword segment per chip
+    parameter NSEG   = 13,      // 11 WCS + 2 opcode-map  (fixed: the 2x '138 decode)
+    parameter SEG_AW = 13       // 8 Kword per chip       (fixed: the low counter bits)
 ) (
     input  wire               clk,
-    input  wire               rst,        // active-high; held at power-on
-    output wire [SEG_AW+3:0]  rom_addr,   // 17-bit EEPROM address (4 seg bits + SEG_AW)
+    input  wire               rst_n,      // active-LOW boot reset (held low at power-on)
+    output wire [SEG_AW+3:0]  rom_addr,   // 17-bit EEPROM address (= cnt)
     input  wire [7:0]         rom_data,
-    output wire [SEG_AW-1:0]  sram_addr,  // shared to every SRAM
-    output wire [7:0]         sram_wdata, // shared write data
-    output wire [NSEG-1:0]    we,         // one-hot per-chip write enable
-    output reg                loading
+    output wire [SEG_AW-1:0]  sram_addr,  // shared SRAM address (= cnt low bits)
+    output wire [7:0]         sram_wdata, // shared write data (= rom_data, a bus wire)
+    output wire [NSEG-1:0]    cs_n,       // per-chip select, active LOW (decoder Y0..Y12)
+    output wire               loading     // HIGH during copy (decoder seg-13 line)
 );
-    localparam LAST = NSEG * (1 << SEG_AW) - 1;   // last byte index to copy
+    // ---- 17-bit address counter: five '161s, ripple-carry cascade ----------
+    wire [19:0] cnt;            // 20 bits exist; bits [16:0] used, [19:17] idle
+    wire [4:0]  rco;            // ripple carry out of each stage (rco[4] unused)
+    wire        count_en;       // = loading: counts while seg < 13, then halts
 
-    reg [SEG_AW+3:0] cnt;
-    always @(posedge clk or posedge rst) begin
-        if (rst) begin
-            cnt     <= 0;
-            loading <= 1'b1;
-        end else if (loading) begin
-            if (cnt == LAST) loading <= 1'b0;
-            cnt <= cnt + 1'b1;
-        end
-    end
+    cd74act161 c0 (.clk(clk), .clr_n(rst_n), .load_n(1'b1), .enp(count_en), .ent(count_en),
+                .p(4'b0000), .q(cnt[3:0]),   .rco(rco[0]));
+    cd74act161 c1 (.clk(clk), .clr_n(rst_n), .load_n(1'b1), .enp(count_en), .ent(rco[0]),
+                .p(4'b0000), .q(cnt[7:4]),   .rco(rco[1]));
+    cd74act161 c2 (.clk(clk), .clr_n(rst_n), .load_n(1'b1), .enp(count_en), .ent(rco[1]),
+                .p(4'b0000), .q(cnt[11:8]),  .rco(rco[2]));
+    cd74act161 c3 (.clk(clk), .clr_n(rst_n), .load_n(1'b1), .enp(count_en), .ent(rco[2]),
+                .p(4'b0000), .q(cnt[15:12]), .rco(rco[3]));
+    cd74act161 c4 (.clk(clk), .clr_n(rst_n), .load_n(1'b1), .enp(count_en), .ent(rco[3]),
+                .p(4'b0000), .q(cnt[19:16]), .rco(rco[4]));
 
-    wire [3:0] seg = cnt[SEG_AW+3:SEG_AW];        // which chip this byte belongs to
+    // ---- 4->16 decode of seg = cnt[16:13]: two '138s -----------------------
+    // Low '138: enabled when cnt[16]=0 (G2A# = cnt[16]); outputs seg 0..7.
+    // High '138: enabled when cnt[16]=1 (G1   = cnt[16]); outputs seg 8..15.
+    wire [7:0] dlo, dhi;
+    sn74ahct138 dec_lo (.a(cnt[SEG_AW]), .b(cnt[SEG_AW+1]), .c(cnt[SEG_AW+2]),
+                    .g1(1'b1), .g2a_n(cnt[SEG_AW+3]), .g2b_n(1'b0), .y(dlo));
+    sn74ahct138 dec_hi (.a(cnt[SEG_AW]), .b(cnt[SEG_AW+1]), .c(cnt[SEG_AW+2]),
+                    .g1(cnt[SEG_AW+3]), .g2a_n(1'b0), .g2b_n(1'b0), .y(dhi));
 
-    assign rom_addr   = cnt;
-    assign sram_addr  = cnt[SEG_AW-1:0];
-    assign sram_wdata = rom_data;
-    assign we = (loading && !rst) ? ({{(NSEG-1){1'b0}}, 1'b1} << seg)
-                                  : {NSEG{1'b0}};
+    // ---- pure wiring -------------------------------------------------------
+    assign cs_n       = {dhi[4:0], dlo[7:0]};   // seg 12..0 selects (active low)
+    assign loading    = dhi[5];                 // seg-13 line: HIGH copying, LOW done
+    assign count_en   = dhi[5];                 // counter halts itself at seg 13
+    assign rom_addr   = cnt[SEG_AW+3:0];        // = cnt[16:0]
+    assign sram_addr  = cnt[SEG_AW-1:0];        // = cnt[12:0]
+    assign sram_wdata = rom_data;               // shared EEPROM/SRAM data bus
 endmodule
 `default_nettype wire

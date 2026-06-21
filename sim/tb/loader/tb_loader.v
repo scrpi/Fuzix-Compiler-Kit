@@ -7,13 +7,12 @@
 //   /CE  tied LOW (chips always selected)
 //   /OE  HIGH during the copy (loader drives the shared write-data bus), LOW
 //        afterward so the checker can read every chip back
-//   /WE  the loader's one-hot select gated into a per-chip write pulse — this is
-//        the 4->16 decoder strobing exactly one chip's /WE (hardware.md, D-43)
-//
-// The loader updates its counter on posedge clk, so the write pulse is asserted
-// while clk is LOW (address/data set up) and released at the next posedge, which
-// latches the byte present before the counter advances. /WE therefore terminates
-// the write with the address still valid (is61c64 captures on posedge /WE).
+//   /WE  the loader's active-low per-chip select (cs_n[g], a '138 decoder output)
+//        ORed with the clock: /WE = cs_n[g] | clk. For the selected chip it pulses
+//        LOW while clk is LOW (address/data set up) and rises at the next posedge,
+//        latching the byte with the address still valid (is61c64 captures on
+//        posedge /WE). This clock-gating is board glue, kept out of the structural
+//        loader (hardware.md, D-43).
 //
 // The loader's correctness criterion is exactly the chip-major slicing contract:
 //
@@ -33,14 +32,14 @@ module tb_loader;
     localparam DEPTH  = (1 << SEG_AW);
 
     reg clk = 1'b0;
-    reg rst = 1'b1;
+    reg rst_n = 1'b0;                    // active-low boot reset, asserted at t=0
     always #5 clk = ~clk;
 
     wire [16:0] rom_addr;
     wire [7:0]  rom_data;
     wire [12:0] ld_addr;
     wire [7:0]  ld_wdata;
-    wire [NSEG-1:0] we;
+    wire [NSEG-1:0] cs_n;               // per-chip select, active low (decoder Y0..Y12)
     wire loading;
 
     // The loader drives the SRAM address during the copy; the checker drives it
@@ -58,19 +57,20 @@ module tb_loader;
     );
 
     uc_loader #(.NSEG(NSEG), .SEG_AW(SEG_AW)) loader (
-        .clk(clk), .rst(rst),
+        .clk(clk), .rst_n(rst_n),
         .rom_addr(rom_addr), .rom_data(rom_data),
         .sram_addr(ld_addr), .sram_wdata(ld_wdata),
-        .we(we), .loading(loading)
+        .cs_n(cs_n), .loading(loading)
     );
 
     // Board wiring of the 13 real SRAMs (is61c64).
     wire [7:0] io [0:NSEG-1];           // per-chip bidirectional data bus
     genvar g;
     generate for (g = 0; g < NSEG; g = g + 1) begin : chip
-        // /WE: low while a byte is presented (clk low), released at posedge to
-        // latch — but only for the chip this byte's segment selects (we[g]).
-        wire we_n = loading ? ~(we[g] & ~clk) : 1'b1;
+        // /WE = cs_n[g] | clk: for the selected chip (cs_n[g] low) it pulses low
+        // while clk is low and rises at posedge to latch; high otherwise. When the
+        // copy ends (seg 13) all cs_n are high, so /WE stays high. Board glue.
+        wire we_n = cs_n[g] | clk;
         // /OE: outputs off during the copy, on for read-back.
         wire oe_n = loading;
         // Shared write-data bus the loader drives during the copy; released
@@ -87,7 +87,7 @@ module tb_loader;
     reg [7:0] expb, gotb;
     initial begin
         @(negedge clk); @(negedge clk);
-        rst = 1'b0;
+        rst_n = 1'b1;                        // release boot reset
 
         wait (loading == 1'b0);             // copy complete
         @(negedge clk);

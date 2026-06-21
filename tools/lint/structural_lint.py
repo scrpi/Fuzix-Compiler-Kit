@@ -31,10 +31,9 @@ HDL = ROOT / "hdl"
 CELLS_DIR = HDL / "cells"
 
 # DUT module file (path relative to repo root) -> why it is not yet structural.
+# Empty: every DUT module is a structural netlist of real chips (uc_loader was the
+# last placeholder — rebuilt from 5x cd74act161 + 2x sn74ahct138, D-46).
 QUARANTINE = {
-    "hdl/boot/uc_loader.v":
-        "functional placeholder; rebuild from a ttl_161 counter chain + a "
-        "ttl_154 4->16 decoder + gates (toolchain.md §4.1)",
 }
 
 

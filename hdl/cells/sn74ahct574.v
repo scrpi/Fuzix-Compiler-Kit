@@ -1,4 +1,4 @@
-// ttl_574 — octal D-type flip-flop with 3-state outputs (74x574), cell model.
+// sn74ahct574 — octal D-type flip-flop with 3-state outputs (74AHCT574), cell model.
 //
 // Part of BLIP's 74-series cell library (R-SIM-1). Positive-edge clocked;
 // active-low output enable (OE_n). Q goes high-Z when OE_n is high.
@@ -8,12 +8,12 @@
 // timing-check tasks — so the worst-case gate reads margins from the waveform;
 // toolchain.md §5.2. Verilator ignores all of this and runs zero-delay.)
 //
-// NOTE: PROVISIONAL placeholder delays (representative 74AHCT/ACT @5V), not yet
-// sourced from datasheet corners — toolchain.md §10.3.
+// NOTE: PROVISIONAL placeholder delays, not yet sourced from the SN74AHCT574
+// datasheet corners (docs/reference/datasheets/sn74ahct574.pdf) — toolchain.md §10.3.
 
 `timescale 1ns / 1ps
 
-module ttl_574 (
+module sn74ahct574 (
     output [7:0] Q,
     input  [7:0] D,
     input        CLK,
