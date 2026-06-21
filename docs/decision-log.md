@@ -76,6 +76,7 @@
 | D-43 | Single boot EEPROM fanned out to the 13 control-store SRAMs (chip-major slicing); microcode toolchain realized (assembler + field-definition); boot-copy in the standard sim path | Decided |
 | D-44 | Microcode source is register-transfer notation (`.uc`), superseding the `field=value` (`.uasm`) form; strict one-statement-per-microword | Decided |
 | D-45 | Repository layout: two sources of truth (`hdl/` + `microcode/`), a domain-stable top level; canonical map in README.md | Decided |
+| D-46 | Structural-only DUT enforced by a `yosys` gate: every `hdl/` module outside the cell library is real-chip instances + interconnect only; placeholders quarantined, not exempted | Decided |
 
 ---
 
@@ -1441,6 +1442,61 @@ are historical** — D-43's `Creates`/`Touches` (`microcode/uasm.py`, `rtl/...`)
 left in place (a non-authoritative sketch). Future domains (`src/`, `hw/`, parts of `tools/`) are
 created as their first artifacts land. **Touches:** README.md (the canonical map); `run.sh` paths
 and `uasm.py` defaults updated to the new tree.
+
+---
+
+## D-46 — Structural-only DUT, enforced by an automated gate
+**Status:** Decided (2026-06-21)
+**Supersedes:** —
+**Superseded by:** —
+**Context:** Simulation is the design's reference and (P1) one of the two sources of truth, so its
+worth depends on the simulated structure being the structure that gets built: a board of real chips
+wired together (R-SIM-1). Behavioural convenience at the netlist level — a `+`, an `always`, a `?:` —
+has no physical counterpart, so any result it touches is unbacked by buildable hardware and silently
+invalidates the run. Cell models (one per real device, modelled from its datasheet) and the test
+harness legitimately contain behaviour; the netlist *between* them must not. Nothing checked this,
+and the current `boot_loader.v` is itself a behavioural placeholder.
+**Decision:**
+- **The DUT is a structural netlist of real chips only.** Every module under `hdl/` except the cell
+  library (`hdl/cells/`) shall consist solely of cell-model instances plus interconnect (wires, bus
+  selections/concatenation, constant ties to a rail) — no operators, procedural blocks, or inferred
+  logic of its own. `hdl/cells/` (datasheet models, one file = one chip) and the test harness
+  (`sim/`) are the only places behaviour is allowed. Satisfies **R-SIM-5**, sharpens **R-SIM-1**, and
+  is run under **R-SIM-4**.
+- **Enforced mechanically** by `tools/lint/structural_lint.py`: `yosys` reads the cell library (and
+  every other DUT module) as blackboxes, elaborates each module, and asserts no `$`-prefixed RTLIL
+  cell exists — the form every synthetic operator / `always` / bare primitive takes on elaboration.
+  A `$` cell ⇒ the gate fails and names the offending module/line.
+- **Known-synthetic placeholders are quarantined, not exempted.** Each is listed with the reason it
+  is not yet structural, and the gate verifies it *still* fails the structural check, so the list
+  cannot rot. Rebuild from real cells, then delete the entry. Initial list: `boot_loader.v` (rebuild
+  from a `ttl_161` counter chain + a `ttl_154` 4→16 decoder + gates — toolchain.md §4.1).
+**Why:**
+- *The structure under test is the structure built (R-SIM-1, R-SIM-5).* The check makes "no synthetic
+  logic stands in for a chip" a machine-verified invariant rather than a hope.
+- *Discrete logic, mechanically (G1).* The netlist *is* the BOM — one cell, one chip — so a gate that
+  rejects non-cell logic defends G1 at the source level.
+- *Semantic and precise.* Operating on the elaborated netlist, not text, it cannot be fooled by
+  comments or formatting and pinpoints the offender.
+- *Adoptable on a dirty tree.* The quarantine list lets the gate pass today while still blocking any
+  *new* synthetic logic, and the self-test keeps the list shrinking toward zero.
+**Alternatives weighed:**
+- **Text/regex lint** (grep for `always`, operators) — rejected: fragile (comments, strings, false
+  positives) and blind to what the source actually elaborates to.
+- **Exempt placeholders outright** — rejected: an exemption nothing re-checks rots silently; the
+  quarantine self-test forces the list down to zero.
+- **Whole-hierarchy check from one top** — rejected for per-module checking: per-module isolates the
+  offender and lets a structural parent instantiate a quarantined child cleanly.
+- **Lean on R-SIM-1 alone, no gate** — rejected: a requirement no test enforces is exactly the gap
+  this closes (R-SIM-4).
+**Notes:** Testbench board-glue is the known soft spot — strobe/decoder logic currently in
+`sim/tb/loader/tb_loader.v` escapes the DUT check; when `boot_loader` goes structural that logic
+moves into the netlist as real parts. A mis-modelled cell (wrong datasheet behaviour) is out of this
+gate's scope by definition — the cell library is the trusted primitive set; fidelity of a cell is its
+own concern. **Creates:** `tools/lint/structural_lint.py`. **Touches:** requirements.md (adds
+R-SIM-5; G1 coverage row).
+
+---
 
 Tracked in the docs' own "Open questions" sections; the load-bearing ones:
 

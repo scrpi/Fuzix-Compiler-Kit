@@ -211,6 +211,13 @@ by reaching past them to a goal or to another design.
   previously met its specification no longer does — covering both functional
   behaviour (instruction results, flags, memory, and bus transactions) and
   worst-case timing (against R-CLK-1).
+- **R-SIM-5** (⟸ G1) — Every module of the design under test shall consist solely
+  of instances of real-device cell models and their interconnect (wires, bus
+  selections, and constant ties); it shall introduce no behavioural or synthesised
+  logic of its own. Behavioural description is confined to the cell models — one per
+  real device, modelled from its datasheet — and to the test harness. This shall be
+  mechanically checkable, so that no synthetic logic can stand in for a device that
+  must physically exist.
 
 ## CPU/system interface (IF)
 
@@ -248,7 +255,7 @@ by reaching past them to a goal or to another design.
 
 | Goal | Requirements |
 |------|--------------|
-| **G1** Discrete logic | R-HW-1, R-HW-2, R-HW-3, R-SIM-1, R-SIM-4 |
+| **G1** Discrete logic | R-HW-1, R-HW-2, R-HW-3, R-SIM-1, R-SIM-4, R-SIM-5 |
 | **G2** Genuine C target | R-ISA-1…8, R-ABI-1…4, R-BUILD-1, R-BUILD-2 |
 | **G3** Run FUZIX | R-ISA-8, R-CPU-1…7, R-MEM-2…5, R-MEM-7, R-IF-3, R-BUILD-1 |
 | **G4** >64 KB, flat per-process | R-MEM-1…6, R-CPU-4 |
