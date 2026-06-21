@@ -24,6 +24,8 @@ iverilog -g2012 -gspecify -Wall -D IMG="\"$IMG\"" -o "$OUT/tb" \
     "$ROOT/hdl/cells/sn74ahct138.v" \
     "$ROOT/hdl/cells/sn74ahct157.v" \
     "$ROOT/hdl/cells/sn74ahct04.v" \
+    "$ROOT/hdl/cells/sn74ahct541.v" \
+    "$ROOT/hdl/cells/sn74ahct32.v" \
     "$ROOT/hdl/boot/uc_loader.v" \
     "$ROOT/hdl/cpu.v" \
     "$ROOT/sim/tb/cpu/tb_cpu.v"

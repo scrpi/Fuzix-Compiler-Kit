@@ -104,11 +104,10 @@ testbench (`sim/tb/cpu/tb_cpu.v`) is **not** built hardware: it's simulation-onl
 equipment that instantiates the DUT and surrounds it with the clock, the power-on-reset
 stimulus, and the checks, in behavioral Verilog the structural rule deliberately does not
 apply to. The CPU knows nothing of its testbench — they meet only at the functional
-interface (R-SIM-3, P4). *(Scaffold caveat, while the design is young: the system
-testbench also holds the **board-attached memory** — the boot EEPROM and the control-store
-SRAMs — plus the boot-write glue. Those are real hardware modeled in the bench, which
-R-HW-4 permits for memory arrays, and they migrate into `hdl/` once the control-store data
-path is designed.)*
+interface (R-SIM-3, P4). *(Scaffold note: `cpu` is self-contained — it instantiates its
+own boot EEPROM, control store, and boot-write data path, so `tb_cpu.v` is a pure harness.
+What's still a stand-in is the **micro-PC**: a linear counter that walks the control store,
+until the real sequencer — dispatch, branch, CALL/RETURN — replaces it.)*
 
 **Two standing rules:**
 
@@ -121,6 +120,22 @@ path is designed.)*
    exhaustive by design; a new kind of file belongs inside one of them. This keeps
    the top level stable as the project grows.
 
+## Building & testing
+
+Everything runs from the root `Makefile`:
+
+```bash
+make test     # the whole suite: image, field-def check, both lints, timed test-benches
+make lint     # structural-only gate + timing-presence gate (static, fast)
+make sim      # just the timed self-checking test-benches (loader, cpu, bench)
+make image    # assemble the microcode into the EEPROM image (microcode/build/)
+make help     # list all targets
+```
+
+The test-benches run under Icarus `-gspecify` (timed) and `$fatal` on failure, so
+`make test` is a real pass/fail gate — it stops at the first red. It needs the WSL
+toolchain (`iverilog`, `verilator`, `yosys`, `python3`).
+
 ## Status
 
 Early design. The goals are settled; the ISA register model and addressing modes
@@ -129,4 +144,4 @@ schematics are in progress. See the "Open questions" sections in each doc.
 
 ## Name
 
-**B**en's **L**ittle **P**rocessor. The blinkenlights blip.
+**B**en's **Li**ttle **P**rocessor. The blinkenlights blip.
