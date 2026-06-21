@@ -1,0 +1,10 @@
+{
+  "name": "blip-viz",
+  "version": "0.0.0",
+  "private": true,
+  "description": "BLIP HDL visualization tooling — generated views from the structural Verilog (docs/toolchain.md §6). Local, reproducible: `npm install` here, no global tools.",
+  "devDependencies": {
+    "netlistsvg": "^1.0.2",
+    "yosys2digitaljs": "^0.10.3"
+  }
+}

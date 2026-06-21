@@ -8,10 +8,12 @@
 # Needs the WSL toolchain: iverilog, verilator, yosys, python3. `make help` lists targets.
 
 PYTHON := python3
-TOP    ?= cpu
+# TOP selects which module the viz targets render; each has its own default
+# (viz -> cpu, digitaljs -> uc_loader). Override per run, e.g. `make viz TOP=uc_loader`.
+TOP    ?=
 
 .NOTPARALLEL:
-.PHONY: test image check lint sim loader cpu bench viz clean help
+.PHONY: test image check lint sim loader cpu bench viz digitaljs clean help
 
 ## test:   run the whole suite (image, field-def check, both lints, timed test-benches)
 test: image check lint sim
@@ -45,13 +47,19 @@ cpu: image
 bench:
 	bash sim/bench/run.sh
 
-## viz:    generate a schematic SVG of the HDL (Yosys -> netlistsvg); TOP=cpu
+## viz:    schematic SVG of the HDL — Yosys -> netlistsvg (default TOP=cpu)
 viz:
 	bash tools/viz/render.sh $(TOP)
 
+## digitaljs: interactive DigitalJS sim from the HDL — Yosys -> yosys2digitaljs
+##            (default TOP=uc_loader; the whole cpu has a tri-state control-store
+##            bus DigitalJS can't model — use `make viz` for the cpu schematic)
+digitaljs:
+	bash tools/viz/digitaljs.sh $(TOP)
+
 ## clean:  remove generated artifacts
 clean:
-	rm -rf microcode/build
+	rm -rf microcode/build tools/viz/build
 
 ## help:   list these targets
 help:

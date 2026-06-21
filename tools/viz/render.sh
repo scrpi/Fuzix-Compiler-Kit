@@ -20,8 +20,11 @@ mkdir -p "$OUT"
 if   command -v yosys        >/dev/null 2>&1; then YOSYS=yosys
 elif command -v yowasp-yosys >/dev/null 2>&1; then YOSYS=yowasp-yosys
 else echo "error: need 'yosys' (or 'pip install yowasp-yosys')" >&2; exit 1; fi
-command -v netlistsvg >/dev/null 2>&1 || {
-  echo "error: need 'netlistsvg' (npm install -g netlistsvg)" >&2; exit 1; }
+# Prefer the repo-local netlistsvg (tools/viz/node_modules, from `npm --prefix
+# tools/viz install`); fall back to a global install on PATH.
+if   [ -x tools/viz/node_modules/.bin/netlistsvg ]; then NETLISTSVG=tools/viz/node_modules/.bin/netlistsvg
+elif command -v netlistsvg >/dev/null 2>&1;          then NETLISTSVG=netlistsvg
+else echo "error: need 'netlistsvg' — run: npm --prefix tools/viz install" >&2; exit 1; fi
 
 # 1. Elaborate. The cell library is read as black boxes (-lib) so each 74-series chip
 #    is drawn as ONE box — the wiring is the subject, the datasheet behaviour is not —
@@ -51,7 +54,7 @@ json.dump(d, open(p, "w"))
 PY
 
 # 3. Render the schematic (the real artifact).
-netlistsvg "${OUT}/${TOP}.json" -o "${OUT}/${TOP}.svg"
+"$NETLISTSVG" "${OUT}/${TOP}.json" -o "${OUT}/${TOP}.svg"
 echo "schematic: ${OUT}/${TOP}.svg"
 
 # 4. Optional PNG preview for quick viewing; the SVG is authoritative.
