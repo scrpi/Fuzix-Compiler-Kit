@@ -21,7 +21,7 @@
 // one can go inactive to terminate the Write"). Address and data are sampled at
 // that edge.
 //
-// On the board the boot loader ties /CE LOW, holds /OE HIGH, and a 4->16 decoder
+// On the board the microcode loader ties /CE LOW, holds /OE HIGH, and a 4->16 decoder
 // routes a write pulse to exactly one chip's /WE (hardware.md, D-43); at run time
 // /WE is HIGH and the addressed byte drives the control word.
 //

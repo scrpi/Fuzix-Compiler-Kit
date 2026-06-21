@@ -3,7 +3,7 @@
 
 Turns human-readable microcode source (.uc, the register-transfer notation of
 docs/microcode-source.md) into ONE burnable EEPROM image that is ALSO the
-simulation input: the sim loads this single image and the modeled boot loader
+simulation input: the sim loads this single image and the modeled microcode loader
 fans it out to the 13 control-store SRAMs, so the loading circuit is itself
 exercised on every run (toolchain.md §3, §3.5, R-BUILD-3). The 88-bit
 control-word layout and all symbolic value encodings come from control_word.toml
@@ -12,7 +12,7 @@ hard-coded bit positions.
 
 Single-EEPROM boot model
 ------------------------
-All 13 control-store SRAMs are programmed from ONE EEPROM that the boot loader
+All 13 control-store SRAMs are programmed from ONE EEPROM that the microcode loader
 fans out on power-on (refines D-03 / R-CTRL-3). The image is CHIP-MAJOR with
 uniform 8 KiB segments, so the loader is pure binary address-slicing:
 
@@ -456,7 +456,7 @@ def emit(img: bytearray, outdir: Path):
         path.write_text("".join(f"{b:02x}\n" for b in data))
 
     # The single image is BOTH the burnable truth and the simulation input: the
-    # sim's EEPROM model loads this one file and the modeled boot loader fans it
+    # sim's EEPROM model loads this one file and the modeled microcode loader fans it
     # out to the 13 SRAMs, so the loading circuit is exercised on every run
     # (toolchain.md §3.5). The .hex is the $readmemh form of the same bytes.
     (outdir / "blip_microcode.bin").write_bytes(img)

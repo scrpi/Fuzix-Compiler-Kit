@@ -171,7 +171,7 @@ name    = "FLAG_WE"
 section = "datapath"
 width   = 5
 enc     = "mask"
-role    = "per-flag one-hot write-enables (isa.md §8.5); .uasm takes a flag list"
+role    = "per-flag one-hot write-enables (isa.md §8.5); .uc takes a flag list"
 # mask bits, LSB-first: comma-list in source, e.g. FLAG_WE=N,Z
 bits_   = { WE_H = 0, WE_N = 1, WE_Z = 2, WE_V = 3, WE_C = 4 }
 

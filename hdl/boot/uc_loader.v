@@ -1,4 +1,4 @@
-// Boot loader — fans the single EEPROM image out to the 13 control-store SRAMs
+// Microcode loader (uc_loader) — fans the single EEPROM image out to the 13 control-store SRAMs
 // at power-on, then releases the CPU (D-03, R-CTRL-3; refined by the single-
 // EEPROM decision). One reflashable image; the loader distributes it.
 //
@@ -17,7 +17,7 @@
 //   (toolchain.md §4.1). `loading` is high during the copy and gates the CPU.
 `timescale 1ns/1ps
 `default_nettype none
-module boot_loader #(
+module uc_loader #(
     parameter NSEG   = 13,      // 11 WCS + 2 opcode-map
     parameter SEG_AW = 13       // uniform 8 Kword segment per chip
 ) (

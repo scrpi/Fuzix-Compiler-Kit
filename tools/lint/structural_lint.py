@@ -32,7 +32,7 @@ CELLS_DIR = HDL / "cells"
 
 # DUT module file (path relative to repo root) -> why it is not yet structural.
 QUARANTINE = {
-    "hdl/boot/boot_loader.v":
+    "hdl/boot/uc_loader.v":
         "functional placeholder; rebuild from a ttl_161 counter chain + a "
         "ttl_154 4->16 decoder + gates (toolchain.md §4.1)",
 }

@@ -54,9 +54,9 @@ Four principles shape the whole flow; everything below is their consequence.
 ```
    SOURCES (single source of truth)                 DERIVED ARTIFACTS / CONSUMERS
    ┌───────────────────────────┐
-   │ microcode source (.uasm)  │   assemble    ┌─────────────────────────────┐
+   │ microcode source (.uc)    │   assemble    ┌─────────────────────────────┐
    │  + field-definition file  │ ────────────► │ ONE EEPROM image             │──► EEPROM burner
-   │   (the 88-bit word spec)  │               │  = 13 SRAMs (11 WCS + 2 map) │──► boot loader fans out
+   │   (the 88-bit word spec)  │               │  = 13 SRAMs (11 WCS + 2 map) │──► uc_loader fans out
    └───────────────────────────┘               │ (.hex / .bin, same bytes)    │──► sim $readmemh (image)
                 │ generates                     └─────────────────────────────┘
                 ▼                                              │ loaded into
@@ -135,7 +135,7 @@ combinations before a single bit is burned.
 
 ### 3.5 Boot path vs. simulation load
 
-On hardware, the boot loader copies the single EEPROM image out to the 13 control-store
+On hardware, the microcode loader copies the single EEPROM image out to the 13 control-store
 SRAMs at power-on — the 11 WCS chips and the 2 opcode-map chips — then releases the CPU
 (D-03, D-43, R-CTRL-3). **Simulation loads that same single image and runs the same
 loader**, so the boot-copy circuit is exercised on every functional run (D-43): the image

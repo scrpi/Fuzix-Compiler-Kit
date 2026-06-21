@@ -60,7 +60,7 @@ blip/
 ├── hdl/              ◀ SOURCE OF TRUTH #1 — structural Verilog (the CPU netlist = the BOM)
 │   ├── cells/              # 74-series library, one model per chip + specify timing
 │   ├── cpu/               # datapath, alu, registers, mmu, sequencer, control-store
-│   ├── boot/              # boot-copy loader, reset
+│   ├── boot/              # microcode loader (uc_loader), reset
 │   └── cpu.v              # top: ports = the functional interface ONLY (R-SIM-3)
 │
 ├── microcode/        ◀ SOURCE OF TRUTH #2 — the control-store image (data + its validator)

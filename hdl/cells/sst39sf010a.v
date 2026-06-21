@@ -10,7 +10,7 @@
 //   OE#      output enable  (active LOW)
 //   WE#      write enable   (active LOW)
 //
-// READ-ONLY model. The boot loader only READS a pre-burned part (D-43): contents
+// READ-ONLY model. The microcode loader only READS a pre-burned part (D-43): contents
 // are loaded from FILE via $readmemh, exactly the bytes the device is programmed
 // with (toolchain.md P1, R-SIM-2). The JEDEC Program/Erase command sequences
 // (datasheet Table 12 / Figure 6 — 5555h/2AAAh unlock, byte-program, sector/chip

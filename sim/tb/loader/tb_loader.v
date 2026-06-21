@@ -1,6 +1,6 @@
-// Boot-loader testbench (Icarus).
+// Microcode-loader testbench (Icarus).
 //
-// Loads the SINGLE assembler image into the EEPROM model, runs the boot loader,
+// Loads the SINGLE assembler image into the EEPROM model, runs the microcode loader,
 // and verifies it reconstructs all 13 control-store SRAMs byte-for-byte. The
 // SRAMs are the real async part (is61c64), wired the way the board wires them:
 //
@@ -57,7 +57,7 @@ module tb_loader;
         .ce_n(1'b0), .oe_n(1'b0), .we_n(1'b1)
     );
 
-    boot_loader #(.NSEG(NSEG), .SEG_AW(SEG_AW)) loader (
+    uc_loader #(.NSEG(NSEG), .SEG_AW(SEG_AW)) loader (
         .clk(clk), .rst(rst),
         .rom_addr(rom_addr), .rom_data(rom_data),
         .sram_addr(ld_addr), .sram_wdata(ld_wdata),

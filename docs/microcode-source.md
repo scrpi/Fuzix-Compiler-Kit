@@ -316,8 +316,8 @@ Two datapath behaviours the language relies on, both now pinned:
    tension), or always write `MDR <- [PC]; PC++` explicitly?
 6. **Opcode binding:** `.opcode page0 LD A,(X+n8)` vs a separate mnemonic→routine table
    file; and how page-1 (`0x80` prefix) entries are declared.
-7. **File extension:** keep `.uasm`, or rename (`.uc` / `.ucode` / `.urtl`) now that the
-   source is not assembly.
+7. **File extension — decided (D-44):** `.uc`, now that the source is register-transfer
+   rather than assembly.
 8. **Lane notation:** write-lane suffix `SCR1.low` (§4) vs read-lane function `low(SCR1)`
    (§5) are asymmetric — unify on one, or keep the split (suffix = dest, function = source)?
 
