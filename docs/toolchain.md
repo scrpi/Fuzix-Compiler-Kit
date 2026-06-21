@@ -295,7 +295,11 @@ All views are generated from the two sources (P3); none is hand-maintained.
   visible, edge by edge — the nanosecond view used to debug the critical path.
 - **The "plumbing" — schematic.** Yosys exports the netlist as JSON, which
   **netlistsvg** (a separate tool) renders to a schematic SVG — drawn directly from
-  the Verilog. The wiring diagram is generated, so it is never stale.
+  the Verilog. The wiring diagram is generated, so it is never stale. *Implemented*
+  as `make viz` (`tools/viz/render.sh`): it reads the `hdl/cells/` models as black
+  boxes — each 74-series part becomes one labelled box — and writes
+  `tools/viz/build/<top>.svg` (gitignored); `make viz TOP=<module>` renders any
+  sub-block (e.g. `uc_loader`).
 - **Interactive, animated logic — the Logisim experience, from code.** Yosys →
   **DigitalJS** (`yosys2digitaljs`) produces a clickable, signal-animated logic
   simulation in the browser / editor, from the same Verilog. It is *functional*

@@ -8,9 +8,10 @@
 # Needs the WSL toolchain: iverilog, verilator, yosys, python3. `make help` lists targets.
 
 PYTHON := python3
+TOP    ?= cpu
 
 .NOTPARALLEL:
-.PHONY: test image check lint sim loader cpu bench clean help
+.PHONY: test image check lint sim loader cpu bench viz clean help
 
 ## test:   run the whole suite (image, field-def check, both lints, timed test-benches)
 test: image check lint sim
@@ -43,6 +44,10 @@ cpu: image
 ## bench:  two-engine throughput benchmark (Verilator vs timed Icarus)
 bench:
 	bash sim/bench/run.sh
+
+## viz:    generate a schematic SVG of the HDL (Yosys -> netlistsvg); TOP=cpu
+viz:
+	bash tools/viz/render.sh $(TOP)
 
 ## clean:  remove generated artifacts
 clean:
