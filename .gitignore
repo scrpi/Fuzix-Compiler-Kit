@@ -12,5 +12,8 @@ __pycache__/
 *.vvp
 obj_dir/
 
+# Generated visualization (rebuilt from hdl/ by tools/viz/render.sh — toolchain.md P3)
+tools/viz/build/
+
 # Windows / WSL download metadata (alternate-data-stream sidecars)
 *:Zone.Identifier
