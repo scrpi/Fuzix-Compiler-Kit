@@ -199,10 +199,14 @@ suite — the part that runs many cycles — is Verilator, which comfortably exc
 ≥1 MHz simulated target for a CPU this size. Gate-level timed simulation in Icarus is
 far slower per cycle (kHz, not MHz), but it is never run for long: timing is a
 worst-case property checked by **STA or short directed tests** (§5.2), so it is
-bounded / one-shot, not throughput-bound. Two facts shape that timing check: `specify`
-path delays are off by default in Icarus (enable with `-gspecify`), and Icarus
-implements no `$setup`/`$hold` timing-check tasks, so margins are read from the
-waveform, not reported by the simulator (§5.2).
+bounded / one-shot, not throughput-bound. Two facts shape that timing check. First,
+**Icarus is always run with `-gspecify`** (D-47): its `specify` path delays are off by
+default, but BLIP never runs the zero-delay Icarus mode — functional-only is
+Verilator's job — so every Icarus run exercises real propagation timing, and every
+cell carries it (a `specify` block or a `#` clk→Q delay; `tools/lint/timing_lint.py`
+enforces both that and the flag). Second, Icarus implements no `$setup`/`$hold`
+timing-check tasks, so margins are read from the waveform, not reported by the
+simulator (§5.2).
 
 ### 4.3 Why not a separate behavioral model
 

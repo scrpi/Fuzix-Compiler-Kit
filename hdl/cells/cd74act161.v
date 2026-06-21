@@ -11,14 +11,13 @@
 // reset; ENP/ENT carry the "not done" enable that stops the count at the last chip.
 //
 // Timing (datasheet p.8, CD74ACT161, -40..85C, CL=50pF, MAX): CLK->Q 15 ns,
-// CLK->RCO 15.2 ns, ENT->RCO 9.8 ns, CLR#->Q/RCO 15 ns; fmax ~91 MHz. The
-// sequential CLK->Q / CLR#->Q delays are NOT encoded: a `#` delay would corrupt
-// the zero-delay functional loader run (which clocks faster than a real '161 to
-// keep sim time short — the real boot clock is slow, ~100s of kHz), and a
-// `specify` clk->Q path drives Q to x under Icarus -gspecify (see sn74ahct574).
-// Sequential-cell timing is the open methodology question (toolchain.md
-// §10.3/§10.4); this model is zero-delay and the numbers above are recorded for
-// when that is settled.
+// CLK->RCO 15.2 ns, ENT->RCO 9.8 ns, CLR#->Q/RCO 15 ns; fmax ~91 MHz. CLK->Q and
+// CLR#->Q are modelled with an intra-assignment `#15` (Icarus honours it; Verilator
+// ignores it) — the working mechanism, since a `specify` clk->Q path drives Q to x
+// under Icarus -gspecify (see sn74ahct574). The combinational ENT->RCO is a
+// `specify` path. Per the always-timed policy (D-47) every cell carries its timing;
+// setup/hold (D->CLK) is not enforced — Icarus has no timing-check tasks
+// (toolchain.md §5.2), and worst-case margin is a separate STA concern.
 `timescale 1ns/1ps
 `default_nettype none
 module cd74act161 (
@@ -33,11 +32,15 @@ module cd74act161 (
 );
     initial q = 4'b0000;        // defined power-on state (R-CPU-7; CLR# clears it at boot)
     always @(posedge clk or negedge clr_n) begin
-        if (!clr_n)         q <= 4'b0000;       // asynchronous clear
-        else if (!load_n)   q <= p;             // synchronous parallel load
-        else if (enp & ent) q <= q + 4'b0001;   // count up
+        if (!clr_n)         q <= #15 4'b0000;       // async clear, tpd CLR# -> Q
+        else if (!load_n)   q <= #15 p;             // sync load,   tpd CLK  -> Q
+        else if (enp & ent) q <= #15 q + 4'b0001;   // count up,    tpd CLK  -> Q
         // else hold
     end
     assign rco = ent & (&q);    // RCO = ENT AND (Q == 1111)
+
+    specify
+        (ent *> rco) = 9.8;     // tpd ENT -> RCO (combinational)
+    endspecify
 endmodule
 `default_nettype wire

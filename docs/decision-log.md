@@ -77,6 +77,7 @@
 | D-44 | Microcode source is register-transfer notation (`.uc`), superseding the `field=value` (`.uasm`) form; strict one-statement-per-microword | Decided |
 | D-45 | Repository layout: two sources of truth (`hdl/` + `microcode/`), a domain-stable top level; canonical map in README.md | Decided |
 | D-46 | Structural-only DUT enforced by a `yosys` gate: every `hdl/` module outside the cell library is real-chip instances + interconnect only; placeholders quarantined, not exempted | Decided |
+| D-47 | Timed simulation always-on: Icarus always `-gspecify` (timed), Verilator the zero-delay functional engine; every cell carries timing; enforced by `timing_lint` | Decided |
 
 ---
 
@@ -1495,6 +1496,52 @@ moves into the netlist as real parts. A mis-modelled cell (wrong datasheet behav
 gate's scope by definition — the cell library is the trusted primitive set; fidelity of a cell is its
 own concern. **Creates:** `tools/lint/structural_lint.py`. **Touches:** requirements.md (adds
 R-SIM-5; G1 coverage row).
+
+---
+
+## D-47 — Timed simulation always-on: Icarus is the timed engine, Verilator the functional one
+**Status:** Decided (2026-06-21)
+**Supersedes:** —
+**Superseded by:** —
+**Context:** The two-engine split had drifted into THREE de-facto modes: Verilator zero-delay
+(functional), Icarus `-gspecify` (timed), and Icarus WITHOUT `-gspecify` (zero-delay) — the
+loader regression ran in the last. That third mode tests neither well: slower than Verilator,
+blind to timing. A real example proved the cost — the engine benchmark, run zero-delay,
+reported a correct accumulator, while the timed run exposed that the real adder delay does not
+settle in the chosen clock (`acc=x`). Timing bugs (an EEPROM too slow for the boot clock, an
+adder too slow for the cycle) are invisible to a zero-delay run, yet R-SIM-1 already requires
+"real propagation and timing behaviour."
+**Decision:**
+- **Two engines, two jobs.** Verilator (`--no-timing`, zero-delay) is the FUNCTIONAL engine
+  (fast logic regression). Icarus is the TIMED engine and is **always** run with `-gspecify`;
+  the Icarus-without-timing mode is retired. A functional-only check uses Verilator. Satisfies
+  **R-SIM-6**, sharpens **R-SIM-1**, runs under **R-SIM-4**.
+- **Every cell carries timing.** Combinational cells via `specify` path delays; sequential
+  cells via an intra-assignment `#` clock-to-output delay (a `specify` clk->Q path drives Q to
+  x under Icarus `-gspecify`, so `#` is the working mechanism, honoured regardless of the flag).
+  "Has timing" is enforced; "datasheet-sourced timing" stays a separate quality bar
+  (toolchain.md §10.3).
+- **Timed test-benches self-check** — a timed run that produces x or a wrong result `$fatal`s,
+  so a timing failure fails the run rather than scrolling past.
+- **Enforced** by `tools/lint/timing_lint.py`: every `hdl/cells/*.v` carries a `specify` or a
+  `#` delay, and every Icarus runner passes `-gspecify`.
+**Why:**
+- *Real timing, every run (R-SIM-1, R-SIM-6).* Timing is the question Icarus exists to answer;
+  removing the zero-delay escape hatch means it is always answered.
+- *It caught a real bug.* The `acc=x` the timed bench surfaced is exactly the class this defends.
+- *Clean division of labour.* Each engine does one thing; no ambiguous third mode.
+**Alternatives weighed:**
+- **Keep Icarus-zero-delay for fast functional Icarus runs** — rejected: that is Verilator's
+  job; an Icarus run that skips timing skips its only reason to exist.
+- **Enforce full setup/hold timing checks now** — deferred: Icarus has no timing-check tasks, so
+  `$setup`/`$hold` are unavailable. Icarus-timed gives propagation-delay correctness, not
+  worst-case-margin sign-off (STA, toolchain.md §5.2/§10.4 — a separate, later concern).
+**Notes:** The loader regression moved from a 100 MHz zero-delay clock to a realistic ~500 kHz
+boot clock (the slow dedicated 555), so the real 70 ns flash read / 15 ns counter / 10 ns SRAM
+are exercised; it `$fatal`s on mismatch. `cd74act161` gained a `#15` clk->Q (it was the one
+untimed cell). **Creates:** `tools/lint/timing_lint.py`. **Touches:** requirements.md (adds
+R-SIM-6); `cd74act161.v` (#15 + ENT->RCO specify); `sim/tb/loader/{run.sh,tb_loader.v}` (timed,
+self-check); `sim/bench/tb_icarus.v` (self-check + 50 ns period); toolchain.md (engine policy).
 
 ---
 

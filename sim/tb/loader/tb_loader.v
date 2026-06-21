@@ -23,7 +23,10 @@
 // standard test path (toolchain.md §3.5): a functional run loads the one image
 // and the loader fans it out, rather than pre-slicing the SRAMs.
 //
-// Build/run via sim/tb/loader/run.sh, which passes -D IMG="<path to .hex>".
+// Build/run via sim/tb/loader/run.sh (Icarus -gspecify, TIMED; passes -D IMG=...).
+// The loader is clocked at a realistic slow boot rate (~500 kHz) so the real cell
+// delays are exercised — the 70 ns flash read, 15 ns counter, 10 ns SRAM — and the
+// run $fatals on any byte mismatch or timeout (D-47: Icarus is always timed).
 `timescale 1ns/1ps
 `default_nettype none
 module tb_loader;
@@ -33,7 +36,8 @@ module tb_loader;
 
     reg clk = 1'b0;
     reg rst_n = 1'b0;                    // active-low boot reset, asserted at t=0
-    always #5 clk = ~clk;
+    always #1000 clk = ~clk;            // ~500 kHz boot clock (slow 555); 2 us period
+                                        // >> the 70 ns flash read + 15 ns counter clk->Q
 
     wire [16:0] rom_addr;
     wire [7:0]  rom_data;
@@ -97,7 +101,7 @@ module tb_loader;
         checked = 0;
         for (a = 0; a < DEPTH; a = a + 1) begin
             vaddr = a[12:0];
-            #1;                              // settle async SRAM read (zero-delay)
+            #100;                            // settle the timed SRAM read (tAA 10 ns)
             for (k = 0; k < NSEG; k = k + 1) begin
                 expb = eeprom.mem[k*DEPTH + a];
                 gotb = io[k];
@@ -115,14 +119,13 @@ module tb_loader;
             $display("PASS - loader reconstructed all %0d bytes from the single image",
                      checked);
         else
-            $display("FAIL - %0d of %0d bytes wrong", errors, checked);
+            $fatal(1, "FAIL - %0d of %0d bytes wrong", errors, checked);
         $finish;
     end
 
     initial begin
-        #6000000;                            // > copy time (106k cycles x 10ns)
-        $display("TIMEOUT - loader never deasserted");
-        $finish;
+        #300000000;                          // > copy time (106k cycles x 2 us ~= 213 ms)
+        $fatal(1, "TIMEOUT - loader never deasserted");
     end
 endmodule
 `default_nettype wire

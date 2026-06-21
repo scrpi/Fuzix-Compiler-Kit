@@ -28,6 +28,8 @@ module tb;
             #25 clk = 1'b0;
         end
         $display("ICARUS done: %0d cycles, final acc=%0d, sim_time=%0t", N, acc, $time);
+        if (acc !== (N % 256))           // catches X and wrong values (timing failure)
+            $fatal(1, "BENCH acc=%0d, expected %0d - timed run did not settle", acc, N % 256);
         $finish;
     end
 endmodule

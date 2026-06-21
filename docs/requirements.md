@@ -218,6 +218,11 @@ by reaching past them to a goal or to another design.
   real device, modelled from its datasheet — and to the test harness. This shall be
   mechanically checkable, so that no synthetic logic can stand in for a device that
   must physically exist.
+- **R-SIM-6** (⟸ G1, G9) — Every cell model shall carry its propagation timing —
+  combinational input-to-output path delays and sequential clock-to-output delays.
+  The timed simulation engine shall always apply that timing, so every timed run
+  exercises real propagation behaviour; functional (zero-delay) verification is
+  performed by a separate engine. This shall be mechanically checkable.
 
 ## CPU/system interface (IF)
 
@@ -255,7 +260,7 @@ by reaching past them to a goal or to another design.
 
 | Goal | Requirements |
 |------|--------------|
-| **G1** Discrete logic | R-HW-1, R-HW-2, R-HW-3, R-SIM-1, R-SIM-4, R-SIM-5 |
+| **G1** Discrete logic | R-HW-1, R-HW-2, R-HW-3, R-SIM-1, R-SIM-4, R-SIM-5, R-SIM-6 |
 | **G2** Genuine C target | R-ISA-1…8, R-ABI-1…4, R-BUILD-1, R-BUILD-2 |
 | **G3** Run FUZIX | R-ISA-8, R-CPU-1…7, R-MEM-2…5, R-MEM-7, R-IF-3, R-BUILD-1 |
 | **G4** >64 KB, flat per-process | R-MEM-1…6, R-CPU-4 |
@@ -263,7 +268,7 @@ by reaching past them to a goal or to another design.
 | **G6** Functional blinkenlights | R-DBG-1…5, R-IF-4, R-CPU-7, R-MEM-7 |
 | **G7** Defined CPU/system interface | R-IF-1…4, R-IF-6, R-DBG-5, R-SIM-3 |
 | **G8** The ISA lives in microcode | R-CTRL-1, R-CTRL-2, R-CTRL-3, R-CTRL-4, R-BUILD-3, R-SIM-2, R-SIM-4 |
-| **G9** ~10 MHz | R-HW-2, R-CLK-1, R-CLK-2, R-CTRL-2, R-SIM-1 |
+| **G9** ~10 MHz | R-HW-2, R-CLK-1, R-CLK-2, R-CTRL-2, R-SIM-1, R-SIM-6 |
 
 ## Open questions for this document
 
