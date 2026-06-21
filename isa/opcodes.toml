@@ -1,0 +1,4178 @@
+# BLIP opcode map — SINGLE SOURCE OF TRUTH for the instruction set.
+# Generated artifacts (isa.md §8.2 table, assembler mnemonic table, the
+# D-40 opcode->start-address map) derive from THIS file; do not hand-edit
+# them. Validate + regenerate with tools/isa/gen_opcodes.py. Bytes are a
+# mechanical sequential assignment per page (0x80 reserved as the page-1
+# prefix on page 0); the lint enforces dense/unique/in-range (D-48, D-41).
+
+# ── page 0 · Byte load/store (A, B) ──
+[[op]]
+page = 0
+byte = 0x00
+mnem = "LD A,$nn"
+group = "Byte load/store (A, B)"
+trailing = ["imm8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0x01
+mnem = "LD A,(SP+n8)"
+group = "Byte load/store (A, B)"
+trailing = ["off8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0x02
+mnem = "LD A,(SP)"
+group = "Byte load/store (A, B)"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x03
+mnem = "LD A,(X)"
+group = "Byte load/store (A, B)"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x04
+mnem = "LD A,(X+n8)"
+group = "Byte load/store (A, B)"
+trailing = ["off8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0x05
+mnem = "LD A,(X+)"
+group = "Byte load/store (A, B)"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x06
+mnem = "LD A,(X+D)"
+group = "Byte load/store (A, B)"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x07
+mnem = "LD A,($nnnn)"
+group = "Byte load/store (A, B)"
+trailing = ["abs16"]
+length = 3
+priv = false
+
+[[op]]
+page = 0
+byte = 0x08
+mnem = "LD A,(Y)"
+group = "Byte load/store (A, B)"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x09
+mnem = "LD A,(Y+)"
+group = "Byte load/store (A, B)"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x0A
+mnem = "LD A,(Y+n8)"
+group = "Byte load/store (A, B)"
+trailing = ["off8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0x0B
+mnem = "LD B,$nn"
+group = "Byte load/store (A, B)"
+trailing = ["imm8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0x0C
+mnem = "LD B,(SP+n8)"
+group = "Byte load/store (A, B)"
+trailing = ["off8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0x0D
+mnem = "LD B,(SP)"
+group = "Byte load/store (A, B)"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x0E
+mnem = "LD B,(X)"
+group = "Byte load/store (A, B)"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x0F
+mnem = "LD B,(X+n8)"
+group = "Byte load/store (A, B)"
+trailing = ["off8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0x10
+mnem = "LD B,(X+)"
+group = "Byte load/store (A, B)"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x11
+mnem = "LD B,(X+D)"
+group = "Byte load/store (A, B)"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x12
+mnem = "LD B,($nnnn)"
+group = "Byte load/store (A, B)"
+trailing = ["abs16"]
+length = 3
+priv = false
+
+[[op]]
+page = 0
+byte = 0x13
+mnem = "LD B,(Y)"
+group = "Byte load/store (A, B)"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x14
+mnem = "LD B,(Y+)"
+group = "Byte load/store (A, B)"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x15
+mnem = "LD B,(Y+n8)"
+group = "Byte load/store (A, B)"
+trailing = ["off8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0x16
+mnem = "ST A,(SP+n8)"
+group = "Byte load/store (A, B)"
+trailing = ["off8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0x17
+mnem = "ST A,(X)"
+group = "Byte load/store (A, B)"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x18
+mnem = "ST A,(X+n8)"
+group = "Byte load/store (A, B)"
+trailing = ["off8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0x19
+mnem = "ST A,(X+)"
+group = "Byte load/store (A, B)"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x1A
+mnem = "ST A,($nnnn)"
+group = "Byte load/store (A, B)"
+trailing = ["abs16"]
+length = 3
+priv = false
+
+[[op]]
+page = 0
+byte = 0x1B
+mnem = "ST A,(Y)"
+group = "Byte load/store (A, B)"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x1C
+mnem = "ST A,(Y+n8)"
+group = "Byte load/store (A, B)"
+trailing = ["off8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0x1D
+mnem = "ST A,(Y+)"
+group = "Byte load/store (A, B)"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x1E
+mnem = "ST B,(SP+n8)"
+group = "Byte load/store (A, B)"
+trailing = ["off8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0x1F
+mnem = "ST B,(X)"
+group = "Byte load/store (A, B)"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x20
+mnem = "ST B,(X+n8)"
+group = "Byte load/store (A, B)"
+trailing = ["off8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0x21
+mnem = "ST B,(X+)"
+group = "Byte load/store (A, B)"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x22
+mnem = "ST B,($nnnn)"
+group = "Byte load/store (A, B)"
+trailing = ["abs16"]
+length = 3
+priv = false
+
+[[op]]
+page = 0
+byte = 0x23
+mnem = "ST B,(Y)"
+group = "Byte load/store (A, B)"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x24
+mnem = "ST B,(Y+n8)"
+group = "Byte load/store (A, B)"
+trailing = ["off8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0x25
+mnem = "ST B,(Y+)"
+group = "Byte load/store (A, B)"
+trailing = []
+length = 1
+priv = false
+
+# ── page 0 · 16-bit load/store (D, X, Y, SP) ──
+[[op]]
+page = 0
+byte = 0x26
+mnem = "LD D,$nnnn"
+group = "16-bit load/store (D, X, Y, SP)"
+trailing = ["imm16"]
+length = 3
+priv = false
+
+[[op]]
+page = 0
+byte = 0x27
+mnem = "LD X,$nnnn"
+group = "16-bit load/store (D, X, Y, SP)"
+trailing = ["imm16"]
+length = 3
+priv = false
+
+[[op]]
+page = 0
+byte = 0x28
+mnem = "LD Y,$nnnn"
+group = "16-bit load/store (D, X, Y, SP)"
+trailing = ["imm16"]
+length = 3
+priv = false
+
+[[op]]
+page = 0
+byte = 0x29
+mnem = "LD SP,$nnnn"
+group = "16-bit load/store (D, X, Y, SP)"
+trailing = ["imm16"]
+length = 3
+priv = false
+
+[[op]]
+page = 0
+byte = 0x2A
+mnem = "LD D,($nnnn)"
+group = "16-bit load/store (D, X, Y, SP)"
+trailing = ["abs16"]
+length = 3
+priv = false
+
+[[op]]
+page = 0
+byte = 0x2B
+mnem = "LD X,($nnnn)"
+group = "16-bit load/store (D, X, Y, SP)"
+trailing = ["abs16"]
+length = 3
+priv = false
+
+[[op]]
+page = 0
+byte = 0x2C
+mnem = "LD Y,($nnnn)"
+group = "16-bit load/store (D, X, Y, SP)"
+trailing = ["abs16"]
+length = 3
+priv = false
+
+[[op]]
+page = 0
+byte = 0x2D
+mnem = "ST D,($nnnn)"
+group = "16-bit load/store (D, X, Y, SP)"
+trailing = ["abs16"]
+length = 3
+priv = false
+
+[[op]]
+page = 0
+byte = 0x2E
+mnem = "ST X,($nnnn)"
+group = "16-bit load/store (D, X, Y, SP)"
+trailing = ["abs16"]
+length = 3
+priv = false
+
+[[op]]
+page = 0
+byte = 0x2F
+mnem = "ST Y,($nnnn)"
+group = "16-bit load/store (D, X, Y, SP)"
+trailing = ["abs16"]
+length = 3
+priv = false
+
+[[op]]
+page = 0
+byte = 0x30
+mnem = "LD D,(X)"
+group = "16-bit load/store (D, X, Y, SP)"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x31
+mnem = "ST D,(X)"
+group = "16-bit load/store (D, X, Y, SP)"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x32
+mnem = "LD D,(X+n8)"
+group = "16-bit load/store (D, X, Y, SP)"
+trailing = ["off8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0x33
+mnem = "ST D,(X+n8)"
+group = "16-bit load/store (D, X, Y, SP)"
+trailing = ["off8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0x34
+mnem = "LD D,(X++)"
+group = "16-bit load/store (D, X, Y, SP)"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x35
+mnem = "ST D,(X++)"
+group = "16-bit load/store (D, X, Y, SP)"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x36
+mnem = "LD D,(SP+n8)"
+group = "16-bit load/store (D, X, Y, SP)"
+trailing = ["off8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0x37
+mnem = "LD X,(SP+n8)"
+group = "16-bit load/store (D, X, Y, SP)"
+trailing = ["off8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0x38
+mnem = "LD Y,(SP+n8)"
+group = "16-bit load/store (D, X, Y, SP)"
+trailing = ["off8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0x39
+mnem = "ST D,(SP+n8)"
+group = "16-bit load/store (D, X, Y, SP)"
+trailing = ["off8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0x3A
+mnem = "ST X,(SP+n8)"
+group = "16-bit load/store (D, X, Y, SP)"
+trailing = ["off8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0x3B
+mnem = "ST Y,(SP+n8)"
+group = "16-bit load/store (D, X, Y, SP)"
+trailing = ["off8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0x3C
+mnem = "LD D,(X+D)"
+group = "16-bit load/store (D, X, Y, SP)"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x3D
+mnem = "ST D,(X+D)"
+group = "16-bit load/store (D, X, Y, SP)"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x3E
+mnem = "LD D,(Y)"
+group = "16-bit load/store (D, X, Y, SP)"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x3F
+mnem = "ST D,(Y)"
+group = "16-bit load/store (D, X, Y, SP)"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x40
+mnem = "LD D,(Y+n8)"
+group = "16-bit load/store (D, X, Y, SP)"
+trailing = ["off8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0x41
+mnem = "ST D,(Y+n8)"
+group = "16-bit load/store (D, X, Y, SP)"
+trailing = ["off8"]
+length = 2
+priv = false
+
+# ── page 0 · Byte ALU (ADD/SUB/CMP/AND/OR on A, B) ──
+[[op]]
+page = 0
+byte = 0x42
+mnem = "ADD A,$nn"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = ["imm8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0x43
+mnem = "ADD A,(X)"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x44
+mnem = "ADD A,(X+n8)"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = ["off8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0x45
+mnem = "ADD A,(X+D)"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x46
+mnem = "ADD A,(SP+n8)"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = ["off8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0x47
+mnem = "ADD A,($nnnn)"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = ["abs16"]
+length = 3
+priv = false
+
+[[op]]
+page = 0
+byte = 0x48
+mnem = "ADD A,(X+)"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x49
+mnem = "ADD A,(Y)"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x4A
+mnem = "ADD B,$nn"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = ["imm8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0x4B
+mnem = "ADD B,(X)"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x4C
+mnem = "ADD B,(X+n8)"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = ["off8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0x4D
+mnem = "ADD B,(X+D)"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x4E
+mnem = "ADD B,(SP+n8)"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = ["off8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0x4F
+mnem = "ADD B,($nnnn)"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = ["abs16"]
+length = 3
+priv = false
+
+[[op]]
+page = 0
+byte = 0x50
+mnem = "ADD B,(X+)"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x51
+mnem = "ADD B,(Y)"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x52
+mnem = "SUB A,$nn"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = ["imm8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0x53
+mnem = "SUB A,(X)"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x54
+mnem = "SUB A,(X+n8)"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = ["off8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0x55
+mnem = "SUB A,(X+D)"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x56
+mnem = "SUB A,(SP+n8)"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = ["off8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0x57
+mnem = "SUB A,($nnnn)"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = ["abs16"]
+length = 3
+priv = false
+
+[[op]]
+page = 0
+byte = 0x58
+mnem = "SUB A,(X+)"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x59
+mnem = "SUB A,(Y)"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x5A
+mnem = "SUB B,$nn"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = ["imm8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0x5B
+mnem = "SUB B,(X)"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x5C
+mnem = "SUB B,(X+n8)"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = ["off8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0x5D
+mnem = "SUB B,(X+D)"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x5E
+mnem = "SUB B,(SP+n8)"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = ["off8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0x5F
+mnem = "SUB B,($nnnn)"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = ["abs16"]
+length = 3
+priv = false
+
+[[op]]
+page = 0
+byte = 0x60
+mnem = "SUB B,(X+)"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x61
+mnem = "SUB B,(Y)"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x62
+mnem = "CMP A,$nn"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = ["imm8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0x63
+mnem = "CMP A,(X)"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x64
+mnem = "CMP A,(X+n8)"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = ["off8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0x65
+mnem = "CMP A,(SP+n8)"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = ["off8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0x66
+mnem = "CMP A,($nnnn)"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = ["abs16"]
+length = 3
+priv = false
+
+[[op]]
+page = 0
+byte = 0x67
+mnem = "CMP A,(Y)"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x68
+mnem = "CMP B,$nn"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = ["imm8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0x69
+mnem = "CMP B,(X)"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x6A
+mnem = "CMP B,(X+n8)"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = ["off8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0x6B
+mnem = "CMP B,($nnnn)"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = ["abs16"]
+length = 3
+priv = false
+
+[[op]]
+page = 0
+byte = 0x6C
+mnem = "CMP B,(Y)"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x6D
+mnem = "AND A,$nn"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = ["imm8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0x6E
+mnem = "AND A,(X)"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x6F
+mnem = "AND A,(X+n8)"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = ["off8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0x70
+mnem = "AND A,($nnnn)"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = ["abs16"]
+length = 3
+priv = false
+
+[[op]]
+page = 0
+byte = 0x71
+mnem = "AND A,(X+)"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x72
+mnem = "AND A,(Y)"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x73
+mnem = "AND B,$nn"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = ["imm8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0x74
+mnem = "AND B,(X)"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x75
+mnem = "AND B,(X+n8)"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = ["off8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0x76
+mnem = "AND B,($nnnn)"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = ["abs16"]
+length = 3
+priv = false
+
+[[op]]
+page = 0
+byte = 0x77
+mnem = "AND B,(X+)"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x78
+mnem = "AND B,(Y)"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x79
+mnem = "OR A,$nn"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = ["imm8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0x7A
+mnem = "OR A,(X)"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x7B
+mnem = "OR A,(X+n8)"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = ["off8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0x7C
+mnem = "OR A,($nnnn)"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = ["abs16"]
+length = 3
+priv = false
+
+[[op]]
+page = 0
+byte = 0x7D
+mnem = "OR A,(X+)"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x7E
+mnem = "OR A,(Y)"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x7F
+mnem = "OR B,$nn"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = ["imm8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0x81
+mnem = "OR B,(X)"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x82
+mnem = "OR B,(X+n8)"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = ["off8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0x83
+mnem = "OR B,($nnnn)"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = ["abs16"]
+length = 3
+priv = false
+
+[[op]]
+page = 0
+byte = 0x84
+mnem = "OR B,(X+)"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x85
+mnem = "OR B,(Y)"
+group = "Byte ALU (ADD/SUB/CMP/AND/OR on A, B)"
+trailing = []
+length = 1
+priv = false
+
+# ── page 0 · 16-bit ALU, wide compare & D shifts ──
+[[op]]
+page = 0
+byte = 0x86
+mnem = "ADD D,$nnnn"
+group = "16-bit ALU, wide compare & D shifts"
+trailing = ["imm16"]
+length = 3
+priv = false
+
+[[op]]
+page = 0
+byte = 0x87
+mnem = "ADD D,($nnnn)"
+group = "16-bit ALU, wide compare & D shifts"
+trailing = ["abs16"]
+length = 3
+priv = false
+
+[[op]]
+page = 0
+byte = 0x88
+mnem = "ADD D,(SP+n8)"
+group = "16-bit ALU, wide compare & D shifts"
+trailing = ["off8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0x89
+mnem = "ADD D,(X)"
+group = "16-bit ALU, wide compare & D shifts"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x8A
+mnem = "ADD D,(X+n8)"
+group = "16-bit ALU, wide compare & D shifts"
+trailing = ["off8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0x8B
+mnem = "ADD D,(X+D)"
+group = "16-bit ALU, wide compare & D shifts"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x8C
+mnem = "SUB D,$nnnn"
+group = "16-bit ALU, wide compare & D shifts"
+trailing = ["imm16"]
+length = 3
+priv = false
+
+[[op]]
+page = 0
+byte = 0x8D
+mnem = "SUB D,($nnnn)"
+group = "16-bit ALU, wide compare & D shifts"
+trailing = ["abs16"]
+length = 3
+priv = false
+
+[[op]]
+page = 0
+byte = 0x8E
+mnem = "SUB D,(SP+n8)"
+group = "16-bit ALU, wide compare & D shifts"
+trailing = ["off8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0x8F
+mnem = "CMP D,$nnnn"
+group = "16-bit ALU, wide compare & D shifts"
+trailing = ["imm16"]
+length = 3
+priv = false
+
+[[op]]
+page = 0
+byte = 0x90
+mnem = "CMP D,($nnnn)"
+group = "16-bit ALU, wide compare & D shifts"
+trailing = ["abs16"]
+length = 3
+priv = false
+
+[[op]]
+page = 0
+byte = 0x91
+mnem = "CMP D,(SP+n8)"
+group = "16-bit ALU, wide compare & D shifts"
+trailing = ["off8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0x92
+mnem = "CMP X,$nnnn"
+group = "16-bit ALU, wide compare & D shifts"
+trailing = ["imm16"]
+length = 3
+priv = false
+
+[[op]]
+page = 0
+byte = 0x93
+mnem = "CMP Y,$nnnn"
+group = "16-bit ALU, wide compare & D shifts"
+trailing = ["imm16"]
+length = 3
+priv = false
+
+[[op]]
+page = 0
+byte = 0x94
+mnem = "CMP SP,$nnnn"
+group = "16-bit ALU, wide compare & D shifts"
+trailing = ["imm16"]
+length = 3
+priv = false
+
+[[op]]
+page = 0
+byte = 0x95
+mnem = "ASL D,$n"
+group = "16-bit ALU, wide compare & D shifts"
+trailing = ["imm8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0x96
+mnem = "LSR D,$n"
+group = "16-bit ALU, wide compare & D shifts"
+trailing = ["imm8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0x97
+mnem = "ASR D,$n"
+group = "16-bit ALU, wide compare & D shifts"
+trailing = ["imm8"]
+length = 2
+priv = false
+
+# ── page 0 · RMW & register-direct unary ──
+[[op]]
+page = 0
+byte = 0x98
+mnem = "INC A"
+group = "RMW & register-direct unary"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x99
+mnem = "DEC A"
+group = "RMW & register-direct unary"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x9A
+mnem = "CLR A"
+group = "RMW & register-direct unary"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x9B
+mnem = "TST A"
+group = "RMW & register-direct unary"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x9C
+mnem = "LSR A"
+group = "RMW & register-direct unary"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x9D
+mnem = "ASR A"
+group = "RMW & register-direct unary"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x9E
+mnem = "ASL A"
+group = "RMW & register-direct unary"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0x9F
+mnem = "INC B"
+group = "RMW & register-direct unary"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0xA0
+mnem = "DEC B"
+group = "RMW & register-direct unary"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0xA1
+mnem = "CLR B"
+group = "RMW & register-direct unary"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0xA2
+mnem = "TST B"
+group = "RMW & register-direct unary"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0xA3
+mnem = "LSR B"
+group = "RMW & register-direct unary"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0xA4
+mnem = "ASR B"
+group = "RMW & register-direct unary"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0xA5
+mnem = "ASL B"
+group = "RMW & register-direct unary"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0xA6
+mnem = "INC (X)"
+group = "RMW & register-direct unary"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0xA7
+mnem = "INC (X+n8)"
+group = "RMW & register-direct unary"
+trailing = ["off8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0xA8
+mnem = "INC (SP+n8)"
+group = "RMW & register-direct unary"
+trailing = ["off8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0xA9
+mnem = "DEC (X)"
+group = "RMW & register-direct unary"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0xAA
+mnem = "DEC (X+n8)"
+group = "RMW & register-direct unary"
+trailing = ["off8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0xAB
+mnem = "DEC (SP+n8)"
+group = "RMW & register-direct unary"
+trailing = ["off8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0xAC
+mnem = "CLR (X)"
+group = "RMW & register-direct unary"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0xAD
+mnem = "CLR (X+n8)"
+group = "RMW & register-direct unary"
+trailing = ["off8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0xAE
+mnem = "TST (X)"
+group = "RMW & register-direct unary"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0xAF
+mnem = "TST (X+n8)"
+group = "RMW & register-direct unary"
+trailing = ["off8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0xB0
+mnem = "INC ($nnnn)"
+group = "RMW & register-direct unary"
+trailing = ["abs16"]
+length = 3
+priv = false
+
+[[op]]
+page = 0
+byte = 0xB1
+mnem = "DEC ($nnnn)"
+group = "RMW & register-direct unary"
+trailing = ["abs16"]
+length = 3
+priv = false
+
+# ── page 0 · Control flow ──
+[[op]]
+page = 0
+byte = 0xB2
+mnem = "BRA rel8"
+group = "Control flow"
+trailing = ["rel8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0xB3
+mnem = "BRN rel8"
+group = "Control flow"
+trailing = ["rel8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0xB4
+mnem = "BHI rel8"
+group = "Control flow"
+trailing = ["rel8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0xB5
+mnem = "BLS rel8"
+group = "Control flow"
+trailing = ["rel8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0xB6
+mnem = "BCC rel8"
+group = "Control flow"
+trailing = ["rel8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0xB7
+mnem = "BCS rel8"
+group = "Control flow"
+trailing = ["rel8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0xB8
+mnem = "BNE rel8"
+group = "Control flow"
+trailing = ["rel8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0xB9
+mnem = "BEQ rel8"
+group = "Control flow"
+trailing = ["rel8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0xBA
+mnem = "BVC rel8"
+group = "Control flow"
+trailing = ["rel8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0xBB
+mnem = "BVS rel8"
+group = "Control flow"
+trailing = ["rel8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0xBC
+mnem = "BPL rel8"
+group = "Control flow"
+trailing = ["rel8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0xBD
+mnem = "BMI rel8"
+group = "Control flow"
+trailing = ["rel8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0xBE
+mnem = "BGE rel8"
+group = "Control flow"
+trailing = ["rel8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0xBF
+mnem = "BLT rel8"
+group = "Control flow"
+trailing = ["rel8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0xC0
+mnem = "BGT rel8"
+group = "Control flow"
+trailing = ["rel8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0xC1
+mnem = "BLE rel8"
+group = "Control flow"
+trailing = ["rel8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0xC2
+mnem = "BSR rel8"
+group = "Control flow"
+trailing = ["rel8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0xC3
+mnem = "RTS"
+group = "Control flow"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0xC4
+mnem = "JMP $nnnn"
+group = "Control flow"
+trailing = ["abs16"]
+length = 3
+priv = false
+
+[[op]]
+page = 0
+byte = 0xC5
+mnem = "JMP X"
+group = "Control flow"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0xC6
+mnem = "JMP Y"
+group = "Control flow"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0xC7
+mnem = "JMP (X)"
+group = "Control flow"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0xC8
+mnem = "JMP (X+n8)"
+group = "Control flow"
+trailing = ["off8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0xC9
+mnem = "JMP (X+D)"
+group = "Control flow"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0xCA
+mnem = "JSR $nnnn"
+group = "Control flow"
+trailing = ["abs16"]
+length = 3
+priv = false
+
+[[op]]
+page = 0
+byte = 0xCB
+mnem = "JSR (X)"
+group = "Control flow"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0xCC
+mnem = "JSR Y"
+group = "Control flow"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0xCD
+mnem = "JSR X"
+group = "Control flow"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0xCE
+mnem = "JSR (X+n8)"
+group = "Control flow"
+trailing = ["off8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0xCF
+mnem = "JSR (X+D)"
+group = "Control flow"
+trailing = []
+length = 1
+priv = false
+
+# ── page 0 · System / inherent / LEA / moves ──
+[[op]]
+page = 0
+byte = 0xD0
+mnem = "NOP"
+group = "System / inherent / LEA / moves"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0xD1
+mnem = "SEX"
+group = "System / inherent / LEA / moves"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0xD2
+mnem = "MUL"
+group = "System / inherent / LEA / moves"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0xD3
+mnem = "ABX"
+group = "System / inherent / LEA / moves"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0xD4
+mnem = "PSHS mask8"
+group = "System / inherent / LEA / moves"
+trailing = ["mask8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0xD5
+mnem = "PULS mask8"
+group = "System / inherent / LEA / moves"
+trailing = ["mask8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0xD6
+mnem = "ANDCC $nn"
+group = "System / inherent / LEA / moves"
+trailing = ["imm8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0xD7
+mnem = "ORCC $nn"
+group = "System / inherent / LEA / moves"
+trailing = ["imm8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0xD8
+mnem = "LD reg,reg"
+group = "System / inherent / LEA / moves"
+trailing = ["movsel"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0xD9
+mnem = "XCHG reg,reg"
+group = "System / inherent / LEA / moves"
+trailing = ["movsel"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0xDA
+mnem = "TAS (X)"
+group = "System / inherent / LEA / moves"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0xDB
+mnem = "TAS (X+n8)"
+group = "System / inherent / LEA / moves"
+trailing = ["off8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0xDC
+mnem = "LEA X,X+n8"
+group = "System / inherent / LEA / moves"
+trailing = ["off8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0xDD
+mnem = "LEA X,X+A"
+group = "System / inherent / LEA / moves"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0xDE
+mnem = "LEA X,X+B"
+group = "System / inherent / LEA / moves"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0xDF
+mnem = "LEA X,X+D"
+group = "System / inherent / LEA / moves"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0xE0
+mnem = "LEA X,X+"
+group = "System / inherent / LEA / moves"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0xE1
+mnem = "LEA X,X++"
+group = "System / inherent / LEA / moves"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0xE2
+mnem = "LEA X,-X"
+group = "System / inherent / LEA / moves"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0xE3
+mnem = "LEA X,Y+n8"
+group = "System / inherent / LEA / moves"
+trailing = ["off8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0xE4
+mnem = "LEA X,SP+n8"
+group = "System / inherent / LEA / moves"
+trailing = ["off8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0xE5
+mnem = "LEA Y,Y+n8"
+group = "System / inherent / LEA / moves"
+trailing = ["off8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0xE6
+mnem = "LEA Y,SP+n8"
+group = "System / inherent / LEA / moves"
+trailing = ["off8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0xE7
+mnem = "LEA SP,SP+n8"
+group = "System / inherent / LEA / moves"
+trailing = ["off8"]
+length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0xE8
+mnem = "LEA SP,X+n8"
+group = "System / inherent / LEA / moves"
+trailing = ["off8"]
+length = 2
+priv = false
+
+# ── page 1 · System / privileged / cold TAS & LEA ──
+[[op]]
+page = 1
+byte = 0x00
+mnem = "DAA"
+group = "System / privileged / cold TAS & LEA"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x01
+mnem = "SYNC"
+group = "System / privileged / cold TAS & LEA"
+trailing = []
+length = 2
+priv = true
+
+[[op]]
+page = 1
+byte = 0x02
+mnem = "RTI"
+group = "System / privileged / cold TAS & LEA"
+trailing = []
+length = 2
+priv = true
+
+[[op]]
+page = 1
+byte = 0x03
+mnem = "SWI"
+group = "System / privileged / cold TAS & LEA"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x04
+mnem = "SWI2"
+group = "System / privileged / cold TAS & LEA"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x05
+mnem = "SWI3"
+group = "System / privileged / cold TAS & LEA"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x06
+mnem = "CWAI $nn"
+group = "System / privileged / cold TAS & LEA"
+trailing = ["imm8"]
+length = 3
+priv = false
+
+[[op]]
+page = 1
+byte = 0x07
+mnem = "SEI"
+group = "System / privileged / cold TAS & LEA"
+trailing = []
+length = 2
+priv = true
+
+[[op]]
+page = 1
+byte = 0x08
+mnem = "CLI"
+group = "System / privileged / cold TAS & LEA"
+trailing = []
+length = 2
+priv = true
+
+[[op]]
+page = 1
+byte = 0x09
+mnem = "HALT"
+group = "System / privileged / cold TAS & LEA"
+trailing = []
+length = 2
+priv = true
+
+[[op]]
+page = 1
+byte = 0x0A
+mnem = "LDMMU $nn"
+group = "System / privileged / cold TAS & LEA"
+trailing = ["imm8"]
+length = 3
+priv = true
+
+[[op]]
+page = 1
+byte = 0x0B
+mnem = "STMMU $nn"
+group = "System / privileged / cold TAS & LEA"
+trailing = ["imm8"]
+length = 3
+priv = true
+
+[[op]]
+page = 1
+byte = 0x0C
+mnem = "LD USP,X"
+group = "System / privileged / cold TAS & LEA"
+trailing = []
+length = 2
+priv = true
+
+[[op]]
+page = 1
+byte = 0x0D
+mnem = "LD USP,Y"
+group = "System / privileged / cold TAS & LEA"
+trailing = []
+length = 2
+priv = true
+
+[[op]]
+page = 1
+byte = 0x0E
+mnem = "LD USP,D"
+group = "System / privileged / cold TAS & LEA"
+trailing = []
+length = 2
+priv = true
+
+[[op]]
+page = 1
+byte = 0x0F
+mnem = "LD X,USP"
+group = "System / privileged / cold TAS & LEA"
+trailing = []
+length = 2
+priv = true
+
+[[op]]
+page = 1
+byte = 0x10
+mnem = "LD Y,USP"
+group = "System / privileged / cold TAS & LEA"
+trailing = []
+length = 2
+priv = true
+
+[[op]]
+page = 1
+byte = 0x11
+mnem = "LD D,USP"
+group = "System / privileged / cold TAS & LEA"
+trailing = []
+length = 2
+priv = true
+
+[[op]]
+page = 1
+byte = 0x12
+mnem = "XCHG X,USP"
+group = "System / privileged / cold TAS & LEA"
+trailing = []
+length = 2
+priv = true
+
+[[op]]
+page = 1
+byte = 0x13
+mnem = "XCHG Y,USP"
+group = "System / privileged / cold TAS & LEA"
+trailing = []
+length = 2
+priv = true
+
+[[op]]
+page = 1
+byte = 0x14
+mnem = "XCHG D,USP"
+group = "System / privileged / cold TAS & LEA"
+trailing = []
+length = 2
+priv = true
+
+[[op]]
+page = 1
+byte = 0x15
+mnem = "TAS (Y)"
+group = "System / privileged / cold TAS & LEA"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x16
+mnem = "TAS (Y+n8)"
+group = "System / privileged / cold TAS & LEA"
+trailing = ["off8"]
+length = 3
+priv = false
+
+[[op]]
+page = 1
+byte = 0x17
+mnem = "TAS (SP+n8)"
+group = "System / privileged / cold TAS & LEA"
+trailing = ["off8"]
+length = 3
+priv = false
+
+[[op]]
+page = 1
+byte = 0x18
+mnem = "TAS ($nnnn)"
+group = "System / privileged / cold TAS & LEA"
+trailing = ["abs16"]
+length = 4
+priv = false
+
+[[op]]
+page = 1
+byte = 0x19
+mnem = "LEA X,X+n16"
+group = "System / privileged / cold TAS & LEA"
+trailing = ["off16"]
+length = 4
+priv = false
+
+[[op]]
+page = 1
+byte = 0x1A
+mnem = "LEA Y,Y+n16"
+group = "System / privileged / cold TAS & LEA"
+trailing = ["off16"]
+length = 4
+priv = false
+
+[[op]]
+page = 1
+byte = 0x1B
+mnem = "LEA SP,SP+n16"
+group = "System / privileged / cold TAS & LEA"
+trailing = ["off16"]
+length = 4
+priv = false
+
+[[op]]
+page = 1
+byte = 0x1C
+mnem = "LEA X,PC+n8"
+group = "System / privileged / cold TAS & LEA"
+trailing = ["off8"]
+length = 3
+priv = false
+
+[[op]]
+page = 1
+byte = 0x1D
+mnem = "LEA Y,PC+n8"
+group = "System / privileged / cold TAS & LEA"
+trailing = ["off8"]
+length = 3
+priv = false
+
+[[op]]
+page = 1
+byte = 0x1E
+mnem = "LEA SP,Y+n8"
+group = "System / privileged / cold TAS & LEA"
+trailing = ["off8"]
+length = 3
+priv = false
+
+# ── page 1 · Control flow — long branches & cold JMP/JSR ──
+[[op]]
+page = 1
+byte = 0x1F
+mnem = "LBRA rel16"
+group = "Control flow — long branches & cold JMP/JSR"
+trailing = ["rel16"]
+length = 4
+priv = false
+
+[[op]]
+page = 1
+byte = 0x20
+mnem = "LBRN rel16"
+group = "Control flow — long branches & cold JMP/JSR"
+trailing = ["rel16"]
+length = 4
+priv = false
+
+[[op]]
+page = 1
+byte = 0x21
+mnem = "LBHI rel16"
+group = "Control flow — long branches & cold JMP/JSR"
+trailing = ["rel16"]
+length = 4
+priv = false
+
+[[op]]
+page = 1
+byte = 0x22
+mnem = "LBLS rel16"
+group = "Control flow — long branches & cold JMP/JSR"
+trailing = ["rel16"]
+length = 4
+priv = false
+
+[[op]]
+page = 1
+byte = 0x23
+mnem = "LBCC rel16"
+group = "Control flow — long branches & cold JMP/JSR"
+trailing = ["rel16"]
+length = 4
+priv = false
+
+[[op]]
+page = 1
+byte = 0x24
+mnem = "LBCS rel16"
+group = "Control flow — long branches & cold JMP/JSR"
+trailing = ["rel16"]
+length = 4
+priv = false
+
+[[op]]
+page = 1
+byte = 0x25
+mnem = "LBNE rel16"
+group = "Control flow — long branches & cold JMP/JSR"
+trailing = ["rel16"]
+length = 4
+priv = false
+
+[[op]]
+page = 1
+byte = 0x26
+mnem = "LBEQ rel16"
+group = "Control flow — long branches & cold JMP/JSR"
+trailing = ["rel16"]
+length = 4
+priv = false
+
+[[op]]
+page = 1
+byte = 0x27
+mnem = "LBVC rel16"
+group = "Control flow — long branches & cold JMP/JSR"
+trailing = ["rel16"]
+length = 4
+priv = false
+
+[[op]]
+page = 1
+byte = 0x28
+mnem = "LBVS rel16"
+group = "Control flow — long branches & cold JMP/JSR"
+trailing = ["rel16"]
+length = 4
+priv = false
+
+[[op]]
+page = 1
+byte = 0x29
+mnem = "LBPL rel16"
+group = "Control flow — long branches & cold JMP/JSR"
+trailing = ["rel16"]
+length = 4
+priv = false
+
+[[op]]
+page = 1
+byte = 0x2A
+mnem = "LBMI rel16"
+group = "Control flow — long branches & cold JMP/JSR"
+trailing = ["rel16"]
+length = 4
+priv = false
+
+[[op]]
+page = 1
+byte = 0x2B
+mnem = "LBGE rel16"
+group = "Control flow — long branches & cold JMP/JSR"
+trailing = ["rel16"]
+length = 4
+priv = false
+
+[[op]]
+page = 1
+byte = 0x2C
+mnem = "LBLT rel16"
+group = "Control flow — long branches & cold JMP/JSR"
+trailing = ["rel16"]
+length = 4
+priv = false
+
+[[op]]
+page = 1
+byte = 0x2D
+mnem = "LBGT rel16"
+group = "Control flow — long branches & cold JMP/JSR"
+trailing = ["rel16"]
+length = 4
+priv = false
+
+[[op]]
+page = 1
+byte = 0x2E
+mnem = "LBLE rel16"
+group = "Control flow — long branches & cold JMP/JSR"
+trailing = ["rel16"]
+length = 4
+priv = false
+
+[[op]]
+page = 1
+byte = 0x2F
+mnem = "LBSR rel16"
+group = "Control flow — long branches & cold JMP/JSR"
+trailing = ["rel16"]
+length = 4
+priv = false
+
+[[op]]
+page = 1
+byte = 0x30
+mnem = "JMP (X+n16)"
+group = "Control flow — long branches & cold JMP/JSR"
+trailing = ["off16"]
+length = 4
+priv = false
+
+[[op]]
+page = 1
+byte = 0x31
+mnem = "JMP (X+A)"
+group = "Control flow — long branches & cold JMP/JSR"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x32
+mnem = "JMP (X+B)"
+group = "Control flow — long branches & cold JMP/JSR"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x33
+mnem = "JMP (Y)"
+group = "Control flow — long branches & cold JMP/JSR"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x34
+mnem = "JMP (Y+n8)"
+group = "Control flow — long branches & cold JMP/JSR"
+trailing = ["off8"]
+length = 3
+priv = false
+
+[[op]]
+page = 1
+byte = 0x35
+mnem = "JMP (Y+n16)"
+group = "Control flow — long branches & cold JMP/JSR"
+trailing = ["off16"]
+length = 4
+priv = false
+
+[[op]]
+page = 1
+byte = 0x36
+mnem = "JMP (Y+A)"
+group = "Control flow — long branches & cold JMP/JSR"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x37
+mnem = "JMP (Y+B)"
+group = "Control flow — long branches & cold JMP/JSR"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x38
+mnem = "JMP (Y+D)"
+group = "Control flow — long branches & cold JMP/JSR"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x39
+mnem = "JMP (PC+n8)"
+group = "Control flow — long branches & cold JMP/JSR"
+trailing = ["off8"]
+length = 3
+priv = false
+
+[[op]]
+page = 1
+byte = 0x3A
+mnem = "JMP (PC+n16)"
+group = "Control flow — long branches & cold JMP/JSR"
+trailing = ["off16"]
+length = 4
+priv = false
+
+[[op]]
+page = 1
+byte = 0x3B
+mnem = "JSR (X+n16)"
+group = "Control flow — long branches & cold JMP/JSR"
+trailing = ["off16"]
+length = 4
+priv = false
+
+[[op]]
+page = 1
+byte = 0x3C
+mnem = "JSR (X+A)"
+group = "Control flow — long branches & cold JMP/JSR"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x3D
+mnem = "JSR (X+B)"
+group = "Control flow — long branches & cold JMP/JSR"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x3E
+mnem = "JSR (Y)"
+group = "Control flow — long branches & cold JMP/JSR"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x3F
+mnem = "JSR (Y+n8)"
+group = "Control flow — long branches & cold JMP/JSR"
+trailing = ["off8"]
+length = 3
+priv = false
+
+[[op]]
+page = 1
+byte = 0x40
+mnem = "JSR (Y+n16)"
+group = "Control flow — long branches & cold JMP/JSR"
+trailing = ["off16"]
+length = 4
+priv = false
+
+[[op]]
+page = 1
+byte = 0x41
+mnem = "JSR (Y+A)"
+group = "Control flow — long branches & cold JMP/JSR"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x42
+mnem = "JSR (Y+B)"
+group = "Control flow — long branches & cold JMP/JSR"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x43
+mnem = "JSR (Y+D)"
+group = "Control flow — long branches & cold JMP/JSR"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x44
+mnem = "JSR (PC+n8)"
+group = "Control flow — long branches & cold JMP/JSR"
+trailing = ["off8"]
+length = 3
+priv = false
+
+[[op]]
+page = 1
+byte = 0x45
+mnem = "JSR (PC+n16)"
+group = "Control flow — long branches & cold JMP/JSR"
+trailing = ["off16"]
+length = 4
+priv = false
+
+# ── page 1 · Byte load/store (cold modes) ──
+[[op]]
+page = 1
+byte = 0x46
+mnem = "ST A,(SP)"
+group = "Byte load/store (cold modes)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x47
+mnem = "ST B,(SP)"
+group = "Byte load/store (cold modes)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x48
+mnem = "LD A,(X++)"
+group = "Byte load/store (cold modes)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x49
+mnem = "LD B,(X++)"
+group = "Byte load/store (cold modes)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x4A
+mnem = "LD A,(--X)"
+group = "Byte load/store (cold modes)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x4B
+mnem = "LD B,(--X)"
+group = "Byte load/store (cold modes)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x4C
+mnem = "LD A,(-X)"
+group = "Byte load/store (cold modes)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x4D
+mnem = "LD B,(-X)"
+group = "Byte load/store (cold modes)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x4E
+mnem = "ST A,(X++)"
+group = "Byte load/store (cold modes)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x4F
+mnem = "ST B,(X++)"
+group = "Byte load/store (cold modes)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x50
+mnem = "ST A,(--X)"
+group = "Byte load/store (cold modes)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x51
+mnem = "ST B,(--X)"
+group = "Byte load/store (cold modes)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x52
+mnem = "ST A,(-X)"
+group = "Byte load/store (cold modes)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x53
+mnem = "ST B,(-X)"
+group = "Byte load/store (cold modes)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x54
+mnem = "LD A,(X+A)"
+group = "Byte load/store (cold modes)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x55
+mnem = "LD A,(X+B)"
+group = "Byte load/store (cold modes)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x56
+mnem = "LD B,(X+A)"
+group = "Byte load/store (cold modes)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x57
+mnem = "LD B,(X+B)"
+group = "Byte load/store (cold modes)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x58
+mnem = "ST A,(X+A)"
+group = "Byte load/store (cold modes)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x59
+mnem = "ST A,(X+B)"
+group = "Byte load/store (cold modes)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x5A
+mnem = "ST A,(X+D)"
+group = "Byte load/store (cold modes)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x5B
+mnem = "ST B,(X+A)"
+group = "Byte load/store (cold modes)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x5C
+mnem = "ST B,(X+B)"
+group = "Byte load/store (cold modes)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x5D
+mnem = "ST B,(X+D)"
+group = "Byte load/store (cold modes)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x5E
+mnem = "LD A,(X+n16)"
+group = "Byte load/store (cold modes)"
+trailing = ["off16"]
+length = 4
+priv = false
+
+[[op]]
+page = 1
+byte = 0x5F
+mnem = "LD B,(X+n16)"
+group = "Byte load/store (cold modes)"
+trailing = ["off16"]
+length = 4
+priv = false
+
+[[op]]
+page = 1
+byte = 0x60
+mnem = "ST A,(X+n16)"
+group = "Byte load/store (cold modes)"
+trailing = ["off16"]
+length = 4
+priv = false
+
+[[op]]
+page = 1
+byte = 0x61
+mnem = "ST B,(X+n16)"
+group = "Byte load/store (cold modes)"
+trailing = ["off16"]
+length = 4
+priv = false
+
+[[op]]
+page = 1
+byte = 0x62
+mnem = "LD A,(SP+n16)"
+group = "Byte load/store (cold modes)"
+trailing = ["off16"]
+length = 4
+priv = false
+
+[[op]]
+page = 1
+byte = 0x63
+mnem = "LD B,(SP+n16)"
+group = "Byte load/store (cold modes)"
+trailing = ["off16"]
+length = 4
+priv = false
+
+[[op]]
+page = 1
+byte = 0x64
+mnem = "ST A,(SP+n16)"
+group = "Byte load/store (cold modes)"
+trailing = ["off16"]
+length = 4
+priv = false
+
+[[op]]
+page = 1
+byte = 0x65
+mnem = "ST B,(SP+n16)"
+group = "Byte load/store (cold modes)"
+trailing = ["off16"]
+length = 4
+priv = false
+
+[[op]]
+page = 1
+byte = 0x66
+mnem = "LD A,(-Y)"
+group = "Byte load/store (cold modes)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x67
+mnem = "LD B,(-Y)"
+group = "Byte load/store (cold modes)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x68
+mnem = "ST A,(-Y)"
+group = "Byte load/store (cold modes)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x69
+mnem = "ST B,(-Y)"
+group = "Byte load/store (cold modes)"
+trailing = []
+length = 2
+priv = false
+
+# ── page 1 · 16-bit load/store (cold modes) ──
+[[op]]
+page = 1
+byte = 0x6A
+mnem = "LD X,(Y)"
+group = "16-bit load/store (cold modes)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x6B
+mnem = "ST X,(Y)"
+group = "16-bit load/store (cold modes)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x6C
+mnem = "LD Y,(X)"
+group = "16-bit load/store (cold modes)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x6D
+mnem = "ST Y,(X)"
+group = "16-bit load/store (cold modes)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x6E
+mnem = "LD D,(SP)"
+group = "16-bit load/store (cold modes)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x6F
+mnem = "LD X,(SP)"
+group = "16-bit load/store (cold modes)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x70
+mnem = "LD Y,(SP)"
+group = "16-bit load/store (cold modes)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x71
+mnem = "ST D,(SP)"
+group = "16-bit load/store (cold modes)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x72
+mnem = "ST X,(SP)"
+group = "16-bit load/store (cold modes)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x73
+mnem = "ST Y,(SP)"
+group = "16-bit load/store (cold modes)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x74
+mnem = "LD X,(X++)"
+group = "16-bit load/store (cold modes)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x75
+mnem = "LD Y,(X++)"
+group = "16-bit load/store (cold modes)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x76
+mnem = "ST Y,(X++)"
+group = "16-bit load/store (cold modes)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x77
+mnem = "LD D,(Y++)"
+group = "16-bit load/store (cold modes)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x78
+mnem = "ST D,(Y++)"
+group = "16-bit load/store (cold modes)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x79
+mnem = "LD X,(Y++)"
+group = "16-bit load/store (cold modes)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x7A
+mnem = "ST X,(Y++)"
+group = "16-bit load/store (cold modes)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x7B
+mnem = "LD D,(--X)"
+group = "16-bit load/store (cold modes)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x7C
+mnem = "ST D,(--X)"
+group = "16-bit load/store (cold modes)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x7D
+mnem = "ST Y,(--X)"
+group = "16-bit load/store (cold modes)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x7E
+mnem = "LD D,(--Y)"
+group = "16-bit load/store (cold modes)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x7F
+mnem = "ST D,(--Y)"
+group = "16-bit load/store (cold modes)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x80
+mnem = "ST X,(--Y)"
+group = "16-bit load/store (cold modes)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x81
+mnem = "LD Y,(X+n8)"
+group = "16-bit load/store (cold modes)"
+trailing = ["off8"]
+length = 3
+priv = false
+
+[[op]]
+page = 1
+byte = 0x82
+mnem = "ST Y,(X+n8)"
+group = "16-bit load/store (cold modes)"
+trailing = ["off8"]
+length = 3
+priv = false
+
+[[op]]
+page = 1
+byte = 0x83
+mnem = "LD X,(Y+n8)"
+group = "16-bit load/store (cold modes)"
+trailing = ["off8"]
+length = 3
+priv = false
+
+[[op]]
+page = 1
+byte = 0x84
+mnem = "ST X,(Y+n8)"
+group = "16-bit load/store (cold modes)"
+trailing = ["off8"]
+length = 3
+priv = false
+
+[[op]]
+page = 1
+byte = 0x85
+mnem = "LD D,(X+n16)"
+group = "16-bit load/store (cold modes)"
+trailing = ["off16"]
+length = 4
+priv = false
+
+[[op]]
+page = 1
+byte = 0x86
+mnem = "LD X,(X+n16)"
+group = "16-bit load/store (cold modes)"
+trailing = ["off16"]
+length = 4
+priv = false
+
+[[op]]
+page = 1
+byte = 0x87
+mnem = "ST D,(X+n16)"
+group = "16-bit load/store (cold modes)"
+trailing = ["off16"]
+length = 4
+priv = false
+
+[[op]]
+page = 1
+byte = 0x88
+mnem = "ST X,(X+n16)"
+group = "16-bit load/store (cold modes)"
+trailing = ["off16"]
+length = 4
+priv = false
+
+[[op]]
+page = 1
+byte = 0x89
+mnem = "LD D,(SP+n16)"
+group = "16-bit load/store (cold modes)"
+trailing = ["off16"]
+length = 4
+priv = false
+
+[[op]]
+page = 1
+byte = 0x8A
+mnem = "LD X,(SP+n16)"
+group = "16-bit load/store (cold modes)"
+trailing = ["off16"]
+length = 4
+priv = false
+
+[[op]]
+page = 1
+byte = 0x8B
+mnem = "LD Y,(SP+n16)"
+group = "16-bit load/store (cold modes)"
+trailing = ["off16"]
+length = 4
+priv = false
+
+[[op]]
+page = 1
+byte = 0x8C
+mnem = "ST D,(SP+n16)"
+group = "16-bit load/store (cold modes)"
+trailing = ["off16"]
+length = 4
+priv = false
+
+[[op]]
+page = 1
+byte = 0x8D
+mnem = "ST X,(SP+n16)"
+group = "16-bit load/store (cold modes)"
+trailing = ["off16"]
+length = 4
+priv = false
+
+[[op]]
+page = 1
+byte = 0x8E
+mnem = "ST Y,(SP+n16)"
+group = "16-bit load/store (cold modes)"
+trailing = ["off16"]
+length = 4
+priv = false
+
+[[op]]
+page = 1
+byte = 0x8F
+mnem = "LD Y,(X+D)"
+group = "16-bit load/store (cold modes)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x90
+mnem = "ST Y,(X+D)"
+group = "16-bit load/store (cold modes)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x91
+mnem = "LD D,(Y+D)"
+group = "16-bit load/store (cold modes)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x92
+mnem = "LD SP,($nnnn)"
+group = "16-bit load/store (cold modes)"
+trailing = ["abs16"]
+length = 4
+priv = false
+
+[[op]]
+page = 1
+byte = 0x93
+mnem = "ST SP,($nnnn)"
+group = "16-bit load/store (cold modes)"
+trailing = ["abs16"]
+length = 4
+priv = false
+
+# ── page 1 · Byte ALU (cold modes + ADC/SBC/EOR/BIT) ──
+[[op]]
+page = 1
+byte = 0x94
+mnem = "ADD A,(SP)"
+group = "Byte ALU (cold modes + ADC/SBC/EOR/BIT)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x95
+mnem = "ADD B,(SP)"
+group = "Byte ALU (cold modes + ADC/SBC/EOR/BIT)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x96
+mnem = "SUB A,(SP)"
+group = "Byte ALU (cold modes + ADC/SBC/EOR/BIT)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x97
+mnem = "SUB B,(SP)"
+group = "Byte ALU (cold modes + ADC/SBC/EOR/BIT)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x98
+mnem = "CMP A,(SP)"
+group = "Byte ALU (cold modes + ADC/SBC/EOR/BIT)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x99
+mnem = "CMP B,(SP)"
+group = "Byte ALU (cold modes + ADC/SBC/EOR/BIT)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x9A
+mnem = "AND A,(SP)"
+group = "Byte ALU (cold modes + ADC/SBC/EOR/BIT)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x9B
+mnem = "AND B,(SP)"
+group = "Byte ALU (cold modes + ADC/SBC/EOR/BIT)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x9C
+mnem = "OR A,(SP)"
+group = "Byte ALU (cold modes + ADC/SBC/EOR/BIT)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x9D
+mnem = "OR B,(SP)"
+group = "Byte ALU (cold modes + ADC/SBC/EOR/BIT)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0x9E
+mnem = "ADC A,$nn"
+group = "Byte ALU (cold modes + ADC/SBC/EOR/BIT)"
+trailing = ["imm8"]
+length = 3
+priv = false
+
+[[op]]
+page = 1
+byte = 0x9F
+mnem = "ADC B,$nn"
+group = "Byte ALU (cold modes + ADC/SBC/EOR/BIT)"
+trailing = ["imm8"]
+length = 3
+priv = false
+
+[[op]]
+page = 1
+byte = 0xA0
+mnem = "ADC A,($nnnn)"
+group = "Byte ALU (cold modes + ADC/SBC/EOR/BIT)"
+trailing = ["abs16"]
+length = 4
+priv = false
+
+[[op]]
+page = 1
+byte = 0xA1
+mnem = "ADC B,($nnnn)"
+group = "Byte ALU (cold modes + ADC/SBC/EOR/BIT)"
+trailing = ["abs16"]
+length = 4
+priv = false
+
+[[op]]
+page = 1
+byte = 0xA2
+mnem = "ADC A,(X)"
+group = "Byte ALU (cold modes + ADC/SBC/EOR/BIT)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0xA3
+mnem = "ADC B,(X)"
+group = "Byte ALU (cold modes + ADC/SBC/EOR/BIT)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0xA4
+mnem = "ADC A,(X+n8)"
+group = "Byte ALU (cold modes + ADC/SBC/EOR/BIT)"
+trailing = ["off8"]
+length = 3
+priv = false
+
+[[op]]
+page = 1
+byte = 0xA5
+mnem = "ADC B,(X+n8)"
+group = "Byte ALU (cold modes + ADC/SBC/EOR/BIT)"
+trailing = ["off8"]
+length = 3
+priv = false
+
+[[op]]
+page = 1
+byte = 0xA6
+mnem = "ADC A,(SP+n8)"
+group = "Byte ALU (cold modes + ADC/SBC/EOR/BIT)"
+trailing = ["off8"]
+length = 3
+priv = false
+
+[[op]]
+page = 1
+byte = 0xA7
+mnem = "ADC B,(SP+n8)"
+group = "Byte ALU (cold modes + ADC/SBC/EOR/BIT)"
+trailing = ["off8"]
+length = 3
+priv = false
+
+[[op]]
+page = 1
+byte = 0xA8
+mnem = "SBC A,$nn"
+group = "Byte ALU (cold modes + ADC/SBC/EOR/BIT)"
+trailing = ["imm8"]
+length = 3
+priv = false
+
+[[op]]
+page = 1
+byte = 0xA9
+mnem = "SBC B,$nn"
+group = "Byte ALU (cold modes + ADC/SBC/EOR/BIT)"
+trailing = ["imm8"]
+length = 3
+priv = false
+
+[[op]]
+page = 1
+byte = 0xAA
+mnem = "SBC A,($nnnn)"
+group = "Byte ALU (cold modes + ADC/SBC/EOR/BIT)"
+trailing = ["abs16"]
+length = 4
+priv = false
+
+[[op]]
+page = 1
+byte = 0xAB
+mnem = "SBC B,($nnnn)"
+group = "Byte ALU (cold modes + ADC/SBC/EOR/BIT)"
+trailing = ["abs16"]
+length = 4
+priv = false
+
+[[op]]
+page = 1
+byte = 0xAC
+mnem = "SBC A,(X)"
+group = "Byte ALU (cold modes + ADC/SBC/EOR/BIT)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0xAD
+mnem = "SBC B,(X)"
+group = "Byte ALU (cold modes + ADC/SBC/EOR/BIT)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0xAE
+mnem = "SBC A,(X+n8)"
+group = "Byte ALU (cold modes + ADC/SBC/EOR/BIT)"
+trailing = ["off8"]
+length = 3
+priv = false
+
+[[op]]
+page = 1
+byte = 0xAF
+mnem = "SBC B,(X+n8)"
+group = "Byte ALU (cold modes + ADC/SBC/EOR/BIT)"
+trailing = ["off8"]
+length = 3
+priv = false
+
+[[op]]
+page = 1
+byte = 0xB0
+mnem = "SBC A,(SP+n8)"
+group = "Byte ALU (cold modes + ADC/SBC/EOR/BIT)"
+trailing = ["off8"]
+length = 3
+priv = false
+
+[[op]]
+page = 1
+byte = 0xB1
+mnem = "SBC B,(SP+n8)"
+group = "Byte ALU (cold modes + ADC/SBC/EOR/BIT)"
+trailing = ["off8"]
+length = 3
+priv = false
+
+[[op]]
+page = 1
+byte = 0xB2
+mnem = "EOR A,$nn"
+group = "Byte ALU (cold modes + ADC/SBC/EOR/BIT)"
+trailing = ["imm8"]
+length = 3
+priv = false
+
+[[op]]
+page = 1
+byte = 0xB3
+mnem = "EOR B,$nn"
+group = "Byte ALU (cold modes + ADC/SBC/EOR/BIT)"
+trailing = ["imm8"]
+length = 3
+priv = false
+
+[[op]]
+page = 1
+byte = 0xB4
+mnem = "EOR A,($nnnn)"
+group = "Byte ALU (cold modes + ADC/SBC/EOR/BIT)"
+trailing = ["abs16"]
+length = 4
+priv = false
+
+[[op]]
+page = 1
+byte = 0xB5
+mnem = "EOR B,($nnnn)"
+group = "Byte ALU (cold modes + ADC/SBC/EOR/BIT)"
+trailing = ["abs16"]
+length = 4
+priv = false
+
+[[op]]
+page = 1
+byte = 0xB6
+mnem = "EOR A,(X)"
+group = "Byte ALU (cold modes + ADC/SBC/EOR/BIT)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0xB7
+mnem = "EOR B,(X)"
+group = "Byte ALU (cold modes + ADC/SBC/EOR/BIT)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0xB8
+mnem = "EOR A,(X+n8)"
+group = "Byte ALU (cold modes + ADC/SBC/EOR/BIT)"
+trailing = ["off8"]
+length = 3
+priv = false
+
+[[op]]
+page = 1
+byte = 0xB9
+mnem = "EOR B,(X+n8)"
+group = "Byte ALU (cold modes + ADC/SBC/EOR/BIT)"
+trailing = ["off8"]
+length = 3
+priv = false
+
+[[op]]
+page = 1
+byte = 0xBA
+mnem = "BIT A,$nn"
+group = "Byte ALU (cold modes + ADC/SBC/EOR/BIT)"
+trailing = ["imm8"]
+length = 3
+priv = false
+
+[[op]]
+page = 1
+byte = 0xBB
+mnem = "BIT B,$nn"
+group = "Byte ALU (cold modes + ADC/SBC/EOR/BIT)"
+trailing = ["imm8"]
+length = 3
+priv = false
+
+[[op]]
+page = 1
+byte = 0xBC
+mnem = "BIT A,($nnnn)"
+group = "Byte ALU (cold modes + ADC/SBC/EOR/BIT)"
+trailing = ["abs16"]
+length = 4
+priv = false
+
+[[op]]
+page = 1
+byte = 0xBD
+mnem = "BIT B,($nnnn)"
+group = "Byte ALU (cold modes + ADC/SBC/EOR/BIT)"
+trailing = ["abs16"]
+length = 4
+priv = false
+
+[[op]]
+page = 1
+byte = 0xBE
+mnem = "BIT A,(X)"
+group = "Byte ALU (cold modes + ADC/SBC/EOR/BIT)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0xBF
+mnem = "BIT B,(X)"
+group = "Byte ALU (cold modes + ADC/SBC/EOR/BIT)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0xC0
+mnem = "BIT A,(X+n8)"
+group = "Byte ALU (cold modes + ADC/SBC/EOR/BIT)"
+trailing = ["off8"]
+length = 3
+priv = false
+
+[[op]]
+page = 1
+byte = 0xC1
+mnem = "BIT B,(X+n8)"
+group = "Byte ALU (cold modes + ADC/SBC/EOR/BIT)"
+trailing = ["off8"]
+length = 3
+priv = false
+
+# ── page 1 · 16-bit ALU & wide compare (cold) ──
+[[op]]
+page = 1
+byte = 0xC2
+mnem = "ADC D,$nnnn"
+group = "16-bit ALU & wide compare (cold)"
+trailing = ["imm16"]
+length = 4
+priv = false
+
+[[op]]
+page = 1
+byte = 0xC3
+mnem = "ADC D,($nnnn)"
+group = "16-bit ALU & wide compare (cold)"
+trailing = ["abs16"]
+length = 4
+priv = false
+
+[[op]]
+page = 1
+byte = 0xC4
+mnem = "ADC D,(SP+n8)"
+group = "16-bit ALU & wide compare (cold)"
+trailing = ["off8"]
+length = 3
+priv = false
+
+[[op]]
+page = 1
+byte = 0xC5
+mnem = "ADC D,(X)"
+group = "16-bit ALU & wide compare (cold)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0xC6
+mnem = "ADC D,(X+n8)"
+group = "16-bit ALU & wide compare (cold)"
+trailing = ["off8"]
+length = 3
+priv = false
+
+[[op]]
+page = 1
+byte = 0xC7
+mnem = "SBC D,$nnnn"
+group = "16-bit ALU & wide compare (cold)"
+trailing = ["imm16"]
+length = 4
+priv = false
+
+[[op]]
+page = 1
+byte = 0xC8
+mnem = "SBC D,($nnnn)"
+group = "16-bit ALU & wide compare (cold)"
+trailing = ["abs16"]
+length = 4
+priv = false
+
+[[op]]
+page = 1
+byte = 0xC9
+mnem = "SBC D,(SP+n8)"
+group = "16-bit ALU & wide compare (cold)"
+trailing = ["off8"]
+length = 3
+priv = false
+
+[[op]]
+page = 1
+byte = 0xCA
+mnem = "SBC D,(X)"
+group = "16-bit ALU & wide compare (cold)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0xCB
+mnem = "SBC D,(X+n8)"
+group = "16-bit ALU & wide compare (cold)"
+trailing = ["off8"]
+length = 3
+priv = false
+
+[[op]]
+page = 1
+byte = 0xCC
+mnem = "ADD D,(X++)"
+group = "16-bit ALU & wide compare (cold)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0xCD
+mnem = "ADD D,(--X)"
+group = "16-bit ALU & wide compare (cold)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0xCE
+mnem = "SUB D,(X)"
+group = "16-bit ALU & wide compare (cold)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0xCF
+mnem = "SUB D,(X+n8)"
+group = "16-bit ALU & wide compare (cold)"
+trailing = ["off8"]
+length = 3
+priv = false
+
+[[op]]
+page = 1
+byte = 0xD0
+mnem = "SUB D,(X+D)"
+group = "16-bit ALU & wide compare (cold)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0xD1
+mnem = "CMP D,(X)"
+group = "16-bit ALU & wide compare (cold)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0xD2
+mnem = "CMP D,(X+n8)"
+group = "16-bit ALU & wide compare (cold)"
+trailing = ["off8"]
+length = 3
+priv = false
+
+[[op]]
+page = 1
+byte = 0xD3
+mnem = "CMP X,($nnnn)"
+group = "16-bit ALU & wide compare (cold)"
+trailing = ["abs16"]
+length = 4
+priv = false
+
+[[op]]
+page = 1
+byte = 0xD4
+mnem = "CMP Y,($nnnn)"
+group = "16-bit ALU & wide compare (cold)"
+trailing = ["abs16"]
+length = 4
+priv = false
+
+[[op]]
+page = 1
+byte = 0xD5
+mnem = "CMP SP,($nnnn)"
+group = "16-bit ALU & wide compare (cold)"
+trailing = ["abs16"]
+length = 4
+priv = false
+
+[[op]]
+page = 1
+byte = 0xD6
+mnem = "CMP X,(SP+n8)"
+group = "16-bit ALU & wide compare (cold)"
+trailing = ["off8"]
+length = 3
+priv = false
+
+[[op]]
+page = 1
+byte = 0xD7
+mnem = "CMP X,(X)"
+group = "16-bit ALU & wide compare (cold)"
+trailing = []
+length = 2
+priv = false
+
+# ── page 1 · RMW & register-direct unary (cold ops) ──
+[[op]]
+page = 1
+byte = 0xD8
+mnem = "NEG A"
+group = "RMW & register-direct unary (cold ops)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0xD9
+mnem = "COM A"
+group = "RMW & register-direct unary (cold ops)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0xDA
+mnem = "ROL A"
+group = "RMW & register-direct unary (cold ops)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0xDB
+mnem = "ROR A"
+group = "RMW & register-direct unary (cold ops)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0xDC
+mnem = "NEG B"
+group = "RMW & register-direct unary (cold ops)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0xDD
+mnem = "COM B"
+group = "RMW & register-direct unary (cold ops)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0xDE
+mnem = "ROL B"
+group = "RMW & register-direct unary (cold ops)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0xDF
+mnem = "ROR B"
+group = "RMW & register-direct unary (cold ops)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0xE0
+mnem = "INC (X+)"
+group = "RMW & register-direct unary (cold ops)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0xE1
+mnem = "DEC (X+)"
+group = "RMW & register-direct unary (cold ops)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0xE2
+mnem = "INC (Y)"
+group = "RMW & register-direct unary (cold ops)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0xE3
+mnem = "DEC (Y)"
+group = "RMW & register-direct unary (cold ops)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0xE4
+mnem = "CLR (Y)"
+group = "RMW & register-direct unary (cold ops)"
+trailing = []
+length = 2
+priv = false
+
+[[op]]
+page = 1
+byte = 0xE5
+mnem = "TST (Y)"
+group = "RMW & register-direct unary (cold ops)"
+trailing = []
+length = 2
+priv = false

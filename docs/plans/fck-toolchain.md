@@ -154,7 +154,7 @@ finalizing the opcode map.** Hence two phases:
 
 | Action | Where | Note |
 |---|---|---|
-| New decision **D-44**: adopt FCK + Bintools; **supersedes D-06** | [decision-log.md](../decision-log.md) | Reason = R-BUILD-1/-2 + inherited-linker/object-format merit; FUZIX-dropped-SDCC goes in *Influences* |
+| New decision (next free id, **D-49**): adopt FCK + Bintools; **supersedes D-06** | [decision-log.md](../decision-log.md) | Reason = R-BUILD-1/-2 + inherited-linker/object-format merit; FUZIX-dropped-SDCC goes in *Influences* |
 | Add **R-BUILD-4** (self-hosting), if §6.2 accepted | [requirements.md](../requirements.md) | `⟸ G3`; update goal→requirement table |
 | Rewrite §1.3 "a new SDCC backend (STM8-derived)" → FCK | [isa.md](../isa.md) | Re-anchor the §3 byte-order note and the register-shape rationale on requirement IDs (they get *stronger*, not weaker, under FCK) |
 | Fill the ISA-level toolchain gap (currently only the microcode assembler) | [toolchain.md](../toolchain.md) | Bintools assembler + linker + object format; the two-phase start plan |
@@ -163,10 +163,10 @@ finalizing the opcode map.** Hence two phases:
 ## 8. Status & next actions
 
 - [ ] Ratify §6 decisions (codegen-vs-G2; self-hosting requirement; vendoring).
-- [ ] **Ratify the instruction set / pin the opcode map (D-41)** — the immediate
-      next activity, and the precondition for `as6-blip.c`.
-- [ ] Write D-44 (supersede D-06) + R-BUILD-4; rewrite isa.md §1.3; fill
-      toolchain.md; update goals.md.
+- [x] **Ratify the instruction set / pin the opcode map** — done in **D-48**: bytes
+      assigned in `isa/opcodes.toml`, generated + linted by `tools/isa/gen_opcodes.py`.
+- [ ] Write the FCK decision (next free id D-49, supersedes D-06) + R-BUILD-4; rewrite
+      isa.md §1.3; fill toolchain.md; update goals.md.
 - [ ] Scaffold `tools/fcc/` + the Python bring-up assembler.
 
 ## Influences / prior art (non-normative — justifies nothing)

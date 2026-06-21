@@ -117,8 +117,8 @@ hot kernel paths; placed on page 1 on the judgement that critical sections are s
 ### 4.4 Page-0 headroom is residual, not a forced reserve
 
 Page 0 holds **every** instruction the criteria call hot — no slots are held back
-artificially. With the hot set placed it lands at **231 of 255** usable opcodes (`0x80`
-reserved as the page-1 prefix), leaving **24 free**. That remainder is genuine re-carve
+artificially. With the hot set placed it lands at **232 of 255** usable opcodes (`0x80`
+reserved as the page-1 prefix), leaving **23 free** (D-48 promoted `JSR X` to page 0). That remainder is genuine re-carve
 headroom (R-CTRL-1) — profiling can later promote a page-1 instruction without demoting one —
 but it is the *residue* of placing the legitimate hot set, not a quota the hot set was
 squeezed to meet.
@@ -128,8 +128,8 @@ squeezed to meet.
 ## 5. The two-page split (summary)
 
 The full per-opcode inventory is the canonical [isa.md](isa.md) §8.2; this section keeps
-only the page-level shape and the placement notes. **Page 0 = 231 opcodes** (24 free of the
-255 usable after `0x80` is reserved as the page-1 prefix); **page 1 = 231 opcodes** (25 free
+only the page-level shape and the placement notes. **Page 0 = 232 opcodes** (23 free of the
+255 usable after `0x80` is reserved as the page-1 prefix); **page 1 = 230 opcodes** (26 free
 of 256). Verified for budget, hot/cold placement, and requirement coverage (D-41 build pass).
 The set is a flat list — no opcode grids (the D-40 map decouples opcode number from routine) —
 so concrete byte values are a mechanical sequential assignment (isa.md §8).
@@ -146,9 +146,9 @@ callee-saved loop pointer, R-ABI-4).
 | Byte ALU (page 1 also has ADC/SBC/EOR/BIT) | 67 | 46 |
 | 16-bit ALU, wide compare, D shifts | 18 | 22 |
 | RMW & register-direct unary | 26 | 14 |
-| Control flow (branches, JMP/JSR, calls) | 29 | 40 |
+| Control flow (branches, JMP/JSR, calls) | 30 | 39 |
 | System / privileged / inherent / LEA / moves | 25 | 31 |
-| **Total** | **231** | **231** |
+| **Total** | **232** | **230** |
 
 The per-instruction list for each family-and-page cell is [isa.md](isa.md) §8.2.
 
@@ -160,6 +160,7 @@ The page split and its rationale are settled; the canonical per-opcode list is
 [isa.md](isa.md) §8.2 and the control-word changes are applied ([microcode.md](microcode.md),
 [hardware.md](hardware.md), D-41). The set is a **flat list** — no opcode grids — so concrete
 byte values are a mechanical sequential assignment, not a design step. The split is reflashable
-(R-CTRL-1): page 0 keeps 24 free slots and page 1 keeps 25, so profiling can promote a cold
+(R-CTRL-1): page 0 keeps 23 free slots and page 1 keeps 26, so profiling can promote a cold
 instruction (e.g. the symmetric `(Y+)` accumulate forms, currently in the synthesizable tail)
-without a hardware change.
+without a hardware change. D-48 ratified the set — promoting `JSR X` to page 0 and assigning
+the concrete opcode bytes in `isa/opcodes.toml` — so the page totals are now 232 / 230.

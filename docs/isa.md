@@ -4,13 +4,14 @@
 > [docs/goals.md](goals.md); for *how the silicon realizes this* see
 > [docs/hardware.md](hardware.md).
 >
-> **Status:** the rationale, register model, addressing modes, and encoding map
-> below are a **v0 proposal** under active design review. The §8 opcode set is the flat
-> **two-page** instruction inventory (D-41, after removing the indexed postbyte —
-> superseding the single-page postbyte table of D-20/D-21). It is a **flat one-dimensional
-> list** — no opcode grids — since the opcode→start-address map (D-40) decouples the opcode
-> number from the microroutine, so concrete byte values are a mechanical sequential
-> assignment. The assembly notation follows the house style of §4.1 (D-25).
+> **Status:** the rationale, register model, addressing modes, and encoding map below
+> are **ratified**. The §8 opcode set is the flat **two-page** instruction inventory
+> (D-41, after removing the indexed postbyte — superseding the single-page postbyte table
+> of D-20/D-21). It is a **flat one-dimensional list** — no opcode grids — since the
+> opcode→start-address map (D-40) decouples the opcode number from the microroutine.
+> **Concrete opcode bytes are assigned in [isa/opcodes.toml](../isa/opcodes.toml)** — the
+> single source of truth the §8.2 table is generated from (`tools/isa/gen_opcodes.py`;
+> D-48). The assembly notation follows the house style of §4.1 (D-25).
 
 ---
 
@@ -338,8 +339,10 @@ D-18).
   cannot touch hardware (D-18). The I/O page sits inside the reset identity window
   (above), so the boot ROM reaches the console and storage with no MMU setup
   (R-MEM-7). The external decode is part of the functional interface (D-28).
-- **Atomicity.** At minimum, disabling interrupts around critical sections; a
-  test-and-set-like primitive is a possible convenience (TBD).
+- **Atomicity.** Disabling interrupts around critical sections, plus an atomic **`TAS`**
+  (test-and-set) for kernel locks (R-CPU-6): `TAS` reads a lock byte — setting `N` from its
+  high bit and `Z` if it was zero — then sets the byte, so a handler takes the lock iff it
+  read it clear, uninterruptibly (§8.2, §8.5; D-48).
 
 ---
 
@@ -425,60 +428,66 @@ geometry to satisfy. The conventions:
 
 ### 8.2 Instruction inventory (the two pages)
 
-The complete instruction set, grouped by family. **Page 0 = 231 opcodes** (24 free of
-the 255 usable after `0x80` is reserved as the page-1 prefix); **page 1 = 231 opcodes**
-(25 free of 256). Each entry is one opcode; operand bytes (offset / immediate / mask)
-follow per §8.1. This is a **flat list** (no opcode grids, §8.1): byte values run
-sequentially in listing order — on page 0, `0x80` is reserved for the page-1 prefix and the
-unused high values are the free slots. The *set* is verified for budget, hot/cold placement,
-and requirement coverage (D-41 build pass). Placement rationale:
-[d41-isa-refinement.md](d41-isa-refinement.md).
+The complete instruction set, grouped by family. **Page 0 = 232 opcodes** (23 free of
+the 255 usable after `0x80` is reserved as the page-1 prefix); **page 1 = 230 opcodes**
+(26 free of 256). Each entry is one opcode; operand bytes (offset / immediate / mask)
+follow per §8.1. This is a **flat list** (no opcode grids, §8.1). **Concrete byte values —
+the two-hex-digit prefix on each entry below — are assigned in
+[isa/opcodes.toml](../isa/opcodes.toml), the single source of truth this table is generated
+from** (`tools/isa/gen_opcodes.py`; D-48); on page 0, `0x80` is reserved for the page-1
+prefix and the unused high values are the free slots. The set is verified for budget,
+hot/cold placement, and requirement coverage (D-41 build pass; `JSR X` promoted to page 0 in
+D-48). Placement rationale: [d41-isa-refinement.md](d41-isa-refinement.md).
 
-#### Page 0 — hot (no prefix), 231 opcodes
+<!-- BEGIN opcode-inventory (generated from isa/opcodes.toml by tools/isa/gen_opcodes.py — do not edit by hand) -->
+
+#### Page 0 — hot (no prefix), 232 opcodes
 
 **Byte load/store (A, B) — 38.**
-`LD A,$nn`, `LD A,(SP+n8)`, `LD A,(SP)`, `LD A,(X)`, `LD A,(X+n8)`, `LD A,(X+)`, `LD A,(X+D)`, `LD A,($nnnn)`, `LD A,(Y)`, `LD A,(Y+)`, `LD A,(Y+n8)`, `LD B,$nn`, `LD B,(SP+n8)`, `LD B,(SP)`, `LD B,(X)`, `LD B,(X+n8)`, `LD B,(X+)`, `LD B,(X+D)`, `LD B,($nnnn)`, `LD B,(Y)`, `LD B,(Y+)`, `LD B,(Y+n8)`, `ST A,(SP+n8)`, `ST A,(X)`, `ST A,(X+n8)`, `ST A,(X+)`, `ST A,($nnnn)`, `ST A,(Y)`, `ST A,(Y+n8)`, `ST A,(Y+)`, `ST B,(SP+n8)`, `ST B,(X)`, `ST B,(X+n8)`, `ST B,(X+)`, `ST B,($nnnn)`, `ST B,(Y)`, `ST B,(Y+n8)`, `ST B,(Y+)`.
+`00 LD A,$nn`, `01 LD A,(SP+n8)`, `02 LD A,(SP)`, `03 LD A,(X)`, `04 LD A,(X+n8)`, `05 LD A,(X+)`, `06 LD A,(X+D)`, `07 LD A,($nnnn)`, `08 LD A,(Y)`, `09 LD A,(Y+)`, `0A LD A,(Y+n8)`, `0B LD B,$nn`, `0C LD B,(SP+n8)`, `0D LD B,(SP)`, `0E LD B,(X)`, `0F LD B,(X+n8)`, `10 LD B,(X+)`, `11 LD B,(X+D)`, `12 LD B,($nnnn)`, `13 LD B,(Y)`, `14 LD B,(Y+)`, `15 LD B,(Y+n8)`, `16 ST A,(SP+n8)`, `17 ST A,(X)`, `18 ST A,(X+n8)`, `19 ST A,(X+)`, `1A ST A,($nnnn)`, `1B ST A,(Y)`, `1C ST A,(Y+n8)`, `1D ST A,(Y+)`, `1E ST B,(SP+n8)`, `1F ST B,(X)`, `20 ST B,(X+n8)`, `21 ST B,(X+)`, `22 ST B,($nnnn)`, `23 ST B,(Y)`, `24 ST B,(Y+n8)`, `25 ST B,(Y+)`
 
 **16-bit load/store (D, X, Y, SP) — 28.**
-`LD D,$nnnn`, `LD X,$nnnn`, `LD Y,$nnnn`, `LD SP,$nnnn`, `LD D,($nnnn)`, `LD X,($nnnn)`, `LD Y,($nnnn)`, `ST D,($nnnn)`, `ST X,($nnnn)`, `ST Y,($nnnn)`, `LD D,(X)`, `ST D,(X)`, `LD D,(X+n8)`, `ST D,(X+n8)`, `LD D,(X++)`, `ST D,(X++)`, `LD D,(SP+n8)`, `LD X,(SP+n8)`, `LD Y,(SP+n8)`, `ST D,(SP+n8)`, `ST X,(SP+n8)`, `ST Y,(SP+n8)`, `LD D,(X+D)`, `ST D,(X+D)`, `LD D,(Y)`, `ST D,(Y)`, `LD D,(Y+n8)`, `ST D,(Y+n8)`.
+`26 LD D,$nnnn`, `27 LD X,$nnnn`, `28 LD Y,$nnnn`, `29 LD SP,$nnnn`, `2A LD D,($nnnn)`, `2B LD X,($nnnn)`, `2C LD Y,($nnnn)`, `2D ST D,($nnnn)`, `2E ST X,($nnnn)`, `2F ST Y,($nnnn)`, `30 LD D,(X)`, `31 ST D,(X)`, `32 LD D,(X+n8)`, `33 ST D,(X+n8)`, `34 LD D,(X++)`, `35 ST D,(X++)`, `36 LD D,(SP+n8)`, `37 LD X,(SP+n8)`, `38 LD Y,(SP+n8)`, `39 ST D,(SP+n8)`, `3A ST X,(SP+n8)`, `3B ST Y,(SP+n8)`, `3C LD D,(X+D)`, `3D ST D,(X+D)`, `3E LD D,(Y)`, `3F ST D,(Y)`, `40 LD D,(Y+n8)`, `41 ST D,(Y+n8)`
 
 **Byte ALU (ADD/SUB/CMP/AND/OR on A, B) — 67.**
-`ADD A,$nn`, `ADD A,(X)`, `ADD A,(X+n8)`, `ADD A,(X+D)`, `ADD A,(SP+n8)`, `ADD A,($nnnn)`, `ADD A,(X+)`, `ADD A,(Y)`, `ADD B,$nn`, `ADD B,(X)`, `ADD B,(X+n8)`, `ADD B,(X+D)`, `ADD B,(SP+n8)`, `ADD B,($nnnn)`, `ADD B,(X+)`, `ADD B,(Y)`, `SUB A,$nn`, `SUB A,(X)`, `SUB A,(X+n8)`, `SUB A,(X+D)`, `SUB A,(SP+n8)`, `SUB A,($nnnn)`, `SUB A,(X+)`, `SUB A,(Y)`, `SUB B,$nn`, `SUB B,(X)`, `SUB B,(X+n8)`, `SUB B,(X+D)`, `SUB B,(SP+n8)`, `SUB B,($nnnn)`, `SUB B,(X+)`, `SUB B,(Y)`, `CMP A,$nn`, `CMP A,(X)`, `CMP A,(X+n8)`, `CMP A,(SP+n8)`, `CMP A,($nnnn)`, `CMP A,(Y)`, `CMP B,$nn`, `CMP B,(X)`, `CMP B,(X+n8)`, `CMP B,($nnnn)`, `CMP B,(Y)`, `AND A,$nn`, `AND A,(X)`, `AND A,(X+n8)`, `AND A,($nnnn)`, `AND A,(X+)`, `AND A,(Y)`, `AND B,$nn`, `AND B,(X)`, `AND B,(X+n8)`, `AND B,($nnnn)`, `AND B,(X+)`, `AND B,(Y)`, `OR A,$nn`, `OR A,(X)`, `OR A,(X+n8)`, `OR A,($nnnn)`, `OR A,(X+)`, `OR A,(Y)`, `OR B,$nn`, `OR B,(X)`, `OR B,(X+n8)`, `OR B,($nnnn)`, `OR B,(X+)`, `OR B,(Y)`.
+`42 ADD A,$nn`, `43 ADD A,(X)`, `44 ADD A,(X+n8)`, `45 ADD A,(X+D)`, `46 ADD A,(SP+n8)`, `47 ADD A,($nnnn)`, `48 ADD A,(X+)`, `49 ADD A,(Y)`, `4A ADD B,$nn`, `4B ADD B,(X)`, `4C ADD B,(X+n8)`, `4D ADD B,(X+D)`, `4E ADD B,(SP+n8)`, `4F ADD B,($nnnn)`, `50 ADD B,(X+)`, `51 ADD B,(Y)`, `52 SUB A,$nn`, `53 SUB A,(X)`, `54 SUB A,(X+n8)`, `55 SUB A,(X+D)`, `56 SUB A,(SP+n8)`, `57 SUB A,($nnnn)`, `58 SUB A,(X+)`, `59 SUB A,(Y)`, `5A SUB B,$nn`, `5B SUB B,(X)`, `5C SUB B,(X+n8)`, `5D SUB B,(X+D)`, `5E SUB B,(SP+n8)`, `5F SUB B,($nnnn)`, `60 SUB B,(X+)`, `61 SUB B,(Y)`, `62 CMP A,$nn`, `63 CMP A,(X)`, `64 CMP A,(X+n8)`, `65 CMP A,(SP+n8)`, `66 CMP A,($nnnn)`, `67 CMP A,(Y)`, `68 CMP B,$nn`, `69 CMP B,(X)`, `6A CMP B,(X+n8)`, `6B CMP B,($nnnn)`, `6C CMP B,(Y)`, `6D AND A,$nn`, `6E AND A,(X)`, `6F AND A,(X+n8)`, `70 AND A,($nnnn)`, `71 AND A,(X+)`, `72 AND A,(Y)`, `73 AND B,$nn`, `74 AND B,(X)`, `75 AND B,(X+n8)`, `76 AND B,($nnnn)`, `77 AND B,(X+)`, `78 AND B,(Y)`, `79 OR A,$nn`, `7A OR A,(X)`, `7B OR A,(X+n8)`, `7C OR A,($nnnn)`, `7D OR A,(X+)`, `7E OR A,(Y)`, `7F OR B,$nn`, `81 OR B,(X)`, `82 OR B,(X+n8)`, `83 OR B,($nnnn)`, `84 OR B,(X+)`, `85 OR B,(Y)`
 
 **16-bit ALU, wide compare & D shifts — 18.**
-`ADD D,$nnnn`, `ADD D,($nnnn)`, `ADD D,(SP+n8)`, `ADD D,(X)`, `ADD D,(X+n8)`, `ADD D,(X+D)`, `SUB D,$nnnn`, `SUB D,($nnnn)`, `SUB D,(SP+n8)`, `CMP D,$nnnn`, `CMP D,($nnnn)`, `CMP D,(SP+n8)`, `CMP X,$nnnn`, `CMP Y,$nnnn`, `CMP SP,$nnnn`, `ASL D,$n`, `LSR D,$n`, `ASR D,$n`.
+`86 ADD D,$nnnn`, `87 ADD D,($nnnn)`, `88 ADD D,(SP+n8)`, `89 ADD D,(X)`, `8A ADD D,(X+n8)`, `8B ADD D,(X+D)`, `8C SUB D,$nnnn`, `8D SUB D,($nnnn)`, `8E SUB D,(SP+n8)`, `8F CMP D,$nnnn`, `90 CMP D,($nnnn)`, `91 CMP D,(SP+n8)`, `92 CMP X,$nnnn`, `93 CMP Y,$nnnn`, `94 CMP SP,$nnnn`, `95 ASL D,$n`, `96 LSR D,$n`, `97 ASR D,$n`
 
 **RMW & register-direct unary — 26.**
-`INC A`, `DEC A`, `CLR A`, `TST A`, `LSR A`, `ASR A`, `ASL A`, `INC B`, `DEC B`, `CLR B`, `TST B`, `LSR B`, `ASR B`, `ASL B`, `INC (X)`, `INC (X+n8)`, `INC (SP+n8)`, `DEC (X)`, `DEC (X+n8)`, `DEC (SP+n8)`, `CLR (X)`, `CLR (X+n8)`, `TST (X)`, `TST (X+n8)`, `INC ($nnnn)`, `DEC ($nnnn)`.
+`98 INC A`, `99 DEC A`, `9A CLR A`, `9B TST A`, `9C LSR A`, `9D ASR A`, `9E ASL A`, `9F INC B`, `A0 DEC B`, `A1 CLR B`, `A2 TST B`, `A3 LSR B`, `A4 ASR B`, `A5 ASL B`, `A6 INC (X)`, `A7 INC (X+n8)`, `A8 INC (SP+n8)`, `A9 DEC (X)`, `AA DEC (X+n8)`, `AB DEC (SP+n8)`, `AC CLR (X)`, `AD CLR (X+n8)`, `AE TST (X)`, `AF TST (X+n8)`, `B0 INC ($nnnn)`, `B1 DEC ($nnnn)`
 
-**Control flow — 29.**
-`BRA rel8`, `BRN rel8`, `BHI rel8`, `BLS rel8`, `BCC rel8`, `BCS rel8`, `BNE rel8`, `BEQ rel8`, `BVC rel8`, `BVS rel8`, `BPL rel8`, `BMI rel8`, `BGE rel8`, `BLT rel8`, `BGT rel8`, `BLE rel8`, `BSR rel8`, `RTS`, `JMP $nnnn`, `JMP X`, `JMP Y`, `JMP (X)`, `JMP (X+n8)`, `JMP (X+D)`, `JSR $nnnn`, `JSR (X)`, `JSR Y`, `JSR (X+n8)`, `JSR (X+D)`.
+**Control flow — 30.**
+`B2 BRA rel8`, `B3 BRN rel8`, `B4 BHI rel8`, `B5 BLS rel8`, `B6 BCC rel8`, `B7 BCS rel8`, `B8 BNE rel8`, `B9 BEQ rel8`, `BA BVC rel8`, `BB BVS rel8`, `BC BPL rel8`, `BD BMI rel8`, `BE BGE rel8`, `BF BLT rel8`, `C0 BGT rel8`, `C1 BLE rel8`, `C2 BSR rel8`, `C3 RTS`, `C4 JMP $nnnn`, `C5 JMP X`, `C6 JMP Y`, `C7 JMP (X)`, `C8 JMP (X+n8)`, `C9 JMP (X+D)`, `CA JSR $nnnn`, `CB JSR (X)`, `CC JSR Y`, `CD JSR X`, `CE JSR (X+n8)`, `CF JSR (X+D)`
 
 **System / inherent / LEA / moves — 25.**
-`NOP`, `SEX`, `MUL`, `ABX`, `PSHS mask8`, `PULS mask8`, `ANDCC $nn`, `ORCC $nn`, `LD reg,reg`, `XCHG reg,reg`, `TAS (X)`, `TAS (X+n8)`, `LEA X,X+n8`, `LEA X,X+A`, `LEA X,X+B`, `LEA X,X+D`, `LEA X,X+`, `LEA X,X++`, `LEA X,-X`, `LEA X,Y+n8`, `LEA X,SP+n8`, `LEA Y,Y+n8`, `LEA Y,SP+n8`, `LEA SP,SP+n8`, `LEA SP,X+n8`.
+`D0 NOP`, `D1 SEX`, `D2 MUL`, `D3 ABX`, `D4 PSHS mask8`, `D5 PULS mask8`, `D6 ANDCC $nn`, `D7 ORCC $nn`, `D8 LD reg,reg`, `D9 XCHG reg,reg`, `DA TAS (X)`, `DB TAS (X+n8)`, `DC LEA X,X+n8`, `DD LEA X,X+A`, `DE LEA X,X+B`, `DF LEA X,X+D`, `E0 LEA X,X+`, `E1 LEA X,X++`, `E2 LEA X,-X`, `E3 LEA X,Y+n8`, `E4 LEA X,SP+n8`, `E5 LEA Y,Y+n8`, `E6 LEA Y,SP+n8`, `E7 LEA SP,SP+n8`, `E8 LEA SP,X+n8`
 
-#### Page 1 — cold (`0x80` prefix), 231 opcodes
+#### Page 1 — cold (`0x80` prefix), 230 opcodes
 
 **System / privileged / cold TAS & LEA — 31.**
-`DAA`, `SYNC`, `RTI`, `SWI`, `SWI2`, `SWI3`, `CWAI $nn`, `SEI`, `CLI`, `HALT`, `LDMMU $nn`, `STMMU $nn`, `LD USP,X`, `LD USP,Y`, `LD USP,D`, `LD X,USP`, `LD Y,USP`, `LD D,USP`, `XCHG X,USP`, `XCHG Y,USP`, `XCHG D,USP`, `TAS (Y)`, `TAS (Y+n8)`, `TAS (SP+n8)`, `TAS ($nnnn)`, `LEA X,X+n16`, `LEA Y,Y+n16`, `LEA SP,SP+n16`, `LEA X,PC+n8`, `LEA Y,PC+n8`, `LEA SP,Y+n8`.
+`00 DAA`, `01 SYNC`, `02 RTI`, `03 SWI`, `04 SWI2`, `05 SWI3`, `06 CWAI $nn`, `07 SEI`, `08 CLI`, `09 HALT`, `0A LDMMU $nn`, `0B STMMU $nn`, `0C LD USP,X`, `0D LD USP,Y`, `0E LD USP,D`, `0F LD X,USP`, `10 LD Y,USP`, `11 LD D,USP`, `12 XCHG X,USP`, `13 XCHG Y,USP`, `14 XCHG D,USP`, `15 TAS (Y)`, `16 TAS (Y+n8)`, `17 TAS (SP+n8)`, `18 TAS ($nnnn)`, `19 LEA X,X+n16`, `1A LEA Y,Y+n16`, `1B LEA SP,SP+n16`, `1C LEA X,PC+n8`, `1D LEA Y,PC+n8`, `1E LEA SP,Y+n8`
 
-**Control flow — long branches & cold JMP/JSR — 40.**
-`LBRA rel16`, `LBRN rel16`, `LBHI rel16`, `LBLS rel16`, `LBCC rel16`, `LBCS rel16`, `LBNE rel16`, `LBEQ rel16`, `LBVC rel16`, `LBVS rel16`, `LBPL rel16`, `LBMI rel16`, `LBGE rel16`, `LBLT rel16`, `LBGT rel16`, `LBLE rel16`, `LBSR rel16`, `JMP (X+n16)`, `JMP (X+A)`, `JMP (X+B)`, `JMP (Y)`, `JMP (Y+n8)`, `JMP (Y+n16)`, `JMP (Y+A)`, `JMP (Y+B)`, `JMP (Y+D)`, `JMP (PC+n8)`, `JMP (PC+n16)`, `JSR (X+n16)`, `JSR (X+A)`, `JSR (X+B)`, `JSR X`, `JSR (Y)`, `JSR (Y+n8)`, `JSR (Y+n16)`, `JSR (Y+A)`, `JSR (Y+B)`, `JSR (Y+D)`, `JSR (PC+n8)`, `JSR (PC+n16)`.
+**Control flow — long branches & cold JMP/JSR — 39.**
+`1F LBRA rel16`, `20 LBRN rel16`, `21 LBHI rel16`, `22 LBLS rel16`, `23 LBCC rel16`, `24 LBCS rel16`, `25 LBNE rel16`, `26 LBEQ rel16`, `27 LBVC rel16`, `28 LBVS rel16`, `29 LBPL rel16`, `2A LBMI rel16`, `2B LBGE rel16`, `2C LBLT rel16`, `2D LBGT rel16`, `2E LBLE rel16`, `2F LBSR rel16`, `30 JMP (X+n16)`, `31 JMP (X+A)`, `32 JMP (X+B)`, `33 JMP (Y)`, `34 JMP (Y+n8)`, `35 JMP (Y+n16)`, `36 JMP (Y+A)`, `37 JMP (Y+B)`, `38 JMP (Y+D)`, `39 JMP (PC+n8)`, `3A JMP (PC+n16)`, `3B JSR (X+n16)`, `3C JSR (X+A)`, `3D JSR (X+B)`, `3E JSR (Y)`, `3F JSR (Y+n8)`, `40 JSR (Y+n16)`, `41 JSR (Y+A)`, `42 JSR (Y+B)`, `43 JSR (Y+D)`, `44 JSR (PC+n8)`, `45 JSR (PC+n16)`
 
 **Byte load/store (cold modes) — 36.**
-`ST A,(SP)`, `ST B,(SP)`, `LD A,(X++)`, `LD B,(X++)`, `LD A,(--X)`, `LD B,(--X)`, `LD A,(-X)`, `LD B,(-X)`, `ST A,(X++)`, `ST B,(X++)`, `ST A,(--X)`, `ST B,(--X)`, `ST A,(-X)`, `ST B,(-X)`, `LD A,(X+A)`, `LD A,(X+B)`, `LD B,(X+A)`, `LD B,(X+B)`, `ST A,(X+A)`, `ST A,(X+B)`, `ST A,(X+D)`, `ST B,(X+A)`, `ST B,(X+B)`, `ST B,(X+D)`, `LD A,(X+n16)`, `LD B,(X+n16)`, `ST A,(X+n16)`, `ST B,(X+n16)`, `LD A,(SP+n16)`, `LD B,(SP+n16)`, `ST A,(SP+n16)`, `ST B,(SP+n16)`, `LD A,(-Y)`, `LD B,(-Y)`, `ST A,(-Y)`, `ST B,(-Y)`.
+`46 ST A,(SP)`, `47 ST B,(SP)`, `48 LD A,(X++)`, `49 LD B,(X++)`, `4A LD A,(--X)`, `4B LD B,(--X)`, `4C LD A,(-X)`, `4D LD B,(-X)`, `4E ST A,(X++)`, `4F ST B,(X++)`, `50 ST A,(--X)`, `51 ST B,(--X)`, `52 ST A,(-X)`, `53 ST B,(-X)`, `54 LD A,(X+A)`, `55 LD A,(X+B)`, `56 LD B,(X+A)`, `57 LD B,(X+B)`, `58 ST A,(X+A)`, `59 ST A,(X+B)`, `5A ST A,(X+D)`, `5B ST B,(X+A)`, `5C ST B,(X+B)`, `5D ST B,(X+D)`, `5E LD A,(X+n16)`, `5F LD B,(X+n16)`, `60 ST A,(X+n16)`, `61 ST B,(X+n16)`, `62 LD A,(SP+n16)`, `63 LD B,(SP+n16)`, `64 ST A,(SP+n16)`, `65 ST B,(SP+n16)`, `66 LD A,(-Y)`, `67 LD B,(-Y)`, `68 ST A,(-Y)`, `69 ST B,(-Y)`
 
 **16-bit load/store (cold modes) — 42.**
-`LD X,(Y)`, `ST X,(Y)`, `LD Y,(X)`, `ST Y,(X)`, `LD D,(SP)`, `LD X,(SP)`, `LD Y,(SP)`, `ST D,(SP)`, `ST X,(SP)`, `ST Y,(SP)`, `LD X,(X++)`, `LD Y,(X++)`, `ST Y,(X++)`, `LD D,(Y++)`, `ST D,(Y++)`, `LD X,(Y++)`, `ST X,(Y++)`, `LD D,(--X)`, `ST D,(--X)`, `ST Y,(--X)`, `LD D,(--Y)`, `ST D,(--Y)`, `ST X,(--Y)`, `LD Y,(X+n8)`, `ST Y,(X+n8)`, `LD X,(Y+n8)`, `ST X,(Y+n8)`, `LD D,(X+n16)`, `LD X,(X+n16)`, `ST D,(X+n16)`, `ST X,(X+n16)`, `LD D,(SP+n16)`, `LD X,(SP+n16)`, `LD Y,(SP+n16)`, `ST D,(SP+n16)`, `ST X,(SP+n16)`, `ST Y,(SP+n16)`, `LD Y,(X+D)`, `ST Y,(X+D)`, `LD D,(Y+D)`, `LD SP,($nnnn)`, `ST SP,($nnnn)`.
+`6A LD X,(Y)`, `6B ST X,(Y)`, `6C LD Y,(X)`, `6D ST Y,(X)`, `6E LD D,(SP)`, `6F LD X,(SP)`, `70 LD Y,(SP)`, `71 ST D,(SP)`, `72 ST X,(SP)`, `73 ST Y,(SP)`, `74 LD X,(X++)`, `75 LD Y,(X++)`, `76 ST Y,(X++)`, `77 LD D,(Y++)`, `78 ST D,(Y++)`, `79 LD X,(Y++)`, `7A ST X,(Y++)`, `7B LD D,(--X)`, `7C ST D,(--X)`, `7D ST Y,(--X)`, `7E LD D,(--Y)`, `7F ST D,(--Y)`, `80 ST X,(--Y)`, `81 LD Y,(X+n8)`, `82 ST Y,(X+n8)`, `83 LD X,(Y+n8)`, `84 ST X,(Y+n8)`, `85 LD D,(X+n16)`, `86 LD X,(X+n16)`, `87 ST D,(X+n16)`, `88 ST X,(X+n16)`, `89 LD D,(SP+n16)`, `8A LD X,(SP+n16)`, `8B LD Y,(SP+n16)`, `8C ST D,(SP+n16)`, `8D ST X,(SP+n16)`, `8E ST Y,(SP+n16)`, `8F LD Y,(X+D)`, `90 ST Y,(X+D)`, `91 LD D,(Y+D)`, `92 LD SP,($nnnn)`, `93 ST SP,($nnnn)`
 
 **Byte ALU (cold modes + ADC/SBC/EOR/BIT) — 46.**
-`ADD A,(SP)`, `ADD B,(SP)`, `SUB A,(SP)`, `SUB B,(SP)`, `CMP A,(SP)`, `CMP B,(SP)`, `AND A,(SP)`, `AND B,(SP)`, `OR A,(SP)`, `OR B,(SP)`, `ADC A,$nn`, `ADC B,$nn`, `ADC A,($nnnn)`, `ADC B,($nnnn)`, `ADC A,(X)`, `ADC B,(X)`, `ADC A,(X+n8)`, `ADC B,(X+n8)`, `ADC A,(SP+n8)`, `ADC B,(SP+n8)`, `SBC A,$nn`, `SBC B,$nn`, `SBC A,($nnnn)`, `SBC B,($nnnn)`, `SBC A,(X)`, `SBC B,(X)`, `SBC A,(X+n8)`, `SBC B,(X+n8)`, `SBC A,(SP+n8)`, `SBC B,(SP+n8)`, `EOR A,$nn`, `EOR B,$nn`, `EOR A,($nnnn)`, `EOR B,($nnnn)`, `EOR A,(X)`, `EOR B,(X)`, `EOR A,(X+n8)`, `EOR B,(X+n8)`, `BIT A,$nn`, `BIT B,$nn`, `BIT A,($nnnn)`, `BIT B,($nnnn)`, `BIT A,(X)`, `BIT B,(X)`, `BIT A,(X+n8)`, `BIT B,(X+n8)`.
+`94 ADD A,(SP)`, `95 ADD B,(SP)`, `96 SUB A,(SP)`, `97 SUB B,(SP)`, `98 CMP A,(SP)`, `99 CMP B,(SP)`, `9A AND A,(SP)`, `9B AND B,(SP)`, `9C OR A,(SP)`, `9D OR B,(SP)`, `9E ADC A,$nn`, `9F ADC B,$nn`, `A0 ADC A,($nnnn)`, `A1 ADC B,($nnnn)`, `A2 ADC A,(X)`, `A3 ADC B,(X)`, `A4 ADC A,(X+n8)`, `A5 ADC B,(X+n8)`, `A6 ADC A,(SP+n8)`, `A7 ADC B,(SP+n8)`, `A8 SBC A,$nn`, `A9 SBC B,$nn`, `AA SBC A,($nnnn)`, `AB SBC B,($nnnn)`, `AC SBC A,(X)`, `AD SBC B,(X)`, `AE SBC A,(X+n8)`, `AF SBC B,(X+n8)`, `B0 SBC A,(SP+n8)`, `B1 SBC B,(SP+n8)`, `B2 EOR A,$nn`, `B3 EOR B,$nn`, `B4 EOR A,($nnnn)`, `B5 EOR B,($nnnn)`, `B6 EOR A,(X)`, `B7 EOR B,(X)`, `B8 EOR A,(X+n8)`, `B9 EOR B,(X+n8)`, `BA BIT A,$nn`, `BB BIT B,$nn`, `BC BIT A,($nnnn)`, `BD BIT B,($nnnn)`, `BE BIT A,(X)`, `BF BIT B,(X)`, `C0 BIT A,(X+n8)`, `C1 BIT B,(X+n8)`
 
 **16-bit ALU & wide compare (cold) — 22.**
-`ADC D,$nnnn`, `ADC D,($nnnn)`, `ADC D,(SP+n8)`, `ADC D,(X)`, `ADC D,(X+n8)`, `SBC D,$nnnn`, `SBC D,($nnnn)`, `SBC D,(SP+n8)`, `SBC D,(X)`, `SBC D,(X+n8)`, `ADD D,(X++)`, `ADD D,(--X)`, `SUB D,(X)`, `SUB D,(X+n8)`, `SUB D,(X+D)`, `CMP D,(X)`, `CMP D,(X+n8)`, `CMP X,($nnnn)`, `CMP Y,($nnnn)`, `CMP SP,($nnnn)`, `CMP X,(SP+n8)`, `CMP X,(X)`.
+`C2 ADC D,$nnnn`, `C3 ADC D,($nnnn)`, `C4 ADC D,(SP+n8)`, `C5 ADC D,(X)`, `C6 ADC D,(X+n8)`, `C7 SBC D,$nnnn`, `C8 SBC D,($nnnn)`, `C9 SBC D,(SP+n8)`, `CA SBC D,(X)`, `CB SBC D,(X+n8)`, `CC ADD D,(X++)`, `CD ADD D,(--X)`, `CE SUB D,(X)`, `CF SUB D,(X+n8)`, `D0 SUB D,(X+D)`, `D1 CMP D,(X)`, `D2 CMP D,(X+n8)`, `D3 CMP X,($nnnn)`, `D4 CMP Y,($nnnn)`, `D5 CMP SP,($nnnn)`, `D6 CMP X,(SP+n8)`, `D7 CMP X,(X)`
 
 **RMW & register-direct unary (cold ops) — 14.**
-`NEG A`, `COM A`, `ROL A`, `ROR A`, `NEG B`, `COM B`, `ROL B`, `ROR B`, `INC (X+)`, `DEC (X+)`, `INC (Y)`, `DEC (Y)`, `CLR (Y)`, `TST (Y)`.
+`D8 NEG A`, `D9 COM A`, `DA ROL A`, `DB ROR A`, `DC NEG B`, `DD COM B`, `DE ROL B`, `DF ROR B`, `E0 INC (X+)`, `E1 DEC (X+)`, `E2 INC (Y)`, `E3 DEC (Y)`, `E4 CLR (Y)`, `E5 TST (Y)`
+
+<!-- END opcode-inventory -->
 
 ### 8.3 Indexed addressing (encoded in the opcode)
 
@@ -522,6 +531,9 @@ D-41); it is retained.
 - 8-bit: `A`=8, `B`=9, `CC`=`0xA`. (e.g. `XCHG A,B` = `0x89`.)
 - `USP`=`0xF` — referencing it is the **privileged** USP-banking form (a page-1 opcode,
   §8.2), which traps in user mode. Codes `5`,`6`,`7`,`B`–`E` reserved.
+- `PC` (code 4) is valid only as a move **source** — `LD X,PC` / `LD D,PC` reads the program
+  counter; `PC` as a move **destination**, and `XCHG` with `PC`, are not provided, so a
+  computed transfer is always a `JMP`/`JSR`, never a second `LD` encoding (D-48).
 
 **`PSHS`/`PULS` mask byte** (one bit per register; push high-address-first, pull
 reverse, so the same mask round-trips): bit0 `CC`, bit1 `A`, bit2 `B`, bit3
@@ -550,6 +562,7 @@ Notation: `*` set from result, `0`/`1` forced, `-` unaffected, `?` undefined.
 | `TAS` | * | * | 0 | - | - |
 | `LEA X`/`LEA Y` | - | * | - | - | - |
 | `LEA SP`, `JMP`/`JSR`/`BSR`/`LBSR`/`RTS`, `Bcc`/`LBcc`, `ABX`, `NOP`, `SYNC`, `HALT` | - | - | - | - | - |
+| `PSHS`/`PULS` (registers other than `CC`) | - | - | - | - | - |
 | `SEI`/`CLI` | - | - | - | - | - |
 | `LDMMU`/`STMMU` | - | - | - | - | - |
 | `SEX` | * | * | 0 | - | - |
@@ -561,8 +574,8 @@ Notation: `*` set from result, `0`/`1` forced, `-` unaffected, `?` undefined.
 
 ### 8.6 Free slots & growth
 
-The two pages each leave room for growth (D-41): **page 0 has 24 free slots** (of the 255
-usable, `0x80` being spent as the page-1 prefix) and **page 1 has 25 free** (of 256). The
+The two pages each leave room for growth: **page 0 has 23 free slots** (of the 255
+usable, `0x80` being spent as the page-1 prefix) and **page 1 has 26 free** (of 256). The
 single-page "pack the prefix-page ops into holes" exercise (the former D-20/D-21
 constraint) is retired — the cold tail (long branches, the cold ALU/wide-compare modes,
 the privileged ops, …) lives on page 1 rather than competing for page-0 holes (§8.2).
@@ -616,8 +629,9 @@ profiling shows runtime-variable shifts are hot.
 
 ## 9. Open questions for this document
 
-1. **Atomicity primitive (§6):** whether to add a test-and-set-like instruction for
-   kernel locking, or rely on interrupt masking alone.
+None outstanding at this tier — the instruction set is **ratified** (D-48): the §8.2
+inventory, the concrete opcode bytes ([isa/opcodes.toml](../isa/opcodes.toml)), the atomic
+`TAS`, and the assembly notation are all settled.
 
 *Decided:* registers `A B D X Y SP` (no `U`/`DP`); little-endian; privilege with
 banked `SSP`/`USP` and the mode bit in `CC` (D-22); internal MMU
@@ -626,6 +640,8 @@ privileged `LDMMU`/`STMMU`); memory-mapped I/O in a single physical I/O page rea
 through the MMU (D-28); reset vector and physical memory map (reset entry `0x000000`,
 common at `0xE000`, vector table at `0xFFE0`; firmware monitor/loader boots the kernel
 from a block device — D-31); calling convention (§7); the **two-page** flat encoding
-(no postbyte) and the instruction inventory (§8; D-41); and the assembly
+(no postbyte) and the instruction inventory (§8; D-41), with the concrete opcode bytes
+assigned in [isa/opcodes.toml](../isa/opcodes.toml) and `JSR X` promoted to page 0 (D-48);
+the atomic **`TAS`** test-and-set for kernel locks (§6; D-48); and the assembly
 notation house style (§4.1 — verb/register split, bare `$`-hex immediates,
 parenthesised memory, `LD`/`XCHG` register moves; D-25).
