@@ -8,8 +8,8 @@
 # Needs the WSL toolchain: iverilog, verilator, yosys, python3. `make help` lists targets.
 
 PYTHON := python3
-# TOP selects which module the viz targets render; each has its own default
-# (viz -> cpu, digitaljs -> uc_loader). Override per run, e.g. `make viz TOP=uc_loader`.
+# TOP selects which module the viz targets render. Empty default: `viz` renders every
+# block, `digitaljs` renders uc_loader. Override per run, e.g. `make viz TOP=microsequencer`.
 TOP    ?=
 
 .NOTPARALLEL:
@@ -47,7 +47,7 @@ cpu:
 bench:
 	bash sim/bench/run.sh
 
-## viz:    schematic SVG of the HDL — Yosys -> netlistsvg (default TOP=cpu)
+## viz:    schematic SVG of every HDL block — Yosys -> netlistsvg (one via TOP=<module>)
 viz:
 	bash tools/viz/render.sh $(TOP)
 

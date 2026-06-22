@@ -298,8 +298,10 @@ All views are generated from the two sources (P3); none is hand-maintained.
   the Verilog. The wiring diagram is generated, so it is never stale. *Implemented*
   as `make viz` (`tools/viz/render.sh`): it reads the `hdl/cells/` models as black
   boxes — each 74-series part becomes one labelled box — and writes
-  `tools/viz/build/<top>.svg` (gitignored); `make viz TOP=<module>` renders any
-  sub-block (e.g. `uc_loader`).
+  `tools/viz/build/<top>.svg` (gitignored). Bare `make viz` renders **every** `hdl/`
+  block (the `cpu` and each factored sub-block — drawing a sub-block instance as one box,
+  the same module-under-test view as the structural lint); `make viz TOP=<module>` renders
+  just one (e.g. `microsequencer`).
 - **Interactive, animated logic — the Logisim experience, from code.** Yosys →
   **DigitalJS** (`yosys2digitaljs`) produces a clickable, signal-animated logic
   simulation in the browser / editor, from the same Verilog. It is *functional*
