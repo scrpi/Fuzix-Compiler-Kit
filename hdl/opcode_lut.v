@@ -11,12 +11,14 @@
 //
 // Structure (the BOM):
 //   3x sn74ahct157  -> the 12-bit address mux (SEL = loading ? loader_addr : {PAGE, IR}).
+//   1x sn74ahct32   -> the per-chip /WE strobe (cs_n[g] | clk; two gates spare).
 //   2x sn74ahct541  -> boot-write isolation buffers (enabled in boot, tri-stated in run).
 //   2x is61c64      -> the LUT SRAMs (8 K part, A12 grounded; D-49). /CE low; /OE = oe_n
-//                      (= loading); /WE the per-chip strobe.
+//                      (= loading); /WE the per-chip strobe formed here.
 `timescale 1ns/1ps
 `default_nettype none
 module opcode_lut (
+    input  wire        clk,          // /WE strobe clock phase (the write pulse rises at posedge)
     input  wire [11:0] loader_addr,  // boot: the shared control-store address (loader counter)
     input  wire        dispatch_page,// run: opcode-LUT page (control-word DISPATCH_PAGE)
     input  wire [7:0]  ir,           // run: the opcode register
@@ -24,7 +26,7 @@ module opcode_lut (
     input  wire [7:0]  wdata,        // boot write data (= the EEPROM byte)
     input  wire        wbuf_oe_n,    // boot-write buffer enable, active LOW (= run)
     input  wire        oe_n,         // SRAM /OE, active LOW (= loading)
-    input  wire [1:0]  we_n,         // per-chip /WE strobe (active LOW): [0]=low byte, [1]=high
+    input  wire [1:0]  cs_n,         // per-chip select, active LOW (from the loader): [0]=lo, [1]=hi
     output wire [7:0]  lut_lo,       // entry low byte  (SRAM 0)
     output wire [7:0]  lut_hi        // entry high byte (SRAM 1; only the low 4 bits are used)
 );
@@ -34,6 +36,12 @@ module opcode_lut (
     sn74ahct157 a0 (.a(run_addr[3:0]),  .b(loader_addr[3:0]),  .sel(loading), .g_n(1'b0), .y(addr[3:0]));
     sn74ahct157 a1 (.a(run_addr[7:4]),  .b(loader_addr[7:4]),  .sel(loading), .g_n(1'b0), .y(addr[7:4]));
     sn74ahct157 a2 (.a(run_addr[11:8]), .b(loader_addr[11:8]), .sel(loading), .g_n(1'b0), .y(addr[11:8]));
+
+    // per-chip /WE strobe: cs_n[g] | clk  (1x '32; two gates spare). Pulses LOW while clk
+    // is LOW for the selected chip, rising at posedge to latch; HIGH otherwise (no write).
+    wire [3:0] we_pad;
+    sn74ahct32 ws (.a({2'b00, cs_n}), .b({4{clk}}), .y(we_pad));
+    wire [1:0] we_n = we_pad[1:0];
 
     // the 2 LUT SRAMs + their boot-write buffers
     wire [7:0] io [0:1];

@@ -2,9 +2,14 @@
 //
 // At power-on it copies the single boot EEPROM image into the 13 control-store
 // SRAMs, then releases the CPU (D-03, R-CTRL-3; single-EEPROM model D-43). It is
-// independent of the CPU — just a counter, a decoder, the EEPROM, and the SRAMs.
+// independent of the CPU — just a counter, a decoder, and its onboard boot EEPROM;
+// it streams that image out to the external control-store SRAMs (the WCS, which the
+// run-path micro-PC also reads, so they live at the top level, not here).
 //
 // Structure (the BOM — R-SIM-1, R-SIM-5):
+//   * 1x sst39sf010a -> the boot EEPROM, pre-burned with the microcode image (param
+//     FILE). The loader's onboard source: read-only here (CE#/OE# tied low, WE# high),
+//     its whole address space walked by the counter.
 //   * 4x cd74act161  -> a 16-bit binary address counter `cnt`. Async-cleared to 0 by
 //     the active-low boot reset; ripple-carry cascade (RCO -> next ENT). (12-bit
 //     segment address + 4-bit chip field; the 4096-word store needs no 5th '161.)
@@ -31,17 +36,17 @@
 `default_nettype none
 module uc_loader #(
     parameter NSEG   = 13,      // 11 WCS + 2 opcode-LUT  (fixed: the 2x '138 decode)
-    parameter SEG_AW = 12       // 4 Kword per chip       (fixed: the low counter bits)
+    parameter SEG_AW = 12,      // 4 Kword per chip       (fixed: the low counter bits)
+    parameter FILE   = ""       // the microcode image pre-burned into the boot EEPROM
 ) (
     input  wire               clk,
     input  wire               rst_n,      // active-LOW boot reset (held low at power-on)
-    output wire [SEG_AW+3:0]  rom_addr,   // 16-bit EEPROM address (= cnt)
-    input  wire [7:0]         rom_data,
     output wire [SEG_AW-1:0]  sram_addr,  // shared SRAM address (= cnt low bits)
-    output wire [7:0]         sram_wdata, // shared write data (= rom_data, a bus wire)
+    output wire [7:0]         sram_wdata, // shared write data (= EEPROM byte, a bus wire)
     output wire [NSEG-1:0]    cs_n,       // per-chip select, active LOW (decoder Y0..Y12)
     output wire               loading     // HIGH during copy (decoder seg-13 line)
 );
+    localparam DEPTH = (1 << SEG_AW);   // words per chip (4096)
     // ---- 16-bit address counter: four '161s, ripple-carry cascade ----------
     wire [15:0] cnt;            // 12-bit segment address (cnt[11:0]) + 4-bit seg (cnt[15:12])
     wire [3:0]  rco;            // ripple carry out of each stage (rco[3] unused)
@@ -65,11 +70,20 @@ module uc_loader #(
     sn74ahct138 dec_hi (.a(cnt[SEG_AW]), .b(cnt[SEG_AW+1]), .c(cnt[SEG_AW+2]),
                     .g1(cnt[SEG_AW+3]), .g2a_n(1'b0), .g2b_n(1'b0), .y(dhi));
 
+    // ---- boot EEPROM: the loader's onboard microcode source ----------------
+    // Pre-burned with the image (param FILE); read-only (CE#/OE# low, WE# high). The
+    // counter walks its whole address space; the byte read becomes the SRAM write data.
+    wire [SEG_AW+3:0] rom_addr = cnt[SEG_AW+3:0];   // 16-bit EEPROM address (= cnt)
+    wire [7:0]        rom_data;                     // the byte currently under rom_addr
+    (* purpose = "microcode image (boot ROM)" *)
+    sst39sf010a #(.AW(17), .DW(8), .FILE(FILE), .LOADW(NSEG*DEPTH)) eeprom (
+        .a({1'b0, rom_addr}), .dq(rom_data), .ce_n(1'b0), .oe_n(1'b0), .we_n(1'b1)
+    );
+
     // ---- pure wiring -------------------------------------------------------
     assign cs_n       = {dhi[4:0], dlo[7:0]};   // seg 12..0 selects (active low)
     assign loading    = dhi[5];                 // seg-13 line: HIGH copying, LOW done
     assign count_en   = dhi[5];                 // counter halts itself at seg 13
-    assign rom_addr   = cnt[SEG_AW+3:0];        // = cnt[15:0]
     assign sram_addr  = cnt[SEG_AW-1:0];        // = cnt[11:0]
     assign sram_wdata = rom_data;               // shared EEPROM/SRAM data bus
 endmodule

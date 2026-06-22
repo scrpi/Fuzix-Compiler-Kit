@@ -11,7 +11,10 @@
 //   * the control-word decoder is the correct one-hot of the live word (one field/width);
 // and that DISPATCH_IR lands on the opcode-LUT target and WAIT holds the µPC.
 //
-// (The exhaustive boot-copy proof lives in sim/tb/loader; this bench proves the run path.)
+// The boot copy itself is exercised here too: power-on streams the directed image through
+// the real loader + its onboard EEPROM into the WCS, and the per-µPC WCS check above
+// re-reads it. The copy is image-independent address-slicing, so this run on the standard
+// path is the loader's proof — no separate loader bench is needed (toolchain.md §3.5).
 // Build/run via sim/tb/cpu/run.sh (passes -D IMG=... = the directed image).
 `timescale 1ns/1ps
 `default_nettype none
@@ -53,7 +56,7 @@ module tb_cpu;
         integer kk;
         begin
             for (kk = 0; kk < NWCS; kk = kk + 1) begin
-                expb = dut.eeprom.mem[kk*DEPTH + upc];
+                expb = dut.loader.eeprom.mem[kk*DEPTH + upc];
                 gotb = cw[8*kk +: 8];
                 if (gotb !== expb)
                     $fatal(1, "µPC %0d: WCS chip %0d got %02x exp %02x", upc, kk, gotb, expb);

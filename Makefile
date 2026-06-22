@@ -13,7 +13,7 @@ PYTHON := python3
 TOP    ?=
 
 .NOTPARALLEL:
-.PHONY: test image check lint sim loader cpu bench viz digitaljs clean help
+.PHONY: test image check lint sim cpu bench viz digitaljs clean help
 
 ## test:   run the whole suite (image, field-def check, both lints, timed test-benches)
 test: image check lint sim
@@ -33,13 +33,10 @@ lint:
 	$(PYTHON) tools/lint/timing_lint.py
 
 ## sim:    the timed, self-checking test-benches
-sim: loader cpu bench
+sim: cpu bench
 
-## loader: boot-loader test-bench (EEPROM -> 13 control-store SRAMs)
-loader: image
-	bash sim/tb/loader/run.sh
-
-## cpu:    cpu microsequencer walk (boot -> real sequencer: INC/JUMP/BRANCH/DISPATCH/WAIT)
+## cpu:    boot copy (real loader + EEPROM -> WCS) then the microsequencer walk
+##         (INC/JUMP/BRANCH/DISPATCH/WAIT) — the loader is proven on this standard path
 cpu:
 	bash sim/tb/cpu/run.sh
 
