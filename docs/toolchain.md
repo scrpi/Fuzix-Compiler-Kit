@@ -56,7 +56,7 @@ Four principles shape the whole flow; everything below is their consequence.
    ┌───────────────────────────┐
    │ microcode source (.uc)    │   assemble    ┌─────────────────────────────┐
    │  + field-definition file  │ ────────────► │ ONE EEPROM image             │──► EEPROM burner
-   │   (the 88-bit word spec)  │               │  = 13 SRAMs (11 WCS + 2 map) │──► uc_loader fans out
+   │   (the 88-bit word spec)  │               │  = 13 SRAMs (11 WCS + 2 LUT) │──► uc_loader fans out
    └───────────────────────────┘               │ (.hex / .bin, same bytes)    │──► sim $readmemh (image)
                 │ generates                     └─────────────────────────────┘
                 ▼                                              │ loaded into
@@ -112,15 +112,15 @@ once and called, so the source stays DRY.
 ### 3.3 Outputs
 
 - **One EEPROM image** holding all 13 control-store SRAMs (D-43): the 11 WCS chips
-  (88 bits = 11 byte-wide SRAMs) and the 2 opcode→start-address map chips (D-40 —
+  (88 bits = 11 byte-wide SRAMs) and the 2 opcode→start-address LUT chips (D-40 —
   `{PAGE, IR}`, 512 entries × 12-bit `µPC`, split low byte + high 4 bits; D-49). The boot
   loader fans this single image out to the 13 SRAMs at power-on (§3.5); there is **one**
   burnable part, not thirteen.
-- **Chip-major, uniform-segment layout.** The image is 13 contiguous 2¹³-byte segments —
+- **Chip-major, uniform-segment layout.** The image is 13 contiguous 2¹²-byte segments —
   segment *k* is SRAM *k*'s full contents — so the loader is pure binary address-slicing
-  (`eeprom_addr = (segment << 13) | sram_addr`). Total 13 × 8192 = 106 496 bytes — the low
+  (`eeprom_addr = (segment << 12) | sram_addr`). Total 13 × 4096 = 53 248 bytes — the low
   region of a 128 KB control-store EEPROM (the design size, D-43; the physical part is a
-  hardware/BOM choice the toolchain need not know); map segments are zero-padded above their
+  hardware/BOM choice the toolchain need not know); LUT segments are zero-padded above their
   512 used entries; unused bytes are `0x00`, the inert NOP control word.
 - Emitted both as the **burner image** (raw binary) and in `$readmemh` form — **the same
   bytes**, so the device the machine runs is the device the sim ran. Per-SRAM slices are
@@ -129,14 +129,14 @@ once and called, so the source stays DRY.
 ### 3.4 What the assembler owns
 
 Symbolic field encoding; label and `NEXT_ADDR`/`CALL`-target resolution; dense
-microaddress allocation (routines are placed freely because the D-40 map decouples
+microaddress allocation (routines are placed freely because the D-40 LUT decouples
 opcode number from microroutine location); and validation of illegal field
 combinations before a single bit is burned.
 
 ### 3.5 Boot path vs. simulation load
 
 On hardware, the microcode loader copies the single EEPROM image out to the 13 control-store
-SRAMs at power-on — the 11 WCS chips and the 2 opcode-map chips — then releases the CPU
+SRAMs at power-on — the 11 WCS chips and the 2 opcode-LUT chips — then releases the CPU
 (D-03, D-43, R-CTRL-3). **Simulation loads that same single image and runs the same
 loader**, so the boot-copy circuit is exercised on every functional run (D-43): the image
 the machine is burned with is the image the sim fans out (R-SIM-2), with no separately
@@ -357,7 +357,7 @@ layer is left for when the physical build makes it real.
 Sources of truth:
   • Hardware  → structural Verilog on a hand-built 74AHCT/74ACT cell library
                 with datasheet specify-timing (min/typ/max corners)
-  • Microcode → Python assembler → 11 device images + opcode-map image
+  • Microcode → Python assembler → 11 device images + opcode-LUT image
                 (same bytes feed $readmemh AND the EEPROM/boot-ROM burn)
 
 Simulation (two engines, one source):

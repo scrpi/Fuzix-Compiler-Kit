@@ -7,7 +7,7 @@
 //   INC          µPC + 1                      (the default — a free counter increment)
 //   JUMP         µPC <- NEXT_ADDR             (unconditional)
 //   BRANCH       µPC <- NEXT_ADDR if (cond ^ UCOND_POL) else µPC + 1
-//   DISPATCH_IR  µPC <- map_data              (the opcode-map start address, {PAGE,IR})
+//   DISPATCH_IR  µPC <- lut_data              (the opcode-LUT start address, {PAGE,IR})
 //   RETURN_FETCH µPC <- 0                      (the fetch entry; trap-vector encoder TODO)
 //   WAIT         µPC hold                      (a stretched bus cycle / single-step)
 //
@@ -24,7 +24,7 @@
 //                     form LOAD# = ~do_load.
 //   1x sn74ahct08  -> the conditional-branch AND: branch_active & cond_taken.
 //   1x sn74ahct32  -> OR the load terms into do_load.
-//   6x sn74act153  -> the 12-bit next-address load mux (4:1: NEXT_ADDR / map_data / 0 / 0),
+//   6x sn74act153  -> the 12-bit next-address load mux (4:1: NEXT_ADDR / lut_data / 0 / 0),
 //                     selected by {retfetch, dispatch} from the USEQ_OP decode.
 //   2x cd74act151  -> the 16:1 condition mux (8 low + 8 high), selected by UCOND_SEL.
 //   1x sn74ahct157 -> the low/high condition-group 2:1 merge (UCOND_SEL[3]).
@@ -46,8 +46,8 @@ module microsequencer (
     input  wire        ucond_pol,    // condition polarity (XOR)
     // ---- condition lines (signals, not control-word fields); index 7 forced TRUE ----
     input  wire [15:0] cond,
-    // ---- opcode-map dispatch target ({PAGE, IR} lookup, from opcode_map) ----
-    input  wire [11:0] map_data,
+    // ---- opcode-LUT dispatch target ({PAGE, IR} lookup, from opcode_lut) ----
+    input  wire [11:0] lut_data,
     output wire [11:0] upc
 );
     // ---- USEQ_OP one-hot (active LOW): op_n[k] low <=> USEQ_OP == k ----------
@@ -75,7 +75,7 @@ module microsequencer (
     wire [5:0] inv_a, inv_y;
     wire branch_active   = inv_y[0];
     wire jump_active     = inv_y[1];
-    wire dispatch_active = inv_y[2];   // also next-addr mux select A (pick map_data)
+    wire dispatch_active = inv_y[2];   // also next-addr mux select A (pick lut_data)
     wire retfetch_active = inv_y[3];   // also next-addr mux select B (pick fetch entry 0)
     wire do_load, load_n;
     assign load_n = inv_y[4];
@@ -105,14 +105,14 @@ module microsequencer (
 
     // ---- next-address load mux: 6x '153 (4:1, 2 bits each) ------------------
     //   {sel_b, sel_a} = {retfetch_active, dispatch_active}:
-    //     00 -> NEXT_ADDR   01 -> map_data   10 -> 0 (fetch entry)   11 -> 0
+    //     00 -> NEXT_ADDR   01 -> lut_data   10 -> 0 (fetch entry)   11 -> 0
     wire [11:0] p;
     genvar i;
     generate for (i = 0; i < 6; i = i + 1) begin : nmux
         sn74act153 m (
             .a(dispatch_active), .b(retfetch_active),
-            .g1_n(1'b0), .c1({2'b00, map_data[2*i],   next_addr[2*i]}),   .y1(p[2*i]),
-            .g2_n(1'b0), .c2({2'b00, map_data[2*i+1], next_addr[2*i+1]}), .y2(p[2*i+1])
+            .g1_n(1'b0), .c1({2'b00, lut_data[2*i],   next_addr[2*i]}),   .y1(p[2*i]),
+            .g2_n(1'b0), .c2({2'b00, lut_data[2*i+1], next_addr[2*i+1]}), .y2(p[2*i+1])
         );
     end endgenerate
 

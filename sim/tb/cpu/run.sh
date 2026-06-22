@@ -20,7 +20,7 @@ iverilog -g2012 -gspecify -Wall -D IMG="\"$IMG\"" -o "$OUT/tb" \
     "$ROOT/hdl/boot/uc_loader.v" \
     "$ROOT/hdl/microsequencer.v" \
     "$ROOT/hdl/microcode_store.v" \
-    "$ROOT/hdl/opcode_map.v" \
+    "$ROOT/hdl/opcode_lut.v" \
     "$ROOT/hdl/control_word_decoder.v" \
     "$ROOT/hdl/cpu.v" \
     "$ROOT/sim/tb/cpu/tb_cpu.v"

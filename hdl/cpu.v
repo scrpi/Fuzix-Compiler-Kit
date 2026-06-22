@@ -18,12 +18,12 @@
 //   uc_loader       -> copies EEPROM -> control store at power-on; emits `loading`.
 //   sn74ahct04      -> run = ~loading (releases the micro-PC).
 //   microsequencer  -> the real 12-bit micro-PC: INC/JUMP/BRANCH/WAIT/DISPATCH_IR (it reads
-//                      the control word's sequencer section + the conditions + the map).
-//   sn74ahct574     -> the 8-bit opcode register IR (drives the opcode-map dispatch index).
+//                      the control word's sequencer section + the conditions + the LUT).
+//   sn74ahct574     -> the 8-bit opcode register IR (drives the opcode-LUT dispatch index).
 //   3x sn74ahct157  -> the 12-bit WCS address mux (SELECT = loading ? loader : micro-PC).
 //   4x sn74ahct32   -> the per-chip /WE strobe (cs_sel_n[g] | clk).
 //   microcode_store -> the 11 WCS SRAMs + boot-write buffers: the 88-bit control word.
-//   opcode_map      -> the 2 opcode->start-address map SRAMs (run-addressed by {PAGE, IR}).
+//   opcode_lut      -> the 2 opcode->start-address LUT SRAMs (run-addressed by {PAGE, IR}).
 //   control_word_decoder -> the datapath section's one-hot strobes (observation only).
 //
 // SCAFFOLD: the datapath that would drive IR (from a memory fetch) and the condition lines
@@ -45,9 +45,9 @@ module cpu #(
     output wire         loading,     // HIGH while the boot copy runs
     output wire [11:0]  upc,         // the micro-PC once running
     output wire [87:0]  cw,          // the 88-bit control word read from the WCS
-    output wire [11:0]  map_out      // opcode-map dispatch target {map_hi[3:0], map_lo}
+    output wire [11:0]  lut_out      // opcode-LUT dispatch target {lut_hi[3:0], lut_lo}
 );
-    localparam NSEG  = 13;           // 11 WCS + 2 opcode-map
+    localparam NSEG  = 13;           // 11 WCS + 2 opcode-LUT
     localparam DEPTH = 4096;
 
     wire [15:0]     rom_addr;
@@ -77,20 +77,20 @@ module cpu #(
     sn74ahct04 inv (.a({5'b0, loading}), .y(inv_y));
     assign run = inv_y[0];
 
-    // --- opcode register IR: drives the opcode-map dispatch index ----------------
+    // --- opcode register IR: drives the opcode-LUT dispatch index ----------------
     // Real architectural register (R-HW-4). Until the fetch datapath loads it from memory,
     // its data comes from the `ir_drive` debug tap; it latches every cycle.
     wire [7:0] ir;
     sn74ahct574 ir_reg (.Q(ir), .D(ir_drive), .CLK(clk), .OE_n(1'b0));
 
     // --- microsequencer: computes the next micro-PC from the sequencer section --
-    // map_data is the opcode-map dispatch target (DISPATCH_IR loads it into µPC).
-    wire [11:0] map_data;
+    // lut_data is the opcode-LUT dispatch target (DISPATCH_IR loads it into µPC).
+    wire [11:0] lut_data;
     microsequencer useq (
         .clk(clk), .clr_n(run),
         .useq_op(cw_wcs[2:0]), .next_addr(cw_wcs[14:3]),
         .ucond_sel(cw_wcs[18:15]), .ucond_pol(cw_wcs[19]),
-        .cond(cond_drive), .map_data(map_data), .upc(upc)
+        .cond(cond_drive), .lut_data(lut_data), .upc(upc)
     );
 
     // --- WCS address mux: SELECT=loading ? loader cnt : micro-PC -------------
@@ -110,28 +110,28 @@ module cpu #(
     sn74ahct32 w3 (.a({3'b000, cs_sel_n[12]}), .b({4{clk}}), .y(we_pad[15:12]));
     assign we_n = we_pad[12:0];
 
-    // --- control store: 11 WCS chips (the 88-bit word) + 2 opcode-map chips --
+    // --- control store: 11 WCS chips (the 88-bit word) + 2 opcode-LUT chips --
     // Both blocks share the boot-write path: the EEPROM byte (loader_wdata) gated by run
     // (wbuf_oe_n), SRAM /OE = loading, and their slice of the per-chip /WE strobe.
     wire [87:0] cw_wcs;             // the 88-bit control word (WCS SRAMs 0..10)
-    wire [7:0]  map_lo, map_hi;     // opcode-map bytes (SRAMs 11, 12)
+    wire [7:0]  lut_lo, lut_hi;     // opcode-LUT bytes (SRAMs 11, 12)
 
     microcode_store #(.NWCS(11)) store (
         .addr(cs_addr), .wdata(loader_wdata), .wbuf_oe_n(run), .oe_n(loading),
         .we_n(we_n[10:0]), .cw(cw_wcs)
     );
-    opcode_map map (
+    opcode_lut lut (
         .loader_addr(loader_addr), .dispatch_page(cw_wcs[22]), .ir(ir), .loading(loading),
         .wdata(loader_wdata), .wbuf_oe_n(run), .oe_n(loading),
-        .we_n(we_n[12:11]), .map_lo(map_lo), .map_hi(map_hi)
+        .we_n(we_n[12:11]), .lut_lo(lut_lo), .lut_hi(lut_hi)
     );
 
-    // Observation taps: `cw` is the 88-bit control word (WCS only — the map bytes are not
-    // part of it); `map_data` (= `map_out`) is the opcode-map's 12-bit dispatch target
+    // Observation taps: `cw` is the 88-bit control word (WCS only — the LUT bytes are not
+    // part of it); `lut_data` (= `lut_out`) is the opcode-LUT's 12-bit dispatch target
     // (low byte + high 4 bits), the value DISPATCH_IR loads into the µPC.
     assign cw       = cw_wcs;
-    assign map_data = {map_hi[3:0], map_lo};
-    assign map_out  = map_data;
+    assign lut_data = {lut_hi[3:0], lut_lo};
+    assign lut_out  = lut_data;
 
     // --- control-word decoder: datapath section -> one-hot datapath strobes --
     // The 64-bit datapath section is cw[87:24]. The strobes drive nothing yet (the datapath

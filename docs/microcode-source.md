@@ -170,7 +170,7 @@ Default control is fall-through (`USEQ_OP=INC`). Otherwise a trailing control cl
 
 | Source              | `USEQ_OP`           |                                             |
 |---------------------|---------------------|---------------------------------------------|
-| `dispatch`          | `DISPATCH_IR`       | jump via the opcode map `{page,IR}`         |
+| `dispatch`          | `DISPATCH_IR`       | jump via the opcode LUT `{page,IR}`         |
 | `dispatch page1`    | + `DISPATCH_PAGE=1` | the `0x80`-prefixed cold page               |
 | `goto L`            | `JUMP`              | `NEXT_ADDR = L`                             |
 | `if cond goto L`    | `BRANCH`            | `NEXT_ADDR=L`, `UCOND_SEL/POL` from `cond`  |
@@ -205,8 +205,8 @@ routine LD A,(X+n8):              # a named routine; lines below are its microwo
 ```
 
 Opcodes are named by their **mnemonic** (the byte value is assigned later — D-41), so the
-map binds to the routine label and the mnemonic→byte table is applied at the
-opcode-assignment pass. Routines are placed densely; the D-40 map decouples opcode number
+LUT binds to the routine label and the mnemonic→byte table is applied at the
+opcode-assignment pass. Routines are placed densely; the D-40 LUT decouples opcode number
 from location.
 
 ---

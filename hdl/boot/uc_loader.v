@@ -30,7 +30,7 @@
 `timescale 1ns/1ps
 `default_nettype none
 module uc_loader #(
-    parameter NSEG   = 13,      // 11 WCS + 2 opcode-map  (fixed: the 2x '138 decode)
+    parameter NSEG   = 13,      // 11 WCS + 2 opcode-LUT  (fixed: the 2x '138 decode)
     parameter SEG_AW = 12       // 4 Kword per chip       (fixed: the low counter bits)
 ) (
     input  wire               clk,

@@ -1624,6 +1624,36 @@ fourth slice per element — an encoding-compatible widening, the inverse of thi
 
 ---
 
+## D-50 — Rename the microcode opcode→start-address map to the "opcode LUT"
+**Status:** Decided (2026-06-22)
+**Supersedes:** — (terminology only; the artifact and its behaviour are unchanged)
+**Superseded by:** —
+**Context:** Two distinct artifacts were both called the "opcode map": (1) the **ISA opcode
+map** ([isa/opcodes.toml](../isa/opcodes.toml), D-48) — which instruction byte means what; and
+(2) the **microcode opcode→start-address map** — the boot-loaded SRAM (D-40/D-41) that
+translates `{DISPATCH_PAGE, IR}` into a microroutine's start microaddress. The shared name was
+a recurring source of confusion as the control unit was factored into real blocks (the HDL
+module was `opcode_map`, sitting right next to the *MMU* "map" sets too).
+**Decision:** Rename the **microcode** artifact (2) to the **opcode LUT** (lookup table)
+everywhere current — the HDL module/file (`opcode_lut.v`), its signals (`lut_lo`/`lut_hi`/
+`lut_data`/`lut_out`), the assembler/test identifiers (`SEG_LUT_LO/HI`, `LUT_ENTRIES`, the
+`clut` array), `control_word.toml`, and the current spec prose. The **ISA opcode map** (1) keeps
+its name — it is an encoding table, not a hardware lookup table. The **MMU** "map" terms
+(map sets, the page table) are unrelated and unchanged. Historic decision-log entries
+(D-24/D-40/D-41/D-43/D-48/D-49) retain "opcode map" as the record of their time.
+**Why:** disambiguation and component-level legibility (G5) — one name per concept. The
+microcode artifact *is* a hardware lookup table, so "LUT" is the precise term and it frees
+"opcode map" to mean only the ISA encoding. No behavioural or structural change; the full
+suite stays green throughout.
+**Influences:** none external.
+**Creates:** — **Touches:** renames `hdl/opcode_map.v` → [opcode_lut.v](../hdl/opcode_lut.v)
+and the opcode-LUT references across `hdl/`, `sim/`, `tools/uasm/`,
+[control_word.toml](../microcode/control_word.toml), and the current spec docs
+([microcode.md](microcode.md), [hardware.md](hardware.md), [toolchain.md](toolchain.md),
+[microcode-source.md](microcode-source.md), [plans/](plans/)).
+
+---
+
 Tracked in the docs' own "Open questions" sections; the load-bearing ones:
 
 - **Datapath detail** — pipeline depth and ALU part choice (the high-level datapath is

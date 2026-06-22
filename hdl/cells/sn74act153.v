@@ -5,7 +5,7 @@
 // Datasheet: docs/reference/datasheets/sn74act153.pdf.
 //
 // Six of these build the microsequencer's 12-bit next-address load mux: each '153 muxes
-// two of the twelve bits among the four sources {NEXT_ADDR, opcode-map target, fetch
+// two of the twelve bits among the four sources {NEXT_ADDR, opcode-LUT target, fetch
 // entry, return}, selected by the two shared select lines the USEQ_OP decode drives.
 //
 // Specify delays = SN74ACT153, VCC 5 V, CL = 50 pF, -40..125°C, MAX (datasheet §5.6):

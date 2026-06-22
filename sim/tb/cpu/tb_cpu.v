@@ -9,7 +9,7 @@
 //   * the µPC takes the expected next value (INC / JUMP / BRANCH taken+not / DISPATCH_IR);
 //   * the control word read at that µPC matches the burned image (the WCS read path);
 //   * the control-word decoder is the correct one-hot of the live word (one field/width);
-// and that DISPATCH_IR lands on the opcode-map target and WAIT holds the µPC.
+// and that DISPATCH_IR lands on the opcode-LUT target and WAIT holds the µPC.
 //
 // (The exhaustive boot-copy proof lives in sim/tb/loader; this bench proves the run path.)
 // Build/run via sim/tb/cpu/run.sh (passes -D IMG=... = the directed image).
@@ -32,11 +32,11 @@ module tb_cpu;
     wire        loading;
     wire [11:0] upc;
     wire [87:0] cw;
-    wire [11:0] map_out;
+    wire [11:0] lut_out;
 
     cpu #(.FILE(`IMG)) dut (
         .clk(clk), .rst_n(rst_n), .ir_drive(ir_drive), .cond_drive(cond_drive),
-        .loading(loading), .upc(upc), .cw(cw), .map_out(map_out)
+        .loading(loading), .upc(upc), .cw(cw), .lut_out(lut_out)
     );
 
     // pass 1: the µPC walk after boot, ending in RETURN_FETCH -> 0 (see mk_seq_image.py)
@@ -80,8 +80,8 @@ module tb_cpu;
             if (upc !== want[s])
                 $fatal(1, "pass1 step %0d: micro-PC = %0d, expected %0d", s, upc, want[s]);
             check_word;
-            if (upc === 12'd10 && map_out !== 12'd16)   // DISPATCH_IR target
-                $fatal(1, "DISPATCH_IR: map_out = %0d, expected 16 (IR=%02x)", map_out, IR_OPCODE);
+            if (upc === 12'd10 && lut_out !== 12'd16)   // DISPATCH_IR target
+                $fatal(1, "DISPATCH_IR: lut_out = %0d, expected 16 (IR=%02x)", lut_out, IR_OPCODE);
         end
 
         // pass 2: now raise Z. The SAME BRANCH at µPC 3 (UCOND_SEL=Z) now takes -> 99=WAIT,

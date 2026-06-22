@@ -305,10 +305,10 @@ count (§8) and schematic.
 | **PC/MAR** (different form factor) | register (counter core) + addr port | `PC`, `MAR` (counter core) + a 2nd output port to the MMU | register-board contract **+** logical-addr-out 16 + the MMU-drive EN per register | `D-36`; [microcode.md](../microcode.md) §5; clusters w/ MMU |
 | **ALU** | alu | 16-bit ALU + const-gen `{-2..+2}` + `SCR1`/`SCR2` + flag gen; **RIGHT local** | LEFT-in 16, Z-out 16, decoded ALU ctrl (`ALU_OP`/`ALU_SHIFT`/`ALU_CIN`/`ALU_WIDTH`, `FLAG_WE`, `V_SRC`, `C_SRC`, `RIGHT_SRC`), flags-out ~8, CLK, `/RESET` | `G2`/`G9`; `R-CTRL-4` |
 | **CC** | cc | the 8-bit `CC` (`M – H I N Z V C`) | LEFT-in/Z (8), flags-in ~8 (from ALU), decoded `CC_WRITE_SRC`/`CC_MI_LOAD`/`FLAG_WE`, `CC.M`-out (to SP-bank decode, MMU map-sel, sequencer), CLK, `/RESET` | `R-CPU-1`/`-4`/`-6`; not the 16-bit form factor (8-bit) |
-| **IR** | ir | the 8-bit instruction register | opcode-byte in (from MDR/datapath), `IR[7:0]`-out (→ opcode-map on the control-store board), decoded `IR_LOAD`, CLK, `/RESET` | dispatch ([microcode.md](../microcode.md) §2) |
+| **IR** | ir | the 8-bit instruction register | opcode-byte in (from MDR/datapath), `IR[7:0]`-out (→ opcode-LUT on the control-store board), decoded `IR_LOAD`, CLK, `/RESET` | dispatch ([microcode.md](../microcode.md) §2) |
 | **MDR / bus-interface** | mdr | `MDR` (8-bit) + external `D[7:0]` buffers — the system-bus boundary | LEFT-in (write path), Z-out (read path), decoded `MEM_OP`/`TAS_LOCK`, **south:** `D[7:0]`, `/RD`, `/WR`, `/WAIT`, CLK, `/RESET` | `R-IF-2` boundary; `D[7:0]` leaves here |
 | **MMU** | mmu | page-table register file (kernel+user, 8×11-bit — bulk array, **exempt** from `R-HW-4`) + translate logic + `A[23:0]` drivers | logical-addr-in 16 (from PC/MAR cluster), light LEFT/Z tap (`LDMMU`/`STMMU`), `CC.M`-in (map-select), decoded `MMU_*`, **south:** `A[23:0]`, CLK, `/RESET` | `G3`/`G4`; `R-MEM-1`/`-3`/`-6`; `A[23:0]` leaves here |
-| **Control-store + loader** | control-store + boot | 13 SRAMs (11 WCS + 2 map) + 88-bit pipeline reg + 13 boot buffers + boot/run addr mux + boot `/WE` decode + socketed EEPROM + loader (§5.2) | `IR[7:0]`-in (map index), 88-bit word **out** (datapath section → motherboard decoders; sequencer section → sequencer), `µPC` ↔ hot ribbon, CLK, `/RESET` | `G8`; `D-43`; `R-CTRL-1`/`-2`/`-3` |
+| **Control-store + loader** | control-store + boot | 13 SRAMs (11 WCS + 2 LUT) + 88-bit pipeline reg + 13 boot buffers + boot/run addr mux + boot `/WE` decode + socketed EEPROM + loader (§5.2) | `IR[7:0]`-in (LUT index), 88-bit word **out** (datapath section → motherboard decoders; sequencer section → sequencer), `µPC` ↔ hot ribbon, CLK, `/RESET` | `G8`; `D-43`; `R-CTRL-1`/`-2`/`-3` |
 | **Sequencer** | sequencer | `µPC` + `µSR` + next-addr mux + condition mux (16:1 + polarity) + `ULOOP` counter + trap-vector priority encoder | hot ribbon ↔ control-store, flags/conditions-in (from CC/ALU), `IRQ`/`NMI`/`WAIT` microconditions-in, CLK, `/RESET` | [microcode.md](../microcode.md) §2; `R-CLK-2` |
 | **Front panel** | (debug — `hdl/` top exposes only `R-IF`, so this attaches via the debug tap, not a functional port) | switches + LED banks; the privileged debug observer | Z tap + decoded load-strobe tap (or per-board local LEDs, §6.4), `IR`/`CC`/`µPC` for display, RUN/STOP/EXAMINE/DEPOSIT/RESET, **system-bus** `/BUSREQ`/`/BUSGRANT` for memory access | `G6`; `D-13`/`R-DBG-5`; reaches memory via `R-IF-4` arbitration |
 
@@ -361,7 +361,7 @@ reflashing the microcode (`R-CTRL-3`) is a *chip pull*, not a board pull.
 
 The board drives the 88-bit word out in two streams: the **datapath section** to the
 motherboard decoders (§3.3) and the **sequencer section** to the sequencer board over
-the hot ribbon; `µPC` rides that same ribbon; `IR[7:0]` comes in for the opcode-map
+the hot ribbon; `µPC` rides that same ribbon; `IR[7:0]` comes in for the opcode-LUT
 read.
 
 ### 5.3 The sequencer board

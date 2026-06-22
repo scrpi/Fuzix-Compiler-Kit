@@ -13,7 +13,7 @@
 > D-39 separated sequencing from datapath and replaced the near/far pair with one
 > next-address. D-41 then removed the indexed postbyte — dropping `DISPATCH_POSTBYTE` and
 > `PB_RR_MUX` — widened `NEXT_ADDR` to 13 bits (8192-word store) and added a 1-bit
-> `DISPATCH_PAGE` for the two-page opcode map. D-42 then filled the last two `USEQ_OP` codes
+> `DISPATCH_PAGE` for the two-page opcode LUT. D-42 then filled the last two `USEQ_OP` codes
 > with `CALL`/`RETURN` and added a single return-address register (`uSR`) for one-level
 > microcode subroutines — no width change. D-49 then narrowed `NEXT_ADDR` back to 12 bits
 > (4096-word store), returning the bit to a sequencer spare, so each micro-address element is
@@ -52,7 +52,7 @@ datapath op** — loop bodies and conditional-compute stay one cycle (§5).
 
 The sequencer section's fields *fully* determine the next µPC; nothing in the datapath
 section touches it. The straight-line case is a free counter increment; opcode dispatch
-indexes a boot-loaded **opcode→start-address map** SRAM by `{DISPATCH_PAGE, IR}` (D-40;
+indexes a boot-loaded **opcode→start-address LUT** SRAM by `{DISPATCH_PAGE, IR}` (D-40;
 D-41 added the page bit for the two opcode pages, superseding D-24's direct microaddress
 formation and the indexed postbyte).
 
@@ -66,7 +66,7 @@ formation and the indexed postbyte).
         |                          | taken?
    +----v------+   +---------------v----------------------+
    | opcode    |   |  next-uPC mux  (selected by USEQ_OP) |
-   | map SRAM  |-->|  uPC+1 | NEXT_ADDR | map[{PAGE,IR}]  |
+   | LUT SRAM  |-->|  uPC+1 | NEXT_ADDR | lut[{PAGE,IR}]  |
    | [PAGE,IR] |   |  trap-entry | uSR (RETURN)          |
    +-----------+   +-------------------------------------+
         ^
@@ -91,10 +91,10 @@ formation and the indexed postbyte).
     `uPC+1`.
   - **`JUMP`** — unconditional `uPC ← NEXT_ADDR` (= `BRANCH` on the always-true condition;
     kept as its own code for clarity).
-  - **`DISPATCH_IR`** — `uPC ← map[{DISPATCH_PAGE, IR}]`: the opcode in `IR` indexes a
-    boot-loaded **opcode→start-address map** SRAM (512 entries) whose output is the
+  - **`DISPATCH_IR`** — `uPC ← lut[{DISPATCH_PAGE, IR}]`: the opcode in `IR` indexes a
+    boot-loaded **opcode→start-address LUT** SRAM (512 entries) whose output is the
     routine's start microaddress (D-40; D-41 added the page bit). Routines are placed
-    freely/densely — no fixed per-opcode block — and the map read is pipelined into the
+    freely/densely — no fixed per-opcode block — and the LUT read is pipelined into the
     fetch cycle (~10 ns SRAM), adding no steady-state cycle. The **page-1 prefix** (`0x80`)
     is an ordinary page-0 opcode whose one-step routine re-fetches the next byte into `IR`
     and re-runs `DISPATCH_IR` with `DISPATCH_PAGE=1`. `NEXT_ADDR` is unused.
@@ -144,11 +144,11 @@ literal/direct (one-hot or a value).
 | `UCOND_SEL` | 4 | bin | condition select — 16 base conditions (8 CC-derived + 8 internal, §2) |
 | `UCOND_POL` | 1 | lit | condition polarity (both senses of each condition) |
 | `ULOOP_CTRL` | 2 | bin | micro-loop counter: hold / load / decrement; its terminal-zero is the `loop-zero` condition `UCOND_SEL` reads (a sequencing aux, not a datapath resource) |
-| `DISPATCH_PAGE` | 1 | lit | opcode-map page on `DISPATCH_IR`: page 0 (base) / page 1 (the `0x80`-prefixed cold page); 0 on every non-dispatch microword (D-41) |
+| `DISPATCH_PAGE` | 1 | lit | opcode-LUT page on `DISPATCH_IR`: page 0 (base) / page 1 (the `0x80`-prefixed cold page); 0 on every non-dispatch microword (D-41) |
 | `SPARE_SEQ` | 1 | lit | sequencer-section headroom (freed by `NEXT_ADDR` 13→12, D-49; reclaim as `NEXT_ADDR[12]` if the 8192-word store returns) |
 
 These are the **only** bits that sequence the microprogram — next-address selection, the
-opcode-map page select, and the loop counter whose terminal-zero feeds the `loop-zero`
+opcode-LUT page select, and the loop counter whose terminal-zero feeds the `loop-zero`
 condition. Their inputs — `IR` contents, `CC` flags, the microcondition lines — are
 *signals*, not shared control-word fields. Trap entry is hardware-vectored (the priority
 encoder above), so even `RETURN_FETCH` needs no field. This is the clean separation D-38's
@@ -215,13 +215,13 @@ data-dependent loops never steal a scratch.
   priority order rewards.
 - **D-41** removed the indexed postbyte — dropping `DISPATCH_POSTBYTE` (a `USEQ_OP` code)
   and `PB_RR_MUX` (a datapath bit) — widened `NEXT_ADDR` to **13 bits** (8192-word store,
-  the full 8K×8 WCS), and added the 1-bit `DISPATCH_PAGE` for the two-page opcode map. The
+  the full 8K×8 WCS), and added the 1-bit `DISPATCH_PAGE` for the two-page opcode LUT. The
   word stays **88 bits / 11 SRAMs**: the freed `PB_RR_MUX` bit returns to datapath spare,
   and the two reclaimed sequencer spare bits become `NEXT_ADDR[12]` and `DISPATCH_PAGE`.
 - **D-49** narrowed `NEXT_ADDR` back to **12 bits** (4096-word store; the 8 K SRAM runs with
   `A12` grounded), returning `NEXT_ADDR[12]` to a sequencer spare (`SPARE_SEQ`). A 12-bit
   micro-address is exactly three uniform 4-bit slices in every element — the `µPC` counter,
-  the next-address mux, `µSR`, the map output — with no fourth slice for one bit; the depth
+  the next-address mux, `µSR`, the LUT output — with no fourth slice for one bit; the depth
   given up is unused at the current/foreseeable microprogram size, and the change is reversible.
 
 ---
@@ -343,4 +343,4 @@ D-41's 13-bit / 8192-word widening, back to D-39's original 12-bit / 4096 split)
 sequencer and datapath sections are cleanly
 separated (no shared field, no overlay); a single next-address replaces the near/far branch
 pair, so any branch co-occurs with a datapath op; and the indexed postbyte is gone
-(`DISPATCH_PAGE` selects the two-page opcode map).
+(`DISPATCH_PAGE` selects the two-page opcode LUT).

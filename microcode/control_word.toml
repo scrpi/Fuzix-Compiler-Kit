@@ -89,7 +89,7 @@ name    = "DISPATCH_PAGE"
 section = "sequencer"
 width   = 1
 enc     = "lit"
-role    = "opcode-map page on DISPATCH_IR; 0 on every non-dispatch microword (D-41)"
+role    = "opcode-LUT page on DISPATCH_IR; 0 on every non-dispatch microword (D-41)"
 values   = { PAGE0 = 0, PAGE1 = 1 }
 
 [[field]]
