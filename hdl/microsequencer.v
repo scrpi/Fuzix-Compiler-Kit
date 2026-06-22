@@ -52,21 +52,26 @@ module microsequencer (
 );
     // ---- USEQ_OP one-hot (active LOW): op_n[k] low <=> USEQ_OP == k ----------
     wire [7:0] op_n;
+    (* purpose = "USEQ_OP decode (1-of-8)" *)
     sn74ahct138 useq (.a(useq_op[0]), .b(useq_op[1]), .c(useq_op[2]),
                       .g1(1'b1), .g2a_n(1'b0), .g2b_n(1'b0), .y(op_n));
     // op_n[0]=INC [1]=BRANCH [2]=JUMP [3]=DISPATCH_IR [4]=RETURN_FETCH [5]=WAIT [6]=CALL [7]=RETURN
 
     // ---- condition mux: 16:1 (2x '151 + a '157 merge) then XOR polarity ------
     wire cond_lo, cond_hi, cond_raw, cond_taken;
+    (* purpose = "cond mux 0..7" *)
     cd74act151 cmux_lo (.a(ucond_sel[0]), .b(ucond_sel[1]), .c(ucond_sel[2]), .g_n(1'b0),
                         .d({1'b1, cond[6:0]}), .y(cond_lo), .w());      // d[7] = TRUE
+    (* purpose = "cond mux 8..15" *)
     cd74act151 cmux_hi (.a(ucond_sel[0]), .b(ucond_sel[1]), .c(ucond_sel[2]), .g_n(1'b0),
                         .d(cond[15:8]), .y(cond_hi), .w());
     wire [3:0] merge_y;
+    (* purpose = "cond lo/hi merge" *)
     sn74ahct157 cmerge (.a({3'b0, cond_lo}), .b({3'b0, cond_hi}), .sel(ucond_sel[3]),
                         .g_n(1'b0), .y(merge_y));
     assign cond_raw = merge_y[0];
     wire [3:0] xor_y;
+    (* purpose = "cond polarity XOR" *)
     sn74ahct86 cpol (.a({3'b0, cond_raw}), .b({3'b0, ucond_pol}), .y(xor_y));
     assign cond_taken = xor_y[0];
 
@@ -80,10 +85,12 @@ module microsequencer (
     wire do_load, load_n;
     assign load_n = inv_y[4];
     assign inv_a  = {1'b0, do_load, op_n[4], op_n[3], op_n[2], op_n[1]};
+    (* purpose = "op decode + LOAD#" *)
     sn74ahct04 inv (.a(inv_a), .y(inv_y));
 
     // BRANCH load term: branch_active & cond_taken  (one '08 gate)
     wire [3:0] and_y;
+    (* purpose = "branch AND" *)
     sn74ahct08 brand (.a({3'b0, branch_active}), .b({3'b0, cond_taken}), .y(and_y));
     wire br_term = and_y[0];
 
@@ -93,6 +100,7 @@ module microsequencer (
     //   y[1] = dispatch_active | retfetch_active
     //   y[2] = y[0] | y[1]   = do_load
     wire [3:0] or_y;
+    (* purpose = "do_load OR tree" *)
     sn74ahct32 lor (
         .a({1'b0, or_y[0], dispatch_active, jump_active}),
         .b({1'b0, or_y[1], retfetch_active, br_term}),
@@ -119,10 +127,13 @@ module microsequencer (
     // ---- µPC: 3x '161 — load p / count(+1) / hold; CLR# = clr_n -------------
     wire [11:0] upc_q;
     wire [2:0]  upc_rco;
+    (* purpose = "uPC [3:0]" *)
     cd74act161 u0 (.clk(clk), .clr_n(clr_n), .load_n(load_n), .enp(count_en), .ent(count_en),
                    .p(p[3:0]),   .q(upc_q[3:0]),  .rco(upc_rco[0]));
+    (* purpose = "uPC [7:4]" *)
     cd74act161 u1 (.clk(clk), .clr_n(clr_n), .load_n(load_n), .enp(count_en), .ent(upc_rco[0]),
                    .p(p[7:4]),   .q(upc_q[7:4]),  .rco(upc_rco[1]));
+    (* purpose = "uPC [11:8]" *)
     cd74act161 u2 (.clk(clk), .clr_n(clr_n), .load_n(load_n), .enp(count_en), .ent(upc_rco[1]),
                    .p(p[11:8]),  .q(upc_q[11:8]), .rco(upc_rco[2]));
     assign upc = upc_q;

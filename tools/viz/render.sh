@@ -57,19 +57,31 @@ render_one() {
     write_json ${OUT}/${TOP}.json
   "
 
-  # 2. netlistsvg's schema only allows input/output, but this design has real
-  #    bidirectional buses (the SRAM io, the EEPROM dq). Coerce inout->input in the
-  #    JSON for rendering only — the nets are unchanged, just the drawn pin side.
+  # 2. Two render-only JSON rewrites. Neither touches the nets or the BOM — they only
+  #    change what netlistsvg DRAWS:
+  #    a. netlistsvg's schema only allows input/output, but this design has real
+  #       bidirectional buses (the SRAM io, the EEPROM dq). Coerce inout->input for
+  #       drawing only — the nets are unchanged, just the drawn pin side.
+  #    b. Label each chip with its PURPOSE. netlistsvg titles a generic box with the cell
+  #       TYPE (the part number) only. We prepend each chip's `(* purpose = "..." *)`
+  #       attribute — authored in the HDL, so the label is GENERATED from source and can't
+  #       drift (toolchain.md P3) — falling back to the instance name when none is given.
+  #       The part number is kept in parentheses, so the box still reads as a real part.
   python3 - "${OUT}/${TOP}.json" <<'PY'
 import json, sys
 p = sys.argv[1]; d = json.load(open(p))
 for m in d.get("modules", {}).values():
     for port in m.get("ports", {}).values():
         if port.get("direction") == "inout": port["direction"] = "input"
-    for cell in m.get("cells", {}).values():
+    for name, cell in m.get("cells", {}).items():
         pd = cell.get("port_directions", {})
         for k, v in list(pd.items()):
             if v == "inout": pd[k] = "input"
+        t = cell.get("type", "")
+        if t.startswith("$"):            # yosys builtins (constants, $_split_/$_join_) keep their glyph
+            continue
+        note = (cell.get("attributes", {}) or {}).get("purpose") or name
+        cell["type"] = f"{note}  ({t})"  # "<purpose | instance>  (<part number>)"
 json.dump(d, open(p, "w"))
 PY
 

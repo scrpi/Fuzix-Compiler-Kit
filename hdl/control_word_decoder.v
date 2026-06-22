@@ -82,40 +82,56 @@ module control_word_decoder (
     wire [1:0] mmu_pt    = cw_dp[55:54];
 
     // ---- 2-bit fields: 15 halves of 8x '139 (2->4), always enabled ---------
+    (* purpose = "IR_LOAD / LEFT_LANE" *)
     sn74ahct139 d0 (.g1_n(1'b0), .a1(ir_load[0]),  .b1(ir_load[1]),  .y1(ir_load_n),
                     .g2_n(1'b0), .a2(left_lane[0]), .b2(left_lane[1]), .y2(left_lane_n));
+    (* purpose = "V_SRC / C_SRC" *)
     sn74ahct139 d1 (.g1_n(1'b0), .a1(v_src[0]),    .b1(v_src[1]),    .y1(v_src_n),
                     .g2_n(1'b0), .a2(c_src[0]),     .b2(c_src[1]),    .y2(c_src_n));
+    (* purpose = "CC_WRITE / CC_MI" *)
     sn74ahct139 d2 (.g1_n(1'b0), .a1(cc_write[0]), .b1(cc_write[1]), .y1(cc_write_n),
                     .g2_n(1'b0), .a2(cc_mi[0]),     .b2(cc_mi[1]),    .y2(cc_mi_n));
+    (* purpose = "Z_LANE / PC_CTRL" *)
     sn74ahct139 d3 (.g1_n(1'b0), .a1(z_lane[0]),   .b1(z_lane[1]),   .y1(z_lane_n),
                     .g2_n(1'b0), .a2(pc_ctrl[0]),   .b2(pc_ctrl[1]),  .y2(pc_ctrl_n));
+    (* purpose = "MAR_CTRL / X_CTRL" *)
     sn74ahct139 d4 (.g1_n(1'b0), .a1(mar_ctrl[0]), .b1(mar_ctrl[1]), .y1(mar_ctrl_n),
                     .g2_n(1'b0), .a2(x_ctrl[0]),    .b2(x_ctrl[1]),   .y2(x_ctrl_n));
+    (* purpose = "Y_CTRL / MEM_OP" *)
     sn74ahct139 d5 (.g1_n(1'b0), .a1(y_ctrl[0]),   .b1(y_ctrl[1]),   .y1(y_ctrl_n),
                     .g2_n(1'b0), .a2(mem_op[0]),    .b2(mem_op[1]),   .y2(mem_op_n));
+    (* purpose = "MMU_ADDR / MMU_MAP" *)
     sn74ahct139 d6 (.g1_n(1'b0), .a1(mmu_addr[0]), .b1(mmu_addr[1]), .y1(mmu_addr_n),
                     .g2_n(1'b0), .a2(mmu_map[0]),   .b2(mmu_map[1]),  .y2(mmu_map_n));
+    (* purpose = "MMU_PT (+ spare half)" *)
     sn74ahct139 d7 (.g1_n(1'b0), .a1(mmu_pt[0]),   .b1(mmu_pt[1]),   .y1(mmu_pt_n),
                     .g2_n(1'b1), .a2(1'b0),         .b2(1'b0),        .y2());   // half spare
 
     // ---- 3-bit fields: one '138 (3->8) each, always enabled ----------------
+    (* purpose = "RIGHT_SRC decode" *)
     sn74ahct138 r_src (.a(right_src[0]), .b(right_src[1]), .c(right_src[2]),
                        .g1(1'b1), .g2a_n(1'b0), .g2b_n(1'b0), .y(right_src_n));
+    (* purpose = "ALU_SHIFT decode" *)
     sn74ahct138 a_sh  (.a(alu_shift[0]), .b(alu_shift[1]), .c(alu_shift[2]),
                        .g1(1'b1), .g2a_n(1'b0), .g2b_n(1'b0), .y(alu_shift_n));
 
     // ---- 4-bit fields: 4->16 from two '138 (bit 3 picks the half) ----------
+    (* purpose = "LEFT_SRC decode lo" *)
     sn74ahct138 ls_lo (.a(left_src[0]), .b(left_src[1]), .c(left_src[2]),
                        .g1(1'b1), .g2a_n(left_src[3]), .g2b_n(1'b0), .y(left_src_n[7:0]));
+    (* purpose = "LEFT_SRC decode hi" *)
     sn74ahct138 ls_hi (.a(left_src[0]), .b(left_src[1]), .c(left_src[2]),
                        .g1(left_src[3]), .g2a_n(1'b0), .g2b_n(1'b0), .y(left_src_n[15:8]));
+    (* purpose = "ALU_OP decode lo" *)
     sn74ahct138 op_lo (.a(alu_op[0]), .b(alu_op[1]), .c(alu_op[2]),
                        .g1(1'b1), .g2a_n(alu_op[3]), .g2b_n(1'b0), .y(alu_op_n[7:0]));
+    (* purpose = "ALU_OP decode hi" *)
     sn74ahct138 op_hi (.a(alu_op[0]), .b(alu_op[1]), .c(alu_op[2]),
                        .g1(alu_op[3]), .g2a_n(1'b0), .g2b_n(1'b0), .y(alu_op_n[15:8]));
+    (* purpose = "Z_DEST decode lo" *)
     sn74ahct138 zd_lo (.a(z_dest[0]), .b(z_dest[1]), .c(z_dest[2]),
                        .g1(1'b1), .g2a_n(z_dest[3]), .g2b_n(1'b0), .y(z_dest_n[7:0]));
+    (* purpose = "Z_DEST decode hi" *)
     sn74ahct138 zd_hi (.a(z_dest[0]), .b(z_dest[1]), .c(z_dest[2]),
                        .g1(z_dest[3]), .g2a_n(1'b0), .g2b_n(1'b0), .y(z_dest_n[15:8]));
 

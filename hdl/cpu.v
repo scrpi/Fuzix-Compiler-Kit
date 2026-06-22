@@ -60,11 +60,13 @@ module cpu #(
     wire [NSEG-1:0] we_n;            // per-chip /WE strobe
 
     // --- boot EEPROM (pre-burned) -------------------------------------------
+    (* purpose = "boot EEPROM" *)
     sst39sf010a #(.AW(17), .DW(8), .FILE(FILE), .LOADW(NSEG*DEPTH)) eeprom (
         .a({1'b0, rom_addr}), .dq(rom_data), .ce_n(1'b0), .oe_n(1'b0), .we_n(1'b1)
     );
 
     // --- boot loader: EEPROM -> control store, emits `loading` --------------
+    (* purpose = "boot loader (EEPROM to WCS)" *)
     uc_loader loader (
         .clk(clk), .rst_n(rst_n),
         .rom_addr(rom_addr), .rom_data(rom_data),
@@ -74,6 +76,7 @@ module cpu #(
 
     // --- run = ~loading (release the micro-PC) ------------------------------
     wire [5:0] inv_y;
+    (* purpose = "run = ~loading" *)
     sn74ahct04 inv (.a({5'b0, loading}), .y(inv_y));
     assign run = inv_y[0];
 
@@ -81,11 +84,13 @@ module cpu #(
     // Real architectural register (R-HW-4). Until the fetch datapath loads it from memory,
     // its data comes from the `ir_drive` debug tap; it latches every cycle.
     wire [7:0] ir;
+    (* purpose = "opcode register IR" *)
     sn74ahct574 ir_reg (.Q(ir), .D(ir_drive), .CLK(clk), .OE_n(1'b0));
 
     // --- microsequencer: computes the next micro-PC from the sequencer section --
     // lut_data is the opcode-LUT dispatch target (DISPATCH_IR loads it into µPC).
     wire [11:0] lut_data;
+    (* purpose = "micro-sequencer (next uPC)" *)
     microsequencer useq (
         .clk(clk), .clr_n(run),
         .useq_op(cw_wcs[2:0]), .next_addr(cw_wcs[14:3]),
@@ -97,16 +102,23 @@ module cpu #(
     wire [11:0] mux_a = upc;
     wire [11:0] mux_b = loader_addr;
     wire [11:0] mux_y;
+    (* purpose = "WCS addr mux [3:0]" *)
     sn74ahct157 m0 (.a(mux_a[3:0]),   .b(mux_b[3:0]),   .sel(loading), .g_n(1'b0), .y(mux_y[3:0]));
+    (* purpose = "WCS addr mux [7:4]" *)
     sn74ahct157 m1 (.a(mux_a[7:4]),   .b(mux_b[7:4]),   .sel(loading), .g_n(1'b0), .y(mux_y[7:4]));
+    (* purpose = "WCS addr mux [11:8]" *)
     sn74ahct157 m2 (.a(mux_a[11:8]),  .b(mux_b[11:8]),  .sel(loading), .g_n(1'b0), .y(mux_y[11:8]));
     assign cs_addr = mux_y[11:0];
 
     // --- per-chip /WE strobe: cs_sel_n[g] | clk  (4x '32, clk fanned out) ----
     wire [15:0] we_pad;
+    (* purpose = "/WE strobe [3:0]" *)
     sn74ahct32 w0 (.a(cs_sel_n[3:0]),      .b({4{clk}}), .y(we_pad[3:0]));
+    (* purpose = "/WE strobe [7:4]" *)
     sn74ahct32 w1 (.a(cs_sel_n[7:4]),      .b({4{clk}}), .y(we_pad[7:4]));
+    (* purpose = "/WE strobe [11:8]" *)
     sn74ahct32 w2 (.a(cs_sel_n[11:8]),     .b({4{clk}}), .y(we_pad[11:8]));
+    (* purpose = "/WE strobe [12]" *)
     sn74ahct32 w3 (.a({3'b000, cs_sel_n[12]}), .b({4{clk}}), .y(we_pad[15:12]));
     assign we_n = we_pad[12:0];
 
@@ -116,10 +128,12 @@ module cpu #(
     wire [87:0] cw_wcs;             // the 88-bit control word (WCS SRAMs 0..10)
     wire [7:0]  lut_lo, lut_hi;     // opcode-LUT bytes (SRAMs 11, 12)
 
+    (* purpose = "WCS (88-bit control word)" *)
     microcode_store #(.NWCS(11)) store (
         .addr(cs_addr), .wdata(loader_wdata), .wbuf_oe_n(run), .oe_n(loading),
         .we_n(we_n[10:0]), .cw(cw_wcs)
     );
+    (* purpose = "opcode LUT (dispatch)" *)
     opcode_lut lut (
         .loader_addr(loader_addr), .dispatch_page(cw_wcs[22]), .ir(ir), .loading(loading),
         .wdata(loader_wdata), .wbuf_oe_n(run), .oe_n(loading),
@@ -137,6 +151,7 @@ module cpu #(
     // The 64-bit datapath section is cw[87:24]. The strobes drive nothing yet (the datapath
     // does not exist — hardware.md §2), so they are observed hierarchically (dut.dec.*) as
     // privileged debug taps (R-DBG-5) until the datapath consumes them.
+    (* purpose = "datapath decoder" *)
     control_word_decoder dec (.cw_dp(cw_wcs[87:24]));
 endmodule
 `default_nettype wire

@@ -301,7 +301,12 @@ All views are generated from the two sources (P3); none is hand-maintained.
   `tools/viz/build/<top>.svg` (gitignored). Bare `make viz` renders **every** `hdl/`
   block (the `cpu` and each factored sub-block — drawing a sub-block instance as one box,
   the same module-under-test view as the structural lint); `make viz TOP=<module>` renders
-  just one (e.g. `microsequencer`).
+  just one (e.g. `microsequencer`). Each box is titled with the chip's **purpose, then its
+  part number in parentheses** — e.g. `USEQ_OP decode (sn74ahct138)`. The purpose comes
+  from a `(* purpose = "…" *)` attribute on the HDL instance (so the label is generated
+  from the source and cannot drift, P3); a chip with no `purpose` falls back to its instance
+  name (the `(* purpose *)` attribute is metadata only — invisible to the lints, the
+  timing build, and synthesis).
 - **Interactive, animated logic — the Logisim experience, from code.** Yosys →
   **DigitalJS** (`yosys2digitaljs`) produces a clickable, signal-animated logic
   simulation in the browser / editor, from the same Verilog. It is *functional*
