@@ -249,9 +249,9 @@ section is the engine in outline.
   fetch routine. Built from counters/registers + a next-address mux.
 - **Dispatch — how `µPC` reaches a routine (concrete).** A routine is selected through an
   **opcode→start-address map**: the opcode in `IR` (with the 1-bit `DISPATCH_PAGE`) indexes
-  a small **boot-loaded SRAM** of 512 entries whose 13-bit output is the routine's start
+  a small **boot-loaded SRAM** of 512 entries whose 12-bit output is the routine's start
   microaddress, loaded into `µPC` (D-40; D-41 added the page bit and removed the indexed
-  postbyte). Microroutines are placed **freely and densely** in the WCS — no fixed
+  postbyte; D-49 narrowed the microaddress 13→12 bit). Microroutines are placed **freely and densely** in the WCS — no fixed
   per-opcode block, no word cap — and many opcodes can share a routine by holding the same
   map entry. The map read is **pipelined into the fetch cycle** (opcode→`IR`→map→registered
   start address) on a fast (~10 ns) SRAM, so dispatch adds no steady-state cycle and the
@@ -266,8 +266,8 @@ section is the engine in outline.
   fields gate bus drivers, latch registers, select the ALU op, drive `MAR`/MMU,
   and assert memory read/write. **Decided (D-41, refining D-39/D-38):** an **88-bit /
   11-byte** word in **two clean sections** — a 24-bit **sequencer section** (`USEQ_OP`, a
-  single 13-bit `NEXT_ADDR`, `UCOND_SEL`, `UCOND_POL`, the `ULOOP` loop counter, and the
-  1-bit `DISPATCH_PAGE`) and a 64-bit **datapath section**
+  single 12-bit `NEXT_ADDR`, `UCOND_SEL`, `UCOND_POL`, the `ULOOP` loop counter, the
+  1-bit `DISPATCH_PAGE`, and a spare bit) and a 64-bit **datapath section**
   (everything that drives a register/bus/ALU/memory/flag/MMU). No field is shared and
   there is no overlay; per-flag flag control is direct. Full field map and budget in
   [microcode.md](microcode.md) §3.
@@ -278,9 +278,9 @@ section is the engine in outline.
 - **Boot-copy circuit:** at power-on/reset, a small hardware state machine copies a
   **single non-volatile EEPROM image** out to all **13 control-store SRAMs** — the 11 WCS
   chips and the 2 opcode→start-address map chips (D-40) — then releases the CPU to run. The
-  image is chip-major with uniform 8 Kword segments, so the loader is **pure binary
+  image is chip-major with uniform 4 Kword segments, so the loader is **pure binary
   address-slicing** (D-43): a counter walks the EEPROM, its high bits select the chip (a
-  4→16 decoder strobes one SRAM's `/WE`), its low 13 bits are the shared SRAM address.
+  4→16 decoder strobes one SRAM's `/WE`), its low 12 bits are the shared SRAM address.
   (Independent of the CPU — just a counter, a decoder, the EEPROM, and the SRAMs.) This is
   the mechanism behind goal G8's "fast at runtime, hackable at the bench."
 - **Privilege & traps in microcode:** the user→supervisor switch on traps/
@@ -294,7 +294,7 @@ section is the engine in outline.
 
 > **Decided (D-41, refining D-39/D-38):** horizontal, single-level, **88-bit / 11-byte**
 > word in two clean chip-aligned sections (sequencer 3 SRAMs + datapath 8 SRAMs), no shared
-> field, no overlay, with a single 13-bit `NEXT_ADDR` (8192-word store) and a 1-bit
+> field, no overlay, with a single 12-bit `NEXT_ADDR` (4096-word store, D-49) and a 1-bit
 > `DISPATCH_PAGE` for the two-page opcode map; the indexed postbyte is removed. See
 > [microcode.md](microcode.md). **Open:** how deep to pipeline (microcode.md §7).
 
@@ -413,8 +413,8 @@ The minimum board to boot FUZIX to a shell (goal **G3**):
    Remaining: translation-only vs per-page protection bits.
 4. **Microcode:** *(decided: horizontal 88-bit / 11-byte word in two clean sections
    (sequencer + datapath) — D-41 (refining D-39/D-38), [microcode.md](microcode.md);
-   single 13-bit `NEXT_ADDR`, two-page opcode map (`DISPATCH_PAGE`), no postbyte,
-   `PC`-direct fetch.)* Remaining: pipeline depth (microcode.md §7).
+   single 12-bit `NEXT_ADDR` (4096-word store, D-49), two-page opcode map (`DISPATCH_PAGE`),
+   no postbyte, `PC`-direct fetch.)* Remaining: pipeline depth (microcode.md §7).
 5. **Front panel:** instruction-step vs microstep default; **shadow-register**
    display (§6, leading) vs a multiplexed "selected register" display.
 6. **Peripherals & G1 boundary:** confirm which non-74-series support chips are

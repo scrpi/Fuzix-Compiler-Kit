@@ -15,7 +15,9 @@
 > `PB_RR_MUX` — widened `NEXT_ADDR` to 13 bits (8192-word store) and added a 1-bit
 > `DISPATCH_PAGE` for the two-page opcode map. D-42 then filled the last two `USEQ_OP` codes
 > with `CALL`/`RETURN` and added a single return-address register (`uSR`) for one-level
-> microcode subroutines — no width change.)*
+> microcode subroutines — no width change. D-49 then narrowed `NEXT_ADDR` back to 12 bits
+> (4096-word store), returning the bit to a sequencer spare, so each micro-address element is
+> three uniform 4-bit slices.)*
 
 ---
 
@@ -138,18 +140,19 @@ literal/direct (one-hot or a value).
 | Field | Bits | Enc | Role |
 |-------|------|-----|------|
 | `USEQ_OP` | 3 | bin | microsequencer opcode (§2): INC / BRANCH / JUMP / DISPATCH_IR / RETURN_FETCH / WAIT / CALL / RETURN (8 of 8 codes used — D-42 added CALL/RETURN) |
-| `NEXT_ADDR` | 13 | lit | the single next-microaddress (8192-deep store — the full 8K×8 WCS) |
+| `NEXT_ADDR` | 12 | lit | the single next-microaddress (4096-deep store; D-49 narrowed 13→12 — the 8 K SRAM runs with `A12` grounded) |
 | `UCOND_SEL` | 4 | bin | condition select — 16 base conditions (8 CC-derived + 8 internal, §2) |
 | `UCOND_POL` | 1 | lit | condition polarity (both senses of each condition) |
 | `ULOOP_CTRL` | 2 | bin | micro-loop counter: hold / load / decrement; its terminal-zero is the `loop-zero` condition `UCOND_SEL` reads (a sequencing aux, not a datapath resource) |
 | `DISPATCH_PAGE` | 1 | lit | opcode-map page on `DISPATCH_IR`: page 0 (base) / page 1 (the `0x80`-prefixed cold page); 0 on every non-dispatch microword (D-41) |
+| `SPARE_SEQ` | 1 | lit | sequencer-section headroom (freed by `NEXT_ADDR` 13→12, D-49; reclaim as `NEXT_ADDR[12]` if the 8192-word store returns) |
 
 These are the **only** bits that sequence the microprogram — next-address selection, the
 opcode-map page select, and the loop counter whose terminal-zero feeds the `loop-zero`
 condition. Their inputs — `IR` contents, `CC` flags, the microcondition lines — are
 *signals*, not shared control-word fields. Trap entry is hardware-vectored (the priority
 encoder above), so even `RETURN_FETCH` needs no field. This is the clean separation D-38's
-overlay prevented; a bonus is that one 13-bit `NEXT_ADDR` — always present — lets **any**
+overlay prevented; a bonus is that one 12-bit `NEXT_ADDR` — always present — lets **any**
 branch co-occur with a full datapath op (no near/far distinction; the near/far pair only
 existed because D-38's far target shared the ALU-operand bits).
 
@@ -187,8 +190,9 @@ Everything that drives a register / bus / ALU / memory / flag / MMU, always pres
 | `TAS_LOCK` | 1 | lit | hold the bus across an RMW (test-and-set indivisible) — the `TAS` atomicity primitive (isa.md §6, §8.5; D-48) |
 | *(spare)* | 6 | — | datapath-section headroom (was 5; +1 from removing `PB_RR_MUX`, D-41) |
 
-**Total = 88 bits (82 used + 6 spare), 11 SRAMs** (D-41: `PB_RR_MUX` removed, `NEXT_ADDR`
-12→13, `DISPATCH_PAGE` added; net same width). The counter `*_CTRL` fields own the
+**Total = 88 bits (81 used + 7 spare), 11 SRAMs** (D-41: `PB_RR_MUX` removed, `DISPATCH_PAGE`
+added; D-49: `NEXT_ADDR` back to 12 bit, the freed bit now `SPARE_SEQ`; net same 88-bit
+width). The counter `*_CTRL` fields own the
 `PC`/`MAR`/`X`/`Y` load (the "load-from-Z" op *is* that register's latch — **not** also a
 `Z_DEST` code — so a counter and a non-counter can latch the same Z in one cycle, the
 stack-frame move). The dedicated loop counter `ULOOP_CTRL` (sequencer section, §3.1) means
@@ -214,6 +218,11 @@ data-dependent loops never steal a scratch.
   the full 8K×8 WCS), and added the 1-bit `DISPATCH_PAGE` for the two-page opcode map. The
   word stays **88 bits / 11 SRAMs**: the freed `PB_RR_MUX` bit returns to datapath spare,
   and the two reclaimed sequencer spare bits become `NEXT_ADDR[12]` and `DISPATCH_PAGE`.
+- **D-49** narrowed `NEXT_ADDR` back to **12 bits** (4096-word store; the 8 K SRAM runs with
+  `A12` grounded), returning `NEXT_ADDR[12]` to a sequencer spare (`SPARE_SEQ`). A 12-bit
+  micro-address is exactly three uniform 4-bit slices in every element — the `µPC` counter,
+  the next-address mux, `µSR`, the map output — with no fourth slice for one bit; the depth
+  given up is unused at the current/foreseeable microprogram size, and the change is reversible.
 
 ---
 
@@ -329,8 +338,9 @@ stays until those routines are hand-assembled.
    call depth. The `USEQ_OP` codes and control-word format are unaffected either way, so
    deepening `uSR` into a stack later is an encoding-compatible hardware change (D-42).
 
-*Settled by D-39 / D-41:* `NEXT_ADDR` is **13 bits** (8192-word store, D-41; D-39 set the
-two-section split at 12-bit / 4096); the sequencer and datapath sections are cleanly
+*Settled by D-39 / D-41 / D-49:* `NEXT_ADDR` is **12 bits** (4096-word store; D-49 reverted
+D-41's 13-bit / 8192-word widening, back to D-39's original 12-bit / 4096 split); the
+sequencer and datapath sections are cleanly
 separated (no shared field, no overlay); a single next-address replaces the near/far branch
 pair, so any branch co-occurs with a datapath op; and the indexed postbyte is gone
 (`DISPATCH_PAGE` selects the two-page opcode map).

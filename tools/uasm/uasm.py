@@ -16,14 +16,14 @@ All 13 control-store SRAMs are programmed from ONE EEPROM that the microcode loa
 fans out on power-on (refines D-03 / R-CTRL-3). The image is CHIP-MAJOR with
 uniform 8 KiB segments, so the loader is pure binary address-slicing:
 
-    EEPROM addr = (segment << 13) | sram_addr
+    EEPROM addr = (segment << 12) | sram_addr
       segment 0..10  -> WCS SRAM 0..10   (88-bit word, byte k = bits[8k..8k+7])
       segment 11     -> opcode map, low byte   (map[{PAGE,IR}] & 0xFF)
-      segment 12     -> opcode map, high 5 bits ((map >> 8) & 0x1F)
+      segment 12     -> opcode map, high 4 bits ((map >> 8) & 0x0F)
 
-    counter[16:13] -> 4:16 decoder -> one SRAM /WE ;  counter[12:0] -> shared addr
+    counter[15:12] -> 4:16 decoder -> one SRAM /WE ;  counter[11:0] -> shared addr
 
-Total = 13 * 8192 = 106,496 bytes — the microcode image. It targets a 128 KB control-store
+Total = 13 * 4096 = 53,248 bytes — the microcode image. It targets a 128 KB control-store
 EEPROM (the design size); the assembler is deliberately unaware of the physical part, which
 is a hardware/BOM choice (hardware.md §7) — a larger in-stock part with its upper address
 pins grounded serves identically. Unused fill within the image is 0x00, the inert NOP
@@ -63,14 +63,16 @@ DEFAULT_SRC  = ROOT / "microcode" / "src" / "blip.uc"    # the microcode source
 OUTDIR       = ROOT / "microcode" / "build"              # the image lands here (gitignored)
 
 # --- single-EEPROM geometry -------------------------------------------------
-WCS_DEPTH   = 8192          # 2**13 microwords (NEXT_ADDR is 13 bits, D-41)
+WCS_DEPTH   = 4096          # 2**12 microwords (NEXT_ADDR is 12 bits — 13->12 to fit each
+                            #   12-bit micro-address element in three 4-bit chips)
 N_WCS       = 11            # 88-bit word over 11 byte-wide SRAMs
 MAP_ENTRIES = 512           # {DISPATCH_PAGE, IR} = 9 bits
-SEG_SIZE    = 8192          # uniform 8 KiB segment per SRAM (loader simplicity)
+SEG_SIZE    = 4096          # uniform 4 KiB segment per SRAM (loader simplicity); the 8 K
+                            #   SRAM runs with its top address pin grounded (4 K used)
 N_SEG       = 13            # 11 WCS + 2 map
 SEG_MAP_LO  = 11
 SEG_MAP_HI  = 12
-IMG_BYTES   = N_SEG * SEG_SIZE   # 106,496 — the microcode image (13 segments); targets a
+IMG_BYTES   = N_SEG * SEG_SIZE   # 53,248 — the microcode image (13 segments); targets a
                                  # 128 KB control-store EEPROM. The physical part is a
                                  # hardware choice the assembler need not know (D-43).
 FILL        = 0x00          # unused bytes -> inert NOP word
@@ -443,7 +445,7 @@ def build_image(words, cmap, fields: Fields) -> bytearray:
             img[k * SEG_SIZE + mw.addr] = (w >> (8 * k)) & 0xFF
     for i, entry in enumerate(cmap):
         img[SEG_MAP_LO * SEG_SIZE + i] = entry & 0xFF
-        img[SEG_MAP_HI * SEG_SIZE + i] = (entry >> 8) & 0x1F
+        img[SEG_MAP_HI * SEG_SIZE + i] = (entry >> 8) & 0x0F
     return img
 
 

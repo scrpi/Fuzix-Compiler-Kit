@@ -5,10 +5,11 @@
 // independent of the CPU — just a counter, a decoder, the EEPROM, and the SRAMs.
 //
 // Structure (the BOM — R-SIM-1, R-SIM-5):
-//   * 5x cd74act161  -> a 17-bit binary address counter `cnt`. Async-cleared to 0 by
-//     the active-low boot reset; ripple-carry cascade (RCO -> next ENT).
-//   * 2x sn74ahct138  -> a 4->16 decoder of the chip field seg = cnt[16:13] (a '154 is
-//     unobtainable). The low 3 seg bits drive A,B,C of both; cnt[16] picks the
+//   * 4x cd74act161  -> a 16-bit binary address counter `cnt`. Async-cleared to 0 by
+//     the active-low boot reset; ripple-carry cascade (RCO -> next ENT). (12-bit
+//     segment address + 4-bit chip field; the 4096-word store needs no 5th '161.)
+//   * 2x sn74ahct138  -> a 4->16 decoder of the chip field seg = cnt[15:12] (a '154 is
+//     unobtainable). The low 3 seg bits drive A,B,C of both; cnt[15] picks the
 //     half via the complementary enable polarities, so NO inverter is needed.
 //
 // The decoder does triple duty and removes all glue logic:
@@ -30,20 +31,20 @@
 `default_nettype none
 module uc_loader #(
     parameter NSEG   = 13,      // 11 WCS + 2 opcode-map  (fixed: the 2x '138 decode)
-    parameter SEG_AW = 13       // 8 Kword per chip       (fixed: the low counter bits)
+    parameter SEG_AW = 12       // 4 Kword per chip       (fixed: the low counter bits)
 ) (
     input  wire               clk,
     input  wire               rst_n,      // active-LOW boot reset (held low at power-on)
-    output wire [SEG_AW+3:0]  rom_addr,   // 17-bit EEPROM address (= cnt)
+    output wire [SEG_AW+3:0]  rom_addr,   // 16-bit EEPROM address (= cnt)
     input  wire [7:0]         rom_data,
     output wire [SEG_AW-1:0]  sram_addr,  // shared SRAM address (= cnt low bits)
     output wire [7:0]         sram_wdata, // shared write data (= rom_data, a bus wire)
     output wire [NSEG-1:0]    cs_n,       // per-chip select, active LOW (decoder Y0..Y12)
     output wire               loading     // HIGH during copy (decoder seg-13 line)
 );
-    // ---- 17-bit address counter: five '161s, ripple-carry cascade ----------
-    wire [19:0] cnt;            // 20 bits exist; bits [16:0] used, [19:17] idle
-    wire [4:0]  rco;            // ripple carry out of each stage (rco[4] unused)
+    // ---- 16-bit address counter: four '161s, ripple-carry cascade ----------
+    wire [15:0] cnt;            // 12-bit segment address (cnt[11:0]) + 4-bit seg (cnt[15:12])
+    wire [3:0]  rco;            // ripple carry out of each stage (rco[3] unused)
     wire        count_en;       // = loading: counts while seg < 13, then halts
 
     cd74act161 c0 (.clk(clk), .clr_n(rst_n), .load_n(1'b1), .enp(count_en), .ent(count_en),
@@ -54,12 +55,10 @@ module uc_loader #(
                 .p(4'b0000), .q(cnt[11:8]),  .rco(rco[2]));
     cd74act161 c3 (.clk(clk), .clr_n(rst_n), .load_n(1'b1), .enp(count_en), .ent(rco[2]),
                 .p(4'b0000), .q(cnt[15:12]), .rco(rco[3]));
-    cd74act161 c4 (.clk(clk), .clr_n(rst_n), .load_n(1'b1), .enp(count_en), .ent(rco[3]),
-                .p(4'b0000), .q(cnt[19:16]), .rco(rco[4]));
 
-    // ---- 4->16 decode of seg = cnt[16:13]: two '138s -----------------------
-    // Low '138: enabled when cnt[16]=0 (G2A# = cnt[16]); outputs seg 0..7.
-    // High '138: enabled when cnt[16]=1 (G1   = cnt[16]); outputs seg 8..15.
+    // ---- 4->16 decode of seg = cnt[15:12]: two '138s -----------------------
+    // Low '138: enabled when cnt[15]=0 (G2A# = cnt[15]); outputs seg 0..7.
+    // High '138: enabled when cnt[15]=1 (G1   = cnt[15]); outputs seg 8..15.
     wire [7:0] dlo, dhi;
     sn74ahct138 dec_lo (.a(cnt[SEG_AW]), .b(cnt[SEG_AW+1]), .c(cnt[SEG_AW+2]),
                     .g1(1'b1), .g2a_n(cnt[SEG_AW+3]), .g2b_n(1'b0), .y(dlo));
@@ -70,8 +69,8 @@ module uc_loader #(
     assign cs_n       = {dhi[4:0], dlo[7:0]};   // seg 12..0 selects (active low)
     assign loading    = dhi[5];                 // seg-13 line: HIGH copying, LOW done
     assign count_en   = dhi[5];                 // counter halts itself at seg 13
-    assign rom_addr   = cnt[SEG_AW+3:0];        // = cnt[16:0]
-    assign sram_addr  = cnt[SEG_AW-1:0];        // = cnt[12:0]
+    assign rom_addr   = cnt[SEG_AW+3:0];        // = cnt[15:0]
+    assign sram_addr  = cnt[SEG_AW-1:0];        // = cnt[11:0]
     assign sram_wdata = rom_data;               // shared EEPROM/SRAM data bus
 endmodule
 `default_nettype wire

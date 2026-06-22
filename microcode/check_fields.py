@@ -139,7 +139,7 @@ def render(spec: dict) -> None:
             rng = f"{f['_msb']}:{f['_lsb']}"
             print(f"   {rng:>9}  {f['name']:<14} {f['width']:>2} "
                   f"{f.get('enc',''):<4} {nvals if nvals else '':>5}")
-            if f["name"] != "SPARE":
+            if not f["name"].startswith("SPARE"):
                 used += f["width"]
         print()
     print(f"Used {used} bits, {spec['word']['bits'] - used} spare.")

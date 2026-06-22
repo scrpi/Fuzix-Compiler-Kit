@@ -53,9 +53,9 @@ values   = { INC = 0, BRANCH = 1, JUMP = 2, DISPATCH_IR = 3, RETURN_FETCH = 4, W
 [[field]]
 name    = "NEXT_ADDR"
 section = "sequencer"
-width   = 13
+width   = 12
 enc     = "lit"
-role    = "single next-microaddress (8192-deep WCS); a label resolves to this"
+role    = "single next-microaddress (4096-deep WCS); a label resolves to this"
 
 [[field]]
 name    = "UCOND_SEL"
@@ -91,6 +91,13 @@ width   = 1
 enc     = "lit"
 role    = "opcode-map page on DISPATCH_IR; 0 on every non-dispatch microword (D-41)"
 values   = { PAGE0 = 0, PAGE1 = 1 }
+
+[[field]]
+name    = "SPARE_SEQ"
+section = "sequencer"
+width   = 1
+enc     = "lit"
+role    = "sequencer-section headroom (freed by NEXT_ADDR 13->12); reclaim as NEXT_ADDR[12] if the 8192-deep store returns"
 
 # ===========================================================================
 # DATAPATH SECTION (microcode.md §3.2) — 64 bits (58 used + 6 spare)

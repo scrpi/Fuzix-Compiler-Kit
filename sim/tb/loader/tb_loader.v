@@ -31,7 +31,7 @@
 `default_nettype none
 module tb_loader;
     localparam NSEG   = 13;
-    localparam SEG_AW = 13;
+    localparam SEG_AW = 12;
     localparam DEPTH  = (1 << SEG_AW);
 
     reg clk = 1'b0;
@@ -39,24 +39,24 @@ module tb_loader;
     always #1000 clk = ~clk;            // ~500 kHz boot clock (slow 555); 2 us period
                                         // >> the 70 ns flash read + 15 ns counter clk->Q
 
-    wire [16:0] rom_addr;
+    wire [15:0] rom_addr;
     wire [7:0]  rom_data;
-    wire [12:0] ld_addr;
+    wire [11:0] ld_addr;
     wire [7:0]  ld_wdata;
     wire [NSEG-1:0] cs_n;               // per-chip select, active low (decoder Y0..Y12)
     wire loading;
 
     // The loader drives the SRAM address during the copy; the checker drives it
     // afterward to read every location back. One shared address bus to all chips.
-    reg  [12:0] vaddr = 13'd0;
-    wire [12:0] sram_addr = loading ? ld_addr : vaddr;
+    reg  [11:0] vaddr = 12'd0;
+    wire [11:0] sram_addr = loading ? ld_addr : vaddr;
 
     // 128 KB control-store EEPROM — the real flash part (sst39sf010a). The loader
     // only reads, so CE#/OE# are tied LOW (continuously selected/output-enabled)
     // and WE# HIGH (no in-system program). A larger pin-compatible part with
     // grounded upper pins presents identically. Loads exactly the microcode image.
     sst39sf010a #(.AW(17), .DW(8), .FILE(`IMG), .LOADW(NSEG*DEPTH)) eeprom (
-        .a(rom_addr), .dq(rom_data),
+        .a({1'b0, rom_addr}), .dq(rom_data),
         .ce_n(1'b0), .oe_n(1'b0), .we_n(1'b1)
     );
 
@@ -100,7 +100,7 @@ module tb_loader;
         errors  = 0;
         checked = 0;
         for (a = 0; a < DEPTH; a = a + 1) begin
-            vaddr = a[12:0];
+            vaddr = a[11:0];
             #100;                            // settle the timed SRAM read (tAA 10 ns)
             for (k = 0; k < NSEG; k = k + 1) begin
                 expb = eeprom.mem[k*DEPTH + a];
@@ -124,7 +124,7 @@ module tb_loader;
     end
 
     initial begin
-        #300000000;                          // > copy time (106k cycles x 2 us ~= 213 ms)
+        #300000000;                          // > copy time (53k cycles x 2 us ~= 106 ms)
         $fatal(1, "TIMEOUT - loader never deasserted");
     end
 endmodule

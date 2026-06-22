@@ -113,7 +113,7 @@ once and called, so the source stays DRY.
 
 - **One EEPROM image** holding all 13 control-store SRAMs (D-43): the 11 WCS chips
   (88 bits = 11 byte-wide SRAMs) and the 2 opcode→start-address map chips (D-40 —
-  `{PAGE, IR}`, 512 entries × 13-bit `µPC`, split low byte + high 5 bits). The boot
+  `{PAGE, IR}`, 512 entries × 12-bit `µPC`, split low byte + high 4 bits; D-49). The boot
   loader fans this single image out to the 13 SRAMs at power-on (§3.5); there is **one**
   burnable part, not thirteen.
 - **Chip-major, uniform-segment layout.** The image is 13 contiguous 2¹³-byte segments —

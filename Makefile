@@ -39,8 +39,8 @@ sim: loader cpu bench
 loader: image
 	bash sim/tb/loader/run.sh
 
-## cpu:    cpu top-level scaffold (boot -> run handoff; micro-PC reads the store)
-cpu: image
+## cpu:    cpu microsequencer walk (boot -> real sequencer: INC/JUMP/BRANCH/DISPATCH/WAIT)
+cpu:
 	bash sim/tb/cpu/run.sh
 
 ## bench:  two-engine throughput benchmark (Verilator vs timed Icarus)
