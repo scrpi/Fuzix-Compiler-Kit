@@ -58,6 +58,9 @@ static unsigned label;		/* Local label allocator for inline branches */
 static unsigned get_size(unsigned t);
 static unsigned get_stack_size(unsigned t);
 static unsigned shift_const(struct node *n, const char *op16, const char *op8);
+static unsigned op_eq_node(struct node *n);
+static unsigned post_incdec_node(struct node *n);
+static unsigned shifteq_direct(struct node *n);
 
 /*
  *	Size handling
@@ -705,6 +708,12 @@ unsigned gen_direct(struct node *n)
 		if (n->type & UNSIGNED)
 			return shift_const(n, "LSR", "LSR");
 		return shift_const(n, "ASR", "ASR");
+	case T_SHLEQ:
+	case T_SHREQ:
+		/* Constant-count shift-assign: D holds &lval, the count is the (still
+		   unevaluated) constant rhs. Variable counts fall through to the
+		   helper, like a plain variable shift. */
+		return shifteq_direct(n);
 	case T_STAR:
 		/* Multiply by a power-of-two constant becomes a shift; this is
 		   how array/struct index scaling stays native. Other multiplies
@@ -862,6 +871,178 @@ static unsigned shift_const(struct node *n, const char *op16, const char *op8)
 }
 
 /*
+ *	Compound assignment (lval OP= rhs), lowered natively. The contract is the
+ *	same as T_EQ: the front end evaluates the LVAL-flagged left as a pointer and
+ *	pushes it, so on entry the lvalue ADDRESS is on the stack at (SP) and the rhs
+ *	VALUE is in the working register (D for int/pointer, B for char). We load
+ *	*addr, combine it with rhs, store the result back, and leave it in D/B (the
+ *	value of the assignment expression). Only the address is on the stack, so
+ *	every lvalue shape - global, local, *p, arr[i] - is handled identically.
+ *	long/float (s > 2) return 0 and fall back to the helper, like the rest of
+ *	this backend.
+ *
+ *	  + - & | ^   fold against the slot via X (no call).
+ *	  * / %       call the runtime helper, keeping &lval on the stack across the
+ *	              call (see below) so no callee-saved register is needed. Char
+ *	              operands are widened to 16-bit first.
+ */
+static unsigned op_eq_node(struct node *n)
+{
+	unsigned s = get_size(n->type);
+	unsigned uns = n->type & UNSIGNED;
+	const char *h;
+
+	if (s > 2)
+		return 0;
+
+	switch (n->op) {
+	case T_PLUSEQ:
+	case T_MINUSEQ:
+	case T_ANDEQ:
+	case T_OREQ:
+	case T_HATEQ:
+		/* X = &lval; rhs is already in D/B. Fold the slot in, store back. */
+		printf("\tLD X,(SP)\n");
+		printf("\tLEA SP,SP+2\n");
+		if (s == 1) {
+			switch (n->op) {
+			case T_PLUSEQ:  printf("\tADD B,(X)\n"); break;
+			case T_MINUSEQ: printf("\tNEG B\n\tADD B,(X)\n"); break;
+			case T_ANDEQ:   printf("\tAND B,(X)\n"); break;
+			case T_OREQ:    printf("\tOR B,(X)\n"); break;
+			case T_HATEQ:   printf("\tEOR B,(X)\n"); break;
+			}
+			printf("\tST B,(X)\n");
+		} else {
+			switch (n->op) {
+			case T_PLUSEQ:  printf("\tADD D,(X)\n"); break;
+			/* -(rhs) + *lval == *lval - rhs (no memory-minus-D form). */
+			case T_MINUSEQ: printf("\tCOM A\n\tCOM B\n\tADD D,$0001\n\tADD D,(X)\n"); break;
+			/* No 16-bit bitwise op; do it a byte at a time. */
+			case T_ANDEQ:   printf("\tAND B,(X)\n\tAND A,(X+1)\n"); break;
+			case T_OREQ:    printf("\tOR B,(X)\n\tOR A,(X+1)\n"); break;
+			case T_HATEQ:   printf("\tEOR B,(X)\n\tEOR A,(X+1)\n"); break;
+			}
+			printf("\tST D,(X)\n");
+		}
+		return 1;
+
+	case T_STAREQ:
+	case T_SLASHEQ:
+	case T_PERCENTEQ:
+		if (n->op == T_STAREQ)       h = "__mul";
+		else if (n->op == T_SLASHEQ) h = uns ? "__divu" : "__div";
+		else                         h = uns ? "__remu" : "__rem";
+		/* The runtime helper takes LHS (*lval) on the stack at (SP+2) and RHS
+		   (rhs) in D, then pops ret+LHS and returns the result in D. We keep
+		   &lval on the stack throughout - below what the helper pops - and
+		   reload it afterwards, so nothing here depends on a callee-saved
+		   register (safe even once Y is handed out as a register variable).
+		   Char operands are widened to 16-bit: zero-extend for the multiply
+		   (its low byte is the char product), sign- or zero-extend per
+		   signedness for divide/modulo. */
+		if (s == 1) {				/* widen rhs (B) -> D = RHS */
+			if (n->op == T_STAREQ || uns)
+				printf("\tLD A,$00\n");
+			else
+				printf("\tSEX\n");
+		}
+		printf("\tPSHS $06\n");			/* push RHS; &lval stays below it */
+		printf("\tLD X,(SP+2)\n");		/* X = &lval */
+		if (s == 1) {
+			printf("\tLD B,(X)\n");		/* B = *lval */
+			if (n->op == T_STAREQ || uns)	/* widen *lval (B) -> D = LHS */
+				printf("\tLD A,$00\n");
+			else
+				printf("\tSEX\n");
+		} else {
+			printf("\tLD D,(X)\n");		/* D = *lval = LHS */
+		}
+		printf("\tPSHS $06\n");			/* push LHS -> (SP+2) after the JSR */
+		printf("\tLD D,(SP+2)\n");		/* D = RHS */
+		printf("\tJSR %s\n", h);		/* pops ret+LHS, result in D */
+		printf("\tLD X,(SP+2)\n");		/* reload &lval (helper clobbered X) */
+		if (s == 1)
+			printf("\tST B,(X)\n");		/* store low byte = char result */
+		else
+			printf("\tST D,(X)\n");
+		printf("\tLEA SP,SP+4\n");		/* drop RHS + &lval */
+		return 1;
+	}
+	return 0;
+}
+
+/*
+ *	Post-increment / post-decrement on a *complex* lvalue (arr[i]++, (*p)--).
+ *	Simple lvalues (a global/local/argument) are handled earlier by inc_dec_node;
+ *	these reach gen_node with the lvalue ADDRESS on the stack and the (constant,
+ *	pointer-scaled) delta in D - the same contract as compound assignment, since
+ *	the front end lowers ++/-- this way. We load *lval, apply the delta, store
+ *	the new value, and - for the value form (not NORETURN) - undo the delta so
+ *	the pre-op value is left in D/B (the inc_dec_node trick). Pre-increment is
+ *	already lowered to += by the front end, so it never reaches here.
+ */
+static unsigned post_incdec_node(struct node *n)
+{
+	unsigned s = get_size(n->type);
+	unsigned nr = n->flags & NORETURN;
+	int inc = (n->op == T_PLUSPLUS);
+	unsigned delta;
+
+	if (s > 2 || n->right == NULL || n->right->op != T_CONSTANT)
+		return 0;
+	delta = (unsigned)(n->right->value & 0xFFFF);
+	printf("\tLD X,(SP)\n");		/* X = &lval (delta is also in D/B) */
+	printf("\tLEA SP,SP+2\n");
+	if (s == 1) {
+		printf("\tLD B,(X)\n");				/* old */
+		printf("\t%s B,$%02X\n", inc ? "ADD" : "SUB", delta & 0xFF);
+		printf("\tST B,(X)\n");				/* new */
+		if (!nr)
+			printf("\t%s B,$%02X\n", inc ? "SUB" : "ADD", delta & 0xFF);
+	} else {
+		printf("\tLD D,(X)\n");
+		printf("\t%s D,$%04X\n", inc ? "ADD" : "SUB", delta);
+		printf("\tST D,(X)\n");
+		if (!nr)
+			printf("\t%s D,$%04X\n", inc ? "SUB" : "ADD", delta);
+	}
+	return 1;
+}
+
+/*
+ *	Constant-count <<= / >>= on an lvalue, done natively. At gen_direct the left
+ *	(the LVAL-flagged lvalue) has already been evaluated as a pointer into D and
+ *	the rhs count node has NOT yet been evaluated, so a constant count is still
+ *	visible. A runtime-variable count has no hardware form (isa.md S8.8) and
+ *	falls through to the shift helper, exactly like a plain variable <<.
+ */
+static unsigned shifteq_direct(struct node *n)
+{
+	struct node *r = n->right;
+	unsigned s = get_size(n->type);
+
+	if (s > 2 || r->op != T_CONSTANT)
+		return 0;
+	printf("\tLD X,D\n");			/* D holds &lval */
+	if (s == 1)
+		printf("\tLD B,(X)\n");
+	else
+		printf("\tLD D,(X)\n");
+	if (n->op == T_SHLEQ)
+		shift_const(n, "ASL", "ASL");
+	else if (n->type & UNSIGNED)
+		shift_const(n, "LSR", "LSR");
+	else
+		shift_const(n, "ASR", "ASR");
+	if (s == 1)
+		printf("\tST B,(X)\n");
+	else
+		printf("\tST D,(X)\n");
+	return 1;
+}
+
+/*
  *	gen_node: emit a node whose operands are already in place. For binary
  *	ops that reach here the left operand is on the stack (the driver pushed
  *	it) and the right operand is in D/B; we operate against (SP) and pop.
@@ -968,6 +1149,22 @@ unsigned gen_node(struct node *n)
 		else
 			printf("\tST D,(X)\n");
 		return 1;
+
+	/* ---- compound assignment (lval OP= rhs) ---------------------- */
+	case T_PLUSEQ:
+	case T_MINUSEQ:
+	case T_ANDEQ:
+	case T_OREQ:
+	case T_HATEQ:
+	case T_STAREQ:
+	case T_SLASHEQ:
+	case T_PERCENTEQ:
+		return op_eq_node(n);
+
+	/* post ++/-- on a complex lvalue (simple ones go via inc_dec_node) */
+	case T_PLUSPLUS:
+	case T_MINUSMINUS:
+		return post_incdec_node(n);
 
 	/* ---- calls --------------------------------------------------- */
 	case T_CALLNAME:
