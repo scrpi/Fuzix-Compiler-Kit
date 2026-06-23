@@ -13,7 +13,7 @@ PYTHON := python3
 TOP    ?=
 
 .NOTPARALLEL:
-.PHONY: test image check lint sim cpu bench viz digitaljs clean help
+.PHONY: test image check lint sim cpu bench viz logisim digitaljs clean help
 
 ## test:   run the whole suite (image, field-def check, both lints, timed test-benches)
 test: image check lint sim
@@ -48,6 +48,11 @@ bench:
 viz:
 	bash tools/viz/render.sh $(TOP)
 
+## logisim: runnable Logisim Evolution 4.1.0 .circ of a block — Yosys -> tools/viz/logisim.py
+##          (TTL chips + named-tunnel connectivity; default TOP=control_word_decoder)
+logisim:
+	bash tools/viz/logisim.sh $(TOP)
+
 ## digitaljs: interactive DigitalJS sim from the HDL — Yosys -> yosys2digitaljs
 ##            (default TOP=uc_loader; the whole cpu has a tri-state control-store
 ##            bus DigitalJS can't model — use `make viz` for the cpu schematic)
@@ -56,7 +61,7 @@ digitaljs:
 
 ## clean:  remove generated artifacts
 clean:
-	rm -rf microcode/build tools/viz/build
+	rm -rf microcode/build tools/viz/build logisim/build
 
 ## help:   list these targets
 help:
