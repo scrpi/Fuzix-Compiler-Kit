@@ -56,6 +56,7 @@ OBJS14 = backend.o backend-super8.o
 OBJS15 = backend.o backend-1802.o
 OBJS16 = backend.o be-codegen-6800.o be-track-6800.o be-code-6800.o be-func-6800.o
 OBJS17 = backend.o be-codegen-6800.o be-track-6800.o be-code-6809.o be-func-6800.o
+OBJSBLIP = backend.o backend-blip.o
 OBJS18 = backend.o backend-ddp.o
 OBJS19 = backend.o backend-tms7000.o
 OBJS20 = backend.o backend-hc08.o backend-byte.o
@@ -189,6 +190,12 @@ cc2.6800:	$(OBJS16)
 
 cc2.6809:	$(OBJS17)
 	gcc -g3 $(OBJS17) -o cc2.6809
+
+cc1.blip:$(OBJS1) target-blip.o
+	gcc -g3 $(OBJS1) target-blip.o -o cc1.blip
+
+cc2.blip:	$(OBJSBLIP)
+	gcc -g3 $(OBJSBLIP) -o cc2.blip
 
 cc2.8070:	$(OBJS8)
 	gcc -g3 $(OBJS8) -o cc2.8070

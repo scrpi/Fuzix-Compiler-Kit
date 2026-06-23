@@ -172,6 +172,7 @@ const char *defddp116[] = { "__ddp__", "__ddp116__", NULL };
 
 const char *deftms7000[] = { "__tms7000__", NULL };
 const char *defhc08[] = { "__hc08__", NULL };
+const char *defblip[] = { "__blip__", NULL };
 
 const char *ld6502[] = { "-b", "-C", "512", "-Z", "0x00", NULL };
 const char *ld6800[] = { "-b", "-C", "256", "-Z", "0x40", NULL };
@@ -187,6 +188,7 @@ const char *ldtms7000[] = { "-b", "-C", "512", NULL };
 const char *ldbyte[] =  { NULL };
 const char *ldthread[] = { NULL };
 const char *ldhc08[] = { "-b", "-C", "256", NULL };
+const char *ldblip[] = { "-b", "-C", "256", NULL };
 
 const char *cpucode;
 
@@ -235,6 +237,7 @@ struct cpu_table cpu_rules[] = {
 	{ "hc08", "hc08", ".hc08", "libhc08.a", "hc08", defhc08, ldhc08, "8", 0, NULL },
 	/* TODO: will need a different linker option for 32bit */
 	{ "8080:32", "8080", ".8080-32", "lib8080-32.a", "8080-32", def8080_32, ld8080, "8080" , 0, NULL},
+	{ "blip", "blip", ".blip", "libblip.a", "blip", defblip, ldblip, "9000", 0, NULL},
 	{ NULL }
 };
 
