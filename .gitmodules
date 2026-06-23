@@ -8,3 +8,8 @@
 	url = git@github.com:scrpi/Fuzix-Compiler-Kit.git
 	branch = blip
 	ignore = untracked
+[submodule "src/fuzix"]
+	path = src/fuzix
+	url = git@github.com:scrpi/FUZIX.git
+	branch = blip
+	ignore = untracked
