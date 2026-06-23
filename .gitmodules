@@ -1,3 +1,6 @@
 [submodule "tools/fcc/bintools"]
 	path = tools/fcc/bintools
 	url = https://github.com/scrpi/Fuzix-Bintools.git
+[submodule "tools/fcc/compiler-kit"]
+	path = tools/fcc/compiler-kit
+	url = https://github.com/scrpi/Fuzix-Compiler-Kit.git
