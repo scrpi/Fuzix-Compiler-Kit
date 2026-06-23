@@ -2,7 +2,9 @@
 	path = tools/fcc/bintools
 	url = git@github.com:scrpi/Fuzix-Bintools.git
 	branch = blip
+	ignore = untracked
 [submodule "tools/fcc/compiler-kit"]
 	path = tools/fcc/compiler-kit
 	url = git@github.com:scrpi/Fuzix-Compiler-Kit.git
 	branch = blip
+	ignore = untracked

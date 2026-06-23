@@ -30,15 +30,26 @@ Each submodule is one of our forks, and the BLIP port lives on a **`blip`
 branch** of that fork (`.gitmodules` sets `branch = blip`; the superproject pins
 a specific commit on it). The forks are:
 
-- `https://github.com/scrpi/Fuzix-Bintools.git`
-- `https://github.com/scrpi/Fuzix-Compiler-Kit.git`
+- `git@github.com:scrpi/Fuzix-Bintools.git`
+- `git@github.com:scrpi/Fuzix-Compiler-Kit.git`
 
-(public mirrors of the canonical Codeberg upstreams, which aren't reachable from
-the build environment). Keeping the changes on a branch — rather than as patches
+(forks of the canonical Codeberg upstreams, which aren't reachable from the
+build environment). Keeping the changes on a branch — rather than as patches
 applied at build time — means the submodule checkout is the real source, builds
 standalone, and the port can be rebased onto upstream `main` and offered back as
-an ordinary PR. The clone URL is https (anonymous read); pushing the `blip`
-branch is a maintainer action over SSH.
+an ordinary PR. The clone URL is SSH because the forks aren't anonymously
+cloneable (an anonymous https fetch 404s, so `git submodule update` would
+otherwise stall on a credential prompt); a checkout — and pushing the `blip`
+branch — authenticates with the maintainer's SSH key.
+
+Each toolchain builds *in-tree* (the kit's Makefiles compile next to their
+sources), so a build leaves untracked executables (`cc1.blip`, `asblip`, …) in
+the submodule working trees. These are never committed — `*.o`/`*.a` are already
+ignored, matching upstream, and the final binaries are left untracked as upstream
+does. The superproject sets `ignore = untracked` on both submodules so those
+build artifacts don't show it as dirty (while real edits to tracked submodule
+files still do); add the binary names to each submodule's `.git/info/exclude` to
+quiet its own `git status` locally.
 
 To advance the pinned commit after new work lands on a fork's `blip` branch:
 `git submodule update --remote tools/fcc/<sub>` then commit the superproject.
