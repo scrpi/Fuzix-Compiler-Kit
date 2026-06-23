@@ -21,6 +21,12 @@ static int chk(unsigned char b0, unsigned char b1, unsigned char b2, unsigned ch
 	return 0;
 }
 
+/* Returned 32-bit values come back in the D:Y pair (isa.md §7). */
+static unsigned long add1(unsigned long x)
+{
+	return x + 1;
+}
+
 int main(void)
 {
 	long a, b;
@@ -76,6 +82,10 @@ int main(void)
 	a=-100; b=7;  gr=(unsigned long)(a%b); if (chk(0xFE,0xFF,0xFF,0xFF)) return 32; /* -2 */
 	a=-100; b=-7; gr=(unsigned long)(a/b); if (chk(0x0E,0x00,0x00,0x00)) return 33; /* 14 */
 	a=-2000000000; b=3; gr=(unsigned long)(a/b); if (chk(0x56,0x79,0x43,0xD8)) return 34;
+
+	/* ---- 32-bit value returned across a call (the D:Y return ABI) ---- */
+	gr = add1(0x0001FFFF);              if (chk(0x00,0x00,0x02,0x00)) return 35; /* 0x00020000 */
+	gr = add1(0xFFFFFFFF);              if (chk(0x00,0x00,0x00,0x00)) return 36; /* carry out, wraps to 0 */
 
 	return 0;
 }

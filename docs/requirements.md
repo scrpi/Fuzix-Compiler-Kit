@@ -68,19 +68,24 @@ by reaching past them to a goal or to another design.
 - **R-ABI-1** (⟸ G2) — There shall be exactly one documented, stable calling
   convention that both the C toolchain and hand-written assembly follow; it is
   fixed (not an internal implementation detail free to change).
-- **R-ABI-2** (⟸ G2) — The convention shall pass the leading scalar arguments in
-  registers rather than exclusively on the stack, so that calls to small and leaf
-  functions are inexpensive.
-- **R-ABI-3** (⟸ G2) — A returned 16-bit value shall be delivered in a register
-  that supports memory-access addressing modes, so a returned pointer is
-  immediately usable without a register move.
+- **R-ABI-2** (⟸ G2) — Argument passing shall follow one uniform rule for every
+  call, not varying with the function's arity, its argument types, or whether it is
+  variadic, so the single convention of R-ABI-1 carries no per-argument special
+  case that the C toolchain and interoperating assembly must each reproduce. The
+  rule shall keep small and leaf calls inexpensive on BLIP's `(SP+n)` frame
+  addressing (R-ISA-2).
+- **R-ABI-3** (⟸ G2) — Scalar return values shall be delivered in registers, not
+  through memory; a returned 16-bit value shall use a register that supports
+  memory-access addressing modes, so a returned pointer is immediately usable
+  without a register move.
 - **R-ABI-4** (⟸ G2) — It shall be possible to keep at least one 16-bit pointer
   live across a function call without spilling it to memory, to serve the common
   loop-carried-pointer pattern.
 
-> *Note:* R-ABI-2 (more values passed/returned in registers) and R-ABI-4 (a
-> register preserved across calls) pull in opposite directions over a finite
-> register file; the ISA spec resolves the balance and records the trade-off.
+> *Note:* Because R-ABI-2 passes arguments by a uniform stack-frame rule, it makes
+> no claim on the register file, so R-ABI-3 (a return register) and R-ABI-4 (a
+> register preserved across calls) are satisfied together without contention; the
+> ISA spec records the register assignment.
 
 ## Execution & OS support (CPU)
 

@@ -79,6 +79,10 @@
 | D-46 | Structural-only DUT enforced by a `yosys` gate: every `hdl/` module outside the cell library is real-chip instances + interconnect only; placeholders quarantined, not exempted | Decided |
 | D-47 | Timed simulation always-on: Icarus always `-gspecify` (timed), Verilator the zero-delay functional engine; every cell carries timing; enforced by `timing_lint` | Decided |
 | D-48 | Instruction set ratified: opcode bytes assigned (single-source `isa/opcodes.toml` + generator/lint); `JSR X` promoted to page 0; atomic `TAS` ratified; `PC` move-source rule | Decided |
+| D-49 | Micro-address narrowed 13→12 bit (4096-word store) for 3-slice regularity | Decided |
+| D-50 | Rename the microcode opcode→start-address map to the "opcode LUT" | Decided |
+| D-51 | Calling convention: all arguments stack-passed (amends D-19) | Decided |
+| D-52 | Return values: 32-bit in `D:Y`, no by-value aggregate return (amends D-19) | Decided |
 
 ---
 
@@ -319,7 +323,7 @@ and it is not needed for isolation.
 ## D-19 — Calling convention: register args, `Y` callee-saved
 **Status:** Decided (2026-06-17)
 **Supersedes:** —
-**Superseded by:** —
+**Superseded by:** D-51 *(partial — argument passing: leading scalar args in `B`/`X` → all arguments stack-passed)*; D-52 *(partial — return values: 32-bit hidden-pointer → `D:Y`; struct/union by-value return dropped)*
 **Context:** Fix the one stable ABI (R-ABI-1) and resolve the R-ABI-2 ↔ R-ABI-4
 tension over a finite register file.
 **Decision:** Reentrant, stack-based locals (`n,SP`, no frame pointer). Leading
@@ -1651,6 +1655,82 @@ and the opcode-LUT references across `hdl/`, `sim/`, `tools/uasm/`,
 [control_word.toml](../microcode/control_word.toml), and the current spec docs
 ([microcode.md](microcode.md), [hardware.md](hardware.md), [toolchain.md](toolchain.md),
 [microcode-source.md](microcode-source.md), [plans/](plans/)).
+
+## D-51 — Calling convention: all arguments stack-passed (amends D-19)
+**Status:** Decided (2026-06-24)
+**Supersedes:** D-19 *(partial — argument passing only; D-19's returns, caller/callee-saved split, and reentrant stack locals stand)*
+**Superseded by:** —
+**Context:** D-19 fixed the one stable ABI (R-ABI-1) and chose to pass the leading
+scalar arguments in registers (`B`/`X`), the rest on the stack. Bring-up of the C
+toolchain showed that rule earns its keep only with a per-argument register/stack
+split that the compiler and every interoperating hand-written routine must each
+reproduce exactly — a standing source of drift against R-ABI-1's "one convention
+both follow", and against the uniformity R-ABI-2 was restated to require.
+Reconsider argument passing.
+**Decision:** Pass **all** arguments on the stack, pushed **right-to-left**, the
+**caller** cleaning up — one rule regardless of arity, argument type (including
+`struct`/`union`), or variadic-ness; a callee reaches every argument by the same
+`(SP+n)` displacement it uses for locals. **Unchanged from D-19:** reentrant
+stack-based locals, no frame pointer; returns — 8-bit `B`, 16-bit `X`,
+32-bit/aggregate via a hidden pointer (R-ABI-3); `Y` callee-saved, `A`/`B`/`D`/`X`/
+`CC` caller-saved (R-ABI-4). Full spec in [isa.md](isa.md) §7.
+**Why:** One uniform passing rule removes the register/stack boundary as a special
+case, so the C toolchain and hand-written assembly reproduce a single rule with no
+leading-argument bookkeeping (R-ABI-1, R-ABI-2). BLIP's 16-bit `(SP+n)` frame
+displacement (R-ISA-2) makes a stacked argument a single-instruction access, so the
+rule stays inexpensive for the small and leaf calls that motivated register passing
+— without the prologue spill register passing needs to make an incoming argument
+addressable. Passing nothing in registers leaves the file free, so the return
+registers (R-ABI-3) and the one preserved register `Y` (R-ABI-4) are satisfied
+together with no contention — the R-ABI-2 ↔ R-ABI-4 balance D-19 had to strike no
+longer arises. Variadic calls need no fixed/variadic boundary: every argument is
+found the same way.
+**Alternatives/notes:** Keep D-19's register passing and finish it in the backend —
+rejected at this stage: it buys cheaper small/leaf calls only by reintroducing the
+split rule and the prologue spill, against R-ABI-2's restated uniformity. Not closed
+off — a later decision may reintroduce leading-register arguments as an ABI revision
+if profiling shows the stack traffic matters. Cost of the chosen path: more stack
+writes per call on hot paths than a register ABI would incur.
+**Influences:** The adopted Fuzix Compiler Kit toolchain
+([plans/fck-toolchain.md](plans/fck-toolchain.md)) passes all arguments on the stack
+as its canonical convention; matching it removes a retarget cost. *(Non-normative —
+recorded per AGENTS.md; the decision stands on the requirement-grounded rationale
+above.)*
+
+## D-52 — Return values: 32-bit in `D:Y`, no by-value aggregate return (amends D-19)
+**Status:** Decided (2026-06-24)
+**Supersedes:** D-19 *(partial — return of 32-bit and aggregate values only; D-19's 8-/16-bit returns in `B`/`X`, the caller/callee-saved split, and reentrant stack locals stand — D-51 already replaced its argument passing)*
+**Superseded by:** —
+**Context:** D-19 returned 32-bit and aggregate results through a hidden result
+pointer in `X`. Bring-up showed a 32-bit value is already computed in the `D:Y`
+working pair (§8.5/§8.8) and left there at function exit, and that by-value
+aggregate pass/return is not part of the C the toolchain accepts (the front end
+rejects it outright). Reconsider the wide-return path.
+**Decision:** Return a 32-bit `long`/`float` in the **`D:Y`** pair — low word `D`,
+high word `Y`, the registers where it is computed; no hidden result pointer.
+**`struct`/`union` are not returned by value** — an aggregate result is delivered
+through a pointer the caller passes as an ordinary argument. 8-bit (`B`) and 16-bit
+(`X`) returns are unchanged from D-19 (R-ABI-3). Full spec in [isa.md](isa.md) §7.
+**Why:** A 32-bit result lives in `D:Y` throughout evaluation (§8.5), so returning
+it there delivers it with no store-through-pointer round trip and keeps R-ABI-3's
+register-return principle (a value usable without a memory bounce) rather than
+forcing a memory return. Dropping by-value aggregate return matches the C the
+toolchain accepts and removes a return mechanism nothing emits; aggregates are
+returned the idiomatic C way, through a caller-supplied pointer that is just an
+ordinary stack argument (R-ABI-2).
+**Validation:** A `long`-returning function read back through `D:Y` by its caller,
+including carry into the high word, runs green under the emulator
+([tools/fcc/test/lib_long.c](../tools/fcc/test/lib_long.c)).
+**Alternatives/notes:** Keep D-19's hidden-pointer 32-bit return — rejected: it
+stores a register-resident value to memory and threads a pointer for it, against
+R-ABI-3, and the backend would have to build machinery for it. A later decision
+could add by-value aggregate return (a caller-allocated result area) if a use case
+needs it; it is omitted now, not forbidden in principle.
+**Influences:** The adopted Fuzix Compiler Kit toolchain returns 32-bit values in
+its working register set (its 6809 target in the `D:Y` pair; its 8080/z80 targets
+with the high word in a fixed memory cell) and does not support by-value aggregate
+return. *(Non-normative — recorded per AGENTS.md; the decision stands on the
+requirement-grounded rationale above.)*
 
 ---
 

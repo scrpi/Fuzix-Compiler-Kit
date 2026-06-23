@@ -355,23 +355,24 @@ D-18).
 per-call stack; locals are reached by `(SP+n)` displacement, with no frame-pointer
 register (R-ISA-1, R-ISA-2, R-ISA-8).
 
-**Argument passing.** Leading scalar arguments go in registers; the rest are
-pushed on the stack **right-to-left** (R-ABI-2; right-to-left so a variadic callee
-finds its fixed arguments at known low offsets):
-- first 8-bit argument → `B`;
-- first 16-bit argument → `X`;
-- a second scalar fills the still-free class (`A` for a byte, or `B` if the first
-  was 16-bit). There is **no** second 16-bit register slot — `Y` is reserved (see
-  save discipline) — so a second 16-bit argument goes on the stack;
-- `struct`/`union` arguments, and **all** arguments of a variadic function, go on
-  the stack.
+**Argument passing.** **All** arguments are pushed on the stack, **right-to-left**,
+under one rule that does not vary with the function's arity, its argument types, or
+whether it is variadic (R-ABI-1, R-ABI-2). Right-to-left places the first declared
+argument at the lowest argument offset, so a callee — variadic or not — reaches
+argument *n* at a fixed `(SP+n)` displacement, the same frame addressing it uses for
+locals (R-ISA-2). `struct`/`union` arguments are passed the same way, by value on
+the stack. No argument is passed in a register, so a callee begins with the whole
+register file free for evaluation, subject to the save discipline below.
 
 **Return values.**
 - 8-bit → `B`; 16-bit → `X` (an address-capable register, so a returned pointer is
   usable immediately — R-ABI-3);
-- 32-bit, `struct`, and `union` → **hidden pointer**: the caller allocates the
-  result space and passes its address as an implicit first argument in `X`; the
-  callee writes the result there.
+- 32-bit (`long`/`float`) → the `D:Y` working pair: low word in `D`, high word in
+  `Y` — returned in the same register pair where 32-bit values are computed (§8.5),
+  so no store through a result pointer is needed (R-ABI-3);
+- `struct`/`union` are **not returned by value**: an aggregate result is delivered
+  through a pointer the caller passes explicitly as an ordinary argument (so it
+  follows the stack argument rule above), not as a register or stack return value.
 
 **Register save discipline.**
 - **Callee-saved (preserved across a call): `Y`.** A function that uses `Y` saves
@@ -383,13 +384,16 @@ finds its fixed arguments at known low offsets):
 **Stack cleanup.** The **caller** removes arguments after the call (keeps variadic
 calls simple and the convention uniform).
 
-**Why the boundary registers.** `D = A:B`, so an 8-bit value in `B` (the low half)
-widens to 16-bit by just setting `A` — cheap C integer promotion (R-ISA-7). 16-bit
-values are usually pointers, so passing/returning them in `X` lets them be
-dereferenced or indexed with no move (R-ABI-3, R-ISA-5). Reserving `Y` rather than
-spending it as a second argument register is what lets the convention satisfy
-R-ABI-2 *and* R-ABI-4 together; BLIP can afford it because the 16-bit `SP`
-displacement removes any need for `Y` as a frame pointer (R-ISA-2).
+**Why these registers.** A stacked argument is reached by the same 16-bit `(SP+n)`
+frame displacement as a local (R-ISA-2), so one uniform stack rule is a
+single-instruction access for the small and leaf calls that matter (R-ABI-2),
+without the prologue spill a register-passed argument would need before it is
+addressable. `D = A:B`, so an 8-bit return in `B` (the low half) widens to 16-bit by
+just setting `A` — cheap C integer promotion (R-ISA-7). 16-bit return values are
+usually pointers, so returning them in `X` lets them be dereferenced or indexed with
+no move (R-ABI-3, R-ISA-5). Because no argument occupies a register, the file is free
+to give returns their registers (R-ABI-3) and still keep `Y` preserved across calls
+(R-ABI-4) without contention.
 
 ---
 

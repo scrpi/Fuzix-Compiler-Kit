@@ -6,10 +6,14 @@ is the ISA-level toolchain (programs that run *on* BLIP); it is unrelated to the
 microcode assembler in `tools/uasm/`.
 
 > Status: the **assembler** is fully retargeted and assembles the entire
-> `isa/opcodes.toml` instruction set correctly. The **C compiler** is at a
-> bring-up milestone: `cc1.blip`/`cc2.blip` compile real C to BLIP assembly that
-> the assembler accepts end to end; native arithmetic, the §7 register-argument
-> ABI, and a support/runtime library are the next steps (see "C compiler
+> `isa/opcodes.toml` instruction set correctly. The **C compiler** compiles real
+> C — native arithmetic/loads/stores, compound assignment, 32-bit `long`, a
+> `switch` helper, plus a support/runtime library (`libblip.a` + `crt0`) —
+> through `cc1.blip`/`cc2.blip`/`asblip`/`ldblip` into images that **link and
+> run** under the `emublip` emulator (the `ctests`/`lib_*` suites pass end to
+> end). The backend is §7-conformant across the ABI: all arguments on the stack
+> (D-51), and returns in `B` (8-bit) / `X` (16-bit) / the `D:Y` pair (32-bit, D-52),
+> with no by-value aggregate return — no outstanding §7 gap (see "C compiler
 > status"). Tracked by the plan in `docs/plans/fck-toolchain.md` (non-normative).
 
 ## Layout
@@ -106,10 +110,13 @@ object format are inherited from upstream unchanged.
   variables are disabled for now.
 - `backend-blip.c`: the cc2 code generator, derived from `backend-default.c`
   (BLIP is little-endian, the kit default). The working value lives in `D`
-  (16-bit/pointer) or `B` (8-bit). Native: segments, the `LEA SP` stack frame,
-  `RTS` with the §7 return register (`LD X,D` for value returns), `JMP`/`LBEQ`/
-  `LBNE` branches, little-endian data, and constant loads. Arithmetic, loads and
-  stores currently fall back to helper calls (`JSR __op`).
+  (16-bit/pointer) or `B` (8-bit), with 32-bit `long` in the `D:Y` pair. Native:
+  segments, the `LEA SP` stack frame, `RTS` with the §7 return register
+  (`LD X,D`), `JMP`/`LBEQ`/`LBNE` branches, little-endian data and constant
+  loads, the arithmetic/bitwise/compare/shift operators, loads and stores (fused
+  onto `(X+n)`/`(SP+n)`/auto-inc addressing), compound assignment, and 32-bit
+  `long`. Only `*`/`/`/`%`, variable-count shifts, long mul/div, and `switch`
+  fall back to library helpers (`JSR __op`).
 - `Makefile`: `cc1.blip` and `cc2.blip` rules.
 
 ### BLIP helper ABI (so conditional branches are correct)
@@ -135,25 +142,40 @@ Still to do: confirm the **branch-offset base** against the sim (R-SIM-4); a
 
 ## C compiler status
 
-Bring-up milestone (verified by adversarial review). `cc1.blip`/`cc2.blip`
-compile real C — functions, locals, `while`/`if`/`return`, constants, globals —
-to BLIP assembly that `asblip` assembles end to end. Argument offsets
-(`frame_len + ARGBASE`), the §7 16-bit-return-in-`X`, little-endian data, the
-`(SP+n)` frame, and `sp` accounting are all correct.
+`cc1.blip`/`cc2.blip` compile real C — functions, locals, `while`/`if`/`for`/
+`switch`/`return`, constants, globals, pointers and arrays — to BLIP assembly
+that `asblip` assembles, `ldblip` links against `libblip.a`, and `emublip` runs.
+The `ctests/*.c` (native) and `lib_*.c` (library) suites pass end to end (run
+`test/run-ctests.sh` and `test/run-libtest.sh`); each program asserts its own
+results and exits 0. Argument offsets (`frame_len + ARGBASE`), the §7
+16-bit-return-in-`X`, little-endian data, the `(SP+n)` frame, and `sp`
+accounting are all correct.
 
-Still to do (in rough order):
+Done since the bring-up milestone:
 
-- **A BLIP support/runtime library** (`__plus`, `__deref`, `__bool`, `__cc*`,
-  mul/div, long/float, `crt0`, …) honoring the helper ABI above. Until it
-  exists, compiler output assembles but does not link.
-- **Native arithmetic / loads / stores** in `gen_node`/`gen_rewrite_node` to
-  replace the helper calls (the `T_NREF`/`T_LREF`/… fusions the 6809 backend
-  uses), exploiting `(X+n)`/`(SP+n)`/auto-inc addressing.
-- **The §7 register-argument ABI**: leading scalar args in `B`/`X`. The backend
-  currently passes *all* args on the stack — self-consistent for compiler-built
-  code, but not yet the documented ABI for interop with hand-written assembly.
-- Register variables (hand `Y` out in `target-blip.c`), and 32-bit
-  (`long`/`float`) returns via the §7 hidden pointer.
+- **Native arithmetic / loads / stores** in `gen_node`/`gen_direct` — the
+  arithmetic, bitwise, comparison and shift operators, loads and stores fused
+  onto `(X+n)`/`(SP+n)`/auto-inc addressing, replacing the old helper calls.
+- **Compound assignment** (`+=` … `>>=`) and complex `++`/`--` lowered natively.
+- **32-bit `long`** in the `D:Y` pair — arithmetic with carry/borrow across the
+  word boundary, signed/unsigned compare, casts, shifts, and `*`/`/`/`%` via the
+  `__mull`/`__divl`/`__divul` helpers.
+- **A support/runtime library** (`libblip.a` + `crt0`): the `__mul`/`__div`/
+  `__rem`/shift/`switch` helpers honoring the helper ABI above. Compiler output
+  now links **and runs**.
+- **§7 argument passing**: all arguments on the stack, right-to-left, caller
+  cleans up — this **is** the §7 convention as of **D-51** (the spec was aligned
+  to the toolchain's uniform stack passing, superseding D-19's register-argument
+  rule, rather than teaching the front end to pass leading args in `B`/`X`).
+- **§7 return values**: 8-bit in `B`, 16-bit in `X`, 32-bit in the `D:Y` pair
+  (**D-52** aligned the spec to the `D:Y` working pair, dropping D-19's
+  hidden-pointer return; by-value `struct`/`union` return is unsupported, which the
+  front end already enforces). The `long`-return round trip is covered by
+  `lib_long.c`. No §7 ABI gap remains.
+
+Still to do (non-ABI):
+- Register variables (hand `Y` out in `target-blip.c`).
+- Confirm the **branch-offset base** against the sim (R-SIM-4).
 
 ## License / provenance
 
