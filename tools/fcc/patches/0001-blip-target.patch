@@ -133,10 +133,10 @@ index d6e0746..c66cb64 100644
  typedef	uint16_t	VALUE;		/* For symbol values */
 diff --git a/as1-blip.c b/as1-blip.c
 new file mode 100644
-index 0000000..a4bb3be
+index 0000000..0f5fadb
 --- /dev/null
 +++ b/as1-blip.c
-@@ -0,0 +1,493 @@
+@@ -0,0 +1,502 @@
 +/*
 + * BLIP assembler.
 + * Assemble one line of input.
@@ -345,6 +345,13 @@ index 0000000..a4bb3be
 +}
 +
 +/* PC-relative branch operand (mirrors the shared relative-reloc convention). */
++/*
++ * PC-relative branch operand. The two relocation helpers differ for in-segment
++ * targets: outrabrel writes the offset *directly* (so we compute it ourselves),
++ * while outrel (via outrawrel) subtracts the location itself (so we only bias
++ * to the end of the operand). Both yield an offset relative to the next
++ * instruction.
++ */
 +static void emit_rel(ADDR *ap, int size)
 +{
 +	if (ap->a_segment == ABSOLUTE) {
@@ -354,12 +361,14 @@ index 0000000..a4bb3be
 +			outraw(ap);
 +		return;
 +	}
-+	ap->a_value -= dot[segment];
-+	ap->a_value -= size;
-+	if (size == 1)
++	if (size == 1) {
++		ap->a_value -= dot[segment];	/* dot is past the opcode byte */
++		ap->a_value -= 1;		/* ... bias past the offset byte */
 +		outrabrel(ap);
-+	else
++	} else {
++		ap->a_value -= 2;		/* outrel subtracts the location */
 +		outrawrel(ap);
++	}
 +}
 +
 +static void emit(int ent, struct opnd *o, int regsel)
