@@ -16,6 +16,13 @@ unsigned target_ptr = UINT;
 
 unsigned target_alignof(unsigned t, unsigned storage)
 {
+	/* BLIP has no memory alignment requirement, but arguments are stacked as
+	   words (the backend pushes a byte arg as a 16-bit PSHS), so align args
+	   to 2 — same convention as the 8080/z80 targets. This keeps callee
+	   parameter offsets consistent with the word-sized pushes and cleanup
+	   (target_argsize also rounds a byte arg up to 2). */
+	if (storage == S_ARGUMENT)
+		return 2;
 	return 1;
 }
 
@@ -42,10 +49,15 @@ unsigned target_sizeof(unsigned t)
 	return s;
 }
 
-/* BLIP can pass byte arguments as bytes (it has byte stack access) */
+/* Byte arguments occupy a full word on the stack: the backend pushes them as
+   a 16-bit word (PSHS of D), so the caller's cleanup and the callee's parameter
+   offsets must account for 2 bytes (the callee reads only the low byte). */
 unsigned target_argsize(unsigned t)
 {
-	return target_sizeof(t);
+	unsigned s = target_sizeof(t);
+	if (s < 2)
+		return 2;
+	return s;
 }
 
 unsigned target_ptr_arith(unsigned t)
