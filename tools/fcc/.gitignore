@@ -1,2 +1,8 @@
 # Build outputs
 bin/
+
+# Emulator + test build artifacts
+test/emublip
+test/blip-emutab.h
+test/*.o
+test/*.bin
