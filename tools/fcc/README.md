@@ -16,29 +16,32 @@ microcode assembler in `tools/uasm/`.
 
 ```
 tools/fcc/
-  bintools/      submodule: Fuzix-Bintools (assembler/linker), pinned pristine
-  compiler-kit/  submodule: Fuzix-Compiler-Kit (cc0/cc1/cc2), pinned pristine
-  patches/
-    bintools/      the BLIP assembler port, applied onto bintools at build time
-    compiler-kit/  the BLIP compiler port, applied onto compiler-kit at build time
-  build.sh       apply patches + build the whole toolchain into bin/
+  bintools/      submodule: Fuzix-Bintools (assembler/linker), tracks the 'blip' branch
+  compiler-kit/  submodule: Fuzix-Compiler-Kit (cc0/cc1/cc2), tracks the 'blip' branch
+  build.sh       build the whole toolchain into bin/
   test/          assembler round-trip + full opcode test
   bin/           build output (gitignored): cc, cc0, cc1.blip, cc2.blip,
                  asblip, ldblip, nmblip, osizeblip, dumprelocsblip
 ```
 
-## Submodules + patches (why no forks)
+## Submodules (the `blip` branch)
 
-Both submodules are pinned to pristine upstream commits. The BLIP-specific
-changes live as patches under `patches/<submodule>/` and are applied into each
-submodule by `build.sh`. We deliberately **do not maintain forks carrying our
-changes**: pinning a commit + patching on top keeps the BLIP port reviewable in
-this repo, lets us rebase onto a newer upstream by re-pinning and refreshing the
-patch, and avoids extra repositories to publish to.
+Each submodule is one of our forks, and the BLIP port lives on a **`blip`
+branch** of that fork (`.gitmodules` sets `branch = blip`; the superproject pins
+a specific commit on it). The forks are:
 
-The pinned mirrors are `https://github.com/scrpi/Fuzix-Bintools.git` and
-`https://github.com/scrpi/Fuzix-Compiler-Kit.git` (public mirrors of the
-canonical Codeberg upstreams, which aren't reachable from the build environment).
+- `https://github.com/scrpi/Fuzix-Bintools.git`
+- `https://github.com/scrpi/Fuzix-Compiler-Kit.git`
+
+(public mirrors of the canonical Codeberg upstreams, which aren't reachable from
+the build environment). Keeping the changes on a branch — rather than as patches
+applied at build time — means the submodule checkout is the real source, builds
+standalone, and the port can be rebased onto upstream `main` and offered back as
+an ordinary PR. The clone URL is https (anonymous read); pushing the `blip`
+branch is a maintainer action over SSH.
+
+To advance the pinned commit after new work lands on a fork's `blip` branch:
+`git submodule update --remote tools/fcc/<sub>` then commit the superproject.
 
 ## Build
 
@@ -49,8 +52,9 @@ sh tools/fcc/test/roundtrip.sh        # assembler byte-level smoke test
 python3 tools/fcc/test/opcodes_test.py # every opcode vs isa/opcodes.toml
 ```
 
-`build.sh` applies `patches/<submodule>/*.patch` (if not already staged),
-regenerates `blip-optab.h` from `isa/opcodes.toml`, then builds both toolchains.
+`build.sh` regenerates `blip-optab.h` from `isa/opcodes.toml` (the one generated
+artifact — the assembler's opcode table, kept in lockstep with the ratified
+opcode map), then builds both toolchains. No patching step.
 
 Compiling a C file (the `cc` driver expects tools installed under `/opt/fcc`; to
 run the stages from `bin/` directly, note they `lseek`+`read` on **stdout**, so
@@ -63,7 +67,7 @@ cc2.blip sym 9000 0 0 1<>x.s <x.hash # generate BLIP asm
 asblip x.s                  # assemble -> x.o
 ```
 
-## What the assembler port adds (patches/bintools/0001-blip-target.patch)
+## What the assembler port adds (bintools `blip` branch)
 
 - `obj.h`: a BLIP architecture id (`OA_BLIP`).
 - `as.h`: a `TARGET_BLIP` config block — symbol-type codes, the §8.4 register
@@ -82,7 +86,7 @@ asblip x.s                  # assemble -> x.o
 never drift from the ratified opcode map. The linker, librarian and relocatable
 object format are inherited from upstream unchanged.
 
-## What the compiler port adds (patches/compiler-kit/0001-blip-compiler.patch)
+## What the compiler port adds (compiler-kit `blip` branch)
 
 - `cc.c`: a `blip` row in the driver's CPU table (set `blip`, cpudot `.blip`,
   cpucode `9000`, `has_reloc=0` since bintools has no `relocblip`).
