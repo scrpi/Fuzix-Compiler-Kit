@@ -16,7 +16,7 @@
 // (datasheet Table 12 / Figure 6 — 5555h/2AAAh unlock, byte-program, sector/chip
 // erase) are NOT modeled; WE#-driven command writes are ignored, so the device
 // presents as a pre-burned ROM. This EEPROM holds ONLY the control-store image
-// (WCS + opcode-map SRAMs); the firmware monitor/loader is a separate system ROM
+// (WCS + opcode-LUT SRAMs); the firmware monitor/loader is a separate system ROM
 // in the memory map (D-31).
 //
 // Part-agnostic by design (D-43): a larger pin-compatible SST39SF020A/040 grounds

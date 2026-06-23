@@ -1114,7 +1114,8 @@ is now fully superseded)*; D-39 *(partial — `µPC` depth 12→13 bit / 8192-wo
 sequencer-spare reallocation, `PB_RR_MUX` removed)*; D-40 *(partial — `DISPATCH_POSTBYTE`
 and `PB_RR_MUX` removed; opcode map extended to `{PAGE, IR}`)*
 **Superseded by:** D-48 *(partial — the 231/231 split becomes 232/230 with `JSR X` promoted to
-page 0; D-41's deferred opcode-byte assignment is performed in `isa/opcodes.toml`)*
+page 0; D-41's deferred opcode-byte assignment is performed in `isa/opcodes.toml`)*; D-49 *(partial
+— the `NEXT_ADDR` 12→13 widening / 8192-word store is reversed back to 12 bit / 4096 words)*
 **Context:** The indexed **postbyte** (isa.md §8.3) bought register×mode orthogonality across
 the indexed-capable opcodes at the cost of one extra byte per indexed instruction plus the
 `DISPATCH_POSTBYTE` mode-OR machinery and the `PB_RR_MUX` datapath field (D-24, retained
@@ -1583,6 +1584,73 @@ The dense, sequential assignment keeps the D-40 map and decode trivial.
 **Creates:** `isa/opcodes.toml`, `tools/isa/gen_opcodes.py`. **Touches:** [isa.md](isa.md)
 (§8 banner; §8.2 now generated; §8.4 PC move-source rule; §8.5 `PSHS`/`PULS` row; §8.6 free-slot
 counts; §6 `TAS`; §9), [d41-isa-refinement.md](reference/d41-isa-refinement.md) (page counts).
+
+---
+
+## D-49 — Micro-address narrowed 13→12 bit (4096-word store) for 3-slice regularity
+**Status:** Decided (2026-06-22)
+**Supersedes:** D-41 *(partial — reverses its `NEXT_ADDR` 12→13 widening / 8192-word store; the
+freed sequencer bit returns to spare as `SPARE_SEQ`)*
+**Superseded by:** —
+**Context:** D-41 widened `µPC`/`NEXT_ADDR` 12→13 bit specifically to address the **full** 8K×8
+WCS SRAM (D-41 context: "the 12-bit `µPC` addressed only half the part"). As the control unit is
+factored into real chips, every 13-bit micro-address element — the `µPC` counter, the
+next-address load mux, the `µSR` return register, and the opcode-map output — is built from 4-bit
+slices ('161 counters, '153/'157 mux nibbles, '574 register bytes). A 13-bit element needs a
+**fourth** slice carrying a single bit; a 12-bit element is **exactly three** identical 4-bit
+slices. The current microcode is a few words and the foreseeable ISA microprogram is far under
+4096 words, so the *depth* the 13th bit buys is unused while its *width* costs an extra chip in
+each element.
+**Decision:**
+- **`NEXT_ADDR` and `µPC` are 12 bit; the writable control store is 4096 words deep.** The 8K×8
+  WCS/map SRAMs run with their top address pin (`A12`) grounded (4 K used) — exactly the
+  "larger part with upper pins grounded" the toolchain already assumes (D-43).
+- The bit D-41 moved into `NEXT_ADDR[12]` **returns to the sequencer-section spare** (`SPARE_SEQ`,
+  1 bit); the control word stays **88-bit / 11 SRAMs / two 24+64 sections**. The opcode-map output
+  width tracks `µPC` (now 12 bit; map-high segment is 4 bits, not 5).
+- The boot loader drops to a **16-bit counter (four '161s, was five)** and a 12-bit shared SRAM
+  address; the image is **13 × 4096 = 53,248 bytes**.
+**Why:** Each micro-address element becomes three identical 4-bit slices — uniform, with no
+odd one-bit-wide chip — which is the legible, component-level regularity G5/R-HW-4 reward, and it
+shortens each element's ripple/select chain (a small R-CLK-1 margin). The cost — half the SRAM
+depth — is unused at the current and foreseeable microprogram size (R-CTRL-1). **Reversible:**
+if a microprogram ever needs >4096 words, reclaim `NEXT_ADDR[12]` from `SPARE_SEQ` and re-add the
+fourth slice per element — an encoding-compatible widening, the inverse of this entry.
+**Influences:** none external.
+**Creates:** — **Touches:** [control_word.toml](../microcode/control_word.toml) (`NEXT_ADDR`
+13→12, `+SPARE_SEQ`), [microcode.md](microcode.md) (§2, §3.1/§3.3, §7), [hardware.md](hardware.md)
+(§4), `tools/uasm/uasm.py` (geometry), `hdl/boot/uc_loader.v` (four '161s), `hdl/cpu.v`,
+`sim/tb/cpu/tb_cpu.v`, `sim/tb/loader/tb_loader.v`.
+
+---
+
+## D-50 — Rename the microcode opcode→start-address map to the "opcode LUT"
+**Status:** Decided (2026-06-22)
+**Supersedes:** — (terminology only; the artifact and its behaviour are unchanged)
+**Superseded by:** —
+**Context:** Two distinct artifacts were both called the "opcode map": (1) the **ISA opcode
+map** ([isa/opcodes.toml](../isa/opcodes.toml), D-48) — which instruction byte means what; and
+(2) the **microcode opcode→start-address map** — the boot-loaded SRAM (D-40/D-41) that
+translates `{DISPATCH_PAGE, IR}` into a microroutine's start microaddress. The shared name was
+a recurring source of confusion as the control unit was factored into real blocks (the HDL
+module was `opcode_map`, sitting right next to the *MMU* "map" sets too).
+**Decision:** Rename the **microcode** artifact (2) to the **opcode LUT** (lookup table)
+everywhere current — the HDL module/file (`opcode_lut.v`), its signals (`lut_lo`/`lut_hi`/
+`lut_data`/`lut_out`), the assembler/test identifiers (`SEG_LUT_LO/HI`, `LUT_ENTRIES`, the
+`clut` array), `control_word.toml`, and the current spec prose. The **ISA opcode map** (1) keeps
+its name — it is an encoding table, not a hardware lookup table. The **MMU** "map" terms
+(map sets, the page table) are unrelated and unchanged. Historic decision-log entries
+(D-24/D-40/D-41/D-43/D-48/D-49) retain "opcode map" as the record of their time.
+**Why:** disambiguation and component-level legibility (G5) — one name per concept. The
+microcode artifact *is* a hardware lookup table, so "LUT" is the precise term and it frees
+"opcode map" to mean only the ISA encoding. No behavioural or structural change; the full
+suite stays green throughout.
+**Influences:** none external.
+**Creates:** — **Touches:** renames `hdl/opcode_map.v` → [opcode_lut.v](../hdl/opcode_lut.v)
+and the opcode-LUT references across `hdl/`, `sim/`, `tools/uasm/`,
+[control_word.toml](../microcode/control_word.toml), and the current spec docs
+([microcode.md](microcode.md), [hardware.md](hardware.md), [toolchain.md](toolchain.md),
+[microcode-source.md](microcode-source.md), [plans/](plans/)).
 
 ---
 

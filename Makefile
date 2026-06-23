@@ -8,10 +8,12 @@
 # Needs the WSL toolchain: iverilog, verilator, yosys, python3. `make help` lists targets.
 
 PYTHON := python3
-TOP    ?= cpu
+# TOP selects which module the viz targets render. Empty default: `viz` renders every
+# block, `digitaljs` renders uc_loader. Override per run, e.g. `make viz TOP=microsequencer`.
+TOP    ?=
 
 .NOTPARALLEL:
-.PHONY: test image check lint sim loader cpu bench viz clean help
+.PHONY: test image check lint sim cpu bench viz logisim digitaljs clean help
 
 ## test:   run the whole suite (image, field-def check, both lints, timed test-benches)
 test: image check lint sim
@@ -31,27 +33,35 @@ lint:
 	$(PYTHON) tools/lint/timing_lint.py
 
 ## sim:    the timed, self-checking test-benches
-sim: loader cpu bench
+sim: cpu bench
 
-## loader: boot-loader test-bench (EEPROM -> 13 control-store SRAMs)
-loader: image
-	bash sim/tb/loader/run.sh
-
-## cpu:    cpu top-level scaffold (boot -> run handoff; micro-PC reads the store)
-cpu: image
+## cpu:    boot copy (real loader + EEPROM -> WCS) then the microsequencer walk
+##         (INC/JUMP/BRANCH/DISPATCH/WAIT) — the loader is proven on this standard path
+cpu:
 	bash sim/tb/cpu/run.sh
 
 ## bench:  two-engine throughput benchmark (Verilator vs timed Icarus)
 bench:
 	bash sim/bench/run.sh
 
-## viz:    generate a schematic SVG of the HDL (Yosys -> netlistsvg); TOP=cpu
+## viz:    schematic SVG of every HDL block — Yosys -> netlistsvg (one via TOP=<module>)
 viz:
 	bash tools/viz/render.sh $(TOP)
 
+## logisim: runnable Logisim Evolution 4.1.0 .circ of a block — Yosys -> tools/viz/logisim.py
+##          (TTL chips + named-tunnel connectivity; default TOP=control_word_decoder)
+logisim:
+	bash tools/viz/logisim.sh $(TOP)
+
+## digitaljs: interactive DigitalJS sim from the HDL — Yosys -> yosys2digitaljs
+##            (default TOP=uc_loader; the whole cpu has a tri-state control-store
+##            bus DigitalJS can't model — use `make viz` for the cpu schematic)
+digitaljs:
+	bash tools/viz/digitaljs.sh $(TOP)
+
 ## clean:  remove generated artifacts
 clean:
-	rm -rf microcode/build
+	rm -rf microcode/build tools/viz/build logisim/build
 
 ## help:   list these targets
 help:

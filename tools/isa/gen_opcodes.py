@@ -4,7 +4,7 @@
 Single source of truth: isa/opcodes.toml. Every other opcode artifact derives
 from it (R-BUILD-3 discipline, toolchain.md P1): the isa.md §8.2 inventory table,
 the future assembler mnemonic table (as6-blip), and the D-40 opcode→start-address
-map. Do not hand-edit those; edit isa/opcodes.toml and regenerate.
+LUT. Do not hand-edit those; edit isa/opcodes.toml and regenerate.
 
 Subcommands:
   check      validate bytes (unique / dense / in-range / length budget); exit 1 on error

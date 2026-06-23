@@ -2,9 +2,10 @@
 // SN74AHCT32 (TI). Four independent 2-input OR gates, Y = A | B. Datasheet:
 // docs/reference/datasheets/sn74ahct32.pdf.
 //
-// In cpu, these form the per-chip control-store /WE strobe: we_n[g] = cs_sel_n[g] | clk
-// (the decoder's active-low select ORed with the clock phase), so /WE pulses LOW only
-// for the selected chip while clk is LOW, latching the byte at the next edge.
+// Inside each control-store block (microcode_store, opcode_lut) these form the per-chip
+// /WE strobe: we_n[g] = cs_n[g] | clk (the loader's active-low select ORed with the clock
+// phase), so /WE pulses LOW only for the selected chip while clk is LOW, latching the byte
+// at the next edge. One more ORs the load terms into do_load in the microsequencer.
 //
 // Specify delay = SN74AHCT32, VCC 5 V, CL = 50 pF, MAX (datasheet §7.6): A/B -> Y 10 ns.
 // (D-47: every cell carries timing.)

@@ -3,8 +3,10 @@
 // With /G low: Y = A when SELECT=0, Y = B when SELECT=1. With /G high: all Y forced LOW
 // (not 3-state). Non-inverting. Datasheet: docs/reference/datasheets/sn74ahct157.pdf.
 //
-// Four of these form cpu's 13-bit control-store address mux: SELECT = loading picks the
-// loader's counter (boot) vs the micro-PC (run); /G tied low.
+// Three of these form each control-store block's 12-bit boot/run address mux (in
+// microcode_store and in opcode_lut): SELECT = loading picks the loader's counter (boot)
+// vs the run address (the micro-PC / {PAGE, IR}); /G tied low. One more merges the two
+// condition groups in the microsequencer.
 //
 // Read-path specify delays = SN74AHCT157, VCC 5 V, CL = 50 pF, MAX (datasheet p.4):
 // A/B -> Y 9.8 ns, SELECT -> Y 12 ns, /G -> Y 12 ns. (D-47: every cell carries timing.)

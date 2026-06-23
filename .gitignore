@@ -12,8 +12,12 @@ __pycache__/
 *.vvp
 obj_dir/
 
-# Generated visualization (rebuilt from hdl/ by tools/viz/render.sh — toolchain.md P3)
+# Generated visualization (rebuilt from hdl/ by tools/viz/ — toolchain.md P3)
 tools/viz/build/
+# Generated Logisim Evolution circuits (rebuilt from hdl/ by tools/viz/logisim.py)
+logisim/build/
+# Installed node deps for the viz tools (declared in tools/viz/package.json)
+tools/viz/node_modules/
 
 # Windows / WSL download metadata (alternate-data-stream sidecars)
 *:Zone.Identifier

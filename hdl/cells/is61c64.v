@@ -1,6 +1,6 @@
 // IS61C64AL — 8K x 8 high-speed asynchronous CMOS SRAM (ISSI). The microcode
 // control-store part (D-43 BOM): all 13 control-store chips (11 WCS + 2 opcode-
-// map) are this device. Datasheet: docs/reference/datasheets/61C64AL.pdf (Rev B2).
+// LUT) are this device. Datasheet: docs/reference/datasheets/61C64AL.pdf (Rev B2).
 //
 // Fully static — NO clock, no refresh. Interface is the real chip's pinout:
 //   A0-A12   13 address lines                          (param AW)

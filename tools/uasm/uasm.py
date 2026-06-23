@@ -14,16 +14,16 @@ Single-EEPROM boot model
 ------------------------
 All 13 control-store SRAMs are programmed from ONE EEPROM that the microcode loader
 fans out on power-on (refines D-03 / R-CTRL-3). The image is CHIP-MAJOR with
-uniform 8 KiB segments, so the loader is pure binary address-slicing:
+uniform 4 KiB segments, so the loader is pure binary address-slicing:
 
-    EEPROM addr = (segment << 13) | sram_addr
+    EEPROM addr = (segment << 12) | sram_addr
       segment 0..10  -> WCS SRAM 0..10   (88-bit word, byte k = bits[8k..8k+7])
-      segment 11     -> opcode map, low byte   (map[{PAGE,IR}] & 0xFF)
-      segment 12     -> opcode map, high 5 bits ((map >> 8) & 0x1F)
+      segment 11     -> opcode LUT, low byte   (lut[{PAGE,IR}] & 0xFF)
+      segment 12     -> opcode LUT, high 4 bits ((lut >> 8) & 0x0F)
 
-    counter[16:13] -> 4:16 decoder -> one SRAM /WE ;  counter[12:0] -> shared addr
+    counter[15:12] -> 4:16 decoder -> one SRAM /WE ;  counter[11:0] -> shared addr
 
-Total = 13 * 8192 = 106,496 bytes — the microcode image. It targets a 128 KB control-store
+Total = 13 * 4096 = 53,248 bytes — the microcode image. It targets a 128 KB control-store
 EEPROM (the design size); the assembler is deliberately unaware of the physical part, which
 is a hardware/BOM choice (hardware.md §7) — a larger in-stock part with its upper address
 pins grounded serves identically. Unused fill within the image is 0x00, the inert NOP
@@ -63,14 +63,16 @@ DEFAULT_SRC  = ROOT / "microcode" / "src" / "blip.uc"    # the microcode source
 OUTDIR       = ROOT / "microcode" / "build"              # the image lands here (gitignored)
 
 # --- single-EEPROM geometry -------------------------------------------------
-WCS_DEPTH   = 8192          # 2**13 microwords (NEXT_ADDR is 13 bits, D-41)
+WCS_DEPTH   = 4096          # 2**12 microwords (NEXT_ADDR is 12 bits — 13->12 to fit each
+                            #   12-bit micro-address element in three 4-bit chips)
 N_WCS       = 11            # 88-bit word over 11 byte-wide SRAMs
-MAP_ENTRIES = 512           # {DISPATCH_PAGE, IR} = 9 bits
-SEG_SIZE    = 8192          # uniform 8 KiB segment per SRAM (loader simplicity)
-N_SEG       = 13            # 11 WCS + 2 map
-SEG_MAP_LO  = 11
-SEG_MAP_HI  = 12
-IMG_BYTES   = N_SEG * SEG_SIZE   # 106,496 — the microcode image (13 segments); targets a
+LUT_ENTRIES = 512           # {DISPATCH_PAGE, IR} = 9 bits
+SEG_SIZE    = 4096          # uniform 4 KiB segment per SRAM (loader simplicity); the 8 K
+                            #   SRAM runs with its top address pin grounded (4 K used)
+N_SEG       = 13            # 11 WCS + 2 LUT
+SEG_LUT_LO  = 11
+SEG_LUT_HI  = 12
+IMG_BYTES   = N_SEG * SEG_SIZE   # 53,248 — the microcode image (13 segments); targets a
                                  # 128 KB control-store EEPROM. The physical part is a
                                  # hardware choice the assembler need not know (D-43).
 FILL        = 0x00          # unused bytes -> inert NOP word
@@ -385,9 +387,9 @@ def assemble(text: str, fields: Fields):
 
     validate_rules(words, fields)
 
-    # opcode -> start-address map. Byte values are unassigned (D-41), so each
+    # opcode -> start-address LUT. Byte values are unassigned (D-41), so each
     # binding gets a placeholder sequential index per page for now.
-    cmap = [0] * MAP_ENTRIES
+    clut = [0] * LUT_ENTRIES
     page_next = {0: 0, 1: 0}
     placeholders: list[tuple[int, int, str]] = []
     for page, mnem, lineno in opcodes:
@@ -395,10 +397,10 @@ def assemble(text: str, fields: Fields):
             raise AsmError(f"line {lineno}: .opcode {mnem!r} has no matching 'routine'")
         idx = page_next[page]
         page_next[page] += 1
-        cmap[(page << 8) | idx] = labels[mnem]
+        clut[(page << 8) | idx] = labels[mnem]
         placeholders.append((page, idx, mnem))
 
-    return words, labels, cmap, placeholders
+    return words, labels, clut, placeholders
 
 
 def field_value(mw: Microword, fname: str) -> int:
@@ -435,15 +437,15 @@ def pack(mw: Microword, fields: Fields) -> int:
 # ---------------------------------------------------------------------------
 # Emit the single image + sim slices
 # ---------------------------------------------------------------------------
-def build_image(words, cmap, fields: Fields) -> bytearray:
+def build_image(words, clut, fields: Fields) -> bytearray:
     img = bytearray([FILL]) * IMG_BYTES
     for mw in words:
         w = pack(mw, fields)
         for k in range(N_WCS):
             img[k * SEG_SIZE + mw.addr] = (w >> (8 * k)) & 0xFF
-    for i, entry in enumerate(cmap):
-        img[SEG_MAP_LO * SEG_SIZE + i] = entry & 0xFF
-        img[SEG_MAP_HI * SEG_SIZE + i] = (entry >> 8) & 0x1F
+    for i, entry in enumerate(clut):
+        img[SEG_LUT_LO * SEG_SIZE + i] = entry & 0xFF
+        img[SEG_LUT_HI * SEG_SIZE + i] = (entry >> 8) & 0x0F
     return img
 
 
@@ -467,19 +469,19 @@ def emit(img: bytearray, outdir: Path):
     # default sim path — these are byte-identical cuts of the image above.
     for k in range(N_WCS):
         hexfile(bypass / f"wcs{k:02d}.hex", img[k * SEG_SIZE:(k + 1) * SEG_SIZE])
-    hexfile(bypass / "map_lo.hex", img[SEG_MAP_LO * SEG_SIZE:SEG_MAP_LO * SEG_SIZE + MAP_ENTRIES])
-    hexfile(bypass / "map_hi.hex", img[SEG_MAP_HI * SEG_SIZE:SEG_MAP_HI * SEG_SIZE + MAP_ENTRIES])
+    hexfile(bypass / "lut_lo.hex", img[SEG_LUT_LO * SEG_SIZE:SEG_LUT_LO * SEG_SIZE + LUT_ENTRIES])
+    hexfile(bypass / "lut_hi.hex", img[SEG_LUT_HI * SEG_SIZE:SEG_LUT_HI * SEG_SIZE + LUT_ENTRIES])
 
     manifest = ["# segment -> chip -> EEPROM offset (chip-major, 8 KiB segments)"]
     for k in range(N_WCS):
         manifest.append(f"seg {k:2d}  WCS SRAM {k:2d}        offset 0x{k*SEG_SIZE:05x}")
-    manifest.append(f"seg {SEG_MAP_LO:2d}  opcode map low     offset 0x{SEG_MAP_LO*SEG_SIZE:05x}")
-    manifest.append(f"seg {SEG_MAP_HI:2d}  opcode map high5   offset 0x{SEG_MAP_HI*SEG_SIZE:05x}")
+    manifest.append(f"seg {SEG_LUT_LO:2d}  opcode LUT low     offset 0x{SEG_LUT_LO*SEG_SIZE:05x}")
+    manifest.append(f"seg {SEG_LUT_HI:2d}  opcode LUT high5   offset 0x{SEG_LUT_HI*SEG_SIZE:05x}")
     (outdir / "manifest.txt").write_text("\n".join(manifest) + "\n")
 
 
-def roundtrip(img: bytearray, words, cmap, fields: Fields):
-    """Re-read the emitted image and confirm every word/map entry survives."""
+def roundtrip(img: bytearray, words, clut, fields: Fields):
+    """Re-read the emitted image and confirm every word/LUT entry survives."""
     for mw in words:
         w = sum(img[k * SEG_SIZE + mw.addr] << (8 * k) for k in range(N_WCS))
         for fname, (code, _) in mw.fields.items():
@@ -488,11 +490,11 @@ def roundtrip(img: bytearray, words, cmap, fields: Fields):
             if got != (code & f["mask"]):
                 raise AsmError(f"round-trip FAIL @addr {mw.addr} {fname}: "
                                f"{got} != {code}")
-    for i, entry in enumerate(cmap):
-        lo = img[SEG_MAP_LO * SEG_SIZE + i]
-        hi = img[SEG_MAP_HI * SEG_SIZE + i]
+    for i, entry in enumerate(clut):
+        lo = img[SEG_LUT_LO * SEG_SIZE + i]
+        hi = img[SEG_LUT_HI * SEG_SIZE + i]
         if (hi << 8 | lo) != entry:
-            raise AsmError(f"round-trip FAIL @map {i}: {hi<<8|lo} != {entry}")
+            raise AsmError(f"round-trip FAIL @lut {i}: {hi<<8|lo} != {entry}")
 
 
 def main(argv: list[str]) -> int:
@@ -509,9 +511,9 @@ def main(argv: list[str]) -> int:
         fields = Fields(tomllib.load(f))
 
     try:
-        words, labels, cmap, placeholders = assemble(src.read_text(), fields)
-        img = build_image(words, cmap, fields)
-        roundtrip(img, words, cmap, fields)
+        words, labels, clut, placeholders = assemble(src.read_text(), fields)
+        img = build_image(words, clut, fields)
+        roundtrip(img, words, clut, fields)
     except AsmError as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
@@ -523,7 +525,7 @@ def main(argv: list[str]) -> int:
     print(f"assembled {src.name}: {len(words)} microwords, {len(placeholders)} opcode entries")
     print("  routines: " + ", ".join(f"{n}@{a}" for n, a in sorted(labels.items(), key=lambda x: x[1])))
     if placeholders:
-        print("  opcode map (placeholder indices — byte values unassigned, D-41):")
+        print("  opcode LUT (placeholder indices — byte values unassigned, D-41):")
         for page, idx, mnem in placeholders:
             print(f"    page{page} #{idx} -> {mnem} @{labels[mnem]}")
     print(f"  image:  {outdir/'blip_microcode.bin'} (+ .hex)  "
