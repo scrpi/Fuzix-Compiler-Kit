@@ -39,6 +39,15 @@ if [ -e "$ckit/Makefile" ]; then
 		cp "$ckit/$t" "$bindir/$t"
 	done
 	cp "$ckit/cpp" "$bindir/cpp"	# preprocessor (shell wrapper)
+
+	# Support/runtime library (mul/div/rem/switch helpers + crt0). Needs asblip
+	# (built above) and the system archiver; produces libblip.a + crt0.o.
+	if [ -e "$ckit/supportblip/build.sh" ]; then
+		echo "building support library (libblip.a)..."
+		( cd "$ckit/supportblip" && sh build.sh >/dev/null )
+		cp "$ckit/supportblip/libblip.a" "$bindir/libblip.a"
+		cp "$ckit/supportblip/crt0.o" "$bindir/crt0.o"
+	fi
 else
 	echo "compiler-kit submodule not checked out; skipping compiler" >&2
 fi

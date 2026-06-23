@@ -6,3 +6,6 @@ test/emublip
 test/blip-emutab.h
 test/*.o
 test/*.bin
+test/*.at
+test/*.hash
+test/*.i
