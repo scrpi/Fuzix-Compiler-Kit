@@ -61,6 +61,8 @@ static unsigned shift_const(struct node *n, const char *op16, const char *op8);
 static unsigned op_eq_node(struct node *n);
 static unsigned post_incdec_node(struct node *n);
 static unsigned shifteq_direct(struct node *n);
+static void emit_neg32(void);
+static void emit_add32_stack(void);
 
 /*
  *	Size handling
@@ -591,6 +593,62 @@ static const char *cmp_branch(unsigned op, unsigned type)
 	return NULL;
 }
 
+/* Build a 0/1 boolean from "is the 32-bit working value D:Y zero?" - used for
+   !long and the long->bool normalisation. zero_true picks which sense. */
+static void make_bool_long_zero(int zero_true)
+{
+	unsigned lnz = label++;
+	unsigned ldn = label++;
+	printf("\tCMP D,$0000\n");
+	printf("\tLBNE X%u\n", lnz);	/* low word nonzero -> value nonzero */
+	printf("\tCMP Y,$0000\n");
+	printf("\tLBNE X%u\n", lnz);	/* high word nonzero -> value nonzero */
+	printf("\tLD D,$%04X\n", zero_true ? 1 : 0);	/* D:Y == 0 */
+	printf("\tLBRA X%u\n", ldn);
+	printf("X%u:\n", lnz);
+	printf("\tLD D,$%04X\n", zero_true ? 0 : 1);
+	printf("X%u:\n", ldn);
+}
+
+/* Long (32-bit) comparison: (SP) holds the left operand (low at SP+0, high at
+   SP+2), D:Y holds the right (D=low, Y=high). We compare the HIGH words first
+   (signed/unsigned per the operand type); if they are equal we fall through to
+   an UNSIGNED compare of the low words (the low 16 bits are pure magnitude).
+   This yields a correct full-width result for ==,!=,<,>,<=,>= without the
+   multi-word borrow/Z bookkeeping. As in cmp_stack we compute right-left (CMP
+   D,(SP)), so the op is swapped. */
+static unsigned cmp_stack_long(struct node *n)
+{
+	unsigned type = n->right->type;
+	unsigned swop = n->op;
+	const char *bhi, *blo;
+	unsigned llow = label++, ldone = label++;
+
+	switch (n->op) {
+	case T_LT:	swop = T_GT;	break;
+	case T_GT:	swop = T_LT;	break;
+	case T_LTEQ:	swop = T_GTEQ;	break;
+	case T_GTEQ:	swop = T_LTEQ;	break;
+	}
+	bhi = cmp_branch(swop, type);			/* high word: per-type sign */
+	blo = cmp_branch(swop, type | UNSIGNED);	/* low word: always unsigned */
+	if (bhi == NULL || blo == NULL)
+		return 0;
+	printf("\tXCHG D,Y\n");			/* D=right high, Y=right low */
+	printf("\tCMP D,(SP+2)\n");		/* right_hi - left_hi */
+	printf("\tLBEQ X%u\n", llow);		/* high words equal -> test low */
+	make_bool_from_cc(bhi);			/* high words differ: decide here */
+	printf("\tLBRA X%u\n", ldone);
+	printf("X%u:\n", llow);
+	printf("\tXCHG D,Y\n");			/* D=right low, Y=right high */
+	printf("\tCMP D,(SP+0)\n");		/* right_lo - left_lo (unsigned) */
+	make_bool_from_cc(blo);
+	printf("X%u:\n", ldone);
+	printf("\tLEA SP,SP+4\n");
+	n->flags |= ISBOOL;
+	return 1;
+}
+
 /* Emit a CMP of D/B against the simple RHS, then build the boolean. The
    comparison size/sign come from the operand type (n->right->type). */
 static unsigned cmp_simple(struct node *n)
@@ -638,6 +696,8 @@ static unsigned cmp_stack(struct node *n)
 	case T_GTEQ:	swop = T_LTEQ;	break;
 	/* == and != are symmetric */
 	}
+	if (s == 4)
+		return cmp_stack_long(n);
 	bcc = cmp_branch(swop, r->type);
 	if (s > 2 || bcc == NULL)
 		return 0;
@@ -1043,6 +1103,37 @@ static unsigned shifteq_direct(struct node *n)
 }
 
 /*
+ *	32-bit (long) working value lives in D:Y - D = low word, Y = high word,
+ *	little-endian (isa.md S3). A pushed long (gen_push: PSHS $26) lands as the
+ *	low word at (SP+0) and the high word at (SP+2). These two helpers are the
+ *	multi-word primitives (isa.md S8.8): XCHG is a register move so it preserves
+ *	the carry between the low and high halves (S8.5).
+ */
+
+/* Negate the 32-bit working value in D:Y (two's complement). */
+static void emit_neg32(void)
+{
+	printf("\tCOM A\n\tCOM B\n");		/* ~low word (D) */
+	printf("\tXCHG D,Y\n");
+	printf("\tCOM A\n\tCOM B\n");		/* ~high word */
+	printf("\tXCHG D,Y\n");			/* D = ~low, Y = ~high */
+	printf("\tADD D,$0001\n");		/* + 1, carry out */
+	printf("\tXCHG D,Y\n");
+	printf("\tADC D,$0000\n");		/* propagate carry into high */
+	printf("\tXCHG D,Y\n");
+}
+
+/* D:Y += the 32-bit value on the stack at (SP+0..3), then pop it. */
+static void emit_add32_stack(void)
+{
+	printf("\tADD D,(SP+0)\n");		/* low word, sets carry */
+	printf("\tXCHG D,Y\n");
+	printf("\tADC D,(SP+2)\n");		/* high word with carry */
+	printf("\tXCHG D,Y\n");
+	printf("\tLEA SP,SP+4\n");
+}
+
+/*
  *	gen_node: emit a node whose operands are already in place. For binary
  *	ops that reach here the left operand is on the stack (the driver pushed
  *	it) and the right operand is in D/B; we operate against (SP) and pop.
@@ -1071,7 +1162,12 @@ unsigned gen_node(struct node *n)
 			printf("\tLD D,$%04X\n", (unsigned)(n->value & 0xFFFF));
 			return 1;
 		}
-		return 0;	/* 32-bit constants -> helper */
+		if (s == 4) {	/* long: D = low word, Y = high word */
+			printf("\tLD D,$%04X\n", (unsigned)(n->value & 0xFFFF));
+			printf("\tLD Y,$%04X\n", (unsigned)((n->value >> 16) & 0xFFFF));
+			return 1;
+		}
+		return 0;
 	case T_NREF:	/* Load a global value */
 		if (s == 1) {
 			printf("\tLD B,(%s+%u)\n", namestr(n->snum), v);
@@ -1079,6 +1175,11 @@ unsigned gen_node(struct node *n)
 		}
 		if (s == 2) {
 			printf("\tLD D,(%s+%u)\n", namestr(n->snum), v);
+			return 1;
+		}
+		if (s == 4) {
+			printf("\tLD D,(%s+%u)\n", namestr(n->snum), v);
+			printf("\tLD Y,(%s+%u)\n", namestr(n->snum), v + 2);
 			return 1;
 		}
 		return 0;
@@ -1089,6 +1190,11 @@ unsigned gen_node(struct node *n)
 		}
 		if (s == 2) {
 			printf("\tLD D,(SP+%u)\n", v + sp);
+			return 1;
+		}
+		if (s == 4) {
+			printf("\tLD D,(SP+%u)\n", v + sp);
+			printf("\tLD Y,(SP+%u)\n", v + sp + 2);
 			return 1;
 		}
 		return 0;
@@ -1113,6 +1219,11 @@ unsigned gen_node(struct node *n)
 			printf("\tST D,(%s+%u)\n", namestr(n->snum), v);
 			return 1;
 		}
+		if (s == 4) {
+			printf("\tST D,(%s+%u)\n", namestr(n->snum), v);
+			printf("\tST Y,(%s+%u)\n", namestr(n->snum), v + 2);
+			return 1;
+		}
 		return 0;
 	case T_LSTORE:	/* Store working value to a local/argument */
 		if (s == 1) {
@@ -1121,6 +1232,11 @@ unsigned gen_node(struct node *n)
 		}
 		if (s == 2) {
 			printf("\tST D,(SP+%u)\n", v + sp);
+			return 1;
+		}
+		if (s == 4) {
+			printf("\tST D,(SP+%u)\n", v + sp);
+			printf("\tST Y,(SP+%u)\n", v + sp + 2);
 			return 1;
 		}
 		return 0;
@@ -1137,17 +1253,26 @@ unsigned gen_node(struct node *n)
 			printf("\tLD D,(X)\n");
 			return 1;
 		}
+		if (s == 4) {
+			printf("\tLD D,(X)\n");
+			printf("\tLD Y,(X+2)\n");
+			return 1;
+		}
 		return 0;
-	case T_EQ:	/* *(left) = right ; left address on stack, value in D */
-		if (s > 2)
+	case T_EQ:	/* *(left) = right ; left address on stack, value in D[:Y] */
+		if (s != 1 && s != 2 && s != 4)
 			return 0;
-		/* Pop the address into X without disturbing D. */
+		/* Pop the address into X without disturbing D[:Y]. */
 		printf("\tLD X,(SP)\n");
 		printf("\tLEA SP,SP+2\n");
 		if (s == 1)
 			printf("\tST B,(X)\n");
-		else
+		else if (s == 2)
 			printf("\tST D,(X)\n");
+		else {	/* s == 4 */
+			printf("\tST D,(X)\n");
+			printf("\tST Y,(X+2)\n");
+		}
 		return 1;
 
 	/* ---- compound assignment (lval OP= rhs) ---------------------- */
@@ -1194,6 +1319,10 @@ unsigned gen_node(struct node *n)
 			printf("\tLEA SP,SP+2\n");
 			return 1;
 		}
+		if (s == 4) {	/* D:Y += stacked left (isa.md S8.8) */
+			emit_add32_stack();
+			return 1;
+		}
 		return 0;
 	case T_MINUS:
 		/* D holds right, (SP) holds left; we need left - right. Negate
@@ -1210,6 +1339,11 @@ unsigned gen_node(struct node *n)
 			printf("\tLEA SP,SP+2\n");
 			return 1;
 		}
+		if (s == 4) {	/* left - right = (-right) + left */
+			emit_neg32();
+			emit_add32_stack();
+			return 1;
+		}
 		return 0;
 	case T_AND:
 	case T_OR:
@@ -1217,12 +1351,20 @@ unsigned gen_node(struct node *n)
 		const char *op = (n->op == T_AND) ? "AND" :
 				 (n->op == T_OR)  ? "OR"  : "EOR";
 		/* The stacked left operand is at (SP). Point X at it so we can
-		   use the (X)/(X+1) byte forms (AND/OR/EOR have no SP forms). */
+		   use the (X)/(X+n) byte forms (AND/OR/EOR have no SP forms). */
 		printf("\tLEA X,SP+0\n");
 		printf("\t%s B,(X)\n", op);
-		if (s == 2)
+		if (s >= 2)
 			printf("\t%s A,(X+1)\n", op);
-		printf("\tLEA SP,SP+2\n");
+		if (s == 4) {	/* high word: fold (X+2)/(X+3) into Y */
+			printf("\tXCHG D,Y\n");
+			printf("\t%s B,(X+2)\n", op);
+			printf("\t%s A,(X+3)\n", op);
+			printf("\tXCHG D,Y\n");
+			printf("\tLEA SP,SP+4\n");
+		} else {
+			printf("\tLEA SP,SP+2\n");
+		}
 		return 1;
 	}
 	case T_EQEQ:
@@ -1243,6 +1385,10 @@ unsigned gen_node(struct node *n)
 			printf("\tCOM A\n\tCOM B\n\tADD D,$0001\n");
 			return 1;
 		}
+		if (s == 4) {
+			emit_neg32();
+			return 1;
+		}
 		return 0;
 	case T_TILDE:
 		if (s == 1) {
@@ -1253,6 +1399,13 @@ unsigned gen_node(struct node *n)
 			printf("\tCOM A\n\tCOM B\n");
 			return 1;
 		}
+		if (s == 4) {	/* complement all four bytes */
+			printf("\tCOM A\n\tCOM B\n");
+			printf("\tXCHG D,Y\n");
+			printf("\tCOM A\n\tCOM B\n");
+			printf("\tXCHG D,Y\n");
+			return 1;
+		}
 		return 0;
 	case T_BANG: {
 		/* Logical not: result 1 if value == 0 else 0. The TEST width is
@@ -1260,8 +1413,12 @@ unsigned gen_node(struct node *n)
 		   result size. */
 		unsigned os = n->right ? get_size(n->right->type) : 2;
 		n->flags |= ISBOOL;
+		if (os == 4) {		/* !long : 1 if the 32-bit value is zero */
+			make_bool_long_zero(1);
+			return 1;
+		}
 		if (os > 2)
-			return 0;	/* long: fall back to the __not helper */
+			return 0;
 		if (os == 1)
 			printf("\tCMP B,$00\n");
 		else
@@ -1276,6 +1433,10 @@ unsigned gen_node(struct node *n)
 		n->flags |= ISBOOL;
 		if (n->right && (n->right->flags & ISBOOL))
 			return 1;
+		if (os == 4) {		/* (long != 0) normalised to 0/1 */
+			make_bool_long_zero(0);
+			return 1;
+		}
 		if (os > 2)
 			return 0;
 		if (os == 1)
@@ -1309,6 +1470,28 @@ unsigned gen_node(struct node *n)
 				printf("\tLD A,$00\n");	/* zero-extend */
 			else
 				printf("\tSEX\n");	/* sign-extend B into A */
+			return 1;
+		}
+		/* Widening to long (D:Y). A char is first widened into D, then the
+		   16-bit value's sign/zero is extended into the high word Y. */
+		if (s == 4) {
+			if (rs == 1) {
+				if (rt & UNSIGNED)
+					printf("\tLD A,$00\n");
+				else
+					printf("\tSEX\n");
+			}
+			if (rt & UNSIGNED)
+				printf("\tLD Y,$0000\n");	/* zero-extend */
+			else {
+				/* Y = (D < 0) ? 0xFFFF : 0 */
+				unsigned lp = label++;
+				printf("\tLD Y,$0000\n");
+				printf("\tCMP D,$0000\n");
+				printf("\tBPL X%u\n", lp);
+				printf("\tLD Y,$FFFF\n");
+				printf("X%u:\n", lp);
+			}
 			return 1;
 		}
 		return 0;

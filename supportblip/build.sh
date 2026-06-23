@@ -17,7 +17,7 @@ ar=${AR:-ar}
 # resolves an already-undefined symbol, so a member that DEFINES a symbol must
 # come AFTER the members that reference it.  div16x16 (divide.o) is referenced
 # by __div.o/__divu.o, so divide.o is placed last.
-SRCS="__mul.s __divu.s __div.s __switch.s __switchc.s divide.s"
+SRCS="__mul.s __mull.s __divl.s __divul.s __divu.s __div.s __shll.s __shrl.s __shrul.s __switch.s __switchc.s divide.s"
 
 OBJS=""
 for s in $SRCS; do
