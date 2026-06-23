@@ -1,0 +1,1394 @@
+diff --git a/Makefile b/Makefile
+index 5458a1d..46fd514 100644
+--- a/Makefile
++++ b/Makefile
+@@ -137,6 +137,21 @@ osize6809: $(HDR) osize.c
+ dumprelocs6809: $(HDR) dumprelocs.c
+ 	$(CC) $(CFLAGS) -o dumprelocs6809 dumprelocs.c
+ 
++asblip: $(HDR) $(CORE) as1-blip.c as6-blip.c
++	$(CC) $(CFLAGS)  -DTARGET_BLIP -o asblip $(CORE) as1-blip.c as6-blip.c
++
++ldblip: $(HDR) ld.c
++	$(CC) $(CFLAGS) -o ldblip ld.c
++
++nmblip: $(HDR) nm.c
++	$(CC) $(CFLAGS) -o nmblip nm.c
++
++osizeblip: $(HDR) osize.c
++	$(CC) $(CFLAGS) -o osizeblip osize.c
++
++dumprelocsblip: $(HDR) dumprelocs.c
++	$(CC) $(CFLAGS) -o dumprelocsblip dumprelocs.c
++
+ as7000: $(HDR) $(CORE) as1-tms7000.c as6-tms7000.c
+ 	$(CC) $(CFLAGS)  -DTARGET_TMS7000 -o as7000 $(CORE) as1-tms7000.c as6-tms7000.c
+ 
+diff --git a/as.h b/as.h
+index d6e0746..daddd80 100644
+--- a/as.h
++++ b/as.h
+@@ -743,6 +743,127 @@ typedef	uint16_t	VALUE;		/* For symbol values */
+ #define NEED_REGISTER	34
+ #define NEED_CLSQUARE	35
+ 
++#elif TARGET_BLIP
++
++/*
++ * BLIP target. Cloned from the 6809 block as the starting point (BLIP's
++ * addressing modes are 6809-derived). This initial drop is a faithful 6809
++ * clone to validate the target wiring; the ISA retarget (little-endian byte
++ * order, BLIP opcode map, dropping the U stack / DP direct page) lands in
++ * follow-up patches.
++ */
++
++typedef	uint16_t	VALUE;		/* For symbol values */
++
++#define ARCH OA_BLIP
++#define ARCH_FLAGS OF_BIGENDIAN
++#define ARCH_CPUFLAGS 0
++
++#define TARGET_BIGENDIAN
++#define TARGET_USES_SQUARE
++
++#define	TMREG	0x000F			/* Register code */
++#define	TMMDF	0x0001			/* Multidef */
++#define	TMASG	0x0002			/* Defined by "=" */
++#define	TMMODE	0xFF00			/* Mode */
++#define TMADDR 	0x00F0			/* Addressing mode info */
++#define	TMINDIR	0x8000			/* Indirect flag in mode */
++#define TPUBLIC	0x0080			/* Exported symbol */
++
++#define	TNEW	0x0000			/* Virgin */
++#define	TUSER	0x0100			/* User name */
++#define	TBR	0x0200			/* Byte register */
++#define	TWR	0x0300			/* Word register */
++#define	TCC	0x0400			/* Condition code (not used but needed by core) */
++#define	TSR	0x0400			/* Special reg (not used but needed by core) */
++#define	TDEFB	0x0500			/* defb */
++#define	TDEFW	0x0600			/* defw */
++#define	TDEFS	0x0700			/* defs */
++#define	TDEFM	0x0800			/* defm */
++#define	TORG	0x0900			/* org */
++#define	TEQU	0x0A00			/* equ */
++#define	TCOND	0x0B00			/* conditional */
++#define	TENDC	0x0C00			/* end conditional */
++#define TSEGMENT 0x0D00			/* segments by number */
++#define TEXPORT 0x0E00			/* symbol export */
++
++/* CPU specific codes */
++
++#define THI	0x1100			/* all modes opcodes 0x80+ */
++#define THIW	0x1200			/* ditto word mode */
++#define THINOIMM 0x1300			/* ditto byte no immediate */
++#define THIWNOIMM 0x1400		/* ditto word no immediate */
++#define TIMM8	0x1500			/* 8bit immediate only */
++#define TEXG	0x1600			/* registers as 8bit immediate */
++#define TPUSH	0x1700			/* register mask as 8bit immediate */
++#define TIMP	0x1800			/* implied by instruction */
++#define TLO	0x1900			/* low instructions with some modes */
++#define TLEA	0x1A00			/* lea */
++#define TBRA	0x1B00			/* branch */
++#define TLBRA	0x1C00			/* long branch */
++#define TJSR	0x1D00			/* Ops in weird spots */
++
++#define TIMMED	0x0010
++#define TDIR	0x0020
++#define TEXT	0x0030
++#define TINDEX	0x0040			/* Postbyte forms all below */
++#define TPOST1	0x0050			/* except TEXT|TMINDIR */
++#define TPOST2	0x0060			/* Ordering is assumed in is_postbyte */
++#define TPRE1	0x0070
++#define TPRE2	0x0080
++#define TINDEXA	0x0090
++#define TINDEXB	0x00A0
++#define TINDEXD	0x00B0
++
++/*
++ * Registers.
++ */
++#define	A	0		/* re-arrange to match bit patterns */
++#define	B	1
++#define	DP	2
++#define	CC	3
++#define	D	4
++#define	U	5
++#define	X	6
++#define	Y	7
++#define	S	8
++#define PCR	9
++
++/*
++ *	Error message numbers: FIXME - sort general first
++ */
++
++#define BRACKET_EXPECTED 1
++#define MISSING_COMMA	2
++#define SQUARE_EXPECTED 3
++#define PERCENT_EXPECTED 4
++#define UNEXPECTED_CHR	10
++#define PHASE_ERROR	11
++#define MULTIPLE_DEFS	12
++#define SYNTAX_ERROR	13
++#define MUST_BE_ABSOLUTE	14
++#define MISSING_DELIMITER 15
++#define INVALID_CONST	16
++#define BRA_RANGE	17
++#define CONDCODE_ONLY	18
++#define TOOMANYJCC	19
++#define NEED_INDEX	20
++#define INVALID_FORM	21
++#define CONSTANT_ONLY	22
++#define DIVIDE_BY_ZERO	23
++#define CONSTANT_RANGE  24
++#define DATA_IN_BSS	 25
++#define SEGMENT_OVERFLOW 26
++#define DATA_IN_ZP	27
++#define REQUIRE_6309	28
++#define	SEGMENT_CLASH	29
++#define ADDR_REQUIRED	30
++#define INVALID_INDIR	31
++#define INVALID_ID	32
++#define NEED_PREPOST	33
++#define NEED_REGISTER	34
++#define NEED_CLSQUARE	35
++
+ #elif TARGET_6800
+ 
+ typedef	uint16_t	VALUE;		/* For symbol values */
+diff --git a/as1-blip.c b/as1-blip.c
+new file mode 100644
+index 0000000..9cd733d
+--- /dev/null
++++ b/as1-blip.c
+@@ -0,0 +1,941 @@
++/*
++ * 6809 assembler.
++ * Assemble one line of input.
++ * Knows all the dirt.
++ */
++#include	"as.h"
++
++/*
++ * CPU specific pass setup
++ */
++
++static int cputype;
++/* FIXME: we should malloc/realloc this on non 8bit machines */
++static uint8_t reltab[1024];
++static unsigned int nextrel;
++
++int passbegin(int pass)
++{
++	cputype = 6809;
++	segment = 1;		/* Default to code */
++	if (pass == 3)
++		nextrel = 0;
++	return 1;		/* All passes required */
++}
++
++void doflush(void)
++{
++}
++
++static void setnextrel(int flag)
++{
++	if (nextrel == 8 * sizeof(reltab))
++		aerr(TOOMANYJCC);
++	if (flag)
++		reltab[nextrel >> 3] |= (1 << (nextrel & 7));
++	nextrel++;
++}
++
++static unsigned int getnextrel(void)
++{
++	unsigned int n = reltab[nextrel >> 3] & (1 << (nextrel & 7));
++	nextrel++;
++	return n;
++}
++
++/* Handle the corner case of labels in direct page being used as relative
++   branches from the overlapping 'absolute' space */
++static int segment_incompatible(ADDR *ap)
++{
++	/* No idea for sizing externals */
++	if (ap->a_segment == UNKNOWN)
++		return 1;
++	if (ap->a_segment == segment)
++		return 0;
++	if (ap->a_segment == ZP && segment == 0 && ap->a_value < 256)
++		return 0;
++	return 1;
++}
++
++/*
++ * Deal with the syntactic mess 6809 assembler has
++ *
++ * In some cases (JSR JMP and definitions - eg .word)
++ * $ABCD means a constant everywhere else that is #ABCD
++ */
++
++static void constify(ADDR *ap)
++{
++	if ((ap->a_type & TMMODE) == (TUSER|TMINDIR))
++		ap->a_type = TUSER;
++}
++
++/*
++ *	Parse a register. We do this by hand due to the ++/-- formats etc
++ *	and also because we need it for excg/tfr/psh/pop
++ */
++
++unsigned parse_register(unsigned c)
++{
++	if (c == 'a')
++		return TBR|A;
++	if (c == 'b')
++		return TBR|B;
++	if (c == 'c') {
++		c = getnb();
++		if (c == 'c')
++			return TBR|CC;
++		qerr(NEED_REGISTER);
++		return 0;
++	}
++	if (c == 'd') {
++		c = getnb();
++		if (c == 'p')
++			return TBR|DP;
++		unget(c);
++		return TWR|D;
++	}
++	if (c == 's')
++		return TWR|S;
++	if (c == 'u')
++		return TWR|U;
++	if (c == 'x')
++		return TWR|X;
++	if (c == 'y')
++		return TWR|Y;
++	if (c != 'p') {
++		unget(c);
++		return 0;
++	}
++	c = getnb();
++	if (c != 'c') {
++		qerr(NEED_REGISTER);
++		return 0;
++	}
++	c = getnb();
++	if (c != 'r')
++		unget(c);
++	return TWR|PCR;
++}
++
++unsigned register_to_mask(unsigned r)
++{
++	switch(r) {
++	case TBR|A:
++		return 0x02;
++	case TBR|B:
++		return 0x04;
++	case TBR|CC:
++		return 0x01;
++	case TWR|D:
++		return 0x06;
++	case TBR|DP:
++		return 0x08;
++	case TWR|S:
++	case TWR|U:
++		return 0x40;
++	case TWR|X:
++		return 0x10;
++	case TWR|Y:
++		return 0x20;
++	case TWR|PCR:
++		return 0x80;
++	default:
++		qerr(INVALID_FORM);
++		return 0xFF;
++	}
++}
++
++unsigned register_to_nybble(unsigned r)
++{
++	switch(r) {
++	case TBR|A:
++		return 0x8;
++	case TBR|B:
++		return 0x9;
++	case TBR|CC:
++		return 0xA;
++	case TWR|D:
++		return 0x0;
++	case TBR|DP:
++		return 0xB;
++	case TWR|S:
++		return 0x4;
++	case TWR|U:
++		return 0x3;
++	case TWR|X:
++		return 0x1;
++	case TWR|Y:
++		return 0x2;
++	case TWR|PCR:
++		return 0x5;
++	default:
++		qerr(INVALID_FORM);
++		return 0xFF;
++	}
++}
++
++unsigned register_mask(unsigned exclude)
++{
++	unsigned mask = 0;
++	unsigned n;
++	unsigned c;
++	/* Parse a list of registers split by comma */
++	do {
++		c = getnb();
++		n = parse_register(c);
++		if (n == exclude)
++			qerr(INVALID_FORM);
++		mask |= register_to_mask(n);
++		c = getnb();
++	} while(c == ',');
++	unget(c);
++	return mask;
++}
++
++unsigned exchange_pair(void)
++{
++	unsigned s, d;
++	s = parse_register(getnb());
++	comma();
++	d = parse_register(getnb());
++	/* Can't swap mixed sizes */
++	if ((s & TMMODE) != (d & TMMODE))
++		qerr(INVALID_FORM);
++	return (register_to_nybble(s) << 4) | register_to_nybble(d);
++}
++	
++
++void index_required(ADDR *ap)
++{
++	if ((ap->a_type & TMMODE) != TWR ||
++		(ap->a_type & TMREG) == D) {
++		qerr(NEED_INDEX);
++	}
++}
++
++void prepost_required(ADDR *ap)
++{
++	if ((ap->a_type & TMMODE) != TWR ||
++		(ap->a_type & TMREG) == D ||
++		(ap->a_type & TMREG) == PCR) {
++		qerr(NEED_PREPOST);
++	}
++}
++
++/*
++ * Read in an address
++ * descriptor, and fill in
++ * the supplied "ADDR" structure
++ * with the mode and value.
++ * Exits directly to "qerr" if
++ * there is no address field or
++ * if the syntax is bad.
++ *
++ * The 6809 has a bunch of addressing modes we need to decode
++ *
++ * Immediate:  #constant
++ * Postbyte for EXG/TFR/PSH/PUL - handled separately
++ * Direct @foo   (usually >foo but that is ambiguous with our upper
++ *		  and lower forms)
++ * Indexed  {const},[XYUS]
++ * Accumulator offset: [ABD],[XYUS]
++ * Autoinc byte   ,[XYUS]+
++ * Autoinc word   ,[XYUS]++
++ * Autodec byte   ,[XYUS]+
++ * Autodec word   ,[XYUS]++
++ * Indirected forms of the above for all except immediate
++ * PC relative	{const},PC
++ */
++
++void getaddr_op(ADDR *ap, unsigned noreg)
++{
++	unsigned indirect = 0;
++	unsigned predec = 0;
++	unsigned postinc = 0;
++	unsigned hasleft = 0;	/* was a left side to indexed from */
++	unsigned dp = 0;
++	unsigned type;
++	unsigned c;
++
++	ap->a_type = 0;
++	ap->a_flags = 0;
++	ap->a_value = 0;
++	ap->a_sym = NULL;
++	ap->a_segment = ABSOLUTE;
++
++	c = getnb();
++
++	/* Immediate */
++	if (c == '#') {
++		c = getnb();
++		if (c == '<')
++			ap->a_flags |= A_LOW;
++		else if (c == '>')
++			ap->a_flags |= A_HIGH;
++		else
++			unget(c);
++		expr1(ap, LOPRI, 0);
++		istuser(ap);
++		ap->a_type |= TIMMED;
++		return;
++	}
++
++	/* Request for constants only (eg defb) */
++	if (noreg) {
++		if (c == '<')
++			ap->a_flags |= A_LOW;
++		else if (c == '>')
++			ap->a_flags |= A_HIGH;
++		else
++			unget(c);
++		expr1(ap, LOPRI, 0);
++		istuser(ap);
++		ap->a_type |= TEXT;
++		return;
++	}
++	if (c == '@') {
++		dp = 1;
++		c = getnb();
++	} else if (c == '[') {
++		indirect = 1;
++		c = getnb();
++	}
++	if (dp || c != ',') {
++		/* Get the expression */
++		if (c == '<')
++			ap->a_flags |= A_LOW;
++		else if (c == '>')
++			ap->a_flags |= A_HIGH;
++		else
++			unget(c);
++		expr1(ap, LOPRI, 0);
++		if (dp) {
++			ap->a_type |= TDIR;
++			return;
++		}
++		c = getnb();
++		/* [addr] */
++		if (c == ']' && indirect) {
++			/* off is in fact the result but indirected */
++			ap->a_type |= TEXT|TMINDIR; /* Set indirect addr bit */
++			return;
++		}
++		/* Not an indirection */
++		if (c != ',') {
++			ap->a_type |= TEXT;
++			unget(c);
++			return;
++		}
++		hasleft = 1;
++	}
++
++	type = TINDEX;
++
++	/* A, B, D, forms are awkward as we now have two registers. Fudge
++	   it to fit the standard formats */
++	if (ap->a_type == (TBR|A))
++		type = TINDEXA;
++	else if (ap->a_type == (TBR|B))
++		type = TINDEXB;
++	else if (ap->a_type == (TWR|D))
++		type = TINDEXD;
++	else if ((ap->a_type & TMMODE) == TBR ||
++		 (ap->a_type & TMMODE) == TWR) {
++			 aerr(INVALID_FORM);
++			 type = TINDEXD;
++			 /* Dummy type to avoid cascading errors */
++	}
++	if (type != TINDEX)
++		ap->a_type = 0;
++
++	/* We can't just throw the right hand side at the expression
++	   parser because it's full of + and - but not an expression so
++	   we do it by hand */
++	c = getnb();
++	if (c == '-' && !hasleft && type == TINDEX) {
++		predec = 1;
++		c = getnb();
++		if (c == '-') {
++			predec++;
++			c = getnb();
++		}
++	}
++	/* now a register name or PC */
++	ap->a_type = parse_register(c);
++
++	c = getnb();
++	if (c == '+' && !hasleft && !predec && type == TINDEX) {
++		postinc = 1;
++		c = getnb();
++		if (c == '+')  {
++			postinc = 2;
++			c = getnb();
++		}
++	}
++	if (indirect) {
++		if (c != ']')
++			qerr(NEED_CLSQUARE);
++	} else
++		unget(c);
++
++	if (postinc || predec) {
++		prepost_required(ap);
++		/* byte+ -byte indirect is not legal */
++		if (indirect && (postinc == 1 || predec == 1))
++			qerr(INVALID_FORM);
++	} else
++		index_required(ap);
++
++	/* A B and D, forms do not allow pre/post */
++	if (type == TINDEXA || type == TINDEXB || type == TINDEXD) {
++		if (predec || postinc)
++			qerr(INVALID_FORM);
++		ap->a_value = 0;
++	}
++
++	/* Now put together the address descriptor */
++	/* Set up the TMADDR bits */
++	if (indirect)
++		ap->a_type |= TMINDIR;
++	if (predec == 1)
++		ap->a_type |= TPRE1;
++	else if (predec == 2)
++		ap->a_type |= TPRE2;
++	else if (postinc == 1)
++		ap->a_type |= TPOST1;
++	else if (postinc == 2)
++		ap->a_type |= TPOST2;
++	else
++		ap->a_type |= type;
++}
++
++void getaddr_r(ADDR *ap)
++{
++	getaddr_op(ap, 0);
++}
++
++void getaddr(ADDR *ap)
++{
++	getaddr_op(ap, 1);
++}
++
++unsigned is_indexed(ADDR *ap)
++{
++	unsigned ta = ap->a_type & (TMADDR | TMINDIR);
++	if (ta != TINDEX && ta != TINDEXA && ta != TINDEXB && ta != TINDEXD)
++		return 0;
++	return 1;
++}
++
++unsigned is_postbyte(ADDR *ap)
++{
++	unsigned ta = ap->a_type & TMADDR;
++	if (ta >= TINDEX)
++		return 1;
++	if (ta != TEXT)
++		return 0;
++	/* [ext] is a postbyte form */
++	if (ap->a_type & TMINDIR)
++		return 1;
++	return 0;
++}
++
++/* Turn an internal register representation into an RR encoding */
++unsigned map_register(unsigned r)
++{
++	if (r == X)
++		return 0x00;
++	if (r == Y)
++		return 0x20;
++	if (r == U)
++		return 0x40;
++	if (r == S)
++		return 0x60;
++	/* Other forms are not an error we just won't be using RR */
++	return 0xFF;	/* So bugs show */
++}
++
++unsigned can_shorten(ADDR *ap)
++{
++	if (ap->a_segment == ABSOLUTE)
++		return 1;
++	return 0;
++}
++
++unsigned range_5bit(ADDR *ap)
++{
++	if ((int16_t)ap->a_value >= -16 && (int16_t)ap->a_value <= 15)
++		return 1;
++	return 0;
++}
++
++unsigned range_8bit(ADDR *ap)
++{
++	if ((int16_t)ap->a_value >= -128 && (int16_t)ap->a_value <= 127)
++		return 1;
++	return 0;
++}
++
++/* 6809 people expect the assembler to deal with both relative and
++   symbolic representations for pc relative. So it's valid to do
++   write 12,pcr  meaning pc + 12,  offset .equ 12 offset,pcr meaning
++   pc + 12 but also if fred is a symbol in the code etc that
++   fred,pcr means a reference to fred not fred + pc */
++void write_rel16(ADDR *ap)
++{
++	/* Absolute value - outraw will write it as is */
++	if (ap->a_segment == ABSOLUTE) {
++		outraw(ap);
++		return;
++	}
++	/* The PC relative applies versus the byte *after* the two we are about to reloc */
++	ap->a_value -= 2;
++	outrawrel(ap);
++}
++
++/* Write out the post byte and data */
++void write_data(ADDR *ap, unsigned size)
++{
++	unsigned t = ap->a_type & (TMADDR | TMINDIR);
++	unsigned r = map_register(ap->a_type & TMREG);
++
++	if (t == TIMMED) {
++		if (size == 1)
++			outrab(ap);
++		else
++			outraw(ap);
++		return;
++	}
++	if (t == TDIR) {
++		outrab(ap);
++		return;
++	}
++	if (t == TEXT) {
++		outraw(ap);
++		return;
++	}
++	/* PC relative indexing is a bit different to the others */
++	if (t == TINDEX && (ap->a_type & TMREG) == PCR) {
++		if (can_shorten(ap) && range_8bit(ap)) {
++			outab(0x8C);
++			outrab(ap);
++			return;
++		}
++		outab(0x8D);
++		write_rel16(ap);
++		return;
++	}
++	if (t == (TINDEX|TMINDIR) && (ap->a_type & TMREG) == PCR) {
++		if (can_shorten(ap) && range_8bit(ap)) {
++			outab(0x9C);
++			outrab(ap);
++			return;
++		}
++		outab(0x9D);
++		write_rel16(ap);
++		return;
++	}
++	if (t == TINDEX) {
++		if (can_shorten(ap)) {
++			if (ap->a_value == 0) {
++				outab(0x84 | r);
++				return;
++			}
++			/* Can have 5 or 8bit offset encoding */
++			if (range_5bit(ap)) {
++				outab(r + (ap->a_value & 0x1F));
++				return;
++			}
++			if (range_8bit(ap)) {
++				outab(0x88 | r);
++				outrab(ap);
++				return;
++			}
++		}
++		outab(0x89 | r);
++		outraw(ap);
++		return;
++	}
++	if (t == (TMINDIR|TINDEX)) {
++		if (can_shorten(ap)) {
++			if (ap->a_value == 0) {
++				outab(0x94 | r);
++				return;
++			}
++			if (range_8bit(ap)) {
++				outab(0x98 | r);
++				outrab(ap);
++				return;
++			}
++		}
++		outab(0x99 | r);
++		outraw(ap);
++		return;
++	}
++	/* Pre/post must match size */
++	if (t == TPOST1) {
++		if (size == 2)
++			qerr(INVALID_FORM);
++		outab(0x80 | r);
++		return;
++	}
++	if (t == TPOST2) {
++		if (size == 1)
++			qerr(INVALID_FORM);
++		outab(0x81 | r);
++		return;
++	}
++	if (t == TPRE1) {
++		if (size == 2)
++			qerr(INVALID_FORM);
++		outab(0x82 | r);
++		return;
++	}
++	if (t == TPRE2) {
++		if (size == 1)
++			qerr(INVALID_FORM);
++		outab(0x83 | r);
++		return;
++	}
++	/* Indirect pre/post always word and was checked in getaddr_r */
++	if (t == (TMINDIR|TPOST2)) {
++		outab(0x91 | r);
++		return;
++	}
++	if (t == (TMINDIR|TPRE2)) {
++		outab(0x93 | r);
++		return;
++	}
++	if (t == TINDEXA) {
++		outab(0x86 | r);
++		return;
++	}
++	if (t == TINDEXB) {
++		outab(0x85 | r);
++		return;
++	}
++	if (t == TINDEXD) {
++		outab(0x8B | r);
++		return;
++	}
++	if (t == (TMINDIR|TINDEXA)) {
++		outab(0x96 | r);
++		return;
++	}
++	if (t == (TMINDIR|TINDEXB)) {
++		outab(0x95 | r);
++		return;
++	}
++	if (t == (TMINDIR|TINDEXD)) {
++		outab(0x9B | r);
++		return;
++	}
++	if (t == (TMINDIR|TEXT)) {
++		outab(0x9F);
++		outraw(ap);
++		return;
++	}
++	fprintf(stderr, "Internal encode %x\n", t);
++}
++
++/* The 80-FF space is highly regular */
++void encode_high_op(unsigned opcode, unsigned size, unsigned has_imm)
++{
++	ADDR a1;
++	unsigned ta1;
++
++	getaddr_r(&a1);
++
++	ta1 = a1.a_type & TMADDR;
++	if (opcode >> 8)
++		outab(opcode >> 8);
++	if (ta1 == TIMMED && has_imm)
++		outab(opcode);
++	else if (ta1 == TDIR)
++		outab(opcode + 0x10);
++	else if (is_postbyte(&a1))
++		outab(opcode + 0x20);
++	else if (ta1 == TEXT)
++		outab(opcode + 0x30);
++	else
++		qerr(INVALID_FORM);
++	write_data(&a1, size);
++}
++
++/*
++ * Assemble one line.
++ * The line in in "ib", the "ip"
++ * scans along it. The code is written
++ * right out.
++ */
++void asmline(void)
++{
++	SYM *sp;
++	int c;
++	int opcode;
++	int disp;
++	VALUE value;
++	int delim;
++	SYM *sp1;
++	char id[NCPS];
++	char id1[NCPS];
++	ADDR a1;
++	unsigned ta1;
++
++loop:
++	if ((c=getnb())=='\n' || c==';')
++		return;
++	if (is_symstart(c) == 0 && c != '.')
++		qerr(UNEXPECTED_CHR);
++	getid(id, c);
++	if ((c=getnb()) == ':') {
++		sp = lookup(id, uhash, 1);
++		if (pass == 0) {
++			if ((sp->s_type&TMMODE) != TNEW
++			&&  (sp->s_type&TMASG) == 0)
++				sp->s_type |= TMMDF;
++			sp->s_type &= ~TMMODE;
++			sp->s_type |= TUSER;
++			sp->s_value = dot[segment];
++			sp->s_segment = segment;
++		} else if (pass != 3) {
++			/* Don't check for duplicates, we did it already
++			   and we will confuse ourselves with the pass
++			   before. Instead blindly update the values */
++			sp->s_type &= ~TMMODE;
++			sp->s_type |= TUSER;
++			sp->s_value = dot[segment];
++			sp->s_segment = segment;
++		} else {
++			/* Phase 2 defined the values so a misalignment here
++			   is fatal */
++			if ((sp->s_type&TMMDF) != 0)
++				err('m', MULTIPLE_DEFS);
++			if (sp->s_value != dot[segment])
++				err('p', PHASE_ERROR);
++		}
++		goto loop;
++	}
++	/*
++	 * If the first token is an
++	 * id and not an operation code,
++	 * assume that it is the name in front
++	 * of an "equ" assembler directive.
++	 */
++	if ((sp=lookup(id, phash, 0)) == NULL) {
++		getid(id1, c);
++		if ((sp1=lookup(id1, phash, 0)) == NULL
++		||  (sp1->s_type&TMMODE) != TEQU) {
++			err('o', SYNTAX_ERROR);
++			return;
++		}
++		getaddr(&a1);
++		constify(&a1);
++		istuser(&a1);
++		sp = lookup(id, uhash, 1);
++		if ((sp->s_type&TMMODE) != TNEW
++		&&  (sp->s_type&TMASG) == 0)
++			err('m', MULTIPLE_DEFS);
++		sp->s_type &= ~(TMMODE|TPUBLIC);
++		sp->s_type |= TUSER|TMASG;
++		sp->s_value = a1.a_value;
++		sp->s_segment = a1.a_segment;
++		/* FIXME: review .equ to an external symbol/offset and
++		   what should happen */
++		goto loop;
++	}
++	unget(c);
++	opcode = sp->s_value;
++	switch (sp->s_type&TMMODE) {
++	case TORG:
++		getaddr(&a1);
++		constify(&a1);
++		istuser(&a1);
++		if (a1.a_segment != ABSOLUTE)
++			qerr(MUST_BE_ABSOLUTE);
++		outsegment(ABSOLUTE);
++		dot[segment] = a1.a_value;
++		/* Tell the binary generator we've got a new absolute
++		   segment. */
++		outabsolute(a1.a_value);
++		break;
++
++	case TEXPORT:
++		getid(id, getnb());
++		sp = lookup(id, uhash, 1);
++		sp->s_type |= TPUBLIC;
++		break;
++		/* .code etc */
++
++	case TSEGMENT:
++		segment = sp->s_value;
++		/* Tell the binary generator about a segment switch to a non
++		   absolute segnent */
++		outsegment(segment);
++		break;
++
++	case TDEFB:
++		do {
++			getaddr(&a1);
++			constify(&a1);
++			istuser(&a1);
++			outrab(&a1);
++		} while ((c=getnb()) == ',');
++		unget(c);
++		break;
++
++	case TDEFW:
++		do {
++			getaddr(&a1);
++			constify(&a1);
++			istuser(&a1);
++			outraw(&a1);
++		} while ((c=getnb()) == ',');
++		unget(c);
++		break;
++
++	case TDEFM:
++		if ((delim=getnb()) == '\n')
++			qerr(MISSING_DELIMITER);
++		while ((c=get()) != delim) {
++			if (c == '\n')
++				qerr(MISSING_DELIMITER);
++			outab(c);
++		}
++		break;
++
++	case TDEFS:
++		getaddr(&a1);
++		constify(&a1);
++		istuser(&a1);
++		/* Write out the bytes. The BSS will deal with the rest */
++		for (value = 0 ; value < a1.a_value; value++)
++			outab(0);
++		break;
++	case TBRA:
++		getaddr(&a1);
++		disp = a1.a_value-dot[segment]-2;
++		if (pass == 3)
++			c = getnextrel();
++		else {
++			c = 0;
++			/* Will it fit, do we know ? */
++			if (pass == 0 || segment_incompatible(&a1) || disp<-128 || disp>127)
++				c = 1;
++			/* On pass 2 we lock down our choices in the table */
++			if (pass == 2)
++				setnextrel(c);
++		}
++		if (c) {	/* LBxx is 0x10, Bxx, ... */
++			if (opcode == 0x8D)	/* BSR -> LBSR */
++				outab(0x17);
++			else if (opcode == 0x20) /* BRA -> LBRA */
++				outab(0x16);
++			else {	/* Conditional ones expand with 0x10 */
++				outab(0x10);
++				outab(opcode);
++			}
++			write_rel16(&a1);
++		} else {
++			a1.a_value -= dot[segment];
++			a1.a_value -= 2;
++			outab(opcode);
++			outrabrel(&a1);
++		}
++		break;
++	case TLBRA:
++		getaddr(&a1);
++		if (a1.a_segment != segment && a1.a_segment != UNKNOWN)
++			aerr(BRA_RANGE);
++		if (opcode >> 8)
++			outab(opcode >> 8);
++		outab(opcode);
++		write_rel16(&a1);
++		break;
++	/* No following data. Instruction may be one or two bytes long */
++	case TIMP:
++		if (opcode >> 8)
++			outab(opcode >> 8);
++		outab(opcode);
++		break;
++	/* Byte sized operations in lower half of instruction set */
++	case TLO:
++		getaddr_r(&a1);
++		ta1 = a1.a_type & (TMADDR | TMINDIR);
++		if (opcode >> 8)
++			outab(opcode >> 8);
++		if (ta1 == TEXT)
++			outab(opcode + 0x70);
++		else if (ta1 == TDIR)
++			outab(opcode);
++		else if (is_postbyte(&a1))
++			outab(opcode + 0x60);
++		else
++			aerr(INVALID_FORM);
++		write_data(&a1, 2);
++		break;				
++	case TJSR:
++		/* JSR is stuffed into odd spots */
++		getaddr_r(&a1);
++		ta1 = a1.a_type & (TMADDR | TMINDIR);
++		if (opcode >> 8)
++			outab(opcode >> 8);
++		if (ta1 == TEXT)
++			outab(opcode + 0x20);
++		else if (ta1 == TDIR)
++			outab(opcode);
++		else if (is_postbyte(&a1))
++			outab(opcode + 0x10);
++		else
++			aerr(INVALID_FORM);
++		write_data(&a1, 2);
++		break;
++	/* LEA instruction. Only forms are an indexed address which may
++	   include the use of A or B. Offsets are signed */
++	case TLEA:
++		getaddr_r(&a1);
++		if (!is_indexed(&a1))
++			aerr(INVALID_FORM);
++		outab(opcode);
++		write_data(&a1, 2);
++		break;
++	case THI:	/* Byte sized operation with immediate */
++		encode_high_op(opcode, 1, 1);
++		break;
++	case THIW:	/* Word sized operation with immediate */
++		encode_high_op(opcode, 2, 1);
++		break;
++	case THINOIMM:	/* Byte sized with no immediate (eg stores) */
++		encode_high_op(opcode, 1, 0);
++		break;
++	case THIWNOIMM:	/* Word sized with no immediate (eg stores) */
++		encode_high_op(opcode, 2, 0);
++		break;
++	case TIMM8:	/* 8bit immediate - cwait, and/orcc */
++		getaddr(&a1);
++		if ((a1.a_type & TMADDR) != TIMMED)
++			aerr(CONSTANT_ONLY);
++		if (opcode >> 8)
++			outab(opcode >> 8);
++		outab(opcode);
++		outrab(&a1);
++		break;
++	case TEXG:
++		/* tfr, xchg */
++		outab(opcode);
++		outab(exchange_pair());
++		break;
++		/* Bitmash of registers for push and pop */
++	case TPUSH:
++		outab(opcode);
++		if (opcode == 0x34 || opcode == 0x35)
++			outab(register_mask(TWR|S));
++		else
++			outab(register_mask(TWR|U));
++		break;
++	default:
++		aerr(SYNTAX_ERROR);
++	}
++	goto loop;
++}
+diff --git a/as6-blip.c b/as6-blip.c
+new file mode 100644
+index 0000000..dd3b504
+--- /dev/null
++++ b/as6-blip.c
+@@ -0,0 +1,271 @@
++/*
++ * 6809 assembler.
++ * Basic symbol tables.
++ * Contain all of the instructions
++ * and register names.
++ */
++#include	"as.h"
++
++/*
++ * This array of symbol nodes
++ * make up the basic symbol table.
++ * The "syminit" routine links these
++ * nodes into the builtin symbol hash
++ * table at start-up time.
++ */
++SYM	sym[] = {
++	{	0,	"a",		TBR,		A	},
++	{	0,	"b",		TBR,		B	},
++	{	0,	"dp",		TBR,		DP	},
++	{	0,	"cc",		TBR,		CC	},
++	{	0,	"d",		TWR,		D	},
++	{	0,	"u",		TWR,		U	},
++	{	0,	"x",		TWR,		X	},
++	{	0,	"y",		TWR,		Y	},
++	{	0,	"s",		TWR,		S	},
++	{	0,	"pc",		TWR,		PCR	},
++	{	0,	"pcr",		TWR,		PCR	},
++	{	0,	"defw",		TDEFW,		XXXX	},
++	{	0,	"defs",		TDEFS,		XXXX	},
++	{	0,	"defm",		TDEFM,		XXXX	},
++	{	0,	"org",		TORG,		XXXX	},
++	{	0,	"equ",		TEQU,		XXXX	},
++	{	0,	"export",	TEXPORT,	XXXX	},
++	{	0,	".byte",	TDEFB,		XXXX	},
++	{	0,	".word",	TDEFW,		XXXX	},
++	{	0,	".blkb",	TDEFS,		XXXX	},
++	{	0,	".ds",		TDEFS,		XXXX	},
++	{	0,	".ascii",	TDEFM,		XXXX	},
++	{	0,	".org",		TORG,		XXXX	},
++	{	0,	".equ",		TEQU,		XXXX	},
++	{	0,	".export",	TEXPORT,	XXXX	},
++	{	0,	"cond",		TCOND,		XXXX	},
++	{	0,	"endc",		TENDC,		XXXX	},
++	{	0,	"abs",		TSEGMENT,	ABSOLUTE},
++	{	0,	"code",		TSEGMENT,	CODE	},
++	{	0,	"data",		TSEGMENT,	DATA	},
++	{	0,	"bss",		TSEGMENT,	BSS	},
++	{	0,	"dp",		TSEGMENT,	ZP	},
++	{	0,	"discard",	TSEGMENT,	DISCARD	},
++	{	0,	"common",	TSEGMENT,	COMMON	},
++	{	0,	"literal",	TSEGMENT,	LITERAL	},
++	{	0,	"commondata",	TSEGMENT,	COMMONDATA },
++	{	0,	"buffers",	TSEGMENT,	BUFFERS	},
++	{	0,	".abs",		TSEGMENT,	ABSOLUTE},
++	{	0,	".code",	TSEGMENT,	CODE	},
++	{	0,	".data",	TSEGMENT,	DATA	},
++	{	0,	".bss",		TSEGMENT,	BSS	},
++	{	0,	".dp",		TSEGMENT,	ZP	},
++	{	0,	".discard",	TSEGMENT,	DISCARD	},
++	{	0,	".common",	TSEGMENT,	COMMON	},
++	{	0,	".literal",	TSEGMENT,	LITERAL	},
++	{	0,	".commondata",	TSEGMENT,	COMMONDATA },
++	{	0,	".buffers",	TSEGMENT,	BUFFERS	},
++
++	{	0,	"abx",		TIMP,		0x3A	},
++	{	0,	"adca",		THI,		0x89	},
++	{	0,	"adcb",		THI,		0xC9	},
++	{	0,	"adda",		THI,		0x8B	},
++	{	0,	"addb",		THI,		0xCB	},
++	{	0,	"addd",		THIW,		0xC3	},
++	{	0,	"anda",		THI,		0x84	},
++	{	0,	"andb",		THI,		0xC4	},
++	{	0,	"andcc",	TIMM8,		0x1C	},
++	{	0,	"asla",		TIMP,		0x48	},
++	{	0,	"aslb",		TIMP,		0x58	},
++	{	0,	"asl",		TLO,		0x08	},
++	{	0,	"asra",		TIMP,		0x47	},
++	{	0,	"asrb",		TIMP,		0x57	},
++	{	0,	"asr",		TLO,		0x07	},
++	{	0,	"bita",		THI,		0x85	},
++	{	0,	"bitb",		THI,		0xC5	},
++	{	0,	"bra",		TBRA,		0x20	},
++	{	0,	"brn",		TBRA,		0x21	},
++	{	0,	"bhi",		TBRA,		0x22	},
++	{	0,	"bls",		TBRA,		0x23	},
++	{	0,	"bhs",		TBRA,		0x24	},
++	{	0,	"bcc",		TBRA,		0x24	},
++	{	0,	"blo",		TBRA,		0x25	},
++	{	0,	"bcs",		TBRA,		0x25	},
++	{	0,	"bne",		TBRA,		0x26	},
++	{	0,	"beq",		TBRA,		0x27	},
++	{	0,	"bvc",		TBRA,		0x28	},
++	{	0,	"bvs",		TBRA,		0x29	},
++	{	0,	"bpl",		TBRA,		0x2A	},
++	{	0,	"bmi",		TBRA,		0x2B	},
++	{	0,	"bge",		TBRA,		0x2C	},
++	{	0,	"blt",		TBRA,		0x2D	},
++	{	0,	"bgt",		TBRA,		0x2E	},
++	{	0,	"ble",		TBRA,		0x2F	},
++	{	0,	"bsr",		TBRA,		0x8D	},
++	{	0,	"clra",		TIMP,		0x4F	},
++	{	0,	"clrb",		TIMP,		0x5F	},
++	{	0,	"clr",		TLO,		0x0F	},
++	{	0,	"cmpa",		THI,		0x81	},
++	{	0,	"cmpb",		THI,		0xC1	},
++	{	0,	"cmpd",		THIW,		0x1083	},
++	{	0,	"cmps",		THIW,		0x118C	},
++	{	0,	"cmpu",		THIW,		0x1183	},
++	{	0,	"cmpx",		THIW,		0x8C	},
++	{	0,	"cmpy",		THIW,		0x108C	},
++	{	0,	"coma",		TIMP,		0x43	},
++	{	0,	"comb",		TIMP,		0x53	},
++	{	0,	"com",		TLO,		0x03	},
++	{	0,	"cwai",		TIMM8,		0x3C	},
++	{	0,	"daa",		TIMP,		0x19	},
++	{	0,	"deca",		TIMP,		0x4A	},
++	{	0,	"decb",		TIMP,		0x5A	},
++	{	0,	"dec",		TLO,		0x0A	},
++	{	0,	"eora",		THI,		0x88	},
++	{	0,	"eorb",		THI,		0xC8	},
++	{	0,	"exg",		TEXG,		0x1E	},
++	{	0,	"inca",		TIMP,		0x4C	},
++	{	0,	"incb",		TIMP,		0x5C	},
++	{	0,	"inc",		TLO,		0x0C	},
++	{	0,	"jmp",		TLO,		0x0E	},
++	{	0,	"jsr",		TJSR,		0x9D	},
++	{	0,	"lbra",		TLBRA,		0x16	},
++	{	0,	"lbsr",		TLBRA,		0x17	},
++	{	0,	"lbrn",		TLBRA,		0x1021	},
++	{	0,	"lbhi",		TLBRA,		0x1022	},
++	{	0,	"lbls",		TLBRA,		0x1023	},
++	{	0,	"lbhs",		TLBRA,		0x1024	},
++	{	0,	"lbcc",		TLBRA,		0x1024	},
++	{	0,	"lblo",		TLBRA,		0x1025	},
++	{	0,	"lbcs",		TLBRA,		0x1025	},
++	{	0,	"lbne",		TLBRA,		0x1026	},
++	{	0,	"lbeq",		TLBRA,		0x1027	},
++	{	0,	"lbvc",		TLBRA,		0x1028	},
++	{	0,	"lbvs",		TLBRA,		0x1029	},
++	{	0,	"lbpl",		TLBRA,		0x102A	},
++	{	0,	"lbmi",		TLBRA,		0x102B	},
++	{	0,	"lbge",		TLBRA,		0x102C	},
++	{	0,	"lblt",		TLBRA,		0x102D	},
++	{	0,	"lbgt",		TLBRA,		0x102E	},
++	{	0,	"lble",		TLBRA,		0x102F	},
++	{	0,	"lda",		THI,		0x86	},
++	{	0,	"ldb",		THI,		0xC6	},
++	{	0,	"ldd",		THIW,		0xCC	},
++	{	0,	"lds",		THIW,		0x10CE	},
++	{	0,	"ldu",		THIW,		0xCE	},
++	{	0,	"ldx",		THIW,		0x8E	},
++	{	0,	"ldy",		THIW,		0x108E	},
++	{	0,	"leas",		TLEA,		0x32	},
++	{	0,	"leau",		TLEA,		0x33	},
++	{	0,	"leax",		TLEA,		0x30	},
++	{	0,	"leay",		TLEA,		0x31	},
++	{	0,	"lsla",		TIMP,		0x48	},
++	{	0,	"lslb",		TIMP,		0x58	},
++	{	0,	"lsl",		TLO,		0x08	},
++	{	0,	"lsra",		TIMP,		0x44	},
++	{	0,	"lsrb",		TIMP,		0x54	},
++	{	0,	"lsr",		TLO,		0x04	},
++	{	0,	"mul",		TIMP,		0x3D	},
++	{	0,	"nega",		TIMP,		0x40	},
++	{	0,	"negb",		TIMP,		0x50	},
++	{	0,	"neg",		TLO,		0x00	},
++	{	0,	"nop",		TIMP,		0x12	},
++	{	0,	"ora",		THI,		0x8A	},
++	{	0,	"orb",		THI,		0xCA	},
++	{	0,	"orcc",		TIMM8,		0x1A	},
++	{	0,	"pshs",		TPUSH,		0x34	},
++	{	0,	"pshu",		TPUSH,		0x36	},
++	{	0,	"puls",		TPUSH,		0x35	},
++	{	0,	"pulu",		TPUSH,		0x37	},
++	{	0,	"rola",		TIMP,		0x49	},
++	{	0,	"rolb",		TIMP,		0x59	},
++	{	0,	"rol",		TLO,		0x09	},
++	{	0,	"rora",		TIMP,		0x46	},
++	{	0,	"rorb",		TIMP,		0x56	},
++	{	0,	"ror",		TLO,		0x06	},
++	{	0,	"rti",		TIMP,		0x3B	},
++	{	0,	"rts",		TIMP,		0x39	},
++	{	0,	"sbca",		THI,		0x82	},
++	{	0,	"sbcb",		THI,		0xC2	},
++	{	0,	"sex",		TIMP,		0x1D	},
++	{	0,	"sta",		THINOIMM,	0x87	},
++	{	0,	"stb",		THINOIMM,	0xC7	},
++	{	0,	"std",		THIWNOIMM,	0xCD	},
++	{	0,	"sts",		THIWNOIMM,	0x10CF	},
++	{	0,	"stu",		THIWNOIMM,	0xCF	},
++	{	0,	"stx",		THIWNOIMM,	0x8F	},
++	{	0,	"sty",		THIWNOIMM,	0x108F	},
++	{	0,	"suba",		THI,		0x80	},
++	{	0,	"subb",		THI,		0xC0	},
++	{	0,	"subd",		THIW,		0x83	},
++	{	0,	"swi",		TIMP,		0x3F	},
++	{	0,	"swi2",		TIMP,		0x103F	},
++	{	0,	"swi3",		TIMP,		0x113F	},
++	{	0,	"sync",		TIMP,		0x13	},
++	{	0,	"tfr",		TEXG,/*check*/	0x1F	},
++	{	0,	"tsta",		TIMP,		0x4D	},
++	{	0,	"tstb",		TIMP,		0x5D	},
++	{	0,	"tst",		TLO,		0x0D	}
++};
++
++/*
++ * Set up the symbol table.
++ * Sweep through the initializations
++ * of the "phash", and link them into the
++ * buckets. Because it is here, a
++ * "sizeof" works.
++ */
++void syminit(void)
++{
++	SYM *sp;
++	int hash;
++
++	sp = &sym[0];
++	while (sp < &sym[sizeof(sym)/sizeof(SYM)]) {
++		hash = symhash(sp->s_id);
++		sp->s_fp = phash[hash];
++		phash[hash] = sp;
++		++sp;
++	}
++}
++
++char *etext[] = {
++	"unexpected character",		/* 10 */
++	"phase error",			/* 11 */
++	"multiple definitions",		/* 12 */
++	"syntax error",			/* 13 */
++	"must be absolute",		/* 14 */
++	"missing delimiter",		/* 15 */
++	"invalid constant",		/* 16 */
++	"bra out of range",		/* 17 */
++	"condition required",		/* 18 */
++	"too many bra expansions",	/* 19 */
++	"index register expected",	/* 20 */
++	"invalid form",			/* 21 */
++	"immediate only",		/* 22 */
++	"divide by 0",			/* 23 */
++	"constant out of range",	/* 24 */
++	"data in BSS",			/* 25 */
++	"segment overflow",		/* 26 */
++	"data in ZP",			/* 27 */
++	"instruction requires 6309",	/* 28 */
++	"segment conflict",		/* 29 */
++	"address required",		/* 30 */
++	"invalid indirect",		/* 31 */
++	"invalid ID",			/* 32 */
++	"S,U,X or Y required",		/* 33 */
++	"register required",		/* 34 */
++	"expected ']'"			/* 35 */
++};
++
++/*
++ * Make sure that the
++ * mode and register fields of
++ * the type of the "ADDR" pointed to
++ * by "ap" can participate in an addition
++ * or a subtraction.
++ */
++void isokaors(ADDR *ap, int paren)
++{
++	int mode;
++
++	mode = ap->a_type&TMMODE;
++	if (mode == TUSER)
++		return;
++	aerr(ADDR_REQUIRED);
++}
+diff --git a/obj.h b/obj.h
+index e2a772c..3748195 100644
+--- a/obj.h
++++ b/obj.h
+@@ -50,6 +50,7 @@ struct objhdr
+ #define OA_PDP4		21	/* PDP4/7/9/15 */
+ #define OA_TMS7000	22	/* TMS7000 series */
+ #define OA_TI980	23	/* TI 980 series */
++#define OA_BLIP		24	/* BLIP */
+     uint8_t o_flags;
+ #define OF_BIGENDIAN	1
+ #define OF_WORDMACHINE	2	/* 16bit word addressed */

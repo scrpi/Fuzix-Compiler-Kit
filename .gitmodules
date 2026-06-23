@@ -1,0 +1,3 @@
+[submodule "tools/fcc/bintools"]
+	path = tools/fcc/bintools
+	url = https://github.com/scrpi/Fuzix-Bintools.git
