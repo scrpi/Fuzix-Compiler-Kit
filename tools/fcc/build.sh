@@ -38,6 +38,7 @@ if [ -e "$ckit/Makefile" ]; then
 	for t in cc cc0 cc1.blip cc2.blip; do
 		cp "$ckit/$t" "$bindir/$t"
 	done
+	cp "$ckit/cpp" "$bindir/cpp"	# preprocessor (shell wrapper)
 else
 	echo "compiler-kit submodule not checked out; skipping compiler" >&2
 fi
