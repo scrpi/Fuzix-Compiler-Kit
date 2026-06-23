@@ -14,8 +14,9 @@ obj_dir/
 
 # Generated visualization (rebuilt from hdl/ by tools/viz/ — toolchain.md P3)
 tools/viz/build/
-# Generated Logisim Evolution circuits (rebuilt from hdl/ by tools/viz/logisim.py)
-logisim/build/
+# Logisim Evolution: the .circ is now hand-edited and reconciled against the HDL (tracked,
+# like a KiCad PCB) — only the intermediate Yosys netlist is generated/disposable.
+logisim/build/*.netlist.json
 # Installed node deps for the viz tools (declared in tools/viz/package.json)
 tools/viz/node_modules/
 

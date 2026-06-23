@@ -11,12 +11,14 @@ PYTHON := python3
 # TOP selects which module the viz targets render. Empty default: `viz` renders every
 # block, `digitaljs` renders uc_loader. Override per run, e.g. `make viz TOP=microsequencer`.
 TOP    ?=
+# MODE selects the logisim action: empty/auto (reconcile-if-exists), generate, insert.
+MODE   ?=
 
 .NOTPARALLEL:
-.PHONY: test image check lint sim cpu bench viz logisim digitaljs clean help
+.PHONY: test image check lint sim cpu bench viz logisim logisim-test digitaljs clean help
 
-## test:   run the whole suite (image, field-def check, both lints, timed test-benches)
-test: image check lint sim
+## test:   run the whole suite (image, field-def check, both lints, tool + timed test-benches)
+test: image check lint logisim-test sim
 	@echo "=== ALL GREEN ==="
 
 ## image:  assemble the microcode into the single EEPROM image (microcode/build/)
@@ -48,10 +50,16 @@ bench:
 viz:
 	bash tools/viz/render.sh $(TOP)
 
-## logisim: runnable Logisim Evolution 4.1.0 .circ of a block — Yosys -> tools/viz/logisim.py
-##          (TTL chips + named-tunnel connectivity; default TOP=control_word_decoder)
+## logisim: keep a Logisim Evolution 4.1.0 .circ in step with a block (Yosys -> logisim.py).
+##          First run GENERATEs the .circ; after that it RECONCILEs (LVS diff vs the HDL,
+##          never overwrites your edits). MODE=generate forces a fresh .circ; MODE=insert
+##          splices in chips the HDL added. Default TOP=control_word_decoder.
 logisim:
-	bash tools/viz/logisim.sh $(TOP)
+	bash tools/viz/logisim.sh $(TOP) $(MODE)
+
+## logisim-test: hermetic self-test of the logisim generator + LVS reconciler (no Yosys)
+logisim-test:
+	$(PYTHON) tools/viz/test_logisim.py
 
 ## digitaljs: interactive DigitalJS sim from the HDL — Yosys -> yosys2digitaljs
 ##            (default TOP=uc_loader; the whole cpu has a tri-state control-store
@@ -59,9 +67,10 @@ logisim:
 digitaljs:
 	bash tools/viz/digitaljs.sh $(TOP)
 
-## clean:  remove generated artifacts
+## clean:  remove generated artifacts (keeps the hand-edited logisim/build/*.circ)
 clean:
-	rm -rf microcode/build tools/viz/build logisim/build
+	rm -rf microcode/build tools/viz/build
+	rm -f logisim/build/*.netlist.json
 
 ## help:   list these targets
 help:
