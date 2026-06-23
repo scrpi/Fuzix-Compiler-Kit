@@ -5,12 +5,15 @@
 # target (as1-blip.c, as6-blip.c, the obj.h arch id, the as.h config block and
 # the Makefile rules) is carried as patches under patches/ and applied into the
 # submodule at build time, so we never have to maintain a bintools fork with our
-# changes -- we just pin a commit and patch on top. See README.md.
+# changes -- we just pin a commit and patch on top. The opcode table the
+# assembler matches against (blip-optab.h) is generated fresh from the single
+# source of truth, isa/opcodes.toml. See README.md.
 set -eu
 
 here=$(CDPATH= cd "$(dirname "$0")" && pwd)
 bintools="$here/bintools"
 bindir="$here/bin"
+genopcodes="$here/../isa/gen_opcodes.py"
 
 if [ ! -e "$bintools/Makefile" ]; then
 	echo "submodule not checked out; run:" >&2
@@ -25,6 +28,11 @@ if [ ! -e "$bintools/as1-blip.c" ]; then
 		git -C "$bintools" apply --whitespace=nowarn "$p"
 	done
 fi
+
+# Regenerate the assembler's opcode table from isa/opcodes.toml every build, so
+# it can never drift from the ratified opcode map.
+echo "generating blip-optab.h from isa/opcodes.toml"
+python3 "$genopcodes" emit-asmtab > "$bintools/blip-optab.h"
 
 echo "building BLIP target..."
 make -C "$bintools" asblip ldblip nmblip osizeblip dumprelocsblip

@@ -25,98 +25,73 @@ index 5458a1d..46fd514 100644
  	$(CC) $(CFLAGS)  -DTARGET_TMS7000 -o as7000 $(CORE) as1-tms7000.c as6-tms7000.c
  
 diff --git a/as.h b/as.h
-index d6e0746..daddd80 100644
+index d6e0746..c66cb64 100644
 --- a/as.h
 +++ b/as.h
-@@ -743,6 +743,127 @@ typedef	uint16_t	VALUE;		/* For symbol values */
+@@ -743,6 +743,102 @@ typedef	uint16_t	VALUE;		/* For symbol values */
  #define NEED_REGISTER	34
  #define NEED_CLSQUARE	35
  
 +#elif TARGET_BLIP
 +
 +/*
-+ * BLIP target. Cloned from the 6809 block as the starting point (BLIP's
-+ * addressing modes are 6809-derived). This initial drop is a faithful 6809
-+ * clone to validate the target wiring; the ISA retarget (little-endian byte
-+ * order, BLIP opcode map, dropping the U stack / DP direct page) lands in
-+ * follow-up patches.
++ * BLIP target. The instruction encoding is table-driven from the opcode map
++ * (isa/opcodes.toml -> blip-optab.h); this block only carries the symbol-type
++ * codes the shared core needs, the register codes (isa.md §8.4), and the byte
++ * order. BLIP is little-endian (isa.md §3), so TARGET_BIGENDIAN is NOT defined
++ * and the object header flag carries no big-endian bit.
 + */
 +
 +typedef	uint16_t	VALUE;		/* For symbol values */
 +
 +#define ARCH OA_BLIP
-+#define ARCH_FLAGS OF_BIGENDIAN
++#define ARCH_FLAGS 0			/* little-endian (isa.md §3) */
 +#define ARCH_CPUFLAGS 0
 +
-+#define TARGET_BIGENDIAN
-+#define TARGET_USES_SQUARE
++#define TARGET_USES_SQUARE		/* '(' groups in expressions; instruction
++					   operand parens are handled in as1-blip */
 +
-+#define	TMREG	0x000F			/* Register code */
++/* Symbol type fields (shared-core layout). */
++#define	TMREG	0x000F			/* Register code (isa.md §8.4 nibble) */
 +#define	TMMDF	0x0001			/* Multidef */
 +#define	TMASG	0x0002			/* Defined by "=" */
 +#define	TMMODE	0xFF00			/* Mode */
-+#define TMADDR 	0x00F0			/* Addressing mode info */
-+#define	TMINDIR	0x8000			/* Indirect flag in mode */
++#define TMADDR 	0x00F0			/* Addressing mode info (unused on BLIP) */
++#define	TMINDIR	0x8000			/* Indirect flag (unused on BLIP) */
 +#define TPUBLIC	0x0080			/* Exported symbol */
 +
 +#define	TNEW	0x0000			/* Virgin */
 +#define	TUSER	0x0100			/* User name */
-+#define	TBR	0x0200			/* Byte register */
-+#define	TWR	0x0300			/* Word register */
-+#define	TCC	0x0400			/* Condition code (not used but needed by core) */
-+#define	TSR	0x0400			/* Special reg (not used but needed by core) */
-+#define	TDEFB	0x0500			/* defb */
-+#define	TDEFW	0x0600			/* defw */
-+#define	TDEFS	0x0700			/* defs */
-+#define	TDEFM	0x0800			/* defm */
-+#define	TORG	0x0900			/* org */
-+#define	TEQU	0x0A00			/* equ */
++#define	TBR	0x0200			/* Byte (8-bit) register */
++#define	TWR	0x0300			/* Word (16-bit) register */
++#define	TCC	0x0400			/* Condition code (core needs the code) */
++#define	TSR	0x0400			/* Special reg (core needs the code) */
++#define	TDEFB	0x0500			/* .byte */
++#define	TDEFW	0x0600			/* .word */
++#define	TDEFS	0x0700			/* .ds */
++#define	TDEFM	0x0800			/* .ascii */
++#define	TORG	0x0900			/* .org */
++#define	TEQU	0x0A00			/* .equ */
 +#define	TCOND	0x0B00			/* conditional */
 +#define	TENDC	0x0C00			/* end conditional */
-+#define TSEGMENT 0x0D00			/* segments by number */
-+#define TEXPORT 0x0E00			/* symbol export */
-+
-+/* CPU specific codes */
-+
-+#define THI	0x1100			/* all modes opcodes 0x80+ */
-+#define THIW	0x1200			/* ditto word mode */
-+#define THINOIMM 0x1300			/* ditto byte no immediate */
-+#define THIWNOIMM 0x1400		/* ditto word no immediate */
-+#define TIMM8	0x1500			/* 8bit immediate only */
-+#define TEXG	0x1600			/* registers as 8bit immediate */
-+#define TPUSH	0x1700			/* register mask as 8bit immediate */
-+#define TIMP	0x1800			/* implied by instruction */
-+#define TLO	0x1900			/* low instructions with some modes */
-+#define TLEA	0x1A00			/* lea */
-+#define TBRA	0x1B00			/* branch */
-+#define TLBRA	0x1C00			/* long branch */
-+#define TJSR	0x1D00			/* Ops in weird spots */
-+
-+#define TIMMED	0x0010
-+#define TDIR	0x0020
-+#define TEXT	0x0030
-+#define TINDEX	0x0040			/* Postbyte forms all below */
-+#define TPOST1	0x0050			/* except TEXT|TMINDIR */
-+#define TPOST2	0x0060			/* Ordering is assumed in is_postbyte */
-+#define TPRE1	0x0070
-+#define TPRE2	0x0080
-+#define TINDEXA	0x0090
-+#define TINDEXB	0x00A0
-+#define TINDEXD	0x00B0
++#define TSEGMENT 0x0D00			/* segment select */
++#define TEXPORT 0x0E00			/* .export */
++#define TINST	0x1100			/* a BLIP instruction (table-driven) */
 +
 +/*
-+ * Registers.
++ * Register codes — the move-selector nibble of isa.md §8.4, stored in the
++ * symbol value so (a_type & TMREG) yields the code directly. 16-bit registers
++ * are TWR, 8-bit are TBR. USP is reached only via the privileged banking moves.
 + */
-+#define	A	0		/* re-arrange to match bit patterns */
-+#define	B	1
-+#define	DP	2
-+#define	CC	3
-+#define	D	4
-+#define	U	5
-+#define	X	6
-+#define	Y	7
-+#define	S	8
-+#define PCR	9
++#define	D	0
++#define	X	1
++#define	Y	2
++#define	SP	3
++#define	PC	4
++#define	A	8
++#define	B	9
++#define	CC	0x0A
++#define	USP	0x0F
 +
 +/*
 + *	Error message numbers: FIXME - sort general first
@@ -158,75 +133,66 @@ index d6e0746..daddd80 100644
  typedef	uint16_t	VALUE;		/* For symbol values */
 diff --git a/as1-blip.c b/as1-blip.c
 new file mode 100644
-index 0000000..9cd733d
+index 0000000..a4bb3be
 --- /dev/null
 +++ b/as1-blip.c
-@@ -0,0 +1,941 @@
+@@ -0,0 +1,493 @@
 +/*
-+ * 6809 assembler.
++ * BLIP assembler.
 + * Assemble one line of input.
-+ * Knows all the dirt.
++ *
++ * BLIP's encoding is table-driven. Every (verb, operand-form) pair maps to one
++ * opcode in isa/opcodes.toml; the table blip_optab[] (generated into
++ * blip-optab.h) holds, for each, its page, byte, and trailing-operand kind. We
++ * parse a line into a *normalized key* (verb + operand form with the value
++ * placeholders collapsed, e.g. "LD A,(SP+n)") that matches the generated key,
++ * look it up, and emit: the 0x80 prefix for a page-1 opcode (isa.md §5.1), the
++ * opcode byte, then the operand bytes little-endian (isa.md §3).
++ *
++ * The assembly syntax is the §4.1 house style: bare $-hex immediates, register
++ * as operand, parentheses = memory, no postbyte.
 + */
 +#include	"as.h"
-+
-+/*
-+ * CPU specific pass setup
-+ */
-+
-+static int cputype;
-+/* FIXME: we should malloc/realloc this on non 8bit machines */
-+static uint8_t reltab[1024];
-+static unsigned int nextrel;
++#include	<string.h>
++#include	"blip-optab.h"
 +
 +int passbegin(int pass)
 +{
-+	cputype = 6809;
-+	segment = 1;		/* Default to code */
-+	if (pass == 3)
-+		nextrel = 0;
-+	return 1;		/* All passes required */
++	segment = CODE;		/* default segment */
++	return 1;		/* all passes required */
 +}
 +
 +void doflush(void)
 +{
 +}
 +
-+static void setnextrel(int flag)
-+{
-+	if (nextrel == 8 * sizeof(reltab))
-+		aerr(TOOMANYJCC);
-+	if (flag)
-+		reltab[nextrel >> 3] |= (1 << (nextrel & 7));
-+	nextrel++;
-+}
-+
-+static unsigned int getnextrel(void)
-+{
-+	unsigned int n = reltab[nextrel >> 3] & (1 << (nextrel & 7));
-+	nextrel++;
-+	return n;
-+}
-+
-+/* Handle the corner case of labels in direct page being used as relative
-+   branches from the overlapping 'absolute' space */
-+static int segment_incompatible(ADDR *ap)
-+{
-+	/* No idea for sizing externals */
-+	if (ap->a_segment == UNKNOWN)
-+		return 1;
-+	if (ap->a_segment == segment)
-+		return 0;
-+	if (ap->a_segment == ZP && segment == 0 && ap->a_value < 256)
-+		return 0;
-+	return 1;
-+}
-+
 +/*
-+ * Deal with the syntactic mess 6809 assembler has
-+ *
-+ * In some cases (JSR JMP and definitions - eg .word)
-+ * $ABCD means a constant everywhere else that is #ABCD
++ * Register table. Names are matched directly (not via the symbol table) so we
++ * keep the spelling for the key. The code is the §8.4 move-selector nibble.
 + */
++struct reg { const char *name; int code; int is16; };
++static const struct reg regtab[] = {
++	{ "D", D, 1 }, { "X", X, 1 }, { "Y", Y, 1 }, { "SP", SP, 1 },
++	{ "PC", PC, 1 }, { "USP", USP, 1 },
++	{ "A", A, 0 }, { "B", B, 0 }, { "CC", CC, 0 },
++	{ NULL, 0, 0 }
++};
++
++static const struct reg *findreg(const char *id)
++{
++	const struct reg *r;
++	for (r = regtab; r->name; r++)
++		if (strcmp(r->name, id) == 0)
++			return r;
++	return NULL;
++}
++
++/* Evaluate a constant/relocatable expression into ap (shared evaluator). */
++void getaddr(ADDR *ap)
++{
++	memset(ap, 0, sizeof(*ap));
++	expr1(ap, LOPRI, 0);
++}
 +
 +static void constify(ADDR *ap)
 +{
@@ -235,617 +201,310 @@ index 0000000..9cd733d
 +}
 +
 +/*
-+ *	Parse a register. We do this by hand due to the ++/-- formats etc
-+ *	and also because we need it for excg/tfr/psh/pop
++ * Try to read a register at the current position. On success consume it and
++ * return its table entry; on failure leave the input untouched (ip is a plain
++ * cursor into the line, so saving/restoring it is a clean backtrack).
 + */
-+
-+unsigned parse_register(unsigned c)
++static const struct reg *try_reg(void)
 +{
-+	if (c == 'a')
-+		return TBR|A;
-+	if (c == 'b')
-+		return TBR|B;
-+	if (c == 'c') {
-+		c = getnb();
-+		if (c == 'c')
-+			return TBR|CC;
-+		qerr(NEED_REGISTER);
-+		return 0;
-+	}
-+	if (c == 'd') {
-+		c = getnb();
-+		if (c == 'p')
-+			return TBR|DP;
-+		unget(c);
-+		return TWR|D;
-+	}
-+	if (c == 's')
-+		return TWR|S;
-+	if (c == 'u')
-+		return TWR|U;
-+	if (c == 'x')
-+		return TWR|X;
-+	if (c == 'y')
-+		return TWR|Y;
-+	if (c != 'p') {
-+		unget(c);
-+		return 0;
-+	}
-+	c = getnb();
-+	if (c != 'c') {
-+		qerr(NEED_REGISTER);
-+		return 0;
-+	}
-+	c = getnb();
-+	if (c != 'r')
-+		unget(c);
-+	return TWR|PCR;
-+}
++	char *save = ip;
++	char id[NCPS];
++	const struct reg *r;
++	int c = getnb();
 +
-+unsigned register_to_mask(unsigned r)
-+{
-+	switch(r) {
-+	case TBR|A:
-+		return 0x02;
-+	case TBR|B:
-+		return 0x04;
-+	case TBR|CC:
-+		return 0x01;
-+	case TWR|D:
-+		return 0x06;
-+	case TBR|DP:
-+		return 0x08;
-+	case TWR|S:
-+	case TWR|U:
-+		return 0x40;
-+	case TWR|X:
-+		return 0x10;
-+	case TWR|Y:
-+		return 0x20;
-+	case TWR|PCR:
-+		return 0x80;
-+	default:
-+		qerr(INVALID_FORM);
-+		return 0xFF;
++	if (!is_symstart(c)) {
++		ip = save;
++		return NULL;
 +	}
-+}
-+
-+unsigned register_to_nybble(unsigned r)
-+{
-+	switch(r) {
-+	case TBR|A:
-+		return 0x8;
-+	case TBR|B:
-+		return 0x9;
-+	case TBR|CC:
-+		return 0xA;
-+	case TWR|D:
-+		return 0x0;
-+	case TBR|DP:
-+		return 0xB;
-+	case TWR|S:
-+		return 0x4;
-+	case TWR|U:
-+		return 0x3;
-+	case TWR|X:
-+		return 0x1;
-+	case TWR|Y:
-+		return 0x2;
-+	case TWR|PCR:
-+		return 0x5;
-+	default:
-+		qerr(INVALID_FORM);
-+		return 0xFF;
-+	}
-+}
-+
-+unsigned register_mask(unsigned exclude)
-+{
-+	unsigned mask = 0;
-+	unsigned n;
-+	unsigned c;
-+	/* Parse a list of registers split by comma */
-+	do {
-+		c = getnb();
-+		n = parse_register(c);
-+		if (n == exclude)
-+			qerr(INVALID_FORM);
-+		mask |= register_to_mask(n);
-+		c = getnb();
-+	} while(c == ',');
-+	unget(c);
-+	return mask;
-+}
-+
-+unsigned exchange_pair(void)
-+{
-+	unsigned s, d;
-+	s = parse_register(getnb());
-+	comma();
-+	d = parse_register(getnb());
-+	/* Can't swap mixed sizes */
-+	if ((s & TMMODE) != (d & TMMODE))
-+		qerr(INVALID_FORM);
-+	return (register_to_nybble(s) << 4) | register_to_nybble(d);
-+}
-+	
-+
-+void index_required(ADDR *ap)
-+{
-+	if ((ap->a_type & TMMODE) != TWR ||
-+		(ap->a_type & TMREG) == D) {
-+		qerr(NEED_INDEX);
-+	}
-+}
-+
-+void prepost_required(ADDR *ap)
-+{
-+	if ((ap->a_type & TMMODE) != TWR ||
-+		(ap->a_type & TMREG) == D ||
-+		(ap->a_type & TMREG) == PCR) {
-+		qerr(NEED_PREPOST);
-+	}
++	getid(id, c);
++	r = findreg(id);
++	if (r == NULL)
++		ip = save;
++	return r;
 +}
 +
 +/*
-+ * Read in an address
-+ * descriptor, and fill in
-+ * the supplied "ADDR" structure
-+ * with the mode and value.
-+ * Exits directly to "qerr" if
-+ * there is no address field or
-+ * if the syntax is bad.
-+ *
-+ * The 6809 has a bunch of addressing modes we need to decode
-+ *
-+ * Immediate:  #constant
-+ * Postbyte for EXG/TFR/PSH/PUL - handled separately
-+ * Direct @foo   (usually >foo but that is ambiguous with our upper
-+ *		  and lower forms)
-+ * Indexed  {const},[XYUS]
-+ * Accumulator offset: [ABD],[XYUS]
-+ * Autoinc byte   ,[XYUS]+
-+ * Autoinc word   ,[XYUS]++
-+ * Autodec byte   ,[XYUS]+
-+ * Autodec word   ,[XYUS]++
-+ * Indirected forms of the above for all except immediate
-+ * PC relative	{const},PC
++ * One parsed operand: its canonical text (for the key), the single value
++ * expression it may carry, and whether it is a bare register (for movsel).
 + */
++struct opnd {
++	char	text[24];
++	ADDR	val;
++	int	haveval;
++	int	bareexpr;	/* bare $-expr: try $i / rel / mask at lookup */
++	int	plainreg;	/* operand is exactly a register */
++	int	regcode;
++};
 +
-+void getaddr_op(ADDR *ap, unsigned noreg)
++/* Parse one addressing form (register-based or an expression) into o->text. */
++static void parse_aform(struct opnd *o, int inparen)
 +{
-+	unsigned indirect = 0;
-+	unsigned predec = 0;
-+	unsigned postinc = 0;
-+	unsigned hasleft = 0;	/* was a left side to indexed from */
-+	unsigned dp = 0;
-+	unsigned type;
-+	unsigned c;
-+
-+	ap->a_type = 0;
-+	ap->a_flags = 0;
-+	ap->a_value = 0;
-+	ap->a_sym = NULL;
-+	ap->a_segment = ABSOLUTE;
++	const struct reg *r, *r2;
++	int c, c2;
 +
 +	c = getnb();
++	if (c == '-') {				/* pre-decrement: (-R) / (--R) */
++		c2 = getnb();
++		if (c2 == '-')
++			strcat(o->text, "--");
++		else {
++			unget(c2);
++			strcat(o->text, "-");
++		}
++		r = try_reg();
++		if (r == NULL)
++			qerr(NEED_REGISTER);
++		strcat(o->text, r->name);
++		return;
++	}
++	unget(c);
 +
-+	/* Immediate */
-+	if (c == '#') {
++	r = try_reg();
++	if (r) {
++		strcat(o->text, r->name);
 +		c = getnb();
-+		if (c == '<')
-+			ap->a_flags |= A_LOW;
-+		else if (c == '>')
-+			ap->a_flags |= A_HIGH;
-+		else
-+			unget(c);
-+		expr1(ap, LOPRI, 0);
-+		istuser(ap);
-+		ap->a_type |= TIMMED;
++		if (c == '+') {
++			c2 = getnb();
++			if (c2 == ')' || c2 == '\n' || c2 == ';' || c2 == ',') {
++				unget(c2);
++				strcat(o->text, "+");	/* (R+) auto-inc by 1 */
++				return;
++			}
++			if (c2 == '+') {
++				strcat(o->text, "++");	/* (R++) auto-inc by 2 */
++				return;
++			}
++			unget(c2);
++			r2 = try_reg();
++			if (r2) {			/* (R+A/B/D) accumulator offset */
++				strcat(o->text, "+");
++				strcat(o->text, r2->name);
++				return;
++			}
++			getaddr(&o->val);		/* (R+n) signed offset */
++			o->haveval = 1;
++			strcat(o->text, "+n");
++			return;
++		}
++		if (c == '-') {				/* (R-n): signed offset */
++			unget('-');
++			getaddr(&o->val);
++			o->haveval = 1;
++			strcat(o->text, "+n");
++			return;
++		}
++		unget(c);				/* plain register */
++		if (!inparen) {
++			o->plainreg = 1;
++			o->regcode = r->code;
++		}
 +		return;
 +	}
 +
-+	/* Request for constants only (eg defb) */
-+	if (noreg) {
-+		if (c == '<')
-+			ap->a_flags |= A_LOW;
-+		else if (c == '>')
-+			ap->a_flags |= A_HIGH;
-+		else
-+			unget(c);
-+		expr1(ap, LOPRI, 0);
-+		istuser(ap);
-+		ap->a_type |= TEXT;
++	/* Not a register: an expression. Inside parens it is an absolute
++	   address ($i); bare it is an immediate / branch target / mask, which
++	   the lookup disambiguates by trying $i / rel / mask. */
++	getaddr(&o->val);
++	o->haveval = 1;
++	strcat(o->text, "$i");
++	if (!inparen)
++		o->bareexpr = 1;
++}
++
++static void parse_operand(struct opnd *o)
++{
++	int c = getnb();
++
++	memset(o, 0, sizeof(*o));
++	if (c == '(') {
++		strcat(o->text, "(");
++		parse_aform(o, 1);
++		if (getnb() != ')')
++			qerr(BRACKET_EXPECTED);
++		strcat(o->text, ")");
 +		return;
 +	}
-+	if (c == '@') {
-+		dp = 1;
-+		c = getnb();
-+	} else if (c == '[') {
-+		indirect = 1;
-+		c = getnb();
-+	}
-+	if (dp || c != ',') {
-+		/* Get the expression */
-+		if (c == '<')
-+			ap->a_flags |= A_LOW;
-+		else if (c == '>')
-+			ap->a_flags |= A_HIGH;
-+		else
-+			unget(c);
-+		expr1(ap, LOPRI, 0);
-+		if (dp) {
-+			ap->a_type |= TDIR;
-+			return;
-+		}
-+		c = getnb();
-+		/* [addr] */
-+		if (c == ']' && indirect) {
-+			/* off is in fact the result but indirected */
-+			ap->a_type |= TEXT|TMINDIR; /* Set indirect addr bit */
-+			return;
-+		}
-+		/* Not an indirection */
-+		if (c != ',') {
-+			ap->a_type |= TEXT;
-+			unget(c);
-+			return;
-+		}
-+		hasleft = 1;
-+	}
-+
-+	type = TINDEX;
-+
-+	/* A, B, D, forms are awkward as we now have two registers. Fudge
-+	   it to fit the standard formats */
-+	if (ap->a_type == (TBR|A))
-+		type = TINDEXA;
-+	else if (ap->a_type == (TBR|B))
-+		type = TINDEXB;
-+	else if (ap->a_type == (TWR|D))
-+		type = TINDEXD;
-+	else if ((ap->a_type & TMMODE) == TBR ||
-+		 (ap->a_type & TMMODE) == TWR) {
-+			 aerr(INVALID_FORM);
-+			 type = TINDEXD;
-+			 /* Dummy type to avoid cascading errors */
-+	}
-+	if (type != TINDEX)
-+		ap->a_type = 0;
-+
-+	/* We can't just throw the right hand side at the expression
-+	   parser because it's full of + and - but not an expression so
-+	   we do it by hand */
-+	c = getnb();
-+	if (c == '-' && !hasleft && type == TINDEX) {
-+		predec = 1;
-+		c = getnb();
-+		if (c == '-') {
-+			predec++;
-+			c = getnb();
-+		}
-+	}
-+	/* now a register name or PC */
-+	ap->a_type = parse_register(c);
-+
-+	c = getnb();
-+	if (c == '+' && !hasleft && !predec && type == TINDEX) {
-+		postinc = 1;
-+		c = getnb();
-+		if (c == '+')  {
-+			postinc = 2;
-+			c = getnb();
-+		}
-+	}
-+	if (indirect) {
-+		if (c != ']')
-+			qerr(NEED_CLSQUARE);
-+	} else
-+		unget(c);
-+
-+	if (postinc || predec) {
-+		prepost_required(ap);
-+		/* byte+ -byte indirect is not legal */
-+		if (indirect && (postinc == 1 || predec == 1))
-+			qerr(INVALID_FORM);
-+	} else
-+		index_required(ap);
-+
-+	/* A B and D, forms do not allow pre/post */
-+	if (type == TINDEXA || type == TINDEXB || type == TINDEXD) {
-+		if (predec || postinc)
-+			qerr(INVALID_FORM);
-+		ap->a_value = 0;
-+	}
-+
-+	/* Now put together the address descriptor */
-+	/* Set up the TMADDR bits */
-+	if (indirect)
-+		ap->a_type |= TMINDIR;
-+	if (predec == 1)
-+		ap->a_type |= TPRE1;
-+	else if (predec == 2)
-+		ap->a_type |= TPRE2;
-+	else if (postinc == 1)
-+		ap->a_type |= TPOST1;
-+	else if (postinc == 2)
-+		ap->a_type |= TPOST2;
-+	else
-+		ap->a_type |= type;
++	unget(c);
++	parse_aform(o, 0);
 +}
 +
-+void getaddr_r(ADDR *ap)
++/* Collect up to two table entries matching key (only off8/off16 pairs do). */
++static int find_matches(const char *key, int idx[2])
 +{
-+	getaddr_op(ap, 0);
++	int n = 0, i;
++	for (i = 0; i < (int)BLIP_OPTAB_N && n < 2; i++)
++		if (strcmp(key, blip_optab[i].key) == 0)
++			idx[n++] = i;
++	return n;
 +}
 +
-+void getaddr(ADDR *ap)
++static int fits_s8(ADDR *ap)
 +{
-+	getaddr_op(ap, 1);
++	int v = (int)(int16_t)ap->a_value;
++	return ap->a_segment == ABSOLUTE && v >= -128 && v <= 127;
 +}
 +
-+unsigned is_indexed(ADDR *ap)
++/* PC-relative branch operand (mirrors the shared relative-reloc convention). */
++static void emit_rel(ADDR *ap, int size)
 +{
-+	unsigned ta = ap->a_type & (TMADDR | TMINDIR);
-+	if (ta != TINDEX && ta != TINDEXA && ta != TINDEXB && ta != TINDEXD)
-+		return 0;
-+	return 1;
-+}
-+
-+unsigned is_postbyte(ADDR *ap)
-+{
-+	unsigned ta = ap->a_type & TMADDR;
-+	if (ta >= TINDEX)
-+		return 1;
-+	if (ta != TEXT)
-+		return 0;
-+	/* [ext] is a postbyte form */
-+	if (ap->a_type & TMINDIR)
-+		return 1;
-+	return 0;
-+}
-+
-+/* Turn an internal register representation into an RR encoding */
-+unsigned map_register(unsigned r)
-+{
-+	if (r == X)
-+		return 0x00;
-+	if (r == Y)
-+		return 0x20;
-+	if (r == U)
-+		return 0x40;
-+	if (r == S)
-+		return 0x60;
-+	/* Other forms are not an error we just won't be using RR */
-+	return 0xFF;	/* So bugs show */
-+}
-+
-+unsigned can_shorten(ADDR *ap)
-+{
-+	if (ap->a_segment == ABSOLUTE)
-+		return 1;
-+	return 0;
-+}
-+
-+unsigned range_5bit(ADDR *ap)
-+{
-+	if ((int16_t)ap->a_value >= -16 && (int16_t)ap->a_value <= 15)
-+		return 1;
-+	return 0;
-+}
-+
-+unsigned range_8bit(ADDR *ap)
-+{
-+	if ((int16_t)ap->a_value >= -128 && (int16_t)ap->a_value <= 127)
-+		return 1;
-+	return 0;
-+}
-+
-+/* 6809 people expect the assembler to deal with both relative and
-+   symbolic representations for pc relative. So it's valid to do
-+   write 12,pcr  meaning pc + 12,  offset .equ 12 offset,pcr meaning
-+   pc + 12 but also if fred is a symbol in the code etc that
-+   fred,pcr means a reference to fred not fred + pc */
-+void write_rel16(ADDR *ap)
-+{
-+	/* Absolute value - outraw will write it as is */
 +	if (ap->a_segment == ABSOLUTE) {
-+		outraw(ap);
-+		return;
-+	}
-+	/* The PC relative applies versus the byte *after* the two we are about to reloc */
-+	ap->a_value -= 2;
-+	outrawrel(ap);
-+}
-+
-+/* Write out the post byte and data */
-+void write_data(ADDR *ap, unsigned size)
-+{
-+	unsigned t = ap->a_type & (TMADDR | TMINDIR);
-+	unsigned r = map_register(ap->a_type & TMREG);
-+
-+	if (t == TIMMED) {
 +		if (size == 1)
 +			outrab(ap);
 +		else
 +			outraw(ap);
 +		return;
 +	}
-+	if (t == TDIR) {
-+		outrab(ap);
-+		return;
-+	}
-+	if (t == TEXT) {
-+		outraw(ap);
-+		return;
-+	}
-+	/* PC relative indexing is a bit different to the others */
-+	if (t == TINDEX && (ap->a_type & TMREG) == PCR) {
-+		if (can_shorten(ap) && range_8bit(ap)) {
-+			outab(0x8C);
-+			outrab(ap);
-+			return;
-+		}
-+		outab(0x8D);
-+		write_rel16(ap);
-+		return;
-+	}
-+	if (t == (TINDEX|TMINDIR) && (ap->a_type & TMREG) == PCR) {
-+		if (can_shorten(ap) && range_8bit(ap)) {
-+			outab(0x9C);
-+			outrab(ap);
-+			return;
-+		}
-+		outab(0x9D);
-+		write_rel16(ap);
-+		return;
-+	}
-+	if (t == TINDEX) {
-+		if (can_shorten(ap)) {
-+			if (ap->a_value == 0) {
-+				outab(0x84 | r);
-+				return;
-+			}
-+			/* Can have 5 or 8bit offset encoding */
-+			if (range_5bit(ap)) {
-+				outab(r + (ap->a_value & 0x1F));
-+				return;
-+			}
-+			if (range_8bit(ap)) {
-+				outab(0x88 | r);
-+				outrab(ap);
-+				return;
-+			}
-+		}
-+		outab(0x89 | r);
-+		outraw(ap);
-+		return;
-+	}
-+	if (t == (TMINDIR|TINDEX)) {
-+		if (can_shorten(ap)) {
-+			if (ap->a_value == 0) {
-+				outab(0x94 | r);
-+				return;
-+			}
-+			if (range_8bit(ap)) {
-+				outab(0x98 | r);
-+				outrab(ap);
-+				return;
-+			}
-+		}
-+		outab(0x99 | r);
-+		outraw(ap);
-+		return;
-+	}
-+	/* Pre/post must match size */
-+	if (t == TPOST1) {
-+		if (size == 2)
-+			qerr(INVALID_FORM);
-+		outab(0x80 | r);
-+		return;
-+	}
-+	if (t == TPOST2) {
-+		if (size == 1)
-+			qerr(INVALID_FORM);
-+		outab(0x81 | r);
-+		return;
-+	}
-+	if (t == TPRE1) {
-+		if (size == 2)
-+			qerr(INVALID_FORM);
-+		outab(0x82 | r);
-+		return;
-+	}
-+	if (t == TPRE2) {
-+		if (size == 1)
-+			qerr(INVALID_FORM);
-+		outab(0x83 | r);
-+		return;
-+	}
-+	/* Indirect pre/post always word and was checked in getaddr_r */
-+	if (t == (TMINDIR|TPOST2)) {
-+		outab(0x91 | r);
-+		return;
-+	}
-+	if (t == (TMINDIR|TPRE2)) {
-+		outab(0x93 | r);
-+		return;
-+	}
-+	if (t == TINDEXA) {
-+		outab(0x86 | r);
-+		return;
-+	}
-+	if (t == TINDEXB) {
-+		outab(0x85 | r);
-+		return;
-+	}
-+	if (t == TINDEXD) {
-+		outab(0x8B | r);
-+		return;
-+	}
-+	if (t == (TMINDIR|TINDEXA)) {
-+		outab(0x96 | r);
-+		return;
-+	}
-+	if (t == (TMINDIR|TINDEXB)) {
-+		outab(0x95 | r);
-+		return;
-+	}
-+	if (t == (TMINDIR|TINDEXD)) {
-+		outab(0x9B | r);
-+		return;
-+	}
-+	if (t == (TMINDIR|TEXT)) {
-+		outab(0x9F);
-+		outraw(ap);
-+		return;
-+	}
-+	fprintf(stderr, "Internal encode %x\n", t);
++	ap->a_value -= dot[segment];
++	ap->a_value -= size;
++	if (size == 1)
++		outrabrel(ap);
++	else
++		outrawrel(ap);
 +}
 +
-+/* The 80-FF space is highly regular */
-+void encode_high_op(unsigned opcode, unsigned size, unsigned has_imm)
++static void emit(int ent, struct opnd *o, int regsel)
 +{
-+	ADDR a1;
-+	unsigned ta1;
++	const struct optab *e = &blip_optab[ent];
 +
-+	getaddr_r(&a1);
++	if (e->page == 1)
++		outab(0x80);
++	outab(e->byte);
 +
-+	ta1 = a1.a_type & TMADDR;
-+	if (opcode >> 8)
-+		outab(opcode >> 8);
-+	if (ta1 == TIMMED && has_imm)
-+		outab(opcode);
-+	else if (ta1 == TDIR)
-+		outab(opcode + 0x10);
-+	else if (is_postbyte(&a1))
-+		outab(opcode + 0x20);
-+	else if (ta1 == TEXT)
-+		outab(opcode + 0x30);
-+	else
-+		qerr(INVALID_FORM);
-+	write_data(&a1, size);
++	switch (e->trail) {
++	case T_IMM8:
++	case T_MASK8:
++		/* one byte: accept signed or unsigned 8-bit when known */
++		if (o->val.a_segment == ABSOLUTE) {
++			int v = (int)(int16_t)o->val.a_value;
++			if (v < -128 || v > 255)
++				aerr(CONSTANT_RANGE);
++		}
++		outrab(&o->val);
++		break;
++	case T_OFF8:
++		if (o->val.a_segment == ABSOLUTE && !fits_s8(&o->val))
++			aerr(CONSTANT_RANGE);
++		outrab(&o->val);
++		break;
++	case T_NONE:
++		break;
++	case T_IMM16:
++	case T_OFF16:
++	case T_ABS16:
++		outraw(&o->val);
++		break;
++	case T_MOVSEL:
++		outab(regsel);
++		break;
++	case T_REL8:
++		emit_rel(&o->val, 1);
++		break;
++	case T_REL16:
++		emit_rel(&o->val, 2);
++		break;
++	}
++}
++
++/* Resolve a key to a table entry, choosing off8 vs off16 by operand range. */
++static int resolve(const char *key, struct opnd *vop)
++{
++	int idx[2], n;
++
++	n = find_matches(key, idx);
++	if (n == 0)
++		return -1;
++	if (n == 1)
++		return idx[0];
++	/* off8 / off16 pair: prefer the 8-bit form when the offset fits. */
++	if (vop->haveval && fits_s8(&vop->val))
++		return blip_optab[idx[0]].trail == T_OFF8 ? idx[0] : idx[1];
++	return blip_optab[idx[0]].trail == T_OFF16 ? idx[0] : idx[1];
 +}
 +
 +/*
-+ * Assemble one line.
-+ * The line in in "ib", the "ip"
-+ * scans along it. The code is written
-+ * right out.
++ * Encode one BLIP instruction. "verb" is the mnemonic already read by asmline;
++ * the operands remain on the input.
 + */
++static void blip_instr(const char *verb)
++{
++	struct opnd o[2];
++	int nop = 0;
++	char key[80];
++	int c, ent, regsel = 0;
++	struct opnd *vop = NULL;
++
++	c = getnb();
++	if (c != '\n' && c != ';') {
++		unget(c);
++		parse_operand(&o[0]);
++		nop = 1;
++		c = getnb();
++		if (c == ',') {
++			parse_operand(&o[1]);
++			nop = 2;
++		} else
++			unget(c);
++	}
++
++	/* Build the lookup key. Two plain registers (neither USP) are the
++	   generic register move "verb reg,reg" (movsel); otherwise the operand
++	   text is literal (covers the USP-banking moves' specific opcodes). */
++	strcpy(key, verb);
++	if (nop == 2 && o[0].plainreg && o[1].plainreg
++	    && o[0].regcode != USP && o[1].regcode != USP) {
++		strcat(key, " reg,reg");
++		if (strcmp(verb, "XCHG") == 0)
++			regsel = (o[0].regcode << 4) | o[1].regcode;
++		else	/* LD dst,src keeps src in the high nibble (§8.4) */
++			regsel = (o[1].regcode << 4) | o[0].regcode;
++	} else {
++		if (nop >= 1) {
++			strcat(key, " ");
++			strcat(key, o[0].text);
++		}
++		if (nop == 2) {
++			strcat(key, ",");
++			strcat(key, o[1].text);
++		}
++	}
++
++	if (o[0].haveval)
++		vop = &o[0];
++	else if (nop == 2 && o[1].haveval)
++		vop = &o[1];
++
++	ent = resolve(key, vop ? vop : &o[0]);
++
++	/* A bare expression could be an immediate, a branch target, or a push
++	   mask; retry the other normalizations the table might use. */
++	if (ent < 0 && nop == 1 && o[0].bareexpr) {
++		const char *alt[] = { "rel", "mask" };
++		unsigned i;
++		for (i = 0; i < 2 && ent < 0; i++) {
++			strcpy(key, verb);
++			strcat(key, " ");
++			strcat(key, alt[i]);
++			ent = resolve(key, &o[0]);
++		}
++	}
++
++	if (ent < 0) {
++		aerr(INVALID_FORM);
++		return;
++	}
++	emit(ent, vop ? vop : &o[0], regsel);
++}
++
 +void asmline(void)
 +{
 +	SYM *sp;
 +	int c;
-+	int opcode;
-+	int disp;
-+	VALUE value;
 +	int delim;
++	VALUE value;
 +	SYM *sp1;
 +	char id[NCPS];
 +	char id1[NCPS];
 +	ADDR a1;
-+	unsigned ta1;
 +
 +loop:
 +	if ((c=getnb())=='\n' || c==';')
@@ -864,16 +523,11 @@ index 0000000..9cd733d
 +			sp->s_value = dot[segment];
 +			sp->s_segment = segment;
 +		} else if (pass != 3) {
-+			/* Don't check for duplicates, we did it already
-+			   and we will confuse ourselves with the pass
-+			   before. Instead blindly update the values */
 +			sp->s_type &= ~TMMODE;
 +			sp->s_type |= TUSER;
 +			sp->s_value = dot[segment];
 +			sp->s_segment = segment;
 +		} else {
-+			/* Phase 2 defined the values so a misalignment here
-+			   is fatal */
 +			if ((sp->s_type&TMMDF) != 0)
 +				err('m', MULTIPLE_DEFS);
 +			if (sp->s_value != dot[segment])
@@ -882,10 +536,8 @@ index 0000000..9cd733d
 +		goto loop;
 +	}
 +	/*
-+	 * If the first token is an
-+	 * id and not an operation code,
-+	 * assume that it is the name in front
-+	 * of an "equ" assembler directive.
++	 * If the first token is an id and not an operation code, assume it is
++	 * the name in front of an "equ" directive.
 +	 */
 +	if ((sp=lookup(id, phash, 0)) == NULL) {
 +		getid(id1, c);
@@ -905,12 +557,9 @@ index 0000000..9cd733d
 +		sp->s_type |= TUSER|TMASG;
 +		sp->s_value = a1.a_value;
 +		sp->s_segment = a1.a_segment;
-+		/* FIXME: review .equ to an external symbol/offset and
-+		   what should happen */
 +		goto loop;
 +	}
 +	unget(c);
-+	opcode = sp->s_value;
 +	switch (sp->s_type&TMMODE) {
 +	case TORG:
 +		getaddr(&a1);
@@ -920,8 +569,6 @@ index 0000000..9cd733d
 +			qerr(MUST_BE_ABSOLUTE);
 +		outsegment(ABSOLUTE);
 +		dot[segment] = a1.a_value;
-+		/* Tell the binary generator we've got a new absolute
-+		   segment. */
 +		outabsolute(a1.a_value);
 +		break;
 +
@@ -930,12 +577,9 @@ index 0000000..9cd733d
 +		sp = lookup(id, uhash, 1);
 +		sp->s_type |= TPUBLIC;
 +		break;
-+		/* .code etc */
 +
 +	case TSEGMENT:
 +		segment = sp->s_value;
-+		/* Tell the binary generator about a segment switch to a non
-+		   absolute segnent */
 +		outsegment(segment);
 +		break;
 +
@@ -973,131 +617,14 @@ index 0000000..9cd733d
 +		getaddr(&a1);
 +		constify(&a1);
 +		istuser(&a1);
-+		/* Write out the bytes. The BSS will deal with the rest */
 +		for (value = 0 ; value < a1.a_value; value++)
 +			outab(0);
 +		break;
-+	case TBRA:
-+		getaddr(&a1);
-+		disp = a1.a_value-dot[segment]-2;
-+		if (pass == 3)
-+			c = getnextrel();
-+		else {
-+			c = 0;
-+			/* Will it fit, do we know ? */
-+			if (pass == 0 || segment_incompatible(&a1) || disp<-128 || disp>127)
-+				c = 1;
-+			/* On pass 2 we lock down our choices in the table */
-+			if (pass == 2)
-+				setnextrel(c);
-+		}
-+		if (c) {	/* LBxx is 0x10, Bxx, ... */
-+			if (opcode == 0x8D)	/* BSR -> LBSR */
-+				outab(0x17);
-+			else if (opcode == 0x20) /* BRA -> LBRA */
-+				outab(0x16);
-+			else {	/* Conditional ones expand with 0x10 */
-+				outab(0x10);
-+				outab(opcode);
-+			}
-+			write_rel16(&a1);
-+		} else {
-+			a1.a_value -= dot[segment];
-+			a1.a_value -= 2;
-+			outab(opcode);
-+			outrabrel(&a1);
-+		}
++
++	case TINST:
++		blip_instr(id);
 +		break;
-+	case TLBRA:
-+		getaddr(&a1);
-+		if (a1.a_segment != segment && a1.a_segment != UNKNOWN)
-+			aerr(BRA_RANGE);
-+		if (opcode >> 8)
-+			outab(opcode >> 8);
-+		outab(opcode);
-+		write_rel16(&a1);
-+		break;
-+	/* No following data. Instruction may be one or two bytes long */
-+	case TIMP:
-+		if (opcode >> 8)
-+			outab(opcode >> 8);
-+		outab(opcode);
-+		break;
-+	/* Byte sized operations in lower half of instruction set */
-+	case TLO:
-+		getaddr_r(&a1);
-+		ta1 = a1.a_type & (TMADDR | TMINDIR);
-+		if (opcode >> 8)
-+			outab(opcode >> 8);
-+		if (ta1 == TEXT)
-+			outab(opcode + 0x70);
-+		else if (ta1 == TDIR)
-+			outab(opcode);
-+		else if (is_postbyte(&a1))
-+			outab(opcode + 0x60);
-+		else
-+			aerr(INVALID_FORM);
-+		write_data(&a1, 2);
-+		break;				
-+	case TJSR:
-+		/* JSR is stuffed into odd spots */
-+		getaddr_r(&a1);
-+		ta1 = a1.a_type & (TMADDR | TMINDIR);
-+		if (opcode >> 8)
-+			outab(opcode >> 8);
-+		if (ta1 == TEXT)
-+			outab(opcode + 0x20);
-+		else if (ta1 == TDIR)
-+			outab(opcode);
-+		else if (is_postbyte(&a1))
-+			outab(opcode + 0x10);
-+		else
-+			aerr(INVALID_FORM);
-+		write_data(&a1, 2);
-+		break;
-+	/* LEA instruction. Only forms are an indexed address which may
-+	   include the use of A or B. Offsets are signed */
-+	case TLEA:
-+		getaddr_r(&a1);
-+		if (!is_indexed(&a1))
-+			aerr(INVALID_FORM);
-+		outab(opcode);
-+		write_data(&a1, 2);
-+		break;
-+	case THI:	/* Byte sized operation with immediate */
-+		encode_high_op(opcode, 1, 1);
-+		break;
-+	case THIW:	/* Word sized operation with immediate */
-+		encode_high_op(opcode, 2, 1);
-+		break;
-+	case THINOIMM:	/* Byte sized with no immediate (eg stores) */
-+		encode_high_op(opcode, 1, 0);
-+		break;
-+	case THIWNOIMM:	/* Word sized with no immediate (eg stores) */
-+		encode_high_op(opcode, 2, 0);
-+		break;
-+	case TIMM8:	/* 8bit immediate - cwait, and/orcc */
-+		getaddr(&a1);
-+		if ((a1.a_type & TMADDR) != TIMMED)
-+			aerr(CONSTANT_ONLY);
-+		if (opcode >> 8)
-+			outab(opcode >> 8);
-+		outab(opcode);
-+		outrab(&a1);
-+		break;
-+	case TEXG:
-+		/* tfr, xchg */
-+		outab(opcode);
-+		outab(exchange_pair());
-+		break;
-+		/* Bitmash of registers for push and pop */
-+	case TPUSH:
-+		outab(opcode);
-+		if (opcode == 0x34 || opcode == 0x35)
-+			outab(register_mask(TWR|S));
-+		else
-+			outab(register_mask(TWR|U));
-+		break;
++
 +	default:
 +		aerr(SYNTAX_ERROR);
 +	}
@@ -1105,58 +632,42 @@ index 0000000..9cd733d
 +}
 diff --git a/as6-blip.c b/as6-blip.c
 new file mode 100644
-index 0000000..dd3b504
+index 0000000..f2fef5a
 --- /dev/null
 +++ b/as6-blip.c
-@@ -0,0 +1,271 @@
+@@ -0,0 +1,192 @@
 +/*
-+ * 6809 assembler.
-+ * Basic symbol tables.
-+ * Contain all of the instructions
-+ * and register names.
++ * BLIP assembler.
++ * Basic symbol table: assembler directives and the instruction verbs.
++ *
++ * Unlike the 6809 table, instruction mnemonics carry no opcode here: BLIP's
++ * encoding is table-driven from the opcode map (blip-optab.h, generated from
++ * isa/opcodes.toml). Each verb is just tagged TINST; as1-blip.c parses the
++ * operands, builds the normalized key, and looks up the opcode. Register names
++ * are matched directly in as1-blip.c (so they are not symbols here).
 + */
 +#include	"as.h"
 +
-+/*
-+ * This array of symbol nodes
-+ * make up the basic symbol table.
-+ * The "syminit" routine links these
-+ * nodes into the builtin symbol hash
-+ * table at start-up time.
-+ */
 +SYM	sym[] = {
-+	{	0,	"a",		TBR,		A	},
-+	{	0,	"b",		TBR,		B	},
-+	{	0,	"dp",		TBR,		DP	},
-+	{	0,	"cc",		TBR,		CC	},
-+	{	0,	"d",		TWR,		D	},
-+	{	0,	"u",		TWR,		U	},
-+	{	0,	"x",		TWR,		X	},
-+	{	0,	"y",		TWR,		Y	},
-+	{	0,	"s",		TWR,		S	},
-+	{	0,	"pc",		TWR,		PCR	},
-+	{	0,	"pcr",		TWR,		PCR	},
-+	{	0,	"defw",		TDEFW,		XXXX	},
-+	{	0,	"defs",		TDEFS,		XXXX	},
-+	{	0,	"defm",		TDEFM,		XXXX	},
-+	{	0,	"org",		TORG,		XXXX	},
-+	{	0,	"equ",		TEQU,		XXXX	},
-+	{	0,	"export",	TEXPORT,	XXXX	},
-+	{	0,	".byte",	TDEFB,		XXXX	},
-+	{	0,	".word",	TDEFW,		XXXX	},
-+	{	0,	".blkb",	TDEFS,		XXXX	},
-+	{	0,	".ds",		TDEFS,		XXXX	},
-+	{	0,	".ascii",	TDEFM,		XXXX	},
-+	{	0,	".org",		TORG,		XXXX	},
-+	{	0,	".equ",		TEQU,		XXXX	},
-+	{	0,	".export",	TEXPORT,	XXXX	},
-+	{	0,	"cond",		TCOND,		XXXX	},
-+	{	0,	"endc",		TENDC,		XXXX	},
++	/* Assembler directives (both bare and dotted spellings). */
++	{	0,	"defw",		TDEFW,		0	},
++	{	0,	"defs",		TDEFS,		0	},
++	{	0,	"defm",		TDEFM,		0	},
++	{	0,	"org",		TORG,		0	},
++	{	0,	"equ",		TEQU,		0	},
++	{	0,	"export",	TEXPORT,	0	},
++	{	0,	".byte",	TDEFB,		0	},
++	{	0,	".word",	TDEFW,		0	},
++	{	0,	".blkb",	TDEFS,		0	},
++	{	0,	".ds",		TDEFS,		0	},
++	{	0,	".ascii",	TDEFM,		0	},
++	{	0,	".org",		TORG,		0	},
++	{	0,	".equ",		TEQU,		0	},
++	{	0,	".export",	TEXPORT,	0	},
 +	{	0,	"abs",		TSEGMENT,	ABSOLUTE},
 +	{	0,	"code",		TSEGMENT,	CODE	},
 +	{	0,	"data",		TSEGMENT,	DATA	},
 +	{	0,	"bss",		TSEGMENT,	BSS	},
-+	{	0,	"dp",		TSEGMENT,	ZP	},
 +	{	0,	"discard",	TSEGMENT,	DISCARD	},
 +	{	0,	"common",	TSEGMENT,	COMMON	},
 +	{	0,	"literal",	TSEGMENT,	LITERAL	},
@@ -1166,160 +677,100 @@ index 0000000..dd3b504
 +	{	0,	".code",	TSEGMENT,	CODE	},
 +	{	0,	".data",	TSEGMENT,	DATA	},
 +	{	0,	".bss",		TSEGMENT,	BSS	},
-+	{	0,	".dp",		TSEGMENT,	ZP	},
 +	{	0,	".discard",	TSEGMENT,	DISCARD	},
 +	{	0,	".common",	TSEGMENT,	COMMON	},
 +	{	0,	".literal",	TSEGMENT,	LITERAL	},
 +	{	0,	".commondata",	TSEGMENT,	COMMONDATA },
 +	{	0,	".buffers",	TSEGMENT,	BUFFERS	},
 +
-+	{	0,	"abx",		TIMP,		0x3A	},
-+	{	0,	"adca",		THI,		0x89	},
-+	{	0,	"adcb",		THI,		0xC9	},
-+	{	0,	"adda",		THI,		0x8B	},
-+	{	0,	"addb",		THI,		0xCB	},
-+	{	0,	"addd",		THIW,		0xC3	},
-+	{	0,	"anda",		THI,		0x84	},
-+	{	0,	"andb",		THI,		0xC4	},
-+	{	0,	"andcc",	TIMM8,		0x1C	},
-+	{	0,	"asla",		TIMP,		0x48	},
-+	{	0,	"aslb",		TIMP,		0x58	},
-+	{	0,	"asl",		TLO,		0x08	},
-+	{	0,	"asra",		TIMP,		0x47	},
-+	{	0,	"asrb",		TIMP,		0x57	},
-+	{	0,	"asr",		TLO,		0x07	},
-+	{	0,	"bita",		THI,		0x85	},
-+	{	0,	"bitb",		THI,		0xC5	},
-+	{	0,	"bra",		TBRA,		0x20	},
-+	{	0,	"brn",		TBRA,		0x21	},
-+	{	0,	"bhi",		TBRA,		0x22	},
-+	{	0,	"bls",		TBRA,		0x23	},
-+	{	0,	"bhs",		TBRA,		0x24	},
-+	{	0,	"bcc",		TBRA,		0x24	},
-+	{	0,	"blo",		TBRA,		0x25	},
-+	{	0,	"bcs",		TBRA,		0x25	},
-+	{	0,	"bne",		TBRA,		0x26	},
-+	{	0,	"beq",		TBRA,		0x27	},
-+	{	0,	"bvc",		TBRA,		0x28	},
-+	{	0,	"bvs",		TBRA,		0x29	},
-+	{	0,	"bpl",		TBRA,		0x2A	},
-+	{	0,	"bmi",		TBRA,		0x2B	},
-+	{	0,	"bge",		TBRA,		0x2C	},
-+	{	0,	"blt",		TBRA,		0x2D	},
-+	{	0,	"bgt",		TBRA,		0x2E	},
-+	{	0,	"ble",		TBRA,		0x2F	},
-+	{	0,	"bsr",		TBRA,		0x8D	},
-+	{	0,	"clra",		TIMP,		0x4F	},
-+	{	0,	"clrb",		TIMP,		0x5F	},
-+	{	0,	"clr",		TLO,		0x0F	},
-+	{	0,	"cmpa",		THI,		0x81	},
-+	{	0,	"cmpb",		THI,		0xC1	},
-+	{	0,	"cmpd",		THIW,		0x1083	},
-+	{	0,	"cmps",		THIW,		0x118C	},
-+	{	0,	"cmpu",		THIW,		0x1183	},
-+	{	0,	"cmpx",		THIW,		0x8C	},
-+	{	0,	"cmpy",		THIW,		0x108C	},
-+	{	0,	"coma",		TIMP,		0x43	},
-+	{	0,	"comb",		TIMP,		0x53	},
-+	{	0,	"com",		TLO,		0x03	},
-+	{	0,	"cwai",		TIMM8,		0x3C	},
-+	{	0,	"daa",		TIMP,		0x19	},
-+	{	0,	"deca",		TIMP,		0x4A	},
-+	{	0,	"decb",		TIMP,		0x5A	},
-+	{	0,	"dec",		TLO,		0x0A	},
-+	{	0,	"eora",		THI,		0x88	},
-+	{	0,	"eorb",		THI,		0xC8	},
-+	{	0,	"exg",		TEXG,		0x1E	},
-+	{	0,	"inca",		TIMP,		0x4C	},
-+	{	0,	"incb",		TIMP,		0x5C	},
-+	{	0,	"inc",		TLO,		0x0C	},
-+	{	0,	"jmp",		TLO,		0x0E	},
-+	{	0,	"jsr",		TJSR,		0x9D	},
-+	{	0,	"lbra",		TLBRA,		0x16	},
-+	{	0,	"lbsr",		TLBRA,		0x17	},
-+	{	0,	"lbrn",		TLBRA,		0x1021	},
-+	{	0,	"lbhi",		TLBRA,		0x1022	},
-+	{	0,	"lbls",		TLBRA,		0x1023	},
-+	{	0,	"lbhs",		TLBRA,		0x1024	},
-+	{	0,	"lbcc",		TLBRA,		0x1024	},
-+	{	0,	"lblo",		TLBRA,		0x1025	},
-+	{	0,	"lbcs",		TLBRA,		0x1025	},
-+	{	0,	"lbne",		TLBRA,		0x1026	},
-+	{	0,	"lbeq",		TLBRA,		0x1027	},
-+	{	0,	"lbvc",		TLBRA,		0x1028	},
-+	{	0,	"lbvs",		TLBRA,		0x1029	},
-+	{	0,	"lbpl",		TLBRA,		0x102A	},
-+	{	0,	"lbmi",		TLBRA,		0x102B	},
-+	{	0,	"lbge",		TLBRA,		0x102C	},
-+	{	0,	"lblt",		TLBRA,		0x102D	},
-+	{	0,	"lbgt",		TLBRA,		0x102E	},
-+	{	0,	"lble",		TLBRA,		0x102F	},
-+	{	0,	"lda",		THI,		0x86	},
-+	{	0,	"ldb",		THI,		0xC6	},
-+	{	0,	"ldd",		THIW,		0xCC	},
-+	{	0,	"lds",		THIW,		0x10CE	},
-+	{	0,	"ldu",		THIW,		0xCE	},
-+	{	0,	"ldx",		THIW,		0x8E	},
-+	{	0,	"ldy",		THIW,		0x108E	},
-+	{	0,	"leas",		TLEA,		0x32	},
-+	{	0,	"leau",		TLEA,		0x33	},
-+	{	0,	"leax",		TLEA,		0x30	},
-+	{	0,	"leay",		TLEA,		0x31	},
-+	{	0,	"lsla",		TIMP,		0x48	},
-+	{	0,	"lslb",		TIMP,		0x58	},
-+	{	0,	"lsl",		TLO,		0x08	},
-+	{	0,	"lsra",		TIMP,		0x44	},
-+	{	0,	"lsrb",		TIMP,		0x54	},
-+	{	0,	"lsr",		TLO,		0x04	},
-+	{	0,	"mul",		TIMP,		0x3D	},
-+	{	0,	"nega",		TIMP,		0x40	},
-+	{	0,	"negb",		TIMP,		0x50	},
-+	{	0,	"neg",		TLO,		0x00	},
-+	{	0,	"nop",		TIMP,		0x12	},
-+	{	0,	"ora",		THI,		0x8A	},
-+	{	0,	"orb",		THI,		0xCA	},
-+	{	0,	"orcc",		TIMM8,		0x1A	},
-+	{	0,	"pshs",		TPUSH,		0x34	},
-+	{	0,	"pshu",		TPUSH,		0x36	},
-+	{	0,	"puls",		TPUSH,		0x35	},
-+	{	0,	"pulu",		TPUSH,		0x37	},
-+	{	0,	"rola",		TIMP,		0x49	},
-+	{	0,	"rolb",		TIMP,		0x59	},
-+	{	0,	"rol",		TLO,		0x09	},
-+	{	0,	"rora",		TIMP,		0x46	},
-+	{	0,	"rorb",		TIMP,		0x56	},
-+	{	0,	"ror",		TLO,		0x06	},
-+	{	0,	"rti",		TIMP,		0x3B	},
-+	{	0,	"rts",		TIMP,		0x39	},
-+	{	0,	"sbca",		THI,		0x82	},
-+	{	0,	"sbcb",		THI,		0xC2	},
-+	{	0,	"sex",		TIMP,		0x1D	},
-+	{	0,	"sta",		THINOIMM,	0x87	},
-+	{	0,	"stb",		THINOIMM,	0xC7	},
-+	{	0,	"std",		THIWNOIMM,	0xCD	},
-+	{	0,	"sts",		THIWNOIMM,	0x10CF	},
-+	{	0,	"stu",		THIWNOIMM,	0xCF	},
-+	{	0,	"stx",		THIWNOIMM,	0x8F	},
-+	{	0,	"sty",		THIWNOIMM,	0x108F	},
-+	{	0,	"suba",		THI,		0x80	},
-+	{	0,	"subb",		THI,		0xC0	},
-+	{	0,	"subd",		THIW,		0x83	},
-+	{	0,	"swi",		TIMP,		0x3F	},
-+	{	0,	"swi2",		TIMP,		0x103F	},
-+	{	0,	"swi3",		TIMP,		0x113F	},
-+	{	0,	"sync",		TIMP,		0x13	},
-+	{	0,	"tfr",		TEXG,/*check*/	0x1F	},
-+	{	0,	"tsta",		TIMP,		0x4D	},
-+	{	0,	"tstb",		TIMP,		0x5D	},
-+	{	0,	"tst",		TLO,		0x0D	}
++	/* Instruction verbs (isa.md §8.2 / isa/opcodes.toml). The operand form
++	   selects the opcode; see as1-blip.c. Uppercase per the §4.1 house style. */
++	{	0,	"ABX",		TINST,		0	},
++	{	0,	"ADC",		TINST,		0	},
++	{	0,	"ADD",		TINST,		0	},
++	{	0,	"AND",		TINST,		0	},
++	{	0,	"ANDCC",	TINST,		0	},
++	{	0,	"ASL",		TINST,		0	},
++	{	0,	"ASR",		TINST,		0	},
++	{	0,	"BCC",		TINST,		0	},
++	{	0,	"BCS",		TINST,		0	},
++	{	0,	"BEQ",		TINST,		0	},
++	{	0,	"BGE",		TINST,		0	},
++	{	0,	"BGT",		TINST,		0	},
++	{	0,	"BHI",		TINST,		0	},
++	{	0,	"BIT",		TINST,		0	},
++	{	0,	"BLE",		TINST,		0	},
++	{	0,	"BLS",		TINST,		0	},
++	{	0,	"BLT",		TINST,		0	},
++	{	0,	"BMI",		TINST,		0	},
++	{	0,	"BNE",		TINST,		0	},
++	{	0,	"BPL",		TINST,		0	},
++	{	0,	"BRA",		TINST,		0	},
++	{	0,	"BRN",		TINST,		0	},
++	{	0,	"BSR",		TINST,		0	},
++	{	0,	"BVC",		TINST,		0	},
++	{	0,	"BVS",		TINST,		0	},
++	{	0,	"CLI",		TINST,		0	},
++	{	0,	"CLR",		TINST,		0	},
++	{	0,	"CMP",		TINST,		0	},
++	{	0,	"COM",		TINST,		0	},
++	{	0,	"CWAI",		TINST,		0	},
++	{	0,	"DAA",		TINST,		0	},
++	{	0,	"DEC",		TINST,		0	},
++	{	0,	"EOR",		TINST,		0	},
++	{	0,	"HALT",		TINST,		0	},
++	{	0,	"INC",		TINST,		0	},
++	{	0,	"JMP",		TINST,		0	},
++	{	0,	"JSR",		TINST,		0	},
++	{	0,	"LBCC",		TINST,		0	},
++	{	0,	"LBCS",		TINST,		0	},
++	{	0,	"LBEQ",		TINST,		0	},
++	{	0,	"LBGE",		TINST,		0	},
++	{	0,	"LBGT",		TINST,		0	},
++	{	0,	"LBHI",		TINST,		0	},
++	{	0,	"LBLE",		TINST,		0	},
++	{	0,	"LBLS",		TINST,		0	},
++	{	0,	"LBLT",		TINST,		0	},
++	{	0,	"LBMI",		TINST,		0	},
++	{	0,	"LBNE",		TINST,		0	},
++	{	0,	"LBPL",		TINST,		0	},
++	{	0,	"LBRA",		TINST,		0	},
++	{	0,	"LBRN",		TINST,		0	},
++	{	0,	"LBSR",		TINST,		0	},
++	{	0,	"LBVC",		TINST,		0	},
++	{	0,	"LBVS",		TINST,		0	},
++	{	0,	"LD",		TINST,		0	},
++	{	0,	"LDMMU",	TINST,		0	},
++	{	0,	"LEA",		TINST,		0	},
++	{	0,	"LSR",		TINST,		0	},
++	{	0,	"MUL",		TINST,		0	},
++	{	0,	"NEG",		TINST,		0	},
++	{	0,	"NOP",		TINST,		0	},
++	{	0,	"OR",		TINST,		0	},
++	{	0,	"ORCC",		TINST,		0	},
++	{	0,	"PSHS",		TINST,		0	},
++	{	0,	"PULS",		TINST,		0	},
++	{	0,	"ROL",		TINST,		0	},
++	{	0,	"ROR",		TINST,		0	},
++	{	0,	"RTI",		TINST,		0	},
++	{	0,	"RTS",		TINST,		0	},
++	{	0,	"SBC",		TINST,		0	},
++	{	0,	"SEI",		TINST,		0	},
++	{	0,	"SEX",		TINST,		0	},
++	{	0,	"ST",		TINST,		0	},
++	{	0,	"STMMU",	TINST,		0	},
++	{	0,	"SUB",		TINST,		0	},
++	{	0,	"SWI",		TINST,		0	},
++	{	0,	"SWI2",		TINST,		0	},
++	{	0,	"SWI3",		TINST,		0	},
++	{	0,	"SYNC",		TINST,		0	},
++	{	0,	"TAS",		TINST,		0	},
++	{	0,	"TST",		TINST,		0	},
++	{	0,	"XCHG",		TINST,		0	}
 +};
 +
 +/*
-+ * Set up the symbol table.
-+ * Sweep through the initializations
-+ * of the "phash", and link them into the
-+ * buckets. Because it is here, a
-+ * "sizeof" works.
++ * Set up the symbol table: link each entry into the predefined-symbol hash.
 + */
 +void syminit(void)
 +{
@@ -1359,17 +810,14 @@ index 0000000..dd3b504
 +	"address required",		/* 30 */
 +	"invalid indirect",		/* 31 */
 +	"invalid ID",			/* 32 */
-+	"S,U,X or Y required",		/* 33 */
++	"register required",		/* 33 */
 +	"register required",		/* 34 */
 +	"expected ']'"			/* 35 */
 +};
 +
 +/*
-+ * Make sure that the
-+ * mode and register fields of
-+ * the type of the "ADDR" pointed to
-+ * by "ap" can participate in an addition
-+ * or a subtraction.
++ * Make sure the mode/register fields of the ADDR can take part in an add or
++ * subtract (used by the shared expression evaluator).
 + */
 +void isokaors(ADDR *ap, int paren)
 +{

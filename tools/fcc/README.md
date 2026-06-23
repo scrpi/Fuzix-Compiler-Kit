@@ -5,10 +5,10 @@ programs, built on the **Fuzix-Bintools**. This is the ISA-level toolchain
 (programs that run *on* BLIP); it is unrelated to the microcode assembler in
 `tools/uasm/`.
 
-> Status: bring-up. This tree sets up the toolchain and a BLIP assembler
-> *target wiring*. The target currently carries a faithful 6809 clone as its
-> starting point; the real ISA retarget is in progress (see "BLIP target
-> status"). Tracked by the plan in `docs/plans/fck-toolchain.md` (non-normative).
+> Status: the assembler is retargeted to BLIP and assembles the full
+> `isa/opcodes.toml` instruction set correctly (see "BLIP target status"). The
+> compiler backend is future work. Tracked by the plan in
+> `docs/plans/fck-toolchain.md` (non-normative).
 
 ## Layout
 
@@ -38,35 +38,51 @@ environment).
 
 ```sh
 git submodule update --init tools/fcc/bintools
-sh tools/fcc/build.sh        # -> tools/fcc/bin/{asblip,ldblip,nmblip,...}
-sh tools/fcc/test/roundtrip.sh
+sh tools/fcc/build.sh                 # -> tools/fcc/bin/{asblip,ldblip,nmblip,...}
+sh tools/fcc/test/roundtrip.sh        # byte-level smoke test
+python3 tools/fcc/test/opcodes_test.py # every opcode vs isa/opcodes.toml
 ```
 
-`build.sh` applies `patches/*.patch` into the submodule only if the target isn't
-already staged, then runs the per-target Makefile rules.
+`build.sh` applies `patches/*.patch` into the submodule (if not already staged),
+regenerates `blip-optab.h` from `isa/opcodes.toml`, then runs the per-target
+Makefile rules.
 
 ## What the BLIP port adds (patches/0001-blip-target.patch)
 
 - `obj.h`: a BLIP architecture id (`OA_BLIP`).
-- `as.h`: a `TARGET_BLIP` config block.
-- `as1-blip.c` / `as6-blip.c`: the per-CPU encoder and symbol/mnemonic table,
-  cloned from the 6809 target (BLIP's addressing modes are 6809-derived).
+- `as.h`: a `TARGET_BLIP` config block — symbol-type codes, the §8.4 register
+  codes, and little-endian byte order.
+- `as6-blip.c`: the symbol table — directives plus the instruction verbs (each
+  tagged `TINST`; no opcode baked in here).
+- `as1-blip.c`: a **table-driven encoder**. It parses a line into a normalized
+  key (verb + operand form, e.g. `LD A,(SP+n)`), looks it up in the generated
+  `blip-optab.h`, and emits the `0x80` page-1 prefix + opcode byte + operand
+  bytes (little-endian), choosing the 8- vs 16-bit offset form by range.
 - `Makefile`: `asblip`/`ldblip`/`nmblip`/`osizeblip`/`dumprelocsblip` rules
   built with `-DTARGET_BLIP`.
 
-The linker, librarian and relocatable object format are inherited unchanged.
+`blip-optab.h` is **generated** from `isa/opcodes.toml` by
+`tools/isa/gen_opcodes.py emit-asmtab` (build.sh runs it), so the assembler can
+never drift from the ratified opcode map. The linker, librarian and relocatable
+object format are inherited from upstream unchanged.
 
 ## BLIP target status
 
-The initial patch is a **6809 clone** that builds and round-trips, to validate
-the target wiring end to end. Still to do, retargeting to `docs/isa.md` §4 and
-`isa/opcodes.toml`:
+The assembler is retargeted to BLIP and verified: **all 462 instructions in
+`isa/opcodes.toml` assemble to the correct opcode bytes and page-1 prefix**
+(`opcodes_test.py`), operands are emitted little-endian (isa.md §3), the
+register-move selector follows §8.4, and the `U`/`DP` 6809-isms are gone.
+Assemble→link round-trips through `ldblip` with relocations.
 
-- byte order → little-endian (drop `TARGET_BIGENDIAN`, clear `ARCH_FLAGS`);
-- rewrite the `sym[]` mnemonic→opcode table to BLIP's opcode map;
-- drop 6809-isms BLIP lacks (the `U` stack, the `DP` direct page);
-- retarget the addressing-mode encoders to BLIP's modes;
-- cross-check emitted bytes against the simulator's functional suite.
+Still to do:
+
+- **Branch-offset base** is encoded relative to the end of the branch
+  instruction; confirm this matches the microcode's PC semantics against the
+  simulator's functional suite (R-SIM-4).
+- **`PSHS`/`PULS`** take a bare mask byte (`PSHS $3F`); a register-list syntax
+  (`PSHS A,B,X`) could be added.
+- Wider operand diagnostics (e.g. immediate-too-large messages per operand).
+- The compiler backend (`backend-blip.c`) in the Compiler-Kit, later.
 
 ## License / provenance
 
