@@ -25,10 +25,10 @@ index 2efa116..a7961fe 100644
  
 diff --git a/backend-blip.c b/backend-blip.c
 new file mode 100644
-index 0000000..40a7bc9
+index 0000000..75ebe72
 --- /dev/null
 +++ b/backend-blip.c
-@@ -0,0 +1,320 @@
+@@ -0,0 +1,347 @@
 +#include <stdio.h>
 +#include <stdint.h>
 +#include <stdlib.h>
@@ -57,6 +57,10 @@ index 0000000..40a7bc9
 +/* So the generic backend knows how to re-type pointers */
 +unsigned target_ptr = UINT;
 +
++/* Bytes the call pushes between the arguments and the locals: the saved
++   return address (JSR pushes a 2-byte PC). */
++#define ARGBASE 2
++
 +/* State for the current function */
 +static unsigned frame_len;	/* Number of bytes of stack frame */
 +static unsigned sp;		/* Stack pointer offset tracking */
@@ -68,6 +72,13 @@ index 0000000..40a7bc9
 +
 +struct node *gen_rewrite_node(struct node *n)
 +{
++	/* The driver does not adjust argument offsets - the backend must. An
++	   argument at raw offset k is reached at (SP + k + frame_len + ARGBASE):
++	   above the locals and the saved return address. frame_len is set by
++	   gen_frame, which the driver runs before the body expressions are
++	   rewritten, so it is valid here. */
++	if (n->op == T_ARGUMENT)
++		n->value += frame_len + ARGBASE;
 +	return n;
 +}
 +
@@ -118,6 +129,13 @@ index 0000000..40a7bc9
 +	sp -= size;
 +	if (size)
 +		printf("\tLEA SP,SP+%u\n", size);
++	/* Return value: 16-bit/pointer in X, 8-bit in B (isa.md §7). The working
++	   value is in D; move it to X so a 16-bit return lands in the ABI
++	   register. 8-bit returns are already in B (D's low half) and X is
++	   caller-saved, so the move is harmless for those; skip it only for void
++	   functions where there is no result. */
++	if (!(func_flags & F_VOIDRET))
++		printf("\tLD X,D\n");
 +	printf("\tRTS\n");
 +}
 +
@@ -139,8 +157,15 @@ index 0000000..40a7bc9
 +	printf("\tJMP L%d%s\n", n, tail);
 +}
 +
-+/* Branch if the working value is false (zero). BLIP sets Z on the producing
-+   op (isa.md §8.5); use the long conditional form so range is never a concern. */
++/*
++ * Branch on the condition result. The op that produced it leaves N,Z set: a
++ * native BLIP LD/ALU sets them (isa.md §8.5), and the boolean/comparison
++ * helpers (__bool*, __cc*) are *required* by the BLIP helper ABI to return
++ * with N,Z reflecting their result word (see README). So:
++ *   LBEQ = branch if Z   = value zero  = condition false
++ *   LBNE = branch if !Z  = value nonzero = condition true
++ * The long (page-1, rel16) form is used so branch range is never a concern.
++ */
 +void gen_jfalse(const char *tail, unsigned n)
 +{
 +	printf("\tLBEQ L%d%s\n", n, tail);
@@ -329,6 +354,13 @@ index 0000000..40a7bc9
 +
 +unsigned gen_node(struct node *n)
 +{
++	/* Account for the left operand the driver evaluated and pushed. This
++	   must run for every op, including those we handle natively below, so it
++	   is done first. Call arguments are special - they are removed by the
++	   call/return sequence and reported via T_CLEANUP, not here. */
++	if (n->left && n->op != T_ARGCOMMA && n->op != T_FUNCCALL)
++		sp -= get_stack_size(n->left->type);
++
 +	/* Native leaf: load a constant into the working register. BLIP LD sets
 +	   N,Z so a following conditional branch is valid. */
 +	if (n->op == T_CONSTANT) {
@@ -342,11 +374,6 @@ index 0000000..40a7bc9
 +		/* 4-byte constants fall through to the helper for now */
 +		}
 +	}
-+
-+	/* Function call arguments are special - they are removed by the act of
-+	   call/return and reported via T_CLEANUP. */
-+	if (n->left && n->op != T_ARGCOMMA && n->op != T_FUNCCALL)
-+		sp -= get_stack_size(n->left->type);
 +	return 0;
 +}
 diff --git a/cc.c b/cc.c
