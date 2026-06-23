@@ -1,45 +1,57 @@
 #!/bin/sh
-# Build the BLIP Fuzix-Bintools target (asblip/ldblip/nmblip/...) into tools/fcc/bin.
+# Build the BLIP toolchain into tools/fcc/bin: the assembler/linker (asblip,
+# ldblip, ...) from the bintools submodule, and the C compiler (cc, cc0,
+# cc1.blip, cc2.blip) from the compiler-kit submodule.
 #
-# The bintools/ submodule is pinned to a pristine upstream commit. The BLIP
-# target (as1-blip.c, as6-blip.c, the obj.h arch id, the as.h config block and
-# the Makefile rules) is carried as patches under patches/ and applied into the
-# submodule at build time, so we never have to maintain a bintools fork with our
-# changes -- we just pin a commit and patch on top. The opcode table the
-# assembler matches against (blip-optab.h) is generated fresh from the single
-# source of truth, isa/opcodes.toml. See README.md.
+# Both submodules are pinned to pristine upstream commits; the BLIP target is
+# carried as patches under patches/<submodule>/ and applied at build time, so we
+# never maintain a fork -- we pin a commit and patch on top. The assembler's
+# opcode table (blip-optab.h) is generated fresh from the single source of
+# truth, isa/opcodes.toml. See README.md.
 set -eu
 
 here=$(CDPATH= cd "$(dirname "$0")" && pwd)
 bintools="$here/bintools"
+ckit="$here/compiler-kit"
 bindir="$here/bin"
 genopcodes="$here/../isa/gen_opcodes.py"
 
-if [ ! -e "$bintools/Makefile" ]; then
-	echo "submodule not checked out; run:" >&2
-	echo "    git submodule update --init $bintools" >&2
-	exit 1
-fi
-
-# Stage the BLIP target into the submodule if it isn't applied yet.
-if [ ! -e "$bintools/as1-blip.c" ]; then
-	for p in "$here"/patches/*.patch; do
-		echo "applying $(basename "$p")"
-		git -C "$bintools" apply --whitespace=nowarn "$p"
-	done
-fi
-
-# Regenerate the assembler's opcode table from isa/opcodes.toml every build, so
-# it can never drift from the ratified opcode map.
-echo "generating blip-optab.h from isa/opcodes.toml"
-python3 "$genopcodes" emit-asmtab > "$bintools/blip-optab.h"
-
-echo "building BLIP target..."
-make -C "$bintools" asblip ldblip nmblip osizeblip dumprelocsblip
+apply_patches() {	# apply_patches <submodule-dir> <patch-dir> <sentinel-file>
+	if [ ! -e "$1/$3" ]; then
+		for p in "$2"/*.patch; do
+			echo "applying $(basename "$p")"
+			git -C "$1" apply --whitespace=nowarn "$p"
+		done
+	fi
+}
 
 mkdir -p "$bindir"
+
+# ---- assembler / linker (bintools) ----
+if [ ! -e "$bintools/Makefile" ]; then
+	echo "submodule not checked out; run: git submodule update --init $bintools" >&2
+	exit 1
+fi
+apply_patches "$bintools" "$here/patches/bintools" as1-blip.c
+echo "generating blip-optab.h from isa/opcodes.toml"
+python3 "$genopcodes" emit-asmtab > "$bintools/blip-optab.h"
+echo "building assembler/linker..."
+make -C "$bintools" asblip ldblip nmblip osizeblip dumprelocsblip
 for t in asblip ldblip nmblip osizeblip dumprelocsblip; do
 	cp "$bintools/$t" "$bindir/$t"
 done
+
+# ---- C compiler (compiler-kit) ----
+if [ -e "$ckit/Makefile" ]; then
+	apply_patches "$ckit" "$here/patches/compiler-kit" backend-blip.c
+	echo "building C compiler (cc, cc0, cc1.blip, cc2.blip)..."
+	make -C "$ckit" cc cc0 cc1.blip cc2.blip
+	for t in cc cc0 cc1.blip cc2.blip; do
+		cp "$ckit/$t" "$bindir/$t"
+	done
+else
+	echo "compiler-kit submodule not checked out; skipping compiler" >&2
+fi
+
 echo "built -> $bindir"
 ls -l "$bindir"
