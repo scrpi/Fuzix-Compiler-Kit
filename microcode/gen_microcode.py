@@ -443,7 +443,8 @@ def build_puls():
         if reg == 'PC':
             out += ["SCR1.low  <- [MAR]; MAR++",
                     "SCR1.high <- [MAR]; MAR++",
-                    "SP <- MAR ; PC <- SCR1 ; return to fetch"]
+                    "SP <- MAR                          # commit SP (LEFT = MAR)",
+                    "PC <- SCR1 ; return to fetch       # then set PC (LEFT = SCR1)"]
         elif w == 2:
             out += ["SCR1.low  <- [MAR]; MAR++",
                     "SCR1.high <- [MAR]; MAR++",
@@ -483,7 +484,7 @@ HAND = {
  ],
  'RTI': [
     "MAR <- SP                                       # supervisor frame: CC on top",
-    "CC  <- [MAR]; MAR++ : cc(whole) ; mi(from_z)    # restore CC (incl. M, I)",
+    "CC  <- [MAR]; MAR++ ; cc(whole) ; mi(from_z)    # restore CC (incl. M, I)",
     "SCR1.low  <- [MAR]; MAR++                       # pull PC low",
     "SCR1.high <- [MAR]; MAR++                       # pull PC high",
     "SP  <- MAR                                      # SP += 3",

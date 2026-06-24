@@ -150,6 +150,22 @@ def set_field(out: dict, fname: str, code: int, lineno: int):
     out[fname] = code
 
 
+# 16-bit architectural registers — an ALU result landing here is a 16-bit op
+# (ALU_WIDTH=16); A/B and the byte lanes of a scratch stay 8-bit (lane != None).
+WIDE16 = ("D", "X", "Y", "ACTIVE_SP", "MAR", "PC", "USP", "SSP")
+
+# condition token -> UCOND_SEL (microcode-source.md §9). `not` prefixes invert
+# the polarity (UCOND_POL). `uloop.zero` is the loop-terminal-zero condition.
+COND_SEL = {
+    "z": "Z", "c": "C", "n": "N", "v": "V",
+    "c|z": "C_OR_Z", "n^v": "N_XOR_V", "z|(n^v)": "Z_OR_NXORV", "true": "TRUE",
+    "uloop": "ULOOP", "uloop.zero": "ULOOP",
+    "irq": "IRQ_PENDING", "nmi": "NMI_PENDING", "wait-ready": "WAIT_READY",
+    "multibyte-last": "MULTIBYTE_LAST", "priv": "PRIV_VIOLATION",
+    "illegal": "ILLEGAL_OPCODE",
+}
+
+
 def parse_dest(tok: str):
     """Return (register, lane|None), resolving A/B/SP and the .low/.high suffix."""
     lane = None
@@ -170,6 +186,29 @@ def map_src(tok: str) -> str:
     return "ACTIVE_SP" if tok == "SP" else tok
 
 
+def bind_left(expr: str, out: dict, fields: Fields, lineno: int):
+    """Drive the LEFT bus from a source expression: a lane function, A/B (= the
+       byte lanes of D), an explicit SP, or a plain LEFT_SRC register."""
+    expr = expr.strip()
+    m = re.fullmatch(r"(sext|low|high)\((.+)\)", expr)
+    if m:
+        fn, inner = m.group(1), m.group(2).strip()
+        src = "D" if inner in ("A", "B") else map_src(inner)   # A/B are lanes of D
+        set_field(out, "LEFT_SRC", fields.code_of("LEFT_SRC", src), lineno)
+        set_field(out, "LEFT_LANE", fields.code_of("LEFT_LANE",
+                  {"sext": "SIGN_EXT", "low": "LOW", "high": "HIGH_TO_LOW"}[fn]), lineno)
+        return
+    if expr == "A":
+        set_field(out, "LEFT_SRC", fields.code_of("LEFT_SRC", "D"), lineno)
+        set_field(out, "LEFT_LANE", fields.code_of("LEFT_LANE", "LOW"), lineno)
+        return
+    if expr == "B":
+        set_field(out, "LEFT_SRC", fields.code_of("LEFT_SRC", "D"), lineno)
+        set_field(out, "LEFT_LANE", fields.code_of("LEFT_LANE", "HIGH_TO_LOW"), lineno)
+        return
+    set_field(out, "LEFT_SRC", fields.code_of("LEFT_SRC", map_src(expr)), lineno)
+
+
 def map_right(tok: str, fields: Fields, lineno: int) -> int:
     if tok in ("SCR1", "SCR2"):
         return fields.code_of("RIGHT_SRC", tok)
@@ -186,6 +225,8 @@ def map_right(tok: str, fields: Fields, lineno: int) -> int:
 
 
 def set_result_dest(out: dict, dst: str, fields: Fields, lineno: int):
+    if dst == "_":                       # compute for flags only (Z_DEST = none)
+        return
     d, lane = parse_dest(dst)
     if d in COUNTERS:
         if lane:
@@ -195,6 +236,8 @@ def set_result_dest(out: dict, dst: str, fields: Fields, lineno: int):
         set_field(out, "Z_DEST", fields.code_of("Z_DEST", d), lineno)
         if lane:
             set_field(out, "Z_LANE", fields.code_of("Z_LANE", lane), lineno)
+    if d in WIDE16 and lane is None:     # a 16-bit result -> ALU_WIDTH=16
+        set_field(out, "ALU_WIDTH", fields.code_of("ALU_WIDTH", "W16"), lineno)
 
 
 def bind_read(dst: str, addr: str, out: dict, fields: Fields, lineno: int):
@@ -204,7 +247,9 @@ def bind_read(dst: str, addr: str, out: dict, fields: Fields, lineno: int):
         raise AsmError(f"line {lineno}: read address [{addr}] — expected [PC] or [MAR]")
     set_field(out, "MMU_ADDR_SRC", fields.code_of("MMU_ADDR_SRC", mmu), lineno)
     d, lane = parse_dest(dst)
-    if d == "IR":
+    if d == "_":
+        pass  # read that only sets flags (TST mem) — lands in MDR, no Z dest
+    elif d == "IR":
         set_field(out, "IR_LOAD", fields.code_of("IR_LOAD", "OPCODE"), lineno)
     elif d == "MDR":
         pass  # MDR is the default read capture (microcode.md §3.2)
@@ -215,28 +260,57 @@ def bind_read(dst: str, addr: str, out: dict, fields: Fields, lineno: int):
             set_field(out, "Z_LANE", fields.code_of("Z_LANE", lane), lineno)
 
 
+def bind_write(addr: str, src: str, out: dict, fields: Fields, lineno: int):
+    set_field(out, "MEM_OP", fields.code_of("MEM_OP", "WRITE"), lineno)
+    if addr != "MAR":
+        raise AsmError(f"line {lineno}: write [{addr}] <- … — writes address via MAR")
+    set_field(out, "MMU_ADDR_SRC", fields.code_of("MMU_ADDR_SRC", "TRANSLATE_MAR"), lineno)
+    bind_left(src, out, fields, lineno)   # the source drives the data bus on LEFT
+
+
 def bind_alu(dst: str, rhs: str, out: dict, fields: Fields, lineno: int):
     m = re.fullmatch(r"(sext|low|high)\((.+)\)", rhs)
-    if m:
-        fn, inner = m.group(1), m.group(2).strip()
-        set_field(out, "LEFT_SRC", fields.code_of("LEFT_SRC", map_src(inner)), lineno)
-        lane = {"sext": "SIGN_EXT", "low": "LOW", "high": "HIGH_TO_LOW"}[fn]
-        set_field(out, "LEFT_LANE", fields.code_of("LEFT_LANE", lane), lineno)
+    if m:                                  # lane-steer pass
+        bind_left(rhs, out, fields, lineno)
         set_field(out, "ALU_OP", fields.code_of("ALU_OP", "PASS_L"), lineno)
         set_result_dest(out, dst, fields, lineno)
         return
-    for sym, op in ((" + ", "ADD"), (" - ", "SUB"), (" & ", "AND"),
-                    (" | ", "OR"), (" ^ ", "EOR")):
+    m = re.fullmatch(r"(asl|lsr|asr|rol|ror)\((.+)\)", rhs)
+    if m:                                  # shift / rotate
+        fn, inner = m.group(1), m.group(2).strip()
+        bind_left(inner, out, fields, lineno)
+        set_field(out, "ALU_OP", fields.code_of("ALU_OP", "SHIFT"), lineno)
+        set_field(out, "ALU_SHIFT", fields.code_of("ALU_SHIFT", fn.upper()), lineno)
+        set_result_dest(out, dst, fields, lineno)
+        return
+    if rhs.startswith("~"):                 # COM (unary)
+        bind_left(rhs[1:].strip(), out, fields, lineno)
+        set_field(out, "ALU_OP", fields.code_of("ALU_OP", "COM"), lineno)
+        set_result_dest(out, dst, fields, lineno)
+        return
+    if rhs.startswith("-") and " - " not in rhs:   # NEG (unary)
+        bind_left(rhs[1:].strip(), out, fields, lineno)
+        set_field(out, "ALU_OP", fields.code_of("ALU_OP", "NEG"), lineno)
+        set_result_dest(out, dst, fields, lineno)
+        return
+    for sym, op in ((" +c ", "ADC"), (" -c ", "SBC"), (" + ", "ADD"),
+                    (" - ", "SUB"), (" & ", "AND"), (" | ", "OR"), (" ^ ", "EOR")):
         if sym in rhs:
             a, b = rhs.split(sym, 1)
-            set_field(out, "LEFT_SRC", fields.code_of("LEFT_SRC", map_src(a.strip())), lineno)
+            bind_left(a.strip(), out, fields, lineno)
             set_field(out, "RIGHT_SRC", map_right(b.strip(), fields, lineno), lineno)
             set_field(out, "ALU_OP", fields.code_of("ALU_OP", op), lineno)
             set_result_dest(out, dst, fields, lineno)
             return
-    # plain source -> PASS_L
-    set_field(out, "LEFT_SRC", fields.code_of("LEFT_SRC", map_src(rhs.strip())), lineno)
-    set_field(out, "ALU_OP", fields.code_of("ALU_OP", "PASS_L"), lineno)
+    try:                                   # a bare const-gen value -> PASS_R
+        n = int(rhs, 0)
+    except ValueError:
+        bind_left(rhs.strip(), out, fields, lineno)     # plain source -> PASS_L
+        set_field(out, "ALU_OP", fields.code_of("ALU_OP", "PASS_L"), lineno)
+        set_result_dest(out, dst, fields, lineno)
+        return
+    set_field(out, "RIGHT_SRC", map_right(str(n), fields, lineno), lineno)
+    set_field(out, "ALU_OP", fields.code_of("ALU_OP", "PASS_R"), lineno)
     set_result_dest(out, dst, fields, lineno)
 
 
@@ -247,7 +321,19 @@ def bind_counter_inc(part: str, out: dict, fields: Fields, lineno: int):
     set_field(out, f"{reg}_CTRL", fields.code_of(f"{reg}_CTRL", "COUNT"), lineno)
 
 
-def bind_control(part: str, out: dict, fields: Fields, lineno: int):
+def bind_cond(cond: str, out: dict, fields: Fields, lineno: int):
+    """Bind UCOND_SEL/UCOND_POL from a condition string (with optional `not`)."""
+    pol = "ASSERT"
+    if cond.startswith("not "):
+        pol, cond = "NEGATE", cond[4:].strip()
+    sel = COND_SEL.get(cond)
+    if sel is None:
+        raise AsmError(f"line {lineno}: unknown condition {cond!r}")
+    set_field(out, "UCOND_SEL", fields.code_of("UCOND_SEL", sel), lineno)
+    set_field(out, "UCOND_POL", fields.code_of("UCOND_POL", pol), lineno)
+
+
+def bind_control(part: str, out: dict, labels: dict, fields: Fields, lineno: int):
     toks = part.split()
     kw = toks[0]
     if kw == "dispatch":
@@ -257,8 +343,48 @@ def bind_control(part: str, out: dict, fields: Fields, lineno: int):
                 set_field(out, "DISPATCH_PAGE", fields.code_of("DISPATCH_PAGE", "PAGE1"), lineno)
             else:
                 raise AsmError(f"line {lineno}: dispatch qualifier {toks[1]!r} — expected 'page1'")
-    elif kw in ("goto", "call", "return", "wait", "if", "repeat"):
-        raise AsmError(f"line {lineno}: control '{kw}' not yet implemented in the v0 parser")
+    elif kw == "goto":
+        set_field(out, "USEQ_OP", fields.code_of("USEQ_OP", "JUMP"), lineno)
+        set_field(out, "NEXT_ADDR", 0, lineno)
+        labels["NEXT_ADDR"] = toks[1]
+    elif kw == "call":
+        set_field(out, "USEQ_OP", fields.code_of("USEQ_OP", "CALL"), lineno)
+        set_field(out, "NEXT_ADDR", 0, lineno)
+        labels["NEXT_ADDR"] = toks[1]
+    elif kw == "if":
+        gi = toks.index("goto")
+        bind_cond(" ".join(toks[1:gi]), out, fields, lineno)
+        set_field(out, "USEQ_OP", fields.code_of("USEQ_OP", "BRANCH"), lineno)
+        set_field(out, "NEXT_ADDR", 0, lineno)
+        labels["NEXT_ADDR"] = toks[gi + 1]
+    elif kw == "return":
+        op = "RETURN_FETCH" if toks[1:3] == ["to", "fetch"] else "RETURN"
+        set_field(out, "USEQ_OP", fields.code_of("USEQ_OP", op), lineno)
+    elif kw == "wait":
+        set_field(out, "USEQ_OP", fields.code_of("USEQ_OP", "WAIT"), lineno)
+    elif kw == "uloop--":
+        set_field(out, "ULOOP_CTRL", fields.code_of("ULOOP_CTRL", "DECREMENT"), lineno)
+    elif kw in ("lock", "unlock"):
+        set_field(out, "TAS_LOCK", fields.code_of("TAS_LOCK", "LOCK" if kw == "lock" else "OFF"), lineno)
+    elif "(" in kw:                         # cc(…) / mi(…) / map(…) / pt(…) / vector(…)
+        fn, arg = re.fullmatch(r"(\w+)\((\w+)\)", kw).groups()
+        if fn == "cc":
+            set_field(out, "CC_WRITE_SRC", fields.code_of("CC_WRITE_SRC",
+                      {"whole": "WHOLE_Z", "and": "AND_MASK", "or": "OR_MASK"}[arg]), lineno)
+        elif fn == "mi":
+            set_field(out, "CC_MI_LOAD", fields.code_of("CC_MI_LOAD",
+                      {"enter": "SET_ON_ENTRY", "from_z": "FROM_Z",
+                       "set_i": "EXPLICIT", "clr_i": "EXPLICIT"}[arg]), lineno)
+        elif fn == "map":
+            set_field(out, "MMU_MAP_SEL", fields.code_of("MMU_MAP_SEL",
+                      {"kernel": "FORCE_KERNEL", "user": "FORCE_USER", "imm8": "FROM_IMM8"}[arg]), lineno)
+        elif fn == "pt":
+            set_field(out, "MMU_PT_OP", fields.code_of("MMU_PT_OP",
+                      {"write": "WRITE_ENTRY", "read": "READ_ENTRY"}[arg]), lineno)
+        elif fn == "vector":
+            pass  # the trap-vector slot address is materialized by the trap logic
+        else:
+            raise AsmError(f"line {lineno}: unknown clause {kw!r}")
     else:
         raise AsmError(f"line {lineno}: unrecognized clause {part!r}")
 
@@ -269,7 +395,10 @@ def bind_flags(flagstr: str, out: dict, fields: Fields, lineno: int):
         item = item.strip()
         if not item:
             continue
-        if "=" in item:
+        if item == "z+":                   # accumulate Z across a 16-bit op's two lanes
+            we.append("Z")
+            set_field(out, "Z_ACCUM", fields.code_of("Z_ACCUM", "ACCUM"), lineno)
+        elif "=" in item:
             f, val = (x.strip() for x in item.split("=", 1))
             f = f.upper()
             we.append(f)
@@ -290,24 +419,41 @@ def bind_flags(flagstr: str, out: dict, fields: Fields, lineno: int):
 
 def bind_statement(s: str, fields: Fields, lineno: int) -> dict:
     out: dict[str, int] = {}
-    main, _, flagstr = s.partition(":")
-    for part in (p.strip() for p in main.split(";")):
+    labels: dict[str, str] = {}            # field -> label (resolved to an address later)
+    # The flag clause is introduced by ':' and runs to the next ';'; everything
+    # else (transfer + concurrent + control clauses) is ';'-separated.
+    flagstr = ""
+    if ":" in s:
+        pre, _, rest = s.partition(":")
+        flagstr, _, post = rest.partition(";")
+        s = pre + (";" + post if post.strip() else "")
+    for part in (p.strip() for p in s.split(";")):
         if not part:
+            continue
+        if "reg[" in part:
+            continue  # selector-driven register move — no control-word field routes it
+        if "->" in part:                   # count -> uloop  (load the loop counter)
+            set_field(out, "ULOOP_CTRL", fields.code_of("ULOOP_CTRL", "LOAD"), lineno)
             continue
         if "<-" in part:
             dst, rhs = (x.strip() for x in part.split("<-", 1))
-            if rhs.startswith("["):
-                addr = rhs[1:rhs.index("]")].strip()
-                bind_read(dst, addr, out, fields, lineno)
+            if dst == "MMU_ENTRY":         # LDMMU: data on LEFT, written via pt(write)
+                bind_left(rhs, out, fields, lineno)
+            elif dst.startswith("["):
+                bind_write(dst[1:dst.index("]")].strip(), rhs, out, fields, lineno)
+            elif rhs.startswith("["):
+                bind_read(dst, rhs[1:rhs.index("]")].strip(), out, fields, lineno)
+            elif rhs.startswith("vector("):
+                set_result_dest(out, dst, fields, lineno)   # MAR <- vector(NAME)
             else:
                 bind_alu(dst, rhs, out, fields, lineno)
         elif part.endswith("++"):
             bind_counter_inc(part, out, fields, lineno)
         else:
-            bind_control(part, out, fields, lineno)
+            bind_control(part, out, labels, fields, lineno)
     if flagstr:
         bind_flags(flagstr, out, fields, lineno)
-    return {f: (c, None) for f, c in out.items()}
+    return {f: (c, labels.get(f)) for f, c in out.items()}
 
 
 # ---------------------------------------------------------------------------

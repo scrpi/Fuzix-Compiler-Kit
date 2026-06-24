@@ -1734,7 +1734,7 @@ pshs_skip6:
 pshs_skip7:
   return to fetch
 
-# 0xd5 PULS mask8   (33 cyc)
+# 0xd5 PULS mask8   (34 cyc)
 .opcode page0 PULS mask8
 routine PULS mask8:
   SCR2 <- [PC]; PC++                # pull mask
@@ -1774,7 +1774,8 @@ puls_skip6:
   if not c goto puls_skip7             # PC not in mask
   SCR1.low  <- [MAR]; MAR++
   SCR1.high <- [MAR]; MAR++
-  SP <- MAR ; PC <- SCR1 ; return to fetch
+  SP <- MAR                          # commit SP (LEFT = MAR)
+  PC <- SCR1 ; return to fetch       # then set PC (LEFT = SCR1)
 puls_skip7:
   SP <- MAR ; return to fetch        # commit the advanced SP
 
@@ -1930,7 +1931,7 @@ sync_wait:
 .opcode page1 RTI
 routine RTI:
   MAR <- SP                                       # supervisor frame: CC on top
-  CC  <- [MAR]; MAR++ : cc(whole) ; mi(from_z)    # restore CC (incl. M, I)
+  CC  <- [MAR]; MAR++ ; cc(whole) ; mi(from_z)    # restore CC (incl. M, I)
   SCR1.low  <- [MAR]; MAR++                       # pull PC low
   SCR1.high <- [MAR]; MAR++                       # pull PC high
   SP  <- MAR                                      # SP += 3
