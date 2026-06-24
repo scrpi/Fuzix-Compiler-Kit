@@ -14,15 +14,21 @@
 //     ready to post on Z (hardware.md §2 "every register write is posted on Z") or drive
 //     LEFT (LEFT_SRC=MDR) on a following microword.
 //
-// Address path (the MMU, §3): the 16-bit logical MAR is translated to the 24-bit physical
-// address on `A[23:0]`. Until the page table lands this is the RESET IDENTITY MAP (low 64 KB
-// logical = physical, hardware.md §3 / D-15): `A = {8'h00, MAR}` — pure wiring, the spec's
-// power-on translation, not a placeholder.
+// Address path (the MMU, §3): a 16-bit logical address — the active one of PC/MAR, selected
+// upstream by MMU_ADDR_SRC on the motherboard — is translated to the 24-bit physical address
+// on `A[23:0]`. Until the page table lands this is the RESET IDENTITY MAP (low 64 KB logical =
+// physical, hardware.md §3 / D-15): `A = {8'h00, addr}` — pure wiring, the spec's power-on
+// translation, not a placeholder.
+//
+// `bus_inhibit` forces /RD//WR idle (and so the write driver off): the integrator ties it to
+// `loading`, so no spurious transfer happens during the boot copy, when the control word is
+// meaningless (the WCS is mid-write). The standalone bench ties it LOW.
 //
 // Structure (the BOM):
 //   4x sn74ahct157 -> MDR's 8-bit source mux, two 2:1 layers (no inverter — see below):
 //                     layer 1 picks Z-low vs MDR-self (Z_DEST=MDR load vs hold);
 //                     layer 2 picks external D vs layer-1 (a READ capture overrides).
+//   1x sn74ahct32  -> OR `bus_inhibit` into the MEM_OP read/write lines to form /RD//WR.
 //   1x sn74ahct574 -> MDR itself (octal D-FF); /OE tied LOW so Q is always live internally.
 //   1x sn74ahct541 -> the external write driver: MDR -> D[7:0], enabled by /WR (drive only
 //                     during a write — interface.md §5).
@@ -49,9 +55,10 @@ module memory_interface (
     input  wire [3:0]  mem_op_n,        // MEM_OP one-hot: [0]=IDLE [1]=READ [2]=WRITE
     input  wire        z_dest_mdr_n,    // Z_DEST==MDR  -> capture Z-low into MDR
     input  wire        left_src_mdr_n,  // LEFT_SRC==MDR -> drive MDR onto LEFT low lane
+    input  wire        bus_inhibit,     // 1 = force /RD//WR idle (boot copy; = loading)
 
-    // --- internal datapath buses (MAR/Z injected until those blocks land) --------
-    input  wire [15:0] mar,             // logical address presented to the MMU (from MAR)
+    // --- internal datapath buses -------------------------------------------------
+    input  wire [15:0] addr,            // selected logical address -> MMU (PC/MAR, muxed upstream)
     input  wire [7:0]  z_lo,            // Z bus low byte (the staged write data)
     output wire [7:0]  mdr_q,           // MDR contents — internal tap / Z-post source
     output wire [7:0]  left_lo,         // MDR -> LEFT low lane (3-state; driven by LEFT_SRC=MDR)
@@ -62,14 +69,18 @@ module memory_interface (
     output wire        rd_n,            // /RD read strobe
     output wire        wr_n             // /WR write strobe
 );
-    // ---- transfer strobes: tapped straight off the MEM_OP one-hot ---------------
-    // mem_op_n is active-low one-hot, so the READ/WRITE lines ARE /RD//WR (bus selection,
-    // not logic — R-SIM-5). IDLE (mem_op_n[0] low) leaves both strobes HIGH.
-    assign rd_n = mem_op_n[1];
-    assign wr_n = mem_op_n[2];
+    // ---- transfer strobes: MEM_OP one-hot, OR'd with bus_inhibit ----------------
+    // mem_op_n is active-low one-hot, so its READ/WRITE lines are the un-inhibited strobes;
+    // OR bus_inhibit in so the boot copy (or any inhibit) forces both HIGH (idle), which
+    // also disables the write driver below (its enable is wr_n). IDLE leaves both HIGH.
+    wire [3:0] strobe;
+    (* purpose = "/RD//WR = MEM_OP | bus_inhibit" *)
+    sn74ahct32 strobes (.a({2'b00, mem_op_n[2], mem_op_n[1]}), .b({4{bus_inhibit}}), .y(strobe));
+    assign rd_n = strobe[0];
+    assign wr_n = strobe[1];
 
     // ---- MMU: reset identity map (low 64 KB logical = physical) -----------------
-    assign a = {8'h00, mar};
+    assign a = {8'h00, addr};
 
     // ---- MDR source mux: {external D on READ, Z-low on Z_DEST=MDR, else hold} ----
     // Layer 1: SEL = z_dest_mdr_n -> asserted (LOW) picks A = z_lo (load); else B = mdr_q.

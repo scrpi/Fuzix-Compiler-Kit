@@ -25,7 +25,7 @@ module tb_mem;
     reg  [3:0]  mem_op_n       = OP_IDLE;
     reg         z_dest_mdr_n   = 1'b1;       // 0 = capture Z-low into MDR
     reg         left_src_mdr_n = 1'b1;       // 0 = drive MDR onto LEFT
-    reg  [15:0] mar            = 16'h0000;
+    reg  [15:0] addr           = 16'h0000;
     reg  [7:0]  z_lo           = 8'h00;
 
     wire [7:0]  mdr_q, left_lo;
@@ -35,7 +35,7 @@ module tb_mem;
 
     memory_interface dut (
         .clk(clk), .mem_op_n(mem_op_n), .z_dest_mdr_n(z_dest_mdr_n), .left_src_mdr_n(left_src_mdr_n),
-        .mar(mar), .z_lo(z_lo), .mdr_q(mdr_q), .left_lo(left_lo),
+        .bus_inhibit(1'b0), .addr(addr), .z_lo(z_lo), .mdr_q(mdr_q), .left_lo(left_lo),
         .a(a), .d(d), .rd_n(rd_n), .wr_n(wr_n)
     );
 
@@ -53,20 +53,20 @@ module tb_mem;
         end
     endtask
 
-    task wr_mem(input [15:0] addr);         // WRITE: MDR -> D, device captures on /WR rising
+    task wr_mem(input [15:0] ad);           // WRITE: MDR -> D, device captures on /WR rising
         begin
-            @(negedge clk); mar = addr; mem_op_n = OP_WRITE; #50;   // settle strobes + '541 enable
+            @(negedge clk); addr = ad; mem_op_n = OP_WRITE; #50;    // settle strobes + '541 enable
             if (wr_n !== 1'b0) $fatal(1, "WRITE: /WR not asserted (wr_n=%b)", wr_n);
-            if (a !== {8'h00, addr}) $fatal(1, "WRITE: A=%06x exp %06x", a, {8'h00, addr});
+            if (a !== {8'h00, ad}) $fatal(1, "WRITE: A=%06x exp %06x", a, {8'h00, ad});
             if (d !== mdr_q) $fatal(1, "WRITE: CPU not driving D with MDR (D=%02x MDR=%02x)", d, mdr_q);
             @(negedge clk); mem_op_n = OP_IDLE;             // /WR rises here -> device captures
             @(negedge clk);
         end
     endtask
 
-    task rd_mem(input [15:0] addr);         // READ: device drives D, MDR captures on terminating edge
+    task rd_mem(input [15:0] ad);           // READ: device drives D, MDR captures on terminating edge
         begin
-            @(negedge clk); mar = addr; mem_op_n = OP_READ; #50;    // settle strobes + device drive
+            @(negedge clk); addr = ad; mem_op_n = OP_READ; #50;     // settle strobes + device drive
             if (rd_n !== 1'b0) $fatal(1, "READ: /RD not asserted (rd_n=%b)", rd_n);
             if (wr_n !== 1'b1) $fatal(1, "READ: /WR asserted during a read (wr_n=%b)", wr_n);
             @(negedge clk); mem_op_n = OP_IDLE;             // MDR captured on the intervening posedge
