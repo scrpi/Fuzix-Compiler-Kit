@@ -16,7 +16,7 @@ TOP    ?=
 MODE   ?=
 
 .NOTPARALLEL:
-.PHONY: test image browser check lint sim cpu bench viz logisim logisim-test digitaljs clean help
+.PHONY: test image browser check lint sim cpu mem bench viz logisim logisim-test digitaljs clean help
 
 ## test:   run the whole suite (image, field-def check, both lints, tool + timed test-benches)
 test: image check lint logisim-test sim
@@ -40,12 +40,16 @@ lint:
 	$(PYTHON) tools/lint/timing_lint.py
 
 ## sim:    the timed, self-checking test-benches
-sim: cpu bench
+sim: cpu mem bench
 
 ## cpu:    boot copy (real loader + EEPROM -> WCS) then the microsequencer walk
 ##         (INC/JUMP/BRANCH/DISPATCH/WAIT) — the loader is proven on this standard path
 cpu:
 	bash sim/tb/cpu/run.sh
+
+## mem:    the MDR + external-bus port — stage/WRITE/READ round trip vs a memory model
+mem:
+	bash sim/tb/mem/run.sh
 
 ## bench:  two-engine throughput benchmark (Verilator vs timed Icarus)
 bench:
