@@ -38,7 +38,7 @@ current routines use and errors clearly on the rest:
 
   # comment to end of line
   .fetch NAME                 the fetch entry (the named routine must be at addr 0)
-  .opcode page0 LD A,(X+n8)   bind a routine as that mnemonic's opcode entry
+  .opcode page0 0x04 LD A,(X+n8)   bind a routine as opcode {page,byte}'s LUT entry
   routine NAME:               start a routine; the indented lines are its microwords
 
   dest <- [PC] ; PC++ ; dispatch         memory read + counter tick + sequencer
@@ -46,8 +46,9 @@ current routines use and errors clearly on the rest:
   dest <- sext(src)                      lane-steer (sext/low/high) + pass
   A <- [MAR] : nz, v=0                   A = D.low; flag clause after ':'
 
-NOTE: opcode byte values are not yet assigned (D-41), so `.opcode` bindings get
-placeholder sequential indices per page until the mnemonic->byte pass exists.
+The opcode LUT is indexed by the REAL opcode byte the `.opcode` directive carries
+(sourced from isa/opcodes.toml, D-48): lut[{page, byte}] = the routine's start
+microaddress. Unbound bytes stay 0 (-> FETCH), a safe landing for an undefined opcode.
 """
 from __future__ import annotations
 
@@ -462,7 +463,7 @@ def bind_statement(s: str, fields: Fields, lineno: int) -> dict:
 def parse(text: str, fields: Fields):
     words: list[Microword] = []
     labels: dict[str, int] = {}            # routine/label name -> word index
-    opcodes: list[tuple[int, str, int]] = []   # (page, mnemonic, lineno)
+    opcodes: list[tuple[int, int, str, int]] = []   # (page, byte, mnemonic, lineno)
     fetch_label = None
     pending: list[tuple[str, int]] = []    # labels awaiting their microword
 
@@ -477,11 +478,16 @@ def parse(text: str, fields: Fields):
             if d == ".fetch":
                 fetch_label = rest
             elif d == ".opcode":
-                ptoks = rest.split(None, 1)
-                if len(ptoks) != 2 or ptoks[0].lower() not in ("page0", "page1"):
-                    raise AsmError(f"line {lineno}: .opcode expects 'page0|page1 <mnemonic>'")
+                ptoks = rest.split(None, 2)
+                if len(ptoks) != 3 or ptoks[0].lower() not in ("page0", "page1"):
+                    raise AsmError(f"line {lineno}: .opcode expects "
+                                   f"'page0|page1 <byte> <mnemonic>'")
+                try:
+                    byte = int(ptoks[1], 0)
+                except ValueError:
+                    raise AsmError(f"line {lineno}: .opcode byte {ptoks[1]!r} is not a number")
                 opcodes.append((0 if ptoks[0].lower() == "page0" else 1,
-                                ptoks[1].strip(), lineno))
+                                byte, ptoks[2].strip(), lineno))
             else:
                 raise AsmError(f"line {lineno}: unknown directive {d!r}")
             continue
@@ -533,20 +539,26 @@ def assemble(text: str, fields: Fields):
 
     validate_rules(words, fields)
 
-    # opcode -> start-address LUT. Byte values are unassigned (D-41), so each
-    # binding gets a placeholder sequential index per page for now.
+    # opcode -> start-address LUT, indexed by the REAL opcode byte (the .opcode
+    # directive carries it, sourced from isa/opcodes.toml). lut[{page, byte}] =
+    # the routine's start microaddress. Unbound bytes stay 0 (-> FETCH), a safe
+    # landing for an undefined opcode.
     clut = [0] * LUT_ENTRIES
-    page_next = {0: 0, 1: 0}
-    placeholders: list[tuple[int, int, str]] = []
-    for page, mnem, lineno in opcodes:
+    seen: dict[tuple[int, int], str] = {}
+    entries: list[tuple[int, int, str]] = []
+    for page, byte, mnem, lineno in opcodes:
         if mnem not in labels:
             raise AsmError(f"line {lineno}: .opcode {mnem!r} has no matching 'routine'")
-        idx = page_next[page]
-        page_next[page] += 1
-        clut[(page << 8) | idx] = labels[mnem]
-        placeholders.append((page, idx, mnem))
+        if not 0 <= byte < 256:
+            raise AsmError(f"line {lineno}: .opcode byte {byte:#x} out of range 0..255")
+        if (page, byte) in seen:
+            raise AsmError(f"line {lineno}: opcode page{page} {byte:#04x} already "
+                           f"bound to {seen[(page, byte)]!r}")
+        seen[(page, byte)] = mnem
+        clut[(page << 8) | byte] = labels[mnem]
+        entries.append((page, byte, mnem))
 
-    return words, labels, clut, placeholders
+    return words, labels, clut, entries
 
 
 def field_value(mw: Microword, fname: str) -> int:
@@ -657,7 +669,7 @@ def main(argv: list[str]) -> int:
         fields = Fields(tomllib.load(f))
 
     try:
-        words, labels, clut, placeholders = assemble(src.read_text(), fields)
+        words, labels, clut, entries = assemble(src.read_text(), fields)
         img = build_image(words, clut, fields)
         roundtrip(img, words, clut, fields)
     except AsmError as e:
@@ -668,12 +680,11 @@ def main(argv: list[str]) -> int:
     emit(img, outdir)
 
     used = sum(1 for b in img if b != FILL)
-    print(f"assembled {src.name}: {len(words)} microwords, {len(placeholders)} opcode entries")
-    print("  routines: " + ", ".join(f"{n}@{a}" for n, a in sorted(labels.items(), key=lambda x: x[1])))
-    if placeholders:
-        print("  opcode LUT (placeholder indices — byte values unassigned, D-41):")
-        for page, idx, mnem in placeholders:
-            print(f"    page{page} #{idx} -> {mnem} @{labels[mnem]}")
+    p0 = sum(1 for p, _, _ in entries if p == 0)
+    print(f"assembled {src.name}: {len(words)} microwords, {len(labels)} routines, "
+          f"{len(entries)} opcode entries")
+    print(f"  opcode LUT (indexed by real opcode byte): "
+          f"page0 {p0} entries, page1 {len(entries) - p0} entries")
     print(f"  image:  {outdir/'blip_microcode.bin'} (+ .hex)  "
           f"({IMG_BYTES} bytes, {used} non-zero, {N_SEG} segments)")
     print(f"  sim in: blip_microcode.hex — single image; loader fans out to {N_SEG} SRAMs")

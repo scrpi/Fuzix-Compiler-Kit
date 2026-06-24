@@ -717,8 +717,9 @@ def emit():
         "  IR <- [PC]; PC++; dispatch          # read opcode @PC -> IR, PC+1, dispatch via the LUT",
         "",
         "# 0x80 — the page-1 prefix: a one-step routine that re-fetches the real",
-        "# opcode and re-dispatches on page 1 (isa.md §5.1).  The opcode LUT entry",
-        "# page0[0x80] is bound to this routine by the loader.",
+        "# opcode and re-dispatches on page 1 (isa.md §5.1).  page0[0x80] in the",
+        "# opcode LUT points here (0x80 is reserved as the prefix, not an opcode).",
+        ".opcode page0 0x80 PREFIX_P1",
         "routine PREFIX_P1:",
         "  IR <- [PC]; PC++; dispatch page1    # second opcode byte -> IR, dispatch on page 1",
         "",
@@ -744,7 +745,7 @@ def emit():
         review = " · REVIEW" if any('REVIEW' in ln for ln in lines) else ""
         note = f"# {op['byte']:#04x} {op['mnem']}   ({nc} cyc{priv}{review})"
         L.append(note)
-        L.append(f".opcode page{op['page']} {op['mnem']}")
+        L.append(f".opcode page{op['page']} {op['byte']:#04x} {op['mnem']}")
         L.append(f"routine {op['mnem']}:")
         L += fmt_routine(lines)
         L.append("")
