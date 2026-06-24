@@ -301,12 +301,15 @@ def main():
     fb = L.reconcile(BMOD, BTOP, bad)
     chk("wrong bus bit-map -> SHORT/OPEN", bool(fb.shorts or fb.opens))
 
-    # ---- bus GENERATION (generate --bus): widest-first, internal bus, slice port -----
-    # cw (6-bit input bus) feeds a decoder; pt is a 2-bit pass-through SLICE of cw; q is the
-    # decoder's 4-bit output bus; cw_lo overlaps cw narrowly to exercise widest-first.
+    # ---- bus GENERATION (generate --bus): widest-first, internal bus, slice ports -----
+    # cw (6-bit input bus) feeds a decoder; pt is a 2-bit pass-through output SLICE of cw; pti is a
+    # 2-bit INPUT slice of cw (its fanout-1 tap faces so the pin->end wire never crosses the bus
+    # combined point — regression for the input slice-tap short); q is the decoder's 4-bit output
+    # bus; cw_lo overlaps cw narrowly to exercise widest-first.
     GMOD = {
         "ports": {"cw": {"direction": "input", "bits": [50, 51, 52, 53, 54, 55]},
                   "pt": {"direction": "output", "bits": [52, 53]},
+                  "pti": {"direction": "input", "bits": [53, 54]},
                   "q": {"direction": "output", "bits": [20, 21, 22, 23]}},
         "cells": {"dec": {"type": "sn74ahct138", "connections": {
             "a": [50], "b": [51], "c": [52], "g1": ["1"], "g2a_n": ["0"], "g2b_n": ["0"],
@@ -318,7 +321,7 @@ def main():
     gb = os.path.join(tmp, "gen_bus.circ")
     open(gb, "w").write(L.generate(GMOD, "gmod", buses=True)[0])
     fg = L.reconcile(GMOD, "gmod", gb)
-    chk("generate --bus reconciles IN SYNC (incl. slice port)",
+    chk("generate --bus reconciles IN SYNC (incl. input+output slice ports)",
         not (fg.opens or fg.shorts or fg.missing or fg.width_mismatch) and fg.splitters > 0)
     g1 = os.path.join(tmp, "gen_1bit.circ")
     open(g1, "w").write(L.generate(GMOD, "gmod", buses=False)[0])

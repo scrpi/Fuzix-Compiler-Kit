@@ -39,7 +39,7 @@
     <tool lib="0" name="Pin"/>
     <tool lib="0" name="Pin">
       <a name="facing" val="west"/>
-      <a name="output" val="true"/>
+      <a name="type" val="output"/>
     </tool>
   </toolbar>
   <circuit name="control_word_decoder">
@@ -51,7 +51,7 @@
     <a name="facing" val="south"/>
   </comp>
   <comp lib="0" loc="(300,270)" name="Splitter">
-    <a name="incoming" val="64"/>
+    <a name="incoming" val="32"/>
     <a name="fanout" val="3"/>
     <a name="facing" val="east"/>
     <a name="appear" val="left"/>
@@ -88,42 +88,10 @@
     <a name="bit29" val="none"/>
     <a name="bit30" val="none"/>
     <a name="bit31" val="none"/>
-    <a name="bit32" val="none"/>
-    <a name="bit33" val="none"/>
-    <a name="bit34" val="none"/>
-    <a name="bit35" val="none"/>
-    <a name="bit36" val="none"/>
-    <a name="bit37" val="none"/>
-    <a name="bit38" val="none"/>
-    <a name="bit39" val="none"/>
-    <a name="bit40" val="none"/>
-    <a name="bit41" val="none"/>
-    <a name="bit42" val="none"/>
-    <a name="bit43" val="none"/>
-    <a name="bit44" val="none"/>
-    <a name="bit45" val="none"/>
-    <a name="bit46" val="none"/>
-    <a name="bit47" val="none"/>
-    <a name="bit48" val="none"/>
-    <a name="bit49" val="none"/>
-    <a name="bit50" val="none"/>
-    <a name="bit51" val="none"/>
-    <a name="bit52" val="none"/>
-    <a name="bit53" val="none"/>
-    <a name="bit54" val="none"/>
-    <a name="bit55" val="none"/>
-    <a name="bit56" val="none"/>
-    <a name="bit57" val="none"/>
-    <a name="bit58" val="none"/>
-    <a name="bit59" val="none"/>
-    <a name="bit60" val="none"/>
-    <a name="bit61" val="none"/>
-    <a name="bit62" val="none"/>
-    <a name="bit63" val="none"/>
   </comp>
   <comp lib="0" loc="(300,270)" name="Tunnel">
-    <a name="label" val="cw_dp"/>
-    <a name="width" val="64"/>
+    <a name="label" val="cw_dp__0"/>
+    <a name="width" val="32"/>
     <a name="facing" val="east"/>
   </comp>
   <comp lib="0" loc="(320,300)" name="Tunnel">
@@ -187,7 +155,7 @@
     <a name="facing" val="east"/>
   </comp>
   <comp lib="0" loc="(980,310)" name="Splitter">
-    <a name="incoming" val="64"/>
+    <a name="incoming" val="32"/>
     <a name="fanout" val="2"/>
     <a name="facing" val="east"/>
     <a name="appear" val="left"/>
@@ -224,42 +192,10 @@
     <a name="bit29" val="none"/>
     <a name="bit30" val="none"/>
     <a name="bit31" val="none"/>
-    <a name="bit32" val="none"/>
-    <a name="bit33" val="none"/>
-    <a name="bit34" val="none"/>
-    <a name="bit35" val="none"/>
-    <a name="bit36" val="none"/>
-    <a name="bit37" val="none"/>
-    <a name="bit38" val="none"/>
-    <a name="bit39" val="none"/>
-    <a name="bit40" val="none"/>
-    <a name="bit41" val="none"/>
-    <a name="bit42" val="none"/>
-    <a name="bit43" val="none"/>
-    <a name="bit44" val="none"/>
-    <a name="bit45" val="none"/>
-    <a name="bit46" val="none"/>
-    <a name="bit47" val="none"/>
-    <a name="bit48" val="none"/>
-    <a name="bit49" val="none"/>
-    <a name="bit50" val="none"/>
-    <a name="bit51" val="none"/>
-    <a name="bit52" val="none"/>
-    <a name="bit53" val="none"/>
-    <a name="bit54" val="none"/>
-    <a name="bit55" val="none"/>
-    <a name="bit56" val="none"/>
-    <a name="bit57" val="none"/>
-    <a name="bit58" val="none"/>
-    <a name="bit59" val="none"/>
-    <a name="bit60" val="none"/>
-    <a name="bit61" val="none"/>
-    <a name="bit62" val="none"/>
-    <a name="bit63" val="none"/>
   </comp>
   <comp lib="0" loc="(980,310)" name="Tunnel">
-    <a name="label" val="cw_dp"/>
-    <a name="width" val="64"/>
+    <a name="label" val="cw_dp__0"/>
+    <a name="width" val="32"/>
     <a name="facing" val="east"/>
   </comp>
   <comp lib="0" loc="(980,410)" name="Splitter">
@@ -283,7 +219,7 @@
     <a name="facing" val="west"/>
   </comp>
   <comp lib="0" loc="(1300,290)" name="Splitter">
-    <a name="incoming" val="64"/>
+    <a name="incoming" val="32"/>
     <a name="fanout" val="2"/>
     <a name="facing" val="west"/>
     <a name="appear" val="left"/>
@@ -320,42 +256,10 @@
     <a name="bit29" val="none"/>
     <a name="bit30" val="none"/>
     <a name="bit31" val="none"/>
-    <a name="bit32" val="none"/>
-    <a name="bit33" val="none"/>
-    <a name="bit34" val="none"/>
-    <a name="bit35" val="none"/>
-    <a name="bit36" val="none"/>
-    <a name="bit37" val="none"/>
-    <a name="bit38" val="none"/>
-    <a name="bit39" val="none"/>
-    <a name="bit40" val="none"/>
-    <a name="bit41" val="none"/>
-    <a name="bit42" val="none"/>
-    <a name="bit43" val="none"/>
-    <a name="bit44" val="none"/>
-    <a name="bit45" val="none"/>
-    <a name="bit46" val="none"/>
-    <a name="bit47" val="none"/>
-    <a name="bit48" val="none"/>
-    <a name="bit49" val="none"/>
-    <a name="bit50" val="none"/>
-    <a name="bit51" val="none"/>
-    <a name="bit52" val="none"/>
-    <a name="bit53" val="none"/>
-    <a name="bit54" val="none"/>
-    <a name="bit55" val="none"/>
-    <a name="bit56" val="none"/>
-    <a name="bit57" val="none"/>
-    <a name="bit58" val="none"/>
-    <a name="bit59" val="none"/>
-    <a name="bit60" val="none"/>
-    <a name="bit61" val="none"/>
-    <a name="bit62" val="none"/>
-    <a name="bit63" val="none"/>
   </comp>
   <comp lib="0" loc="(1300,290)" name="Tunnel">
-    <a name="label" val="cw_dp"/>
-    <a name="width" val="64"/>
+    <a name="label" val="cw_dp__0"/>
+    <a name="width" val="32"/>
     <a name="facing" val="west"/>
   </comp>
   <comp lib="0" loc="(1300,350)" name="Splitter">
@@ -383,7 +287,7 @@
     <a name="facing" val="east"/>
   </comp>
   <comp lib="0" loc="(1660,310)" name="Splitter">
-    <a name="incoming" val="64"/>
+    <a name="incoming" val="32"/>
     <a name="fanout" val="2"/>
     <a name="facing" val="east"/>
     <a name="appear" val="left"/>
@@ -420,42 +324,10 @@
     <a name="bit29" val="none"/>
     <a name="bit30" val="none"/>
     <a name="bit31" val="none"/>
-    <a name="bit32" val="none"/>
-    <a name="bit33" val="none"/>
-    <a name="bit34" val="none"/>
-    <a name="bit35" val="none"/>
-    <a name="bit36" val="none"/>
-    <a name="bit37" val="none"/>
-    <a name="bit38" val="none"/>
-    <a name="bit39" val="none"/>
-    <a name="bit40" val="none"/>
-    <a name="bit41" val="none"/>
-    <a name="bit42" val="none"/>
-    <a name="bit43" val="none"/>
-    <a name="bit44" val="none"/>
-    <a name="bit45" val="none"/>
-    <a name="bit46" val="none"/>
-    <a name="bit47" val="none"/>
-    <a name="bit48" val="none"/>
-    <a name="bit49" val="none"/>
-    <a name="bit50" val="none"/>
-    <a name="bit51" val="none"/>
-    <a name="bit52" val="none"/>
-    <a name="bit53" val="none"/>
-    <a name="bit54" val="none"/>
-    <a name="bit55" val="none"/>
-    <a name="bit56" val="none"/>
-    <a name="bit57" val="none"/>
-    <a name="bit58" val="none"/>
-    <a name="bit59" val="none"/>
-    <a name="bit60" val="none"/>
-    <a name="bit61" val="none"/>
-    <a name="bit62" val="none"/>
-    <a name="bit63" val="none"/>
   </comp>
   <comp lib="0" loc="(1660,310)" name="Tunnel">
-    <a name="label" val="cw_dp"/>
-    <a name="width" val="64"/>
+    <a name="label" val="cw_dp__0"/>
+    <a name="width" val="32"/>
     <a name="facing" val="east"/>
   </comp>
   <comp lib="0" loc="(1660,410)" name="Splitter">
@@ -479,7 +351,7 @@
     <a name="facing" val="west"/>
   </comp>
   <comp lib="0" loc="(1980,290)" name="Splitter">
-    <a name="incoming" val="64"/>
+    <a name="incoming" val="32"/>
     <a name="fanout" val="2"/>
     <a name="facing" val="west"/>
     <a name="appear" val="left"/>
@@ -516,42 +388,10 @@
     <a name="bit29" val="none"/>
     <a name="bit30" val="none"/>
     <a name="bit31" val="none"/>
-    <a name="bit32" val="none"/>
-    <a name="bit33" val="none"/>
-    <a name="bit34" val="none"/>
-    <a name="bit35" val="none"/>
-    <a name="bit36" val="none"/>
-    <a name="bit37" val="none"/>
-    <a name="bit38" val="none"/>
-    <a name="bit39" val="none"/>
-    <a name="bit40" val="none"/>
-    <a name="bit41" val="none"/>
-    <a name="bit42" val="none"/>
-    <a name="bit43" val="none"/>
-    <a name="bit44" val="none"/>
-    <a name="bit45" val="none"/>
-    <a name="bit46" val="none"/>
-    <a name="bit47" val="none"/>
-    <a name="bit48" val="none"/>
-    <a name="bit49" val="none"/>
-    <a name="bit50" val="none"/>
-    <a name="bit51" val="none"/>
-    <a name="bit52" val="none"/>
-    <a name="bit53" val="none"/>
-    <a name="bit54" val="none"/>
-    <a name="bit55" val="none"/>
-    <a name="bit56" val="none"/>
-    <a name="bit57" val="none"/>
-    <a name="bit58" val="none"/>
-    <a name="bit59" val="none"/>
-    <a name="bit60" val="none"/>
-    <a name="bit61" val="none"/>
-    <a name="bit62" val="none"/>
-    <a name="bit63" val="none"/>
   </comp>
   <comp lib="0" loc="(1980,290)" name="Tunnel">
-    <a name="label" val="cw_dp"/>
-    <a name="width" val="64"/>
+    <a name="label" val="cw_dp__0"/>
+    <a name="width" val="32"/>
     <a name="facing" val="west"/>
   </comp>
   <comp lib="0" loc="(1980,350)" name="Splitter">
@@ -579,7 +419,7 @@
     <a name="facing" val="east"/>
   </comp>
   <comp lib="0" loc="(2340,310)" name="Splitter">
-    <a name="incoming" val="64"/>
+    <a name="incoming" val="32"/>
     <a name="fanout" val="2"/>
     <a name="facing" val="east"/>
     <a name="appear" val="left"/>
@@ -616,42 +456,10 @@
     <a name="bit27" val="none"/>
     <a name="bit28" val="none"/>
     <a name="bit29" val="none"/>
-    <a name="bit32" val="none"/>
-    <a name="bit33" val="none"/>
-    <a name="bit34" val="none"/>
-    <a name="bit35" val="none"/>
-    <a name="bit36" val="none"/>
-    <a name="bit37" val="none"/>
-    <a name="bit38" val="none"/>
-    <a name="bit39" val="none"/>
-    <a name="bit40" val="none"/>
-    <a name="bit41" val="none"/>
-    <a name="bit42" val="none"/>
-    <a name="bit43" val="none"/>
-    <a name="bit44" val="none"/>
-    <a name="bit45" val="none"/>
-    <a name="bit46" val="none"/>
-    <a name="bit47" val="none"/>
-    <a name="bit48" val="none"/>
-    <a name="bit49" val="none"/>
-    <a name="bit50" val="none"/>
-    <a name="bit51" val="none"/>
-    <a name="bit52" val="none"/>
-    <a name="bit53" val="none"/>
-    <a name="bit54" val="none"/>
-    <a name="bit55" val="none"/>
-    <a name="bit56" val="none"/>
-    <a name="bit57" val="none"/>
-    <a name="bit58" val="none"/>
-    <a name="bit59" val="none"/>
-    <a name="bit60" val="none"/>
-    <a name="bit61" val="none"/>
-    <a name="bit62" val="none"/>
-    <a name="bit63" val="none"/>
   </comp>
   <comp lib="0" loc="(2340,310)" name="Tunnel">
-    <a name="label" val="cw_dp"/>
-    <a name="width" val="64"/>
+    <a name="label" val="cw_dp__0"/>
+    <a name="width" val="32"/>
     <a name="facing" val="east"/>
   </comp>
   <comp lib="0" loc="(2340,410)" name="Splitter">
@@ -675,15 +483,13 @@
     <a name="facing" val="west"/>
   </comp>
   <comp lib="0" loc="(2660,290)" name="Splitter">
-    <a name="incoming" val="64"/>
+    <a name="incoming" val="32"/>
     <a name="fanout" val="2"/>
     <a name="facing" val="west"/>
     <a name="appear" val="left"/>
     <a name="spacing" val="2"/>
-    <a name="bit32" val="0"/>
-    <a name="bit33" val="1"/>
-    <a name="bit0" val="none"/>
-    <a name="bit1" val="none"/>
+    <a name="bit0" val="0"/>
+    <a name="bit1" val="1"/>
     <a name="bit2" val="none"/>
     <a name="bit3" val="none"/>
     <a name="bit4" val="none"/>
@@ -714,40 +520,10 @@
     <a name="bit29" val="none"/>
     <a name="bit30" val="none"/>
     <a name="bit31" val="none"/>
-    <a name="bit34" val="none"/>
-    <a name="bit35" val="none"/>
-    <a name="bit36" val="none"/>
-    <a name="bit37" val="none"/>
-    <a name="bit38" val="none"/>
-    <a name="bit39" val="none"/>
-    <a name="bit40" val="none"/>
-    <a name="bit41" val="none"/>
-    <a name="bit42" val="none"/>
-    <a name="bit43" val="none"/>
-    <a name="bit44" val="none"/>
-    <a name="bit45" val="none"/>
-    <a name="bit46" val="none"/>
-    <a name="bit47" val="none"/>
-    <a name="bit48" val="none"/>
-    <a name="bit49" val="none"/>
-    <a name="bit50" val="none"/>
-    <a name="bit51" val="none"/>
-    <a name="bit52" val="none"/>
-    <a name="bit53" val="none"/>
-    <a name="bit54" val="none"/>
-    <a name="bit55" val="none"/>
-    <a name="bit56" val="none"/>
-    <a name="bit57" val="none"/>
-    <a name="bit58" val="none"/>
-    <a name="bit59" val="none"/>
-    <a name="bit60" val="none"/>
-    <a name="bit61" val="none"/>
-    <a name="bit62" val="none"/>
-    <a name="bit63" val="none"/>
   </comp>
   <comp lib="0" loc="(2660,290)" name="Tunnel">
-    <a name="label" val="cw_dp"/>
-    <a name="width" val="64"/>
+    <a name="label" val="cw_dp__1"/>
+    <a name="width" val="32"/>
     <a name="facing" val="west"/>
   </comp>
   <comp lib="0" loc="(2660,350)" name="Splitter">
@@ -775,21 +551,19 @@
     <a name="facing" val="east"/>
   </comp>
   <comp lib="0" loc="(300,830)" name="Splitter">
-    <a name="incoming" val="64"/>
+    <a name="incoming" val="32"/>
     <a name="fanout" val="2"/>
     <a name="facing" val="east"/>
     <a name="appear" val="left"/>
     <a name="spacing" val="2"/>
-    <a name="bit38" val="0"/>
-    <a name="bit39" val="1"/>
+    <a name="bit6" val="0"/>
+    <a name="bit7" val="1"/>
     <a name="bit0" val="none"/>
     <a name="bit1" val="none"/>
     <a name="bit2" val="none"/>
     <a name="bit3" val="none"/>
     <a name="bit4" val="none"/>
     <a name="bit5" val="none"/>
-    <a name="bit6" val="none"/>
-    <a name="bit7" val="none"/>
     <a name="bit8" val="none"/>
     <a name="bit9" val="none"/>
     <a name="bit10" val="none"/>
@@ -814,40 +588,10 @@
     <a name="bit29" val="none"/>
     <a name="bit30" val="none"/>
     <a name="bit31" val="none"/>
-    <a name="bit32" val="none"/>
-    <a name="bit33" val="none"/>
-    <a name="bit34" val="none"/>
-    <a name="bit35" val="none"/>
-    <a name="bit36" val="none"/>
-    <a name="bit37" val="none"/>
-    <a name="bit40" val="none"/>
-    <a name="bit41" val="none"/>
-    <a name="bit42" val="none"/>
-    <a name="bit43" val="none"/>
-    <a name="bit44" val="none"/>
-    <a name="bit45" val="none"/>
-    <a name="bit46" val="none"/>
-    <a name="bit47" val="none"/>
-    <a name="bit48" val="none"/>
-    <a name="bit49" val="none"/>
-    <a name="bit50" val="none"/>
-    <a name="bit51" val="none"/>
-    <a name="bit52" val="none"/>
-    <a name="bit53" val="none"/>
-    <a name="bit54" val="none"/>
-    <a name="bit55" val="none"/>
-    <a name="bit56" val="none"/>
-    <a name="bit57" val="none"/>
-    <a name="bit58" val="none"/>
-    <a name="bit59" val="none"/>
-    <a name="bit60" val="none"/>
-    <a name="bit61" val="none"/>
-    <a name="bit62" val="none"/>
-    <a name="bit63" val="none"/>
   </comp>
   <comp lib="0" loc="(300,830)" name="Tunnel">
-    <a name="label" val="cw_dp"/>
-    <a name="width" val="64"/>
+    <a name="label" val="cw_dp__1"/>
+    <a name="width" val="32"/>
     <a name="facing" val="east"/>
   </comp>
   <comp lib="0" loc="(300,930)" name="Splitter">
@@ -871,13 +615,13 @@
     <a name="facing" val="west"/>
   </comp>
   <comp lib="0" loc="(620,810)" name="Splitter">
-    <a name="incoming" val="64"/>
+    <a name="incoming" val="32"/>
     <a name="fanout" val="2"/>
     <a name="facing" val="west"/>
     <a name="appear" val="left"/>
     <a name="spacing" val="2"/>
-    <a name="bit40" val="0"/>
-    <a name="bit41" val="1"/>
+    <a name="bit8" val="0"/>
+    <a name="bit9" val="1"/>
     <a name="bit0" val="none"/>
     <a name="bit1" val="none"/>
     <a name="bit2" val="none"/>
@@ -886,8 +630,6 @@
     <a name="bit5" val="none"/>
     <a name="bit6" val="none"/>
     <a name="bit7" val="none"/>
-    <a name="bit8" val="none"/>
-    <a name="bit9" val="none"/>
     <a name="bit10" val="none"/>
     <a name="bit11" val="none"/>
     <a name="bit12" val="none"/>
@@ -910,40 +652,10 @@
     <a name="bit29" val="none"/>
     <a name="bit30" val="none"/>
     <a name="bit31" val="none"/>
-    <a name="bit32" val="none"/>
-    <a name="bit33" val="none"/>
-    <a name="bit34" val="none"/>
-    <a name="bit35" val="none"/>
-    <a name="bit36" val="none"/>
-    <a name="bit37" val="none"/>
-    <a name="bit38" val="none"/>
-    <a name="bit39" val="none"/>
-    <a name="bit42" val="none"/>
-    <a name="bit43" val="none"/>
-    <a name="bit44" val="none"/>
-    <a name="bit45" val="none"/>
-    <a name="bit46" val="none"/>
-    <a name="bit47" val="none"/>
-    <a name="bit48" val="none"/>
-    <a name="bit49" val="none"/>
-    <a name="bit50" val="none"/>
-    <a name="bit51" val="none"/>
-    <a name="bit52" val="none"/>
-    <a name="bit53" val="none"/>
-    <a name="bit54" val="none"/>
-    <a name="bit55" val="none"/>
-    <a name="bit56" val="none"/>
-    <a name="bit57" val="none"/>
-    <a name="bit58" val="none"/>
-    <a name="bit59" val="none"/>
-    <a name="bit60" val="none"/>
-    <a name="bit61" val="none"/>
-    <a name="bit62" val="none"/>
-    <a name="bit63" val="none"/>
   </comp>
   <comp lib="0" loc="(620,810)" name="Tunnel">
-    <a name="label" val="cw_dp"/>
-    <a name="width" val="64"/>
+    <a name="label" val="cw_dp__1"/>
+    <a name="width" val="32"/>
     <a name="facing" val="west"/>
   </comp>
   <comp lib="0" loc="(620,870)" name="Splitter">
@@ -971,13 +683,13 @@
     <a name="facing" val="east"/>
   </comp>
   <comp lib="0" loc="(980,830)" name="Splitter">
-    <a name="incoming" val="64"/>
+    <a name="incoming" val="32"/>
     <a name="fanout" val="2"/>
     <a name="facing" val="east"/>
     <a name="appear" val="left"/>
     <a name="spacing" val="2"/>
-    <a name="bit42" val="0"/>
-    <a name="bit43" val="1"/>
+    <a name="bit10" val="0"/>
+    <a name="bit11" val="1"/>
     <a name="bit0" val="none"/>
     <a name="bit1" val="none"/>
     <a name="bit2" val="none"/>
@@ -988,8 +700,6 @@
     <a name="bit7" val="none"/>
     <a name="bit8" val="none"/>
     <a name="bit9" val="none"/>
-    <a name="bit10" val="none"/>
-    <a name="bit11" val="none"/>
     <a name="bit12" val="none"/>
     <a name="bit13" val="none"/>
     <a name="bit14" val="none"/>
@@ -1010,40 +720,10 @@
     <a name="bit29" val="none"/>
     <a name="bit30" val="none"/>
     <a name="bit31" val="none"/>
-    <a name="bit32" val="none"/>
-    <a name="bit33" val="none"/>
-    <a name="bit34" val="none"/>
-    <a name="bit35" val="none"/>
-    <a name="bit36" val="none"/>
-    <a name="bit37" val="none"/>
-    <a name="bit38" val="none"/>
-    <a name="bit39" val="none"/>
-    <a name="bit40" val="none"/>
-    <a name="bit41" val="none"/>
-    <a name="bit44" val="none"/>
-    <a name="bit45" val="none"/>
-    <a name="bit46" val="none"/>
-    <a name="bit47" val="none"/>
-    <a name="bit48" val="none"/>
-    <a name="bit49" val="none"/>
-    <a name="bit50" val="none"/>
-    <a name="bit51" val="none"/>
-    <a name="bit52" val="none"/>
-    <a name="bit53" val="none"/>
-    <a name="bit54" val="none"/>
-    <a name="bit55" val="none"/>
-    <a name="bit56" val="none"/>
-    <a name="bit57" val="none"/>
-    <a name="bit58" val="none"/>
-    <a name="bit59" val="none"/>
-    <a name="bit60" val="none"/>
-    <a name="bit61" val="none"/>
-    <a name="bit62" val="none"/>
-    <a name="bit63" val="none"/>
   </comp>
   <comp lib="0" loc="(980,830)" name="Tunnel">
-    <a name="label" val="cw_dp"/>
-    <a name="width" val="64"/>
+    <a name="label" val="cw_dp__1"/>
+    <a name="width" val="32"/>
     <a name="facing" val="east"/>
   </comp>
   <comp lib="0" loc="(980,930)" name="Splitter">
@@ -1067,13 +747,13 @@
     <a name="facing" val="west"/>
   </comp>
   <comp lib="0" loc="(1300,810)" name="Splitter">
-    <a name="incoming" val="64"/>
+    <a name="incoming" val="32"/>
     <a name="fanout" val="2"/>
     <a name="facing" val="west"/>
     <a name="appear" val="left"/>
     <a name="spacing" val="2"/>
-    <a name="bit44" val="0"/>
-    <a name="bit45" val="1"/>
+    <a name="bit12" val="0"/>
+    <a name="bit13" val="1"/>
     <a name="bit0" val="none"/>
     <a name="bit1" val="none"/>
     <a name="bit2" val="none"/>
@@ -1086,8 +766,6 @@
     <a name="bit9" val="none"/>
     <a name="bit10" val="none"/>
     <a name="bit11" val="none"/>
-    <a name="bit12" val="none"/>
-    <a name="bit13" val="none"/>
     <a name="bit14" val="none"/>
     <a name="bit15" val="none"/>
     <a name="bit16" val="none"/>
@@ -1106,40 +784,10 @@
     <a name="bit29" val="none"/>
     <a name="bit30" val="none"/>
     <a name="bit31" val="none"/>
-    <a name="bit32" val="none"/>
-    <a name="bit33" val="none"/>
-    <a name="bit34" val="none"/>
-    <a name="bit35" val="none"/>
-    <a name="bit36" val="none"/>
-    <a name="bit37" val="none"/>
-    <a name="bit38" val="none"/>
-    <a name="bit39" val="none"/>
-    <a name="bit40" val="none"/>
-    <a name="bit41" val="none"/>
-    <a name="bit42" val="none"/>
-    <a name="bit43" val="none"/>
-    <a name="bit46" val="none"/>
-    <a name="bit47" val="none"/>
-    <a name="bit48" val="none"/>
-    <a name="bit49" val="none"/>
-    <a name="bit50" val="none"/>
-    <a name="bit51" val="none"/>
-    <a name="bit52" val="none"/>
-    <a name="bit53" val="none"/>
-    <a name="bit54" val="none"/>
-    <a name="bit55" val="none"/>
-    <a name="bit56" val="none"/>
-    <a name="bit57" val="none"/>
-    <a name="bit58" val="none"/>
-    <a name="bit59" val="none"/>
-    <a name="bit60" val="none"/>
-    <a name="bit61" val="none"/>
-    <a name="bit62" val="none"/>
-    <a name="bit63" val="none"/>
   </comp>
   <comp lib="0" loc="(1300,810)" name="Tunnel">
-    <a name="label" val="cw_dp"/>
-    <a name="width" val="64"/>
+    <a name="label" val="cw_dp__1"/>
+    <a name="width" val="32"/>
     <a name="facing" val="west"/>
   </comp>
   <comp lib="0" loc="(1300,870)" name="Splitter">
@@ -1167,13 +815,13 @@
     <a name="facing" val="east"/>
   </comp>
   <comp lib="0" loc="(1660,830)" name="Splitter">
-    <a name="incoming" val="64"/>
+    <a name="incoming" val="32"/>
     <a name="fanout" val="2"/>
     <a name="facing" val="east"/>
     <a name="appear" val="left"/>
     <a name="spacing" val="2"/>
-    <a name="bit46" val="0"/>
-    <a name="bit47" val="1"/>
+    <a name="bit14" val="0"/>
+    <a name="bit15" val="1"/>
     <a name="bit0" val="none"/>
     <a name="bit1" val="none"/>
     <a name="bit2" val="none"/>
@@ -1188,8 +836,6 @@
     <a name="bit11" val="none"/>
     <a name="bit12" val="none"/>
     <a name="bit13" val="none"/>
-    <a name="bit14" val="none"/>
-    <a name="bit15" val="none"/>
     <a name="bit16" val="none"/>
     <a name="bit17" val="none"/>
     <a name="bit18" val="none"/>
@@ -1206,40 +852,10 @@
     <a name="bit29" val="none"/>
     <a name="bit30" val="none"/>
     <a name="bit31" val="none"/>
-    <a name="bit32" val="none"/>
-    <a name="bit33" val="none"/>
-    <a name="bit34" val="none"/>
-    <a name="bit35" val="none"/>
-    <a name="bit36" val="none"/>
-    <a name="bit37" val="none"/>
-    <a name="bit38" val="none"/>
-    <a name="bit39" val="none"/>
-    <a name="bit40" val="none"/>
-    <a name="bit41" val="none"/>
-    <a name="bit42" val="none"/>
-    <a name="bit43" val="none"/>
-    <a name="bit44" val="none"/>
-    <a name="bit45" val="none"/>
-    <a name="bit48" val="none"/>
-    <a name="bit49" val="none"/>
-    <a name="bit50" val="none"/>
-    <a name="bit51" val="none"/>
-    <a name="bit52" val="none"/>
-    <a name="bit53" val="none"/>
-    <a name="bit54" val="none"/>
-    <a name="bit55" val="none"/>
-    <a name="bit56" val="none"/>
-    <a name="bit57" val="none"/>
-    <a name="bit58" val="none"/>
-    <a name="bit59" val="none"/>
-    <a name="bit60" val="none"/>
-    <a name="bit61" val="none"/>
-    <a name="bit62" val="none"/>
-    <a name="bit63" val="none"/>
   </comp>
   <comp lib="0" loc="(1660,830)" name="Tunnel">
-    <a name="label" val="cw_dp"/>
-    <a name="width" val="64"/>
+    <a name="label" val="cw_dp__1"/>
+    <a name="width" val="32"/>
     <a name="facing" val="east"/>
   </comp>
   <comp lib="0" loc="(1660,930)" name="Splitter">
@@ -1263,13 +879,13 @@
     <a name="facing" val="west"/>
   </comp>
   <comp lib="0" loc="(1980,810)" name="Splitter">
-    <a name="incoming" val="64"/>
+    <a name="incoming" val="32"/>
     <a name="fanout" val="2"/>
     <a name="facing" val="west"/>
     <a name="appear" val="left"/>
     <a name="spacing" val="2"/>
-    <a name="bit48" val="0"/>
-    <a name="bit49" val="1"/>
+    <a name="bit16" val="0"/>
+    <a name="bit17" val="1"/>
     <a name="bit0" val="none"/>
     <a name="bit1" val="none"/>
     <a name="bit2" val="none"/>
@@ -1286,8 +902,6 @@
     <a name="bit13" val="none"/>
     <a name="bit14" val="none"/>
     <a name="bit15" val="none"/>
-    <a name="bit16" val="none"/>
-    <a name="bit17" val="none"/>
     <a name="bit18" val="none"/>
     <a name="bit19" val="none"/>
     <a name="bit20" val="none"/>
@@ -1302,40 +916,10 @@
     <a name="bit29" val="none"/>
     <a name="bit30" val="none"/>
     <a name="bit31" val="none"/>
-    <a name="bit32" val="none"/>
-    <a name="bit33" val="none"/>
-    <a name="bit34" val="none"/>
-    <a name="bit35" val="none"/>
-    <a name="bit36" val="none"/>
-    <a name="bit37" val="none"/>
-    <a name="bit38" val="none"/>
-    <a name="bit39" val="none"/>
-    <a name="bit40" val="none"/>
-    <a name="bit41" val="none"/>
-    <a name="bit42" val="none"/>
-    <a name="bit43" val="none"/>
-    <a name="bit44" val="none"/>
-    <a name="bit45" val="none"/>
-    <a name="bit46" val="none"/>
-    <a name="bit47" val="none"/>
-    <a name="bit50" val="none"/>
-    <a name="bit51" val="none"/>
-    <a name="bit52" val="none"/>
-    <a name="bit53" val="none"/>
-    <a name="bit54" val="none"/>
-    <a name="bit55" val="none"/>
-    <a name="bit56" val="none"/>
-    <a name="bit57" val="none"/>
-    <a name="bit58" val="none"/>
-    <a name="bit59" val="none"/>
-    <a name="bit60" val="none"/>
-    <a name="bit61" val="none"/>
-    <a name="bit62" val="none"/>
-    <a name="bit63" val="none"/>
   </comp>
   <comp lib="0" loc="(1980,810)" name="Tunnel">
-    <a name="label" val="cw_dp"/>
-    <a name="width" val="64"/>
+    <a name="label" val="cw_dp__1"/>
+    <a name="width" val="32"/>
     <a name="facing" val="west"/>
   </comp>
   <comp lib="0" loc="(1980,870)" name="Splitter">
@@ -1363,13 +947,13 @@
     <a name="facing" val="east"/>
   </comp>
   <comp lib="0" loc="(2340,830)" name="Splitter">
-    <a name="incoming" val="64"/>
+    <a name="incoming" val="32"/>
     <a name="fanout" val="2"/>
     <a name="facing" val="east"/>
     <a name="appear" val="left"/>
     <a name="spacing" val="2"/>
-    <a name="bit50" val="0"/>
-    <a name="bit51" val="1"/>
+    <a name="bit18" val="0"/>
+    <a name="bit19" val="1"/>
     <a name="bit0" val="none"/>
     <a name="bit1" val="none"/>
     <a name="bit2" val="none"/>
@@ -1388,8 +972,6 @@
     <a name="bit15" val="none"/>
     <a name="bit16" val="none"/>
     <a name="bit17" val="none"/>
-    <a name="bit18" val="none"/>
-    <a name="bit19" val="none"/>
     <a name="bit20" val="none"/>
     <a name="bit21" val="none"/>
     <a name="bit22" val="none"/>
@@ -1402,40 +984,10 @@
     <a name="bit29" val="none"/>
     <a name="bit30" val="none"/>
     <a name="bit31" val="none"/>
-    <a name="bit32" val="none"/>
-    <a name="bit33" val="none"/>
-    <a name="bit34" val="none"/>
-    <a name="bit35" val="none"/>
-    <a name="bit36" val="none"/>
-    <a name="bit37" val="none"/>
-    <a name="bit38" val="none"/>
-    <a name="bit39" val="none"/>
-    <a name="bit40" val="none"/>
-    <a name="bit41" val="none"/>
-    <a name="bit42" val="none"/>
-    <a name="bit43" val="none"/>
-    <a name="bit44" val="none"/>
-    <a name="bit45" val="none"/>
-    <a name="bit46" val="none"/>
-    <a name="bit47" val="none"/>
-    <a name="bit48" val="none"/>
-    <a name="bit49" val="none"/>
-    <a name="bit52" val="none"/>
-    <a name="bit53" val="none"/>
-    <a name="bit54" val="none"/>
-    <a name="bit55" val="none"/>
-    <a name="bit56" val="none"/>
-    <a name="bit57" val="none"/>
-    <a name="bit58" val="none"/>
-    <a name="bit59" val="none"/>
-    <a name="bit60" val="none"/>
-    <a name="bit61" val="none"/>
-    <a name="bit62" val="none"/>
-    <a name="bit63" val="none"/>
   </comp>
   <comp lib="0" loc="(2340,830)" name="Tunnel">
-    <a name="label" val="cw_dp"/>
-    <a name="width" val="64"/>
+    <a name="label" val="cw_dp__1"/>
+    <a name="width" val="32"/>
     <a name="facing" val="east"/>
   </comp>
   <comp lib="0" loc="(2340,930)" name="Splitter">
@@ -1459,13 +1011,13 @@
     <a name="facing" val="west"/>
   </comp>
   <comp lib="0" loc="(2660,810)" name="Splitter">
-    <a name="incoming" val="64"/>
+    <a name="incoming" val="32"/>
     <a name="fanout" val="2"/>
     <a name="facing" val="west"/>
     <a name="appear" val="left"/>
     <a name="spacing" val="2"/>
-    <a name="bit52" val="0"/>
-    <a name="bit53" val="1"/>
+    <a name="bit20" val="0"/>
+    <a name="bit21" val="1"/>
     <a name="bit0" val="none"/>
     <a name="bit1" val="none"/>
     <a name="bit2" val="none"/>
@@ -1486,8 +1038,6 @@
     <a name="bit17" val="none"/>
     <a name="bit18" val="none"/>
     <a name="bit19" val="none"/>
-    <a name="bit20" val="none"/>
-    <a name="bit21" val="none"/>
     <a name="bit22" val="none"/>
     <a name="bit23" val="none"/>
     <a name="bit24" val="none"/>
@@ -1498,40 +1048,10 @@
     <a name="bit29" val="none"/>
     <a name="bit30" val="none"/>
     <a name="bit31" val="none"/>
-    <a name="bit32" val="none"/>
-    <a name="bit33" val="none"/>
-    <a name="bit34" val="none"/>
-    <a name="bit35" val="none"/>
-    <a name="bit36" val="none"/>
-    <a name="bit37" val="none"/>
-    <a name="bit38" val="none"/>
-    <a name="bit39" val="none"/>
-    <a name="bit40" val="none"/>
-    <a name="bit41" val="none"/>
-    <a name="bit42" val="none"/>
-    <a name="bit43" val="none"/>
-    <a name="bit44" val="none"/>
-    <a name="bit45" val="none"/>
-    <a name="bit46" val="none"/>
-    <a name="bit47" val="none"/>
-    <a name="bit48" val="none"/>
-    <a name="bit49" val="none"/>
-    <a name="bit50" val="none"/>
-    <a name="bit51" val="none"/>
-    <a name="bit54" val="none"/>
-    <a name="bit55" val="none"/>
-    <a name="bit56" val="none"/>
-    <a name="bit57" val="none"/>
-    <a name="bit58" val="none"/>
-    <a name="bit59" val="none"/>
-    <a name="bit60" val="none"/>
-    <a name="bit61" val="none"/>
-    <a name="bit62" val="none"/>
-    <a name="bit63" val="none"/>
   </comp>
   <comp lib="0" loc="(2660,810)" name="Tunnel">
-    <a name="label" val="cw_dp"/>
-    <a name="width" val="64"/>
+    <a name="label" val="cw_dp__1"/>
+    <a name="width" val="32"/>
     <a name="facing" val="west"/>
   </comp>
   <comp lib="0" loc="(2660,870)" name="Splitter">
@@ -1559,13 +1079,13 @@
     <a name="facing" val="east"/>
   </comp>
   <comp lib="0" loc="(300,1350)" name="Splitter">
-    <a name="incoming" val="64"/>
+    <a name="incoming" val="32"/>
     <a name="fanout" val="2"/>
     <a name="facing" val="east"/>
     <a name="appear" val="left"/>
     <a name="spacing" val="2"/>
-    <a name="bit54" val="0"/>
-    <a name="bit55" val="1"/>
+    <a name="bit22" val="0"/>
+    <a name="bit23" val="1"/>
     <a name="bit0" val="none"/>
     <a name="bit1" val="none"/>
     <a name="bit2" val="none"/>
@@ -1588,8 +1108,6 @@
     <a name="bit19" val="none"/>
     <a name="bit20" val="none"/>
     <a name="bit21" val="none"/>
-    <a name="bit22" val="none"/>
-    <a name="bit23" val="none"/>
     <a name="bit24" val="none"/>
     <a name="bit25" val="none"/>
     <a name="bit26" val="none"/>
@@ -1598,40 +1116,10 @@
     <a name="bit29" val="none"/>
     <a name="bit30" val="none"/>
     <a name="bit31" val="none"/>
-    <a name="bit32" val="none"/>
-    <a name="bit33" val="none"/>
-    <a name="bit34" val="none"/>
-    <a name="bit35" val="none"/>
-    <a name="bit36" val="none"/>
-    <a name="bit37" val="none"/>
-    <a name="bit38" val="none"/>
-    <a name="bit39" val="none"/>
-    <a name="bit40" val="none"/>
-    <a name="bit41" val="none"/>
-    <a name="bit42" val="none"/>
-    <a name="bit43" val="none"/>
-    <a name="bit44" val="none"/>
-    <a name="bit45" val="none"/>
-    <a name="bit46" val="none"/>
-    <a name="bit47" val="none"/>
-    <a name="bit48" val="none"/>
-    <a name="bit49" val="none"/>
-    <a name="bit50" val="none"/>
-    <a name="bit51" val="none"/>
-    <a name="bit52" val="none"/>
-    <a name="bit53" val="none"/>
-    <a name="bit56" val="none"/>
-    <a name="bit57" val="none"/>
-    <a name="bit58" val="none"/>
-    <a name="bit59" val="none"/>
-    <a name="bit60" val="none"/>
-    <a name="bit61" val="none"/>
-    <a name="bit62" val="none"/>
-    <a name="bit63" val="none"/>
   </comp>
   <comp lib="0" loc="(300,1350)" name="Tunnel">
-    <a name="label" val="cw_dp"/>
-    <a name="width" val="64"/>
+    <a name="label" val="cw_dp__1"/>
+    <a name="width" val="32"/>
     <a name="facing" val="east"/>
   </comp>
   <comp lib="0" loc="(300,1450)" name="Splitter">
@@ -1667,7 +1155,7 @@
     <a name="facing" val="south"/>
   </comp>
   <comp lib="0" loc="(980,1350)" name="Splitter">
-    <a name="incoming" val="64"/>
+    <a name="incoming" val="32"/>
     <a name="fanout" val="4"/>
     <a name="facing" val="east"/>
     <a name="appear" val="left"/>
@@ -1704,42 +1192,10 @@
     <a name="bit29" val="none"/>
     <a name="bit30" val="none"/>
     <a name="bit31" val="none"/>
-    <a name="bit32" val="none"/>
-    <a name="bit33" val="none"/>
-    <a name="bit34" val="none"/>
-    <a name="bit35" val="none"/>
-    <a name="bit36" val="none"/>
-    <a name="bit37" val="none"/>
-    <a name="bit38" val="none"/>
-    <a name="bit39" val="none"/>
-    <a name="bit40" val="none"/>
-    <a name="bit41" val="none"/>
-    <a name="bit42" val="none"/>
-    <a name="bit43" val="none"/>
-    <a name="bit44" val="none"/>
-    <a name="bit45" val="none"/>
-    <a name="bit46" val="none"/>
-    <a name="bit47" val="none"/>
-    <a name="bit48" val="none"/>
-    <a name="bit49" val="none"/>
-    <a name="bit50" val="none"/>
-    <a name="bit51" val="none"/>
-    <a name="bit52" val="none"/>
-    <a name="bit53" val="none"/>
-    <a name="bit54" val="none"/>
-    <a name="bit55" val="none"/>
-    <a name="bit56" val="none"/>
-    <a name="bit57" val="none"/>
-    <a name="bit58" val="none"/>
-    <a name="bit59" val="none"/>
-    <a name="bit60" val="none"/>
-    <a name="bit61" val="none"/>
-    <a name="bit62" val="none"/>
-    <a name="bit63" val="none"/>
   </comp>
   <comp lib="0" loc="(980,1350)" name="Tunnel">
-    <a name="label" val="cw_dp"/>
-    <a name="width" val="64"/>
+    <a name="label" val="cw_dp__0"/>
+    <a name="width" val="32"/>
     <a name="facing" val="east"/>
   </comp>
   <comp lib="0" loc="(1000,1380)" name="Tunnel">
@@ -1811,7 +1267,7 @@
     <a name="facing" val="south"/>
   </comp>
   <comp lib="0" loc="(1660,1350)" name="Splitter">
-    <a name="incoming" val="64"/>
+    <a name="incoming" val="32"/>
     <a name="fanout" val="4"/>
     <a name="facing" val="east"/>
     <a name="appear" val="left"/>
@@ -1848,42 +1304,10 @@
     <a name="bit29" val="none"/>
     <a name="bit30" val="none"/>
     <a name="bit31" val="none"/>
-    <a name="bit32" val="none"/>
-    <a name="bit33" val="none"/>
-    <a name="bit34" val="none"/>
-    <a name="bit35" val="none"/>
-    <a name="bit36" val="none"/>
-    <a name="bit37" val="none"/>
-    <a name="bit38" val="none"/>
-    <a name="bit39" val="none"/>
-    <a name="bit40" val="none"/>
-    <a name="bit41" val="none"/>
-    <a name="bit42" val="none"/>
-    <a name="bit43" val="none"/>
-    <a name="bit44" val="none"/>
-    <a name="bit45" val="none"/>
-    <a name="bit46" val="none"/>
-    <a name="bit47" val="none"/>
-    <a name="bit48" val="none"/>
-    <a name="bit49" val="none"/>
-    <a name="bit50" val="none"/>
-    <a name="bit51" val="none"/>
-    <a name="bit52" val="none"/>
-    <a name="bit53" val="none"/>
-    <a name="bit54" val="none"/>
-    <a name="bit55" val="none"/>
-    <a name="bit56" val="none"/>
-    <a name="bit57" val="none"/>
-    <a name="bit58" val="none"/>
-    <a name="bit59" val="none"/>
-    <a name="bit60" val="none"/>
-    <a name="bit61" val="none"/>
-    <a name="bit62" val="none"/>
-    <a name="bit63" val="none"/>
   </comp>
   <comp lib="0" loc="(1660,1350)" name="Tunnel">
-    <a name="label" val="cw_dp"/>
-    <a name="width" val="64"/>
+    <a name="label" val="cw_dp__0"/>
+    <a name="width" val="32"/>
     <a name="facing" val="east"/>
   </comp>
   <comp lib="0" loc="(1680,1380)" name="Tunnel">
@@ -1955,7 +1379,7 @@
     <a name="facing" val="south"/>
   </comp>
   <comp lib="0" loc="(2340,1350)" name="Splitter">
-    <a name="incoming" val="64"/>
+    <a name="incoming" val="32"/>
     <a name="fanout" val="4"/>
     <a name="facing" val="east"/>
     <a name="appear" val="left"/>
@@ -1992,42 +1416,10 @@
     <a name="bit29" val="none"/>
     <a name="bit30" val="none"/>
     <a name="bit31" val="none"/>
-    <a name="bit32" val="none"/>
-    <a name="bit33" val="none"/>
-    <a name="bit34" val="none"/>
-    <a name="bit35" val="none"/>
-    <a name="bit36" val="none"/>
-    <a name="bit37" val="none"/>
-    <a name="bit38" val="none"/>
-    <a name="bit39" val="none"/>
-    <a name="bit40" val="none"/>
-    <a name="bit41" val="none"/>
-    <a name="bit42" val="none"/>
-    <a name="bit43" val="none"/>
-    <a name="bit44" val="none"/>
-    <a name="bit45" val="none"/>
-    <a name="bit46" val="none"/>
-    <a name="bit47" val="none"/>
-    <a name="bit48" val="none"/>
-    <a name="bit49" val="none"/>
-    <a name="bit50" val="none"/>
-    <a name="bit51" val="none"/>
-    <a name="bit52" val="none"/>
-    <a name="bit53" val="none"/>
-    <a name="bit54" val="none"/>
-    <a name="bit55" val="none"/>
-    <a name="bit56" val="none"/>
-    <a name="bit57" val="none"/>
-    <a name="bit58" val="none"/>
-    <a name="bit59" val="none"/>
-    <a name="bit60" val="none"/>
-    <a name="bit61" val="none"/>
-    <a name="bit62" val="none"/>
-    <a name="bit63" val="none"/>
   </comp>
   <comp lib="0" loc="(2340,1350)" name="Tunnel">
-    <a name="label" val="cw_dp"/>
-    <a name="width" val="64"/>
+    <a name="label" val="cw_dp__0"/>
+    <a name="width" val="32"/>
     <a name="facing" val="east"/>
   </comp>
   <comp lib="0" loc="(2360,1380)" name="Tunnel">
@@ -2099,7 +1491,7 @@
     <a name="facing" val="south"/>
   </comp>
   <comp lib="0" loc="(300,1870)" name="Splitter">
-    <a name="incoming" val="64"/>
+    <a name="incoming" val="32"/>
     <a name="fanout" val="4"/>
     <a name="facing" val="east"/>
     <a name="appear" val="left"/>
@@ -2136,42 +1528,10 @@
     <a name="bit29" val="none"/>
     <a name="bit30" val="none"/>
     <a name="bit31" val="none"/>
-    <a name="bit32" val="none"/>
-    <a name="bit33" val="none"/>
-    <a name="bit34" val="none"/>
-    <a name="bit35" val="none"/>
-    <a name="bit36" val="none"/>
-    <a name="bit37" val="none"/>
-    <a name="bit38" val="none"/>
-    <a name="bit39" val="none"/>
-    <a name="bit40" val="none"/>
-    <a name="bit41" val="none"/>
-    <a name="bit42" val="none"/>
-    <a name="bit43" val="none"/>
-    <a name="bit44" val="none"/>
-    <a name="bit45" val="none"/>
-    <a name="bit46" val="none"/>
-    <a name="bit47" val="none"/>
-    <a name="bit48" val="none"/>
-    <a name="bit49" val="none"/>
-    <a name="bit50" val="none"/>
-    <a name="bit51" val="none"/>
-    <a name="bit52" val="none"/>
-    <a name="bit53" val="none"/>
-    <a name="bit54" val="none"/>
-    <a name="bit55" val="none"/>
-    <a name="bit56" val="none"/>
-    <a name="bit57" val="none"/>
-    <a name="bit58" val="none"/>
-    <a name="bit59" val="none"/>
-    <a name="bit60" val="none"/>
-    <a name="bit61" val="none"/>
-    <a name="bit62" val="none"/>
-    <a name="bit63" val="none"/>
   </comp>
   <comp lib="0" loc="(300,1870)" name="Tunnel">
-    <a name="label" val="cw_dp"/>
-    <a name="width" val="64"/>
+    <a name="label" val="cw_dp__0"/>
+    <a name="width" val="32"/>
     <a name="facing" val="east"/>
   </comp>
   <comp lib="0" loc="(320,1900)" name="Tunnel">
@@ -2243,7 +1603,7 @@
     <a name="facing" val="south"/>
   </comp>
   <comp lib="0" loc="(980,1830)" name="Splitter">
-    <a name="incoming" val="64"/>
+    <a name="incoming" val="32"/>
     <a name="fanout" val="3"/>
     <a name="facing" val="east"/>
     <a name="appear" val="left"/>
@@ -2280,42 +1640,10 @@
     <a name="bit29" val="none"/>
     <a name="bit30" val="none"/>
     <a name="bit31" val="none"/>
-    <a name="bit32" val="none"/>
-    <a name="bit33" val="none"/>
-    <a name="bit34" val="none"/>
-    <a name="bit35" val="none"/>
-    <a name="bit36" val="none"/>
-    <a name="bit37" val="none"/>
-    <a name="bit38" val="none"/>
-    <a name="bit39" val="none"/>
-    <a name="bit40" val="none"/>
-    <a name="bit41" val="none"/>
-    <a name="bit42" val="none"/>
-    <a name="bit43" val="none"/>
-    <a name="bit44" val="none"/>
-    <a name="bit45" val="none"/>
-    <a name="bit46" val="none"/>
-    <a name="bit47" val="none"/>
-    <a name="bit48" val="none"/>
-    <a name="bit49" val="none"/>
-    <a name="bit50" val="none"/>
-    <a name="bit51" val="none"/>
-    <a name="bit52" val="none"/>
-    <a name="bit53" val="none"/>
-    <a name="bit54" val="none"/>
-    <a name="bit55" val="none"/>
-    <a name="bit56" val="none"/>
-    <a name="bit57" val="none"/>
-    <a name="bit58" val="none"/>
-    <a name="bit59" val="none"/>
-    <a name="bit60" val="none"/>
-    <a name="bit61" val="none"/>
-    <a name="bit62" val="none"/>
-    <a name="bit63" val="none"/>
   </comp>
   <comp lib="0" loc="(980,1830)" name="Tunnel">
-    <a name="label" val="cw_dp"/>
-    <a name="width" val="64"/>
+    <a name="label" val="cw_dp__0"/>
+    <a name="width" val="32"/>
     <a name="facing" val="east"/>
   </comp>
   <comp lib="0" loc="(1000,1860)" name="Tunnel">
@@ -2375,21 +1703,17 @@
     <a name="facing" val="south"/>
   </comp>
   <comp lib="0" loc="(1660,1870)" name="Splitter">
-    <a name="incoming" val="64"/>
+    <a name="incoming" val="32"/>
     <a name="fanout" val="4"/>
     <a name="facing" val="east"/>
     <a name="appear" val="left"/>
     <a name="spacing" val="2"/>
-    <a name="bit34" val="0"/>
-    <a name="bit35" val="1"/>
-    <a name="bit36" val="2"/>
-    <a name="bit37" val="3"/>
+    <a name="bit2" val="0"/>
+    <a name="bit3" val="1"/>
+    <a name="bit4" val="2"/>
+    <a name="bit5" val="3"/>
     <a name="bit0" val="none"/>
     <a name="bit1" val="none"/>
-    <a name="bit2" val="none"/>
-    <a name="bit3" val="none"/>
-    <a name="bit4" val="none"/>
-    <a name="bit5" val="none"/>
     <a name="bit6" val="none"/>
     <a name="bit7" val="none"/>
     <a name="bit8" val="none"/>
@@ -2416,38 +1740,10 @@
     <a name="bit29" val="none"/>
     <a name="bit30" val="none"/>
     <a name="bit31" val="none"/>
-    <a name="bit32" val="none"/>
-    <a name="bit33" val="none"/>
-    <a name="bit38" val="none"/>
-    <a name="bit39" val="none"/>
-    <a name="bit40" val="none"/>
-    <a name="bit41" val="none"/>
-    <a name="bit42" val="none"/>
-    <a name="bit43" val="none"/>
-    <a name="bit44" val="none"/>
-    <a name="bit45" val="none"/>
-    <a name="bit46" val="none"/>
-    <a name="bit47" val="none"/>
-    <a name="bit48" val="none"/>
-    <a name="bit49" val="none"/>
-    <a name="bit50" val="none"/>
-    <a name="bit51" val="none"/>
-    <a name="bit52" val="none"/>
-    <a name="bit53" val="none"/>
-    <a name="bit54" val="none"/>
-    <a name="bit55" val="none"/>
-    <a name="bit56" val="none"/>
-    <a name="bit57" val="none"/>
-    <a name="bit58" val="none"/>
-    <a name="bit59" val="none"/>
-    <a name="bit60" val="none"/>
-    <a name="bit61" val="none"/>
-    <a name="bit62" val="none"/>
-    <a name="bit63" val="none"/>
   </comp>
   <comp lib="0" loc="(1660,1870)" name="Tunnel">
-    <a name="label" val="cw_dp"/>
-    <a name="width" val="64"/>
+    <a name="label" val="cw_dp__1"/>
+    <a name="width" val="32"/>
     <a name="facing" val="east"/>
   </comp>
   <comp lib="0" loc="(1680,1900)" name="Tunnel">
@@ -2519,21 +1815,17 @@
     <a name="facing" val="south"/>
   </comp>
   <comp lib="0" loc="(2340,1870)" name="Splitter">
-    <a name="incoming" val="64"/>
+    <a name="incoming" val="32"/>
     <a name="fanout" val="4"/>
     <a name="facing" val="east"/>
     <a name="appear" val="left"/>
     <a name="spacing" val="2"/>
-    <a name="bit34" val="0"/>
-    <a name="bit35" val="1"/>
-    <a name="bit36" val="2"/>
-    <a name="bit37" val="3"/>
+    <a name="bit2" val="0"/>
+    <a name="bit3" val="1"/>
+    <a name="bit4" val="2"/>
+    <a name="bit5" val="3"/>
     <a name="bit0" val="none"/>
     <a name="bit1" val="none"/>
-    <a name="bit2" val="none"/>
-    <a name="bit3" val="none"/>
-    <a name="bit4" val="none"/>
-    <a name="bit5" val="none"/>
     <a name="bit6" val="none"/>
     <a name="bit7" val="none"/>
     <a name="bit8" val="none"/>
@@ -2560,38 +1852,10 @@
     <a name="bit29" val="none"/>
     <a name="bit30" val="none"/>
     <a name="bit31" val="none"/>
-    <a name="bit32" val="none"/>
-    <a name="bit33" val="none"/>
-    <a name="bit38" val="none"/>
-    <a name="bit39" val="none"/>
-    <a name="bit40" val="none"/>
-    <a name="bit41" val="none"/>
-    <a name="bit42" val="none"/>
-    <a name="bit43" val="none"/>
-    <a name="bit44" val="none"/>
-    <a name="bit45" val="none"/>
-    <a name="bit46" val="none"/>
-    <a name="bit47" val="none"/>
-    <a name="bit48" val="none"/>
-    <a name="bit49" val="none"/>
-    <a name="bit50" val="none"/>
-    <a name="bit51" val="none"/>
-    <a name="bit52" val="none"/>
-    <a name="bit53" val="none"/>
-    <a name="bit54" val="none"/>
-    <a name="bit55" val="none"/>
-    <a name="bit56" val="none"/>
-    <a name="bit57" val="none"/>
-    <a name="bit58" val="none"/>
-    <a name="bit59" val="none"/>
-    <a name="bit60" val="none"/>
-    <a name="bit61" val="none"/>
-    <a name="bit62" val="none"/>
-    <a name="bit63" val="none"/>
   </comp>
   <comp lib="0" loc="(2340,1870)" name="Tunnel">
-    <a name="label" val="cw_dp"/>
-    <a name="width" val="64"/>
+    <a name="label" val="cw_dp__1"/>
+    <a name="width" val="32"/>
     <a name="facing" val="east"/>
   </comp>
   <comp lib="0" loc="(2360,1900)" name="Tunnel">
@@ -2659,17 +1923,28 @@
     <a name="facing" val="west"/>
   </comp>
   <comp lib="0" loc="(40,120)" name="Pin">
-    <a name="label" val="cw_dp"/>
-    <a name="width" val="64"/>
+    <a name="label" val="cw_dp__0"/>
+    <a name="width" val="32"/>
+    <a name="facing" val="east"/>
   </comp>
   <comp lib="0" loc="(40,120)" name="Tunnel">
-    <a name="label" val="cw_dp"/>
-    <a name="width" val="64"/>
+    <a name="label" val="cw_dp__0"/>
+    <a name="width" val="32"/>
+  </comp>
+  <comp lib="0" loc="(40,160)" name="Pin">
+    <a name="label" val="cw_dp__1"/>
+    <a name="width" val="32"/>
+    <a name="facing" val="east"/>
+  </comp>
+  <comp lib="0" loc="(40,160)" name="Tunnel">
+    <a name="label" val="cw_dp__1"/>
+    <a name="width" val="32"/>
   </comp>
   <comp lib="0" loc="(3200,120)" name="Pin">
     <a name="label" val="ir_load_n"/>
     <a name="width" val="4"/>
-    <a name="output" val="true"/>
+    <a name="facing" val="west"/>
+    <a name="type" val="output"/>
   </comp>
   <comp lib="0" loc="(3200,120)" name="Tunnel">
     <a name="label" val="ir_load_n"/>
@@ -2678,7 +1953,8 @@
   <comp lib="0" loc="(3200,160)" name="Pin">
     <a name="label" val="left_src_n"/>
     <a name="width" val="16"/>
-    <a name="output" val="true"/>
+    <a name="facing" val="west"/>
+    <a name="type" val="output"/>
   </comp>
   <comp lib="0" loc="(3200,160)" name="Tunnel">
     <a name="label" val="left_src_n"/>
@@ -2687,7 +1963,8 @@
   <comp lib="0" loc="(3200,200)" name="Pin">
     <a name="label" val="left_lane_n"/>
     <a name="width" val="4"/>
-    <a name="output" val="true"/>
+    <a name="facing" val="west"/>
+    <a name="type" val="output"/>
   </comp>
   <comp lib="0" loc="(3200,200)" name="Tunnel">
     <a name="label" val="left_lane_n"/>
@@ -2696,7 +1973,8 @@
   <comp lib="0" loc="(3200,240)" name="Pin">
     <a name="label" val="right_src_n"/>
     <a name="width" val="8"/>
-    <a name="output" val="true"/>
+    <a name="facing" val="west"/>
+    <a name="type" val="output"/>
   </comp>
   <comp lib="0" loc="(3200,240)" name="Tunnel">
     <a name="label" val="right_src_n"/>
@@ -2705,7 +1983,8 @@
   <comp lib="0" loc="(3200,280)" name="Pin">
     <a name="label" val="alu_op_n"/>
     <a name="width" val="16"/>
-    <a name="output" val="true"/>
+    <a name="facing" val="west"/>
+    <a name="type" val="output"/>
   </comp>
   <comp lib="0" loc="(3200,280)" name="Tunnel">
     <a name="label" val="alu_op_n"/>
@@ -2714,7 +1993,8 @@
   <comp lib="0" loc="(3200,320)" name="Pin">
     <a name="label" val="alu_shift_n"/>
     <a name="width" val="8"/>
-    <a name="output" val="true"/>
+    <a name="facing" val="west"/>
+    <a name="type" val="output"/>
   </comp>
   <comp lib="0" loc="(3200,320)" name="Tunnel">
     <a name="label" val="alu_shift_n"/>
@@ -2723,7 +2003,8 @@
   <comp lib="0" loc="(3200,360)" name="Pin">
     <a name="label" val="v_src_n"/>
     <a name="width" val="4"/>
-    <a name="output" val="true"/>
+    <a name="facing" val="west"/>
+    <a name="type" val="output"/>
   </comp>
   <comp lib="0" loc="(3200,360)" name="Tunnel">
     <a name="label" val="v_src_n"/>
@@ -2732,7 +2013,8 @@
   <comp lib="0" loc="(3200,400)" name="Pin">
     <a name="label" val="c_src_n"/>
     <a name="width" val="4"/>
-    <a name="output" val="true"/>
+    <a name="facing" val="west"/>
+    <a name="type" val="output"/>
   </comp>
   <comp lib="0" loc="(3200,400)" name="Tunnel">
     <a name="label" val="c_src_n"/>
@@ -2741,7 +2023,8 @@
   <comp lib="0" loc="(3200,440)" name="Pin">
     <a name="label" val="cc_write_n"/>
     <a name="width" val="4"/>
-    <a name="output" val="true"/>
+    <a name="facing" val="west"/>
+    <a name="type" val="output"/>
   </comp>
   <comp lib="0" loc="(3200,440)" name="Tunnel">
     <a name="label" val="cc_write_n"/>
@@ -2750,7 +2033,8 @@
   <comp lib="0" loc="(3200,480)" name="Pin">
     <a name="label" val="cc_mi_n"/>
     <a name="width" val="4"/>
-    <a name="output" val="true"/>
+    <a name="facing" val="west"/>
+    <a name="type" val="output"/>
   </comp>
   <comp lib="0" loc="(3200,480)" name="Tunnel">
     <a name="label" val="cc_mi_n"/>
@@ -2759,7 +2043,8 @@
   <comp lib="0" loc="(3200,520)" name="Pin">
     <a name="label" val="z_dest_n"/>
     <a name="width" val="16"/>
-    <a name="output" val="true"/>
+    <a name="facing" val="west"/>
+    <a name="type" val="output"/>
   </comp>
   <comp lib="0" loc="(3200,520)" name="Tunnel">
     <a name="label" val="z_dest_n"/>
@@ -2768,7 +2053,8 @@
   <comp lib="0" loc="(3200,560)" name="Pin">
     <a name="label" val="z_lane_n"/>
     <a name="width" val="4"/>
-    <a name="output" val="true"/>
+    <a name="facing" val="west"/>
+    <a name="type" val="output"/>
   </comp>
   <comp lib="0" loc="(3200,560)" name="Tunnel">
     <a name="label" val="z_lane_n"/>
@@ -2777,7 +2063,8 @@
   <comp lib="0" loc="(3200,600)" name="Pin">
     <a name="label" val="pc_ctrl_n"/>
     <a name="width" val="4"/>
-    <a name="output" val="true"/>
+    <a name="facing" val="west"/>
+    <a name="type" val="output"/>
   </comp>
   <comp lib="0" loc="(3200,600)" name="Tunnel">
     <a name="label" val="pc_ctrl_n"/>
@@ -2786,7 +2073,8 @@
   <comp lib="0" loc="(3200,640)" name="Pin">
     <a name="label" val="mar_ctrl_n"/>
     <a name="width" val="4"/>
-    <a name="output" val="true"/>
+    <a name="facing" val="west"/>
+    <a name="type" val="output"/>
   </comp>
   <comp lib="0" loc="(3200,640)" name="Tunnel">
     <a name="label" val="mar_ctrl_n"/>
@@ -2795,7 +2083,8 @@
   <comp lib="0" loc="(3200,680)" name="Pin">
     <a name="label" val="x_ctrl_n"/>
     <a name="width" val="4"/>
-    <a name="output" val="true"/>
+    <a name="facing" val="west"/>
+    <a name="type" val="output"/>
   </comp>
   <comp lib="0" loc="(3200,680)" name="Tunnel">
     <a name="label" val="x_ctrl_n"/>
@@ -2804,7 +2093,8 @@
   <comp lib="0" loc="(3200,720)" name="Pin">
     <a name="label" val="y_ctrl_n"/>
     <a name="width" val="4"/>
-    <a name="output" val="true"/>
+    <a name="facing" val="west"/>
+    <a name="type" val="output"/>
   </comp>
   <comp lib="0" loc="(3200,720)" name="Tunnel">
     <a name="label" val="y_ctrl_n"/>
@@ -2813,7 +2103,8 @@
   <comp lib="0" loc="(3200,760)" name="Pin">
     <a name="label" val="mem_op_n"/>
     <a name="width" val="4"/>
-    <a name="output" val="true"/>
+    <a name="facing" val="west"/>
+    <a name="type" val="output"/>
   </comp>
   <comp lib="0" loc="(3200,760)" name="Tunnel">
     <a name="label" val="mem_op_n"/>
@@ -2822,7 +2113,8 @@
   <comp lib="0" loc="(3200,800)" name="Pin">
     <a name="label" val="mmu_addr_n"/>
     <a name="width" val="4"/>
-    <a name="output" val="true"/>
+    <a name="facing" val="west"/>
+    <a name="type" val="output"/>
   </comp>
   <comp lib="0" loc="(3200,800)" name="Tunnel">
     <a name="label" val="mmu_addr_n"/>
@@ -2831,7 +2123,8 @@
   <comp lib="0" loc="(3200,840)" name="Pin">
     <a name="label" val="mmu_map_n"/>
     <a name="width" val="4"/>
-    <a name="output" val="true"/>
+    <a name="facing" val="west"/>
+    <a name="type" val="output"/>
   </comp>
   <comp lib="0" loc="(3200,840)" name="Tunnel">
     <a name="label" val="mmu_map_n"/>
@@ -2840,7 +2133,8 @@
   <comp lib="0" loc="(3200,880)" name="Pin">
     <a name="label" val="mmu_pt_n"/>
     <a name="width" val="4"/>
-    <a name="output" val="true"/>
+    <a name="facing" val="west"/>
+    <a name="type" val="output"/>
   </comp>
   <comp lib="0" loc="(3200,880)" name="Tunnel">
     <a name="label" val="mmu_pt_n"/>
@@ -2848,25 +2142,106 @@
   </comp>
   <comp lib="0" loc="(3200,920)" name="Pin">
     <a name="label" val="alu_cin"/>
-    <a name="output" val="true"/>
+    <a name="facing" val="west"/>
+    <a name="type" val="output"/>
   </comp>
-  <comp lib="0" loc="(3200,920)" name="Tunnel">
-    <a name="label" val="alu_cin"/>
+  <comp lib="0" loc="(3040,920)" name="Splitter">
+    <a name="incoming" val="32"/>
+    <a name="fanout" val="1"/>
+    <a name="facing" val="east"/>
+    <a name="spacing" val="2"/>
+    <a name="bit18" val="0"/>
+    <a name="bit0" val="none"/>
+    <a name="bit1" val="none"/>
+    <a name="bit2" val="none"/>
+    <a name="bit3" val="none"/>
+    <a name="bit4" val="none"/>
+    <a name="bit5" val="none"/>
+    <a name="bit6" val="none"/>
+    <a name="bit7" val="none"/>
+    <a name="bit8" val="none"/>
+    <a name="bit9" val="none"/>
+    <a name="bit10" val="none"/>
+    <a name="bit11" val="none"/>
+    <a name="bit12" val="none"/>
+    <a name="bit13" val="none"/>
+    <a name="bit14" val="none"/>
+    <a name="bit15" val="none"/>
+    <a name="bit16" val="none"/>
+    <a name="bit17" val="none"/>
+    <a name="bit19" val="none"/>
+    <a name="bit20" val="none"/>
+    <a name="bit21" val="none"/>
+    <a name="bit22" val="none"/>
+    <a name="bit23" val="none"/>
+    <a name="bit24" val="none"/>
+    <a name="bit25" val="none"/>
+    <a name="bit26" val="none"/>
+    <a name="bit27" val="none"/>
+    <a name="bit28" val="none"/>
+    <a name="bit29" val="none"/>
+    <a name="bit30" val="none"/>
+    <a name="bit31" val="none"/>
+  </comp>
+  <comp lib="0" loc="(3040,920)" name="Tunnel">
+    <a name="label" val="cw_dp__0"/>
+    <a name="width" val="32"/>
   </comp>
   <comp lib="0" loc="(3200,960)" name="Pin">
     <a name="label" val="alu_width"/>
-    <a name="output" val="true"/>
+    <a name="facing" val="west"/>
+    <a name="type" val="output"/>
   </comp>
-  <comp lib="0" loc="(3200,960)" name="Tunnel">
-    <a name="label" val="alu_width"/>
+  <comp lib="0" loc="(3040,960)" name="Splitter">
+    <a name="incoming" val="32"/>
+    <a name="fanout" val="1"/>
+    <a name="facing" val="east"/>
+    <a name="spacing" val="2"/>
+    <a name="bit19" val="0"/>
+    <a name="bit0" val="none"/>
+    <a name="bit1" val="none"/>
+    <a name="bit2" val="none"/>
+    <a name="bit3" val="none"/>
+    <a name="bit4" val="none"/>
+    <a name="bit5" val="none"/>
+    <a name="bit6" val="none"/>
+    <a name="bit7" val="none"/>
+    <a name="bit8" val="none"/>
+    <a name="bit9" val="none"/>
+    <a name="bit10" val="none"/>
+    <a name="bit11" val="none"/>
+    <a name="bit12" val="none"/>
+    <a name="bit13" val="none"/>
+    <a name="bit14" val="none"/>
+    <a name="bit15" val="none"/>
+    <a name="bit16" val="none"/>
+    <a name="bit17" val="none"/>
+    <a name="bit18" val="none"/>
+    <a name="bit20" val="none"/>
+    <a name="bit21" val="none"/>
+    <a name="bit22" val="none"/>
+    <a name="bit23" val="none"/>
+    <a name="bit24" val="none"/>
+    <a name="bit25" val="none"/>
+    <a name="bit26" val="none"/>
+    <a name="bit27" val="none"/>
+    <a name="bit28" val="none"/>
+    <a name="bit29" val="none"/>
+    <a name="bit30" val="none"/>
+    <a name="bit31" val="none"/>
+  </comp>
+  <comp lib="0" loc="(3040,960)" name="Tunnel">
+    <a name="label" val="cw_dp__0"/>
+    <a name="width" val="32"/>
   </comp>
   <comp lib="0" loc="(3200,1000)" name="Pin">
     <a name="label" val="flag_we"/>
     <a name="width" val="5"/>
-    <a name="output" val="true"/>
+    <a name="facing" val="west"/>
+    <a name="type" val="output"/>
   </comp>
   <comp lib="0" loc="(3040,1000)" name="Splitter">
-    <a name="incoming" val="64"/>
+    <a name="incoming" val="32"/>
     <a name="fanout" val="1"/>
     <a name="facing" val="east"/>
     <a name="spacing" val="2"/>
@@ -2902,63 +2277,151 @@
     <a name="bit29" val="none"/>
     <a name="bit30" val="none"/>
     <a name="bit31" val="none"/>
-    <a name="bit32" val="none"/>
-    <a name="bit33" val="none"/>
-    <a name="bit34" val="none"/>
-    <a name="bit35" val="none"/>
-    <a name="bit36" val="none"/>
-    <a name="bit37" val="none"/>
-    <a name="bit38" val="none"/>
-    <a name="bit39" val="none"/>
-    <a name="bit40" val="none"/>
-    <a name="bit41" val="none"/>
-    <a name="bit42" val="none"/>
-    <a name="bit43" val="none"/>
-    <a name="bit44" val="none"/>
-    <a name="bit45" val="none"/>
-    <a name="bit46" val="none"/>
-    <a name="bit47" val="none"/>
-    <a name="bit48" val="none"/>
-    <a name="bit49" val="none"/>
-    <a name="bit50" val="none"/>
-    <a name="bit51" val="none"/>
-    <a name="bit52" val="none"/>
-    <a name="bit53" val="none"/>
-    <a name="bit54" val="none"/>
-    <a name="bit55" val="none"/>
-    <a name="bit56" val="none"/>
-    <a name="bit57" val="none"/>
-    <a name="bit58" val="none"/>
-    <a name="bit59" val="none"/>
-    <a name="bit60" val="none"/>
-    <a name="bit61" val="none"/>
-    <a name="bit62" val="none"/>
-    <a name="bit63" val="none"/>
   </comp>
   <comp lib="0" loc="(3040,1000)" name="Tunnel">
-    <a name="label" val="cw_dp"/>
-    <a name="width" val="64"/>
+    <a name="label" val="cw_dp__0"/>
+    <a name="width" val="32"/>
   </comp>
   <comp lib="0" loc="(3200,1040)" name="Pin">
     <a name="label" val="z_accum"/>
-    <a name="output" val="true"/>
+    <a name="facing" val="west"/>
+    <a name="type" val="output"/>
   </comp>
-  <comp lib="0" loc="(3200,1040)" name="Tunnel">
-    <a name="label" val="cw_dp_29"/>
+  <comp lib="0" loc="(3040,1040)" name="Splitter">
+    <a name="incoming" val="32"/>
+    <a name="fanout" val="1"/>
+    <a name="facing" val="east"/>
+    <a name="spacing" val="2"/>
+    <a name="bit29" val="0"/>
+    <a name="bit0" val="none"/>
+    <a name="bit1" val="none"/>
+    <a name="bit2" val="none"/>
+    <a name="bit3" val="none"/>
+    <a name="bit4" val="none"/>
+    <a name="bit5" val="none"/>
+    <a name="bit6" val="none"/>
+    <a name="bit7" val="none"/>
+    <a name="bit8" val="none"/>
+    <a name="bit9" val="none"/>
+    <a name="bit10" val="none"/>
+    <a name="bit11" val="none"/>
+    <a name="bit12" val="none"/>
+    <a name="bit13" val="none"/>
+    <a name="bit14" val="none"/>
+    <a name="bit15" val="none"/>
+    <a name="bit16" val="none"/>
+    <a name="bit17" val="none"/>
+    <a name="bit18" val="none"/>
+    <a name="bit19" val="none"/>
+    <a name="bit20" val="none"/>
+    <a name="bit21" val="none"/>
+    <a name="bit22" val="none"/>
+    <a name="bit23" val="none"/>
+    <a name="bit24" val="none"/>
+    <a name="bit25" val="none"/>
+    <a name="bit26" val="none"/>
+    <a name="bit27" val="none"/>
+    <a name="bit28" val="none"/>
+    <a name="bit30" val="none"/>
+    <a name="bit31" val="none"/>
+  </comp>
+  <comp lib="0" loc="(3040,1040)" name="Tunnel">
+    <a name="label" val="cw_dp__0"/>
+    <a name="width" val="32"/>
   </comp>
   <comp lib="0" loc="(3200,1080)" name="Pin">
     <a name="label" val="sp_bank"/>
-    <a name="output" val="true"/>
+    <a name="facing" val="west"/>
+    <a name="type" val="output"/>
   </comp>
-  <comp lib="0" loc="(3200,1080)" name="Tunnel">
-    <a name="label" val="cw_dp_56"/>
+  <comp lib="0" loc="(3040,1080)" name="Splitter">
+    <a name="incoming" val="32"/>
+    <a name="fanout" val="1"/>
+    <a name="facing" val="east"/>
+    <a name="spacing" val="2"/>
+    <a name="bit24" val="0"/>
+    <a name="bit0" val="none"/>
+    <a name="bit1" val="none"/>
+    <a name="bit2" val="none"/>
+    <a name="bit3" val="none"/>
+    <a name="bit4" val="none"/>
+    <a name="bit5" val="none"/>
+    <a name="bit6" val="none"/>
+    <a name="bit7" val="none"/>
+    <a name="bit8" val="none"/>
+    <a name="bit9" val="none"/>
+    <a name="bit10" val="none"/>
+    <a name="bit11" val="none"/>
+    <a name="bit12" val="none"/>
+    <a name="bit13" val="none"/>
+    <a name="bit14" val="none"/>
+    <a name="bit15" val="none"/>
+    <a name="bit16" val="none"/>
+    <a name="bit17" val="none"/>
+    <a name="bit18" val="none"/>
+    <a name="bit19" val="none"/>
+    <a name="bit20" val="none"/>
+    <a name="bit21" val="none"/>
+    <a name="bit22" val="none"/>
+    <a name="bit23" val="none"/>
+    <a name="bit25" val="none"/>
+    <a name="bit26" val="none"/>
+    <a name="bit27" val="none"/>
+    <a name="bit28" val="none"/>
+    <a name="bit29" val="none"/>
+    <a name="bit30" val="none"/>
+    <a name="bit31" val="none"/>
+  </comp>
+  <comp lib="0" loc="(3040,1080)" name="Tunnel">
+    <a name="label" val="cw_dp__1"/>
+    <a name="width" val="32"/>
   </comp>
   <comp lib="0" loc="(3200,1120)" name="Pin">
     <a name="label" val="tas_lock"/>
-    <a name="output" val="true"/>
+    <a name="facing" val="west"/>
+    <a name="type" val="output"/>
   </comp>
-  <comp lib="0" loc="(3200,1120)" name="Tunnel">
-    <a name="label" val="cw_dp_57"/>
+  <comp lib="0" loc="(3040,1120)" name="Splitter">
+    <a name="incoming" val="32"/>
+    <a name="fanout" val="1"/>
+    <a name="facing" val="east"/>
+    <a name="spacing" val="2"/>
+    <a name="bit25" val="0"/>
+    <a name="bit0" val="none"/>
+    <a name="bit1" val="none"/>
+    <a name="bit2" val="none"/>
+    <a name="bit3" val="none"/>
+    <a name="bit4" val="none"/>
+    <a name="bit5" val="none"/>
+    <a name="bit6" val="none"/>
+    <a name="bit7" val="none"/>
+    <a name="bit8" val="none"/>
+    <a name="bit9" val="none"/>
+    <a name="bit10" val="none"/>
+    <a name="bit11" val="none"/>
+    <a name="bit12" val="none"/>
+    <a name="bit13" val="none"/>
+    <a name="bit14" val="none"/>
+    <a name="bit15" val="none"/>
+    <a name="bit16" val="none"/>
+    <a name="bit17" val="none"/>
+    <a name="bit18" val="none"/>
+    <a name="bit19" val="none"/>
+    <a name="bit20" val="none"/>
+    <a name="bit21" val="none"/>
+    <a name="bit22" val="none"/>
+    <a name="bit23" val="none"/>
+    <a name="bit24" val="none"/>
+    <a name="bit26" val="none"/>
+    <a name="bit27" val="none"/>
+    <a name="bit28" val="none"/>
+    <a name="bit29" val="none"/>
+    <a name="bit30" val="none"/>
+    <a name="bit31" val="none"/>
+  </comp>
+  <comp lib="0" loc="(3040,1120)" name="Tunnel">
+    <a name="label" val="cw_dp__1"/>
+    <a name="width" val="32"/>
   </comp>
   <comp lib="0" loc="(40,40)" name="Constant">
     <a name="value" val="0x0"/>
@@ -3632,7 +3095,17 @@
   <wire from="(2530,1970)" to="(2560,1970)"/>
   <wire from="(2560,1970)" to="(2560,1960)"/>
   <wire from="(2560,1960)" to="(2640,1960)"/>
+  <wire from="(3200,920)" to="(3060,920)"/>
+  <wire from="(3060,920)" to="(3060,910)"/>
+  <wire from="(3200,960)" to="(3060,960)"/>
+  <wire from="(3060,960)" to="(3060,950)"/>
   <wire from="(3200,1000)" to="(3060,1000)"/>
   <wire from="(3060,1000)" to="(3060,990)"/>
+  <wire from="(3200,1040)" to="(3060,1040)"/>
+  <wire from="(3060,1040)" to="(3060,1030)"/>
+  <wire from="(3200,1080)" to="(3060,1080)"/>
+  <wire from="(3060,1080)" to="(3060,1070)"/>
+  <wire from="(3200,1120)" to="(3060,1120)"/>
+  <wire from="(3060,1120)" to="(3060,1110)"/>
   </circuit>
 </project>

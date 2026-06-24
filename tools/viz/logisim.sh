@@ -31,10 +31,13 @@ mkdir -p "$OUT"
 command -v yosys   >/dev/null 2>&1 || { echo "error: need 'yosys'" >&2; exit 1; }
 command -v python3 >/dev/null 2>&1 || { echo "error: need 'python3'" >&2; exit 1; }
 
-# Resolve TOP -> its Verilog source (the cell library is always read as -lib so the cells
-# stay as instances). Sub-block hierarchy (the whole cpu) is a later step.
+# Resolve TOP -> its Verilog source(s) (the cell library is always read as -lib so the cells
+# stay as instances). `cpu` is the whole hierarchy: read every block and keep the sub-modules
+# (NOT flattened) so logisim.py emits each block as a navigable subcircuit.
 case "$TOP" in
   uc_loader) SRC="hdl/boot/uc_loader.v" ;;
+  cpu) SRC="hdl/cpu.v hdl/microsequencer.v hdl/microcode_store.v hdl/opcode_lut.v \
+           hdl/control_word_decoder.v hdl/boot/uc_loader.v" ;;
   *) if   [ -f "hdl/${TOP}.v" ];      then SRC="hdl/${TOP}.v"
      elif [ -f "hdl/boot/${TOP}.v" ]; then SRC="hdl/boot/${TOP}.v"
      else echo "error: no Verilog source for TOP='${TOP}'" >&2; exit 1; fi ;;

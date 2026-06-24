@@ -39,7 +39,7 @@
     <tool lib="0" name="Pin"/>
     <tool lib="0" name="Pin">
       <a name="facing" val="west"/>
-      <a name="output" val="true"/>
+      <a name="type" val="output"/>
     </tool>
   </toolbar>
   <circuit name="microsequencer">
@@ -2358,19 +2358,24 @@
   </comp>
   <comp lib="0" loc="(40,120)" name="Pin">
     <a name="label" val="clk"/>
+    <a name="facing" val="east"/>
   </comp>
   <comp lib="0" loc="(40,120)" name="Tunnel">
     <a name="label" val="clk"/>
+    <a name="facing" val="east"/>
   </comp>
   <comp lib="0" loc="(40,160)" name="Pin">
     <a name="label" val="clr_n"/>
+    <a name="facing" val="east"/>
   </comp>
   <comp lib="0" loc="(40,160)" name="Tunnel">
     <a name="label" val="clr_n"/>
+    <a name="facing" val="east"/>
   </comp>
   <comp lib="0" loc="(40,200)" name="Pin">
     <a name="label" val="useq_op"/>
     <a name="width" val="3"/>
+    <a name="facing" val="east"/>
   </comp>
   <comp lib="0" loc="(40,200)" name="Tunnel">
     <a name="label" val="useq_op"/>
@@ -2379,6 +2384,7 @@
   <comp lib="0" loc="(40,240)" name="Pin">
     <a name="label" val="next_addr"/>
     <a name="width" val="12"/>
+    <a name="facing" val="east"/>
   </comp>
   <comp lib="0" loc="(40,240)" name="Tunnel">
     <a name="label" val="next_addr"/>
@@ -2387,6 +2393,7 @@
   <comp lib="0" loc="(40,280)" name="Pin">
     <a name="label" val="ucond_sel"/>
     <a name="width" val="4"/>
+    <a name="facing" val="east"/>
   </comp>
   <comp lib="0" loc="(40,280)" name="Tunnel">
     <a name="label" val="ucond_sel"/>
@@ -2394,13 +2401,16 @@
   </comp>
   <comp lib="0" loc="(40,320)" name="Pin">
     <a name="label" val="ucond_pol"/>
+    <a name="facing" val="east"/>
   </comp>
   <comp lib="0" loc="(40,320)" name="Tunnel">
     <a name="label" val="ucond_pol"/>
+    <a name="facing" val="east"/>
   </comp>
   <comp lib="0" loc="(40,360)" name="Pin">
     <a name="label" val="cond"/>
     <a name="width" val="16"/>
+    <a name="facing" val="east"/>
   </comp>
   <comp lib="0" loc="(40,360)" name="Tunnel">
     <a name="label" val="cond"/>
@@ -2409,6 +2419,7 @@
   <comp lib="0" loc="(40,400)" name="Pin">
     <a name="label" val="lut_data"/>
     <a name="width" val="12"/>
+    <a name="facing" val="east"/>
   </comp>
   <comp lib="0" loc="(40,400)" name="Tunnel">
     <a name="label" val="lut_data"/>
@@ -2417,7 +2428,8 @@
   <comp lib="0" loc="(3200,120)" name="Pin">
     <a name="label" val="upc"/>
     <a name="width" val="12"/>
-    <a name="output" val="true"/>
+    <a name="facing" val="west"/>
+    <a name="type" val="output"/>
   </comp>
   <comp lib="0" loc="(3200,120)" name="Tunnel">
     <a name="label" val="upc"/>
