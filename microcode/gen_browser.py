@@ -21,6 +21,7 @@ import json
 import sys
 import tomllib
 from bisect import bisect_right
+from collections import defaultdict
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
@@ -62,6 +63,25 @@ DP_FIELDS = [
     "X_CTRL", "Y_CTRL", "MEM_OP", "MMU_ADDR_SRC", "MMU_MAP_SEL", "MMU_PT_OP",
     "SP_BANK", "TAS_LOCK",
 ]
+
+# datapath field -> lens group, and the lenses (which groups each shows)
+LENS_GROUP = {
+    "LEFT_SRC": "alu", "LEFT_LANE": "alu", "RIGHT_SRC": "alu", "ALU_OP": "alu",
+    "ALU_SHIFT": "alu", "ALU_CIN": "alu", "ALU_WIDTH": "alu",
+    "FLAG_WE": "flag", "V_SRC": "flag", "C_SRC": "flag", "Z_ACCUM": "flag",
+    "CC_WRITE_SRC": "flag", "CC_MI_LOAD": "flag",
+    "IR_LOAD": "reg", "Z_DEST": "reg", "Z_LANE": "reg", "PC_CTRL": "reg",
+    "MAR_CTRL": "reg", "X_CTRL": "reg", "Y_CTRL": "reg",
+    "MEM_OP": "mem", "MMU_ADDR_SRC": "mem", "MMU_MAP_SEL": "mem",
+    "MMU_PT_OP": "mem", "SP_BANK": "mem", "TAS_LOCK": "mem",
+}
+LENSES = {            # lens -> the groups it keeps visible
+    "all": {"alu", "flag", "reg", "mem"},
+    "sequencer": set(),
+    "ALU": {"alu", "flag", "reg"},
+    "memory": {"mem", "reg"},
+    "flags/CC": {"flag", "reg"},
+}
 
 
 def field_hue(i: int) -> int:
@@ -223,6 +243,63 @@ class Model:
         starts = sorted((self.labels[n], n) for n in rnames if n in self.labels)
         self.start_addrs = [a for a, _ in starts]
         self.start_names = [n for _, n in starts]
+        self._build_graph()
+
+    # ---- control-flow graph, xrefs, gutter arrows, staging tax ------------
+    def _build_graph(self):
+        self.xrefs: dict[int, list] = defaultdict(list)   # tgt -> [(src|None, kind)]
+        self.inbound: dict[int, int] = defaultdict(int)   # tgt -> # of jump in-edges
+        jumps = []                                        # (src, tgt) intra-routine
+        for mw in self.words:
+            op = self.sym("USEQ_OP", self.code(mw, "USEQ_OP"))
+            if op in ("JUMP", "BRANCH", "CALL"):
+                tgt = self.code(mw, "NEXT_ADDR")
+                self.xrefs[tgt].append((mw.addr, op.lower()))
+                self.inbound[tgt] += 1
+                if self.routine_of(mw.addr) == self.routine_of(tgt):
+                    jumps.append((mw.addr, tgt))
+            elif op == "RETURN_FETCH":
+                self.xrefs[0].append((mw.addr, "fetch"))
+                self.inbound[0] += 1
+        for _, byte, mnem in self.entries:                # opcode-LUT in-edges
+            self.xrefs[self.labels[mnem]].append((None, f"opcode {byte:#04x} {mnem}"))
+        self.arrows = self._lanes(jumps)                  # (src, tgt, lane)
+        self.staging = self._staging()                    # {addr} of bus-staging words
+
+    @staticmethod
+    def _lanes(jumps):
+        """Assign each intra-routine arrow a lane so overlapping spans don't collide
+           (shortest spans take the inner lanes, so loops nest neatly)."""
+        out, lanes = [], []
+        for s, t in sorted(jumps, key=lambda a: abs(a[0] - a[1])):
+            lo, hi = min(s, t), max(s, t)
+            li = next((i for i, occ in enumerate(lanes)
+                       if all(hi < a or lo > b for a, b in occ)), None)
+            if li is None:
+                li, _ = len(lanes), lanes.append([])
+            lanes[li].append((lo, hi))
+            out.append((s, t, li))
+        return out
+
+    def _staging(self):
+        """A word is bus-staging tax if it COPIES a register/MDR value into SCR1/SCR2
+           (a non-memory move/lane-steer) only so the next word can read it on the
+           RIGHT bus — the asymmetric-bus tax (microcode.md §7.3). Necessary operand
+           reads into a scratch (MEM_OP=read) are excluded: the read happens anyway."""
+        scr_z = {self.fields.code_of("Z_DEST", "SCR1"): self.fields.code_of("RIGHT_SRC", "SCR1"),
+                 self.fields.code_of("Z_DEST", "SCR2"): self.fields.code_of("RIGHT_SRC", "SCR2")}
+        binop = ("ADD", "ADC", "SUB", "SBC", "AND", "OR", "EOR")
+        out = set()
+        for i, mw in enumerate(self.words[:-1]):
+            zd = self.code(mw, "Z_DEST")
+            nxt = self.words[i + 1]
+            if (zd in scr_z and self.code(mw, "MEM_OP") == 0          # a register copy, not a read
+                    and self.code(mw, "LEFT_SRC") != 0                # ... of something
+                    and self.code(nxt, "RIGHT_SRC") == scr_z[zd]
+                    and self.sym("ALU_OP", self.code(nxt, "ALU_OP")) in binop
+                    and self.routine_of(i) == self.routine_of(i + 1)):
+                out.add(i)
+        return out
 
     def code(self, mw, fname: str) -> int:
         v = mw.fields.get(fname)
@@ -364,6 +441,9 @@ def render_rows(m: Model) -> str:
             prev_rtn = rtn
         labs = m.addr_labels.get(a, [])
         labhtml = " ".join(f'<span class="lab">{esc(x)}</span>' for x in labs)
+        inb = m.inbound.get(a, 0)
+        inbadge = (f'<span class="xin" title="{inb} inbound jump(s) — click the row to list them">'
+                   f'↳{inb}</span>') if inb else ""
 
         badge, nxt, cond, ulc = render_seq_cell(m, mw)
 
@@ -385,16 +465,17 @@ def render_rows(m: Model) -> str:
             s = esc(m.sym(f, c))
             h = hue[f]
             rel = RELIED.get(f)
+            cc = f"c-{f}"                       # column class (column lenses)
             if c != 0:
-                dp.append(f'<td class="dp on" style="color:hsl({h},85%,72%);'
+                dp.append(f'<td class="dp on {cc}" style="color:hsl({h},85%,72%);'
                           f'background:hsla({h},80%,55%,.13)" data-c="{c:x}">'
                           f'{s}<sub>{c:x}</sub></td>')
             elif rel and cx[rel[0]]:
-                dp.append(f'<td class="dp on rel" style="color:hsl({h},85%,72%);'
+                dp.append(f'<td class="dp on rel {cc}" style="color:hsl({h},85%,72%);'
                           f'background:hsla({h},80%,55%,.13)" data-c="{c:x}">'
                           f'{s}<sub>{c:x}</sub></td>')
             else:
-                dp.append(f'<td class="dp dim" data-c="{c:x}">{s}</td>')
+                dp.append(f'<td class="dp dim {cc}" data-c="{c:x}">{s}</td>')
 
         rawnote = m.srclines[mw.lineno - 1].strip() if mw.lineno - 1 < len(m.srclines) else ""
         note = esc(rawnote)
@@ -406,11 +487,11 @@ def render_rows(m: Model) -> str:
         wtip = "88-bit control word — shown as bytes b10→b0 (MSB→LSB)"
         ntip = f"register-transfer source (blip.uc line {mw.lineno})"
 
-        cls = "row" + sep + (" jumpish" if jumpish else "")
+        cls = "row" + sep + (" jumpish" if jumpish else "") + (" staging" if a in m.staging else "")
         out.append(
-            f'<tr id="a{a}" class="{cls}" data-op="{op}" data-txt="{datatxt}">'
+            f'<tr id="a{a}" class="{cls}" data-op="{op}" data-rtn="{esc(rtn)}" data-txt="{datatxt}">'
             f'<td class="addr" title="{esc(atip)}">{a:#05x}</td>'
-            f'<td class="rtn" title="{rtip}">{esc(rtn)} {labhtml}</td>'
+            f'<td class="rtn" title="{rtip}">{inbadge}{esc(rtn)} {labhtml}</td>'
             f'<td class="c-op">{badge}</td>'
             f'<td class="c-next">{nxt}</td>'
             f'<td class="c-cond">{cond}</td>'
@@ -431,7 +512,7 @@ def render_header(m: Model) -> str:
     for f in DP_FIELDS:
         h = hue[f]
         short = f.replace("_", "<br>")
-        dp.append(f'<th class="dph" style="background:hsla({h},70%,45%,.9)" '
+        dp.append(f'<th class="dph c-{f}" style="background:hsla({h},70%,45%,.9)" '
                   f'title="{f}">{short}</th>')
     return "<tr>" + "".join(fixed) + "".join(dp) + '<th class="note">notes (source)</th></tr>'
 
@@ -517,6 +598,48 @@ tr.hide{display:none}
 #tip .tt-vdoc{color:#7d8590;font-size:10px;margin-top:1px}
 #tip .tt-def{color:#6e7681;font-style:italic;font-weight:400;margin-left:5px}
 #tip .tt-cur{color:#58a6ff;font-weight:400;margin-left:5px}
+/* toolbar controls */
+#bar{flex-wrap:wrap}
+.lenses{color:var(--mut)}
+.lensbtn,.tglbtn{background:#0d1117;border:1px solid var(--line);color:#adbac7;
+  padding:3px 8px;border-radius:6px;font:inherit;cursor:pointer;margin-left:3px}
+.lensbtn:hover,.tglbtn:hover{border-color:#3b475a}
+.lensbtn.on{background:#1f6feb33;border-color:#1f6feb;color:#cae0ff}
+.tglbtn.on{background:#bb800933;border-color:#d29922;color:#ffd479}
+/* inbound-xref badge + frozen-addr gutter space + overlays */
+.xin{color:#3fb6c0;background:#16323566;border-radius:4px;padding:0 4px;margin-right:5px;cursor:pointer;font-size:10px}
+table.mc .addr{padding-left:22px}
+body.stage .row.staging td.addr{box-shadow:inset 3px 0 0 #d29922;background:#241c08}
+body.stage .row.staging td.rtn,body.stage .row.staging td.note{background:hsla(38,90%,50%,.10)}
+.row.sel td{background:#1f6feb26}
+.row.sel td.addr{background:#17233d}
+#gutter{position:fixed;z-index:6;pointer-events:none;overflow:visible}
+/* inspector panel */
+#insp{flex:0 0 250px;min-height:0;overflow:auto;background:#0b0f16;
+  border-top:2px solid #30363d;padding:10px 14px;display:none}
+body.insp #insp{display:block}
+.ix-top{display:flex;align-items:center;gap:12px;margin-bottom:5px}
+.ix-addr{color:#8b949e;font-weight:700;font-size:13px}
+.ix-rtn{color:#e3b341;font-weight:700}
+.ix-close{margin-left:auto;background:none;border:1px solid var(--line);color:#8b949e;
+  border-radius:6px;cursor:pointer;padding:2px 9px}
+.ix-src{color:#adbac7;margin-bottom:9px;padding:4px 8px;background:#0d1117;border-radius:6px;white-space:pre-wrap}
+.ix-sec{margin-bottom:9px}
+.ix-h{color:#6e7681;text-transform:uppercase;font-size:9px;letter-spacing:.6px;margin-bottom:3px}
+.ix-seq{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.ix-xrefs{display:flex;gap:6px;flex-wrap:wrap}
+.ix-x{color:#79c0ff;text-decoration:none;background:#16203566;border:1px solid var(--line);
+  border-radius:5px;padding:1px 7px}
+.ix-x:hover{border-color:#1f6feb}
+.ix-xo{color:#8b949e}
+.ix-f{display:flex;gap:10px;align-items:baseline;padding:2px 0;flex-wrap:wrap}
+.ix-fn{font-weight:700;min-width:112px}
+.ix-set{color:#79c0ff}
+.ix-rel{color:#e0a82e}
+.ix-fv{color:#e6edf3}
+.ix-fv sub{color:#8b949e;font-size:8px}
+.ix-fd{color:#7d8590;flex:1;min-width:220px}
+.ix-idle{color:#586069;margin-top:6px;font-size:10px}
 """
 
 JS = """
@@ -585,6 +708,109 @@ store.addEventListener('mouseover',e=>{
   showTip(td,tipHTML(field,code,status));
 });
 store.addEventListener('mouseleave',()=>{tip.style.display='none';});
+
+// ---- column lenses ----
+const lensStyle=document.getElementById('lensStyle');
+document.querySelectorAll('.lensbtn').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('.lensbtn').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on');
+  lensStyle.textContent=LENSCSS[b.dataset.lens]||'';
+  scheduleArrows();
+}));
+
+// ---- bus-staging-tax overlay ----
+document.getElementById('stageBtn').addEventListener('click',function(){
+  document.body.classList.toggle('stage'); this.classList.toggle('on');
+});
+
+// ---- inspector panel (click a row) ----
+const insp=document.getElementById('insp');
+let selRow=null;
+function fieldDoc(field,code){const fi=FINFO[field];
+  if(fi&&fi.vals){const v=fi.vals.find(x=>x[0]===code); return v?v[2]:'';} return '';}
+function selectRow(tr){
+  if(selRow) selRow.classList.remove('sel');
+  selRow=tr; tr.classList.add('sel');
+  const addr=+tr.id.slice(1);
+  const seq=['c-op','c-next','c-cond','c-ulp'].map(c=>{const el=tr.querySelector('.'+c);
+    return el?el.innerHTML:'';}).join(' ');
+  let active='', idle=[];
+  tr.querySelectorAll('td.dp').forEach(td=>{
+    const field=DPF[td.cellIndex-FIXED]; if(!field) return;
+    const code=parseInt(td.dataset.c||'0',16)||0;
+    const name=(td.childNodes[0]?td.childNodes[0].nodeValue:'').trim();
+    if(td.classList.contains('on')){
+      const doc=fieldDoc(field,code);
+      active+=`<div class="ix-f"><span class="ix-fn ${td.classList.contains('rel')?'ix-rel':'ix-set'}">${field}</span>`
+        +`<span class="ix-fv">${name}<sub>${code.toString(16)}</sub></span>`
+        +(doc?`<span class="ix-fd">${esc(doc)}</span>`:'')+`</div>`;
+    } else idle.push(field+'='+name);
+  });
+  const xr=XREFS[addr]||[], XCAP=50;
+  let xh=xr.slice(0,XCAP).map(([s,kind])=> s===null
+    ? `<span class="ix-x ix-xo">${esc(kind)}</span>`
+    : `<a class="ix-x" href="#" data-goto="${s}">${esc(kind)} ← 0x${s.toString(16)}</a>`).join(' ');
+  if(xr.length>XCAP) xh+=` <span class="dim">+${xr.length-XCAP} more</span>`;
+  if(!xh) xh='<span class="dim">nothing jumps here</span>';
+  insp.innerHTML=
+    `<div class="ix-top"><span class="ix-addr">0x${addr.toString(16).padStart(3,'0')}</span>`
+    +`<span class="ix-rtn">${esc(tr.dataset.rtn||'')}</span>`
+    +`<button class="ix-close" id="ixClose">✕ esc</button></div>`
+    +`<div class="ix-src">${esc(tr.querySelector('.note').textContent)}</div>`
+    +`<div class="ix-sec"><div class="ix-h">sequencer</div><div class="ix-seq">${seq}</div></div>`
+    +`<div class="ix-sec"><div class="ix-h">referenced by (${xr.length})</div><div class="ix-xrefs">${xh}</div></div>`
+    +`<div class="ix-sec"><div class="ix-h">datapath — driven this cycle</div>${active||'<span class="dim">none (pure sequencer step)</span>'}`
+    +(idle.length?`<div class="ix-idle">idle: ${esc(idle.join('   '))}</div>`:'')+`</div>`;
+  document.body.classList.add('insp');
+  document.getElementById('ixClose').addEventListener('click',closeInsp);
+  scheduleArrows();
+}
+function closeInsp(){document.body.classList.remove('insp');
+  if(selRow) selRow.classList.remove('sel'); selRow=null; scheduleArrows();}
+store.addEventListener('click',e=>{
+  if(e.target.closest('[data-goto]')) return;
+  const tr=e.target.closest('#store tbody tr'); if(tr) selectRow(tr);
+});
+addEventListener('keydown',e=>{if(e.key==='Escape')closeInsp();});
+
+// ---- gutter jump arrows (intra-routine; redrawn from live row rects) ----
+const gutter=document.getElementById('gutter'), GW=22;
+let rafA=false;
+function scheduleArrows(){if(rafA)return; rafA=true;
+  requestAnimationFrame(()=>{rafA=false; drawArrows();});}
+function midY(el){const b=el.getBoundingClientRect(); return b.top+b.height/2;}
+function drawArrows(){
+  const r=store.getBoundingClientRect();
+  gutter.style.left=r.left+'px'; gutter.style.top=r.top+'px';
+  gutter.style.width=GW+'px'; gutter.style.height=r.height+'px';
+  gutter.setAttribute('viewBox',`0 0 ${GW} ${r.height}`);
+  const headH=store.querySelector('thead').getBoundingClientRect().height;
+  const minY=headH+1, maxY=r.height-1, top=r.top;
+  const selA=selRow?+selRow.id.slice(1):-1;
+  let p='';
+  for(const [s,t,lane] of ARROWS){
+    const se=document.getElementById('a'+s), te=document.getElementById('a'+t);
+    if(!se||!te||se.offsetParent===null||te.offsetParent===null) continue;
+    const sy=midY(se)-top, ty=midY(te)-top;
+    if((sy<minY&&ty<minY)||(sy>maxY&&ty>maxY)) continue;
+    const csy=Math.max(minY,Math.min(maxY,sy)), cty=Math.max(minY,Math.min(maxY,ty));
+    const x=GW-3-lane*4, hot=(s===selA||t===selA), col=hot?'#58a6ff':'#5b6675';
+    if(s===t){                                  // 1-word self-loop — small back-curl
+      p+=`<path d="M ${GW-1} ${csy-4} C ${x-3} ${csy-7}, ${x-3} ${csy+7}, ${GW-1} ${csy+4}" `
+        +`fill="none" stroke="${col}" stroke-width="${hot?1.6:1}"/>`;
+      p+=`<path d="M ${GW-1} ${csy+4} l -5 -2 l 1 5 z" fill="${col}"/>`;
+      continue;
+    }
+    p+=`<path d="M ${GW-1} ${csy} H ${x} V ${cty} H ${GW-6}" fill="none" stroke="${col}" stroke-width="${hot?1.6:1}"/>`;
+    p+=`<path d="M ${GW-1} ${cty} l -5 -3 v6 z" fill="${col}"/>`;
+    p+=`<circle cx="${GW-1}" cy="${csy}" r="1.5" fill="${col}"/>`;
+  }
+  gutter.innerHTML=p;
+}
+store.addEventListener('scroll',scheduleArrows,{passive:true});
+addEventListener('resize',scheduleArrows);
+q.addEventListener('input',scheduleArrows);
+drawArrows();
 """
 
 
@@ -606,15 +832,28 @@ def build(m: Model) -> str:
             d["def"] = m.fields.code_of(f, fd["default"]) if "default" in fd else 0
         return d
     finfo = {f: fi(f) for f in DP_FIELDS}
+    # per-lens CSS that hides the datapath columns the lens drops
+    def lens_css(groups):
+        hidden = [f for f in DP_FIELDS if LENS_GROUP[f] not in groups]
+        return (",".join(f".c-{f}" for f in hidden) + "{display:none}") if hidden else ""
+    lenscss = {name: lens_css(groups) for name, groups in LENSES.items()}
     data_js = ("const DPF=" + json.dumps(DP_FIELDS) + ";"
                "const FINFO=" + json.dumps(finfo) + ";"
-               "const RELIEDJS=" + json.dumps({k: v[1] for k, v in RELIED.items()}) + ";\n")
+               "const RELIEDJS=" + json.dumps({k: v[1] for k, v in RELIED.items()}) + ";"
+               "const ARROWS=" + json.dumps(m.arrows) + ";"
+               "const XREFS=" + json.dumps({t: v for t, v in m.xrefs.items()}) + ";"
+               "const LENSCSS=" + json.dumps(lenscss) + ";\n")
+    lensbtns = "".join(
+        f'<button class="lensbtn{" on" if name == "all" else ""}" data-lens="{name}">'
+        f'{name}</button>' for name in LENSES)
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
-<title>BLIP microcode browser</title><style>{CSS}</style></head><body>
+<title>BLIP microcode browser</title><style>{CSS}</style><style id="lensStyle"></style></head><body>
 <div id="bar"><b>BLIP microcode</b>
   <span class="dim">{len(m.words)} words &middot; {len(m.entries)} opcodes</span>
   <input id="q" placeholder="filter: opcode / routine / seq op / source…">
-  <span class="cellleg">cell: <i class="cl-on">load-bearing</i> <i class="cl-idle">idle</i> &middot; hover for semantics</span>
+  <span class="lenses">cols: {lensbtns}</span>
+  <button id="stageBtn" class="tglbtn" title="highlight bus-staging-tax words — a value moved into SCR1/SCR2 only so the next word can use it on the RIGHT bus (the asymmetric-bus tax)">⟂ staging ({len(m.staging)})</button>
+  <span class="cellleg">cell: <i class="cl-on">load-bearing</i> <i class="cl-idle">idle</i></span>
   <div class="leg">{legend}</div>
 </div>
 <div id="wrap">
@@ -624,7 +863,9 @@ def build(m: Model) -> str:
     <tbody>{render_rows(m)}</tbody>
   </table></div>
 </div>
+<div id="insp" class="hidden"></div>
 <div id="tip"></div>
+<svg id="gutter" xmlns="http://www.w3.org/2000/svg"></svg>
 <script>{data_js}{JS}</script>
 </body></html>"""
 
