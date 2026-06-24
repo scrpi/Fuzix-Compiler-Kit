@@ -14,7 +14,9 @@
 #   MODE  auto      (default) reconcile if the .circ exists, else generate
 #         reconcile  force the LVS check (error if the .circ is missing)
 #         insert     reconcile, then splice in any chips the HDL has but the .circ lacks
-#         generate   force a fresh .circ — OVERWRITES your edits (first-time / start over)
+#         generate   force a fresh .circ (buses by default) — OVERWRITES your edits
+#         bus        alias for generate (multi-bit nets as buses + splitters)
+#         flat       like generate, but 1-bit-tunnel-per-net (no buses)
 # Output: logisim/build/<TOP>.{netlist.json,circ}   (gitignored — generated artifacts)
 set -euo pipefail
 
@@ -53,12 +55,15 @@ if [ "$MODE" = "auto" ]; then
 fi
 
 case "$MODE" in
-  generate)
+  generate|bus)
     python3 tools/viz/logisim.py generate "$NL" "$TOP" "$CIRC"
+    echo "open in Logisim Evolution:  $CIRC" ;;
+  flat)
+    python3 tools/viz/logisim.py generate "$NL" "$TOP" "$CIRC" --flat
     echo "open in Logisim Evolution:  $CIRC" ;;
   reconcile)
     python3 tools/viz/logisim.py reconcile "$NL" "$TOP" "$CIRC" ;;
   insert)
     python3 tools/viz/logisim.py reconcile "$NL" "$TOP" "$CIRC" --insert ;;
-  *) echo "error: unknown MODE '$MODE' (auto|reconcile|insert|generate)" >&2; exit 1 ;;
+  *) echo "error: unknown MODE '$MODE' (auto|reconcile|insert|generate|bus|flat)" >&2; exit 1 ;;
 esac

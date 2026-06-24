@@ -11,7 +11,8 @@ PYTHON := python3
 # TOP selects which module the viz targets render. Empty default: `viz` renders every
 # block, `digitaljs` renders uc_loader. Override per run, e.g. `make viz TOP=microsequencer`.
 TOP    ?=
-# MODE selects the logisim action: empty/auto (reconcile-if-exists), generate, insert.
+# MODE selects the logisim action: empty/auto (reconcile-if-exists), generate (buses by
+# default), flat (1-bit generate), insert.
 MODE   ?=
 
 .NOTPARALLEL:
@@ -51,9 +52,9 @@ viz:
 	bash tools/viz/render.sh $(TOP)
 
 ## logisim: keep a Logisim Evolution 4.1.0 .circ in step with a block (Yosys -> logisim.py).
-##          First run GENERATEs the .circ; after that it RECONCILEs (LVS diff vs the HDL,
-##          never overwrites your edits). MODE=generate forces a fresh .circ; MODE=insert
-##          splices in chips the HDL added. Default TOP=control_word_decoder.
+##          First run GENERATEs the .circ (multi-bit nets as buses + splitters); after that it
+##          RECONCILEs (LVS diff vs the HDL, never overwrites your edits). MODE=generate forces
+##          a fresh .circ, MODE=flat a 1-bit one, MODE=insert splices in chips the HDL added.
 logisim:
 	bash tools/viz/logisim.sh $(TOP) $(MODE)
 

@@ -100,6 +100,40 @@ def main():
         L.pin_xy((0, 0), 1, 14, "south"))
     chk("_pt tolerates malformed", L._pt("(500)") is None and L._pt("(7,8)") == (7, 8))
 
+    # ---- unit: splitter / bus bit-level model (synthetic geometry) ------------------
+    # The splitter pin geometry is injected here so these test the bit-remapping LOGIC
+    # independently of the real coordinates (which are derived against Logisim itself).
+    saved_ends = L.splitter_ends
+    geo = {(100, 0): ((100, 0), [(90, 0), (90, 10), (90, 20), (90, 30)]),
+           (200, 0): ((200, 0), [(210, 0), (210, 10), (210, 20), (210, 30)])}
+    L.splitter_ends = lambda loc, fac, fo, spacing=1, appear="left": geo.get(tuple(loc), (None, None))
+    try:
+        def splitter(loc, **extra):
+            a = {"incoming": "4", "fanout": "4", "facing": "east"}; a.update(extra)
+            return C("0", "Splitter", loc, a)
+        A = [(90, 0), (90, 10), (90, 20), (90, 30)]
+        B = [(210, 0), (210, 10), (210, 20), (210, 30)]
+        # two splitters fan a shared 4-bit BUS tunnel out to chip pins, identity mapping
+        bus = [C("0", "Tunnel", (100, 0), {"label": "BUS", "width": "4"}),
+               C("0", "Tunnel", (200, 0), {"label": "BUS", "width": "4"}),
+               splitter((100, 0)), splitter((200, 0))]
+        rt, ns, unp, wm = L.electrical_model(bus, [], A + B)
+        chk("bus: same bit through splitters+bus tunnel connects",
+            rt(A[0]) == rt(B[0]) and rt(A[2]) == rt(B[2]))
+        chk("bus: distinct bits stay separate", rt(A[0]) != rt(A[1]) and rt(A[0]) != rt(B[1]))
+        chk("bus: clean model (2 splitters, no mismatch)", ns == 2 and unp == 0 and not wm)
+        # a reversed splitter map remaps which physical pin carries which bus bit
+        rev = [C("0", "Tunnel", (100, 0), {"label": "R", "width": "4"}),
+               C("0", "Tunnel", (200, 0), {"label": "R", "width": "4"}),
+               splitter((100, 0)), splitter((200, 0), bit0="3", bit1="2", bit2="1", bit3="0")]
+        rr, *_ = L.electrical_model(rev, [], A + B)
+        chk("bus: reversed splitter map", rr(A[0]) == rr(B[3]) and rr(A[0]) != rr(B[0]))
+        wmix = L.electrical_model(
+            [C("0", "Tunnel", (100, 0), {"label": "W", "width": "4"})], [], [(100, 0)])[3]
+        chk("bus: 1-bit pin on a 4-bit bus -> width mismatch", bool(wmix))
+    finally:
+        L.splitter_ends = saved_ends
+
     # ---- integration: reconcile verdicts -------------------------------------------
     tmp = tempfile.mkdtemp()
     base = os.path.join(tmp, "base.circ")
@@ -199,6 +233,110 @@ def main():
         chk("uppercase facing + malformed: no crash, counted", f.malformed >= 1)
     except Exception as e:  # noqa: BLE001
         chk(f"uppercase facing + malformed: no crash ({e!r})", False)
+
+    # ---- integration: bus replacement with REAL splitter geometry ------------------
+    # the user's scenario: replace a bus's individual 1-bit tunnels with one bus tunnel
+    # + two real splitters wired to the actual chip pins. Must stay IN SYNC; a wrong
+    # bit-map must trip SHORT/OPEN. decoder y[0..3] drive buffer a[0..3] over 4 nets.
+    chk("splitter_ends matches Logisim ground-truth example",
+        L.splitter_ends((810, 630), "south", 5, 1, "right")
+        == ((810, 630), [(800, 650), (790, 650), (780, 650), (770, 650), (760, 650)]))
+    BTOP = "bustop"
+    BMOD = {
+        "ports": {"sel": {"direction": "input", "bits": [10, 11, 12]},
+                  "q": {"direction": "output", "bits": [20, 21, 22, 23]}},
+        "cells": {
+            "dec": {"type": "sn74ahct138", "connections": {
+                "a": [10], "b": [11], "c": [12], "g1": ["1"], "g2a_n": ["0"], "g2b_n": ["0"],
+                "y": [30, 31, 32, 33, 40, 41, 42, 43]}},
+            "buf": {"type": "sn74ahct541", "connections": {
+                "oe1_n": ["0"], "oe2_n": ["0"],
+                "a": [30, 31, 32, 33, 50, 51, 52, 53], "y": [20, 21, 22, 23, 60, 61, 62, 63]}}},
+        "netnames": {}}
+    bnet_of, _ = L.build_net_of(BMOD)
+    busnets = {bnet_of(b) for b in (30, 31, 32, 33)}
+    bbase = os.path.join(tmp, "bus_base.circ")
+    open(bbase, "w").write(L.generate(BMOD, BTOP, buses=False)[0])   # busify converts it itself
+
+    def busify(dst, consumer_map):
+        bt = ET.parse(bbase)
+        bc = [c for c in bt.getroot().findall("circuit") if c.get("name") == BTOP][0]
+        cloc = {}
+        for c in bc.findall("comp"):
+            if c.get("name") in L.PART2CELL:
+                lb = next(x.get("val") for x in c.findall("a") if x.get("name") == "label")
+                cloc[lb] = L._pt(c.get("loc"))
+        for c in list(bc.findall("comp")):                 # drop the bus nets' 1-bit tunnels
+            if c.get("name") == "Tunnel":
+                lb = [x.get("val") for x in c.findall("a") if x.get("name") == "label"]
+                if lb and lb[0] in busnets:
+                    bc.remove(c)
+
+        def splitter(sloc, pins, endmap):
+            sp = ET.SubElement(bc, "comp"); sp.set("lib", "0"); sp.set("name", "Splitter")
+            sp.set("loc", f"({sloc[0]},{sloc[1]})")
+            for k, v in (("incoming", "4"), ("fanout", "4"), ("facing", "east")):
+                e = ET.SubElement(sp, "a"); e.set("name", k); e.set("val", v)
+            comb, ends = L.splitter_ends(sloc, "east", 4)   # combined end -> shared bus tunnel
+            tn = ET.SubElement(bc, "comp"); tn.set("lib", "0"); tn.set("name", "Tunnel")
+            tn.set("loc", f"({comb[0]},{comb[1]})")
+            for k, v in (("label", "DBUS"), ("width", "4")):
+                e = ET.SubElement(tn, "a"); e.set("name", k); e.set("val", v)
+            for i, pin in enumerate(pins):                  # each fanout end -> a real chip pin
+                ep = ends[endmap[i]]
+                w = ET.SubElement(bc, "wire")
+                w.set("from", f"({ep[0]},{ep[1]})"); w.set("to", f"({pin[0]},{pin[1]})")
+        drv = [L.pin_xy(cloc["dec"], d, 16, "south") for d in (15, 14, 13, 12)]  # dec.y[0..3]
+        con = [L.pin_xy(cloc["buf"], d, 20, "south") for d in (2, 3, 4, 5)]      # buf.a[0..3]
+        splitter((4000, 3000), drv, [0, 1, 2, 3])           # driver: y[i] -> bus bit i
+        splitter((4000, 3300), con, consumer_map)           # consumer: a[i] -> bus bit map[i]
+        bt.write(dst)
+
+    good = os.path.join(tmp, "bus_good.circ"); busify(good, [0, 1, 2, 3])
+    fg = L.reconcile(BMOD, BTOP, good)
+    chk("bus replacement (real splitters) IN SYNC",
+        not (fg.opens or fg.shorts or fg.missing or fg.width_mismatch)
+        and fg.splitters == 2 and fg.splitter_unparsed == 0)
+    bad = os.path.join(tmp, "bus_bad.circ"); busify(bad, [3, 2, 1, 0])
+    fb = L.reconcile(BMOD, BTOP, bad)
+    chk("wrong bus bit-map -> SHORT/OPEN", bool(fb.shorts or fb.opens))
+
+    # ---- bus GENERATION (generate --bus): widest-first, internal bus, slice port -----
+    # cw (6-bit input bus) feeds a decoder; pt is a 2-bit pass-through SLICE of cw; q is the
+    # decoder's 4-bit output bus; cw_lo overlaps cw narrowly to exercise widest-first.
+    GMOD = {
+        "ports": {"cw": {"direction": "input", "bits": [50, 51, 52, 53, 54, 55]},
+                  "pt": {"direction": "output", "bits": [52, 53]},
+                  "q": {"direction": "output", "bits": [20, 21, 22, 23]}},
+        "cells": {"dec": {"type": "sn74ahct138", "connections": {
+            "a": [50], "b": [51], "c": [52], "g1": ["1"], "g2a_n": ["0"], "g2b_n": ["0"],
+            "y": [20, 21, 22, 23, 40, 41, 42, 43]}}},
+        "netnames": {"q": {"bits": [20, 21, 22, 23]},
+                     "cw": {"bits": [50, 51, 52, 53, 54, 55]},
+                     "cw_lo": {"bits": [50, 51]}}}
+    chk("widest-first bus resolution", L.build_bus_map(GMOD).get(50) == ("cw", 0, 6))
+    gb = os.path.join(tmp, "gen_bus.circ")
+    open(gb, "w").write(L.generate(GMOD, "gmod", buses=True)[0])
+    fg = L.reconcile(GMOD, "gmod", gb)
+    chk("generate --bus reconciles IN SYNC (incl. slice port)",
+        not (fg.opens or fg.shorts or fg.missing or fg.width_mismatch) and fg.splitters > 0)
+    g1 = os.path.join(tmp, "gen_1bit.circ")
+    open(g1, "w").write(L.generate(GMOD, "gmod", buses=False)[0])
+    f1 = L.reconcile(GMOD, "gmod", g1)
+    chk("1-bit generate of same module IN SYNC",
+        not (f1.opens or f1.shorts or f1.missing or f1.width_mismatch) and f1.splitters == 0)
+
+    # bus-aware --insert: drop the chip from the bus circuit, splice it back via break-outs
+    gt = ET.parse(gb)
+    gc = [c for c in gt.getroot().findall("circuit") if c.get("name") == "gmod"][0]
+    gc.remove(next(c for c in gc.findall("comp") if c.get("name") in L.PART2CELL))
+    gd = os.path.join(tmp, "gen_bus_drop.circ"); gt.write(gd)
+    fd = L.reconcile(GMOD, "gmod", gd)
+    chk("bus circuit: chip delete -> MISSING", bool(fd.missing))
+    L.insert_missing(GMOD, "gmod", gd, fd)
+    fi = L.reconcile(GMOD, "gmod", gd)
+    chk("bus-aware --insert restores IN SYNC",
+        not (fi.opens or fi.shorts or fi.missing or fi.width_mismatch))
 
     print("=" * 52)
     print(f"{_n['pass']} passed, {_n['fail']} failed")
