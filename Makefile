@@ -16,7 +16,7 @@ TOP    ?=
 MODE   ?=
 
 .NOTPARALLEL:
-.PHONY: test image check lint sim cpu bench viz logisim logisim-test digitaljs clean help
+.PHONY: test image browser check lint sim cpu bench viz logisim logisim-test digitaljs clean help
 
 ## test:   run the whole suite (image, field-def check, both lints, tool + timed test-benches)
 test: image check lint logisim-test sim
@@ -25,6 +25,10 @@ test: image check lint logisim-test sim
 ## image:  assemble the microcode into the single EEPROM image (microcode/build/)
 image:
 	$(PYTHON) tools/uasm/uasm.py
+
+## browser: generate the HTML microcode browser (microcode/build/microcode.html)
+browser:
+	$(PYTHON) microcode/gen_browser.py
 
 ## check:  validate the 88-bit control-word field definition
 check:
