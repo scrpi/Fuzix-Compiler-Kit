@@ -25,17 +25,17 @@
 //               conditions cond[6:0] come from CC (real branches), cond[15:7] still injected
 //               (the internal conditions IRQ/ULOOP/… are not built yet).
 //
-// SCAFFOLD — byte-lane steering and the rest of the register file are NOT built yet, so the
-// directed unit tests (full-16 loads, 8-bit-low compute) run but the production blip.uc, which
-// uses the byte lanes for memory operands, does not yet:
-//   * LEFT_LANE (FULL16/LOW/SIGN_EXT/HIGH_TO_LOW) is decoded but unwired — MDR drives only
-//     LEFT[7:0]; LEFT[15:8] floats when MDR is the source (a 16-bit op on a byte operand is
-//     wrong until a lane-steer block sign-extends/zeroes the high byte onto LEFT).
-//   * Z_LANE (FULL16/LOW/HIGH) is decoded but unwired — every register here loads FULL16
-//     (load_lo_n = load_hi_n), so a per-byte Z_DEST (e.g. the A:B accumulator lanes) is not yet
-//     honoured.
-//   * The D/X/Y/USP/SSP registers and the internal microconditions (IRQ/NMI/ULOOP/…) are absent;
-//     an unbuilt LEFT_SRC code leaves LEFT floating, and cond[15:8] still come from cond_drive.
+// Byte-lane steering is built (D-09 byte-cycle path; cpu-physical-construction.md §6.4(a)):
+//   * LEFT_LANE (FULL16/LOW/SIGN_EXT/HIGH_TO_LOW) — left_lane steers the raw LEFT bus into the
+//     ALU's LEFT input, so a byte operand (e.g. from MDR) is zero-/sign-extended or moved off the
+//     high lane before it enters the ALU; LEFT[15:8] no longer floats when MDR is the source.
+//   * Z_LANE (FULL16/LOW/HIGH) — z_lane promotes Z[7:0] onto the high byte and gates the SCR
+//     /load-low and /load-high strobes, so a 16-bit value can land as two byte cycles.
+//
+// SCAFFOLD — the rest of the register file is NOT built yet, so the directed unit tests run but
+// the production blip.uc does not yet: the D/X/Y/USP/SSP registers and the internal
+// microconditions (IRQ/NMI/ULOOP/…) are absent; an unbuilt LEFT_SRC code leaves LEFT_RAW
+// floating, and cond[15:8] still come from cond_drive.
 `timescale 1ns/1ps
 `default_nettype none
 module cpu #(
@@ -80,7 +80,7 @@ module cpu #(
     );
 
     // --- control-word decoder: datapath section -> one-hot strobes ----------
-    wire [3:0]  ir_load_n;
+    wire [3:0]  ir_load_n, left_lane_n, z_lane_n;
     wire [15:0] left_src_n, z_dest_n, alu_op_n;
     wire [7:0]  alu_shift_n, right_src_n;
     wire [3:0]  pc_ctrl_n, mar_ctrl_n, mem_op_n, mmu_addr_n;
@@ -90,10 +90,11 @@ module cpu #(
     (* purpose = "datapath decoder" *)
     control_word_decoder dec (
         .cw_dp(cw_wcs[87:24]),
-        .ir_load_n(ir_load_n), .left_src_n(left_src_n), .right_src_n(right_src_n),
+        .ir_load_n(ir_load_n), .left_src_n(left_src_n), .left_lane_n(left_lane_n),
+        .right_src_n(right_src_n),
         .alu_op_n(alu_op_n), .alu_shift_n(alu_shift_n), .alu_cin(alu_cin), .alu_width(alu_width),
         .flag_we(flag_we), .v_src_n(v_src_n), .c_src_n(c_src_n), .z_accum(z_accum),
-        .cc_write_n(cc_write_n), .cc_mi_n(cc_mi_n), .z_dest_n(z_dest_n),
+        .cc_write_n(cc_write_n), .cc_mi_n(cc_mi_n), .z_dest_n(z_dest_n), .z_lane_n(z_lane_n),
         .pc_ctrl_n(pc_ctrl_n), .mar_ctrl_n(mar_ctrl_n),
         .mem_op_n(mem_op_n), .mmu_addr_n(mmu_addr_n)
     );
@@ -113,38 +114,59 @@ module cpu #(
     wire reg_reset_n = and_y[0];
 
     // --- the three datapath buses ------------------------------------------
-    // LEFT and Z are shared, tri-state (wired-OR of the register/ALU drivers). RIGHT is local
-    // to the ALU board (right_bus). Z is driven by the ALU; the registers latch from it.
-    wire [15:0] left, right, z;
+    // LEFT_RAW and Z are shared, tri-state (wired-OR of the register/MDR drivers). The LEFT_LANE
+    // steer maps LEFT_RAW -> the ALU's LEFT input (widen a byte / move the high byte down). The
+    // Z_LANE steer maps Z -> Z_LOAD (byte-promote on a HIGH-lane latch). RIGHT is local to the
+    // ALU board (right_bus). Z is driven by the ALU; the registers latch from Z_LOAD.
+    wire [15:0] left_raw, left, right, z, z_load;
+    wire        z_block_lo, z_block_hi;       // Z_LANE lane suppressors (active HIGH)
     wire [7:0]  mdr_q;
     assign z_q = z;
 
+    // --- LEFT_LANE steer: widen/move the operand entering the ALU ----------
+    (* purpose = "LEFT_LANE steer (widen)" *)
+    left_lane u_left_lane (.left_raw(left_raw), .left_lane_n(left_lane_n), .left(left));
+
+    // --- Z_LANE steer: high-byte promote + per-lane load suppressors -------
+    (* purpose = "Z_LANE steer (byte lanes)" *)
+    z_lane u_z_lane (.z(z), .z_lane_n(z_lane_n), .z_load(z_load),
+                     .block_lo(z_block_lo), .block_hi(z_block_hi));
+
+    // SCR1/SCR2 latch from Z_LOAD; their per-byte /load strobes are the Z_DEST strobe OR'd with
+    // the Z_LANE blocker (HIGH suppresses the low byte, LOW the high byte). FULL16 blocks
+    // neither, so both bytes load — identical to a plain Z_DEST=SCRn latch.
+    wire [3:0] scr_ld_n;        // {scr2_hi, scr2_lo, scr1_hi, scr1_lo}
+    (* purpose = "SCR1/SCR2 /load = Z_DEST | Z_LANE-block" *)
+    sn74ahct32 scrld (.a({z_dest_n[6], z_dest_n[6], z_dest_n[5], z_dest_n[5]}),
+                      .b({z_block_hi, z_block_lo, z_block_hi, z_block_lo}), .y(scr_ld_n));
+
     // --- PC, MAR, SCR1, SCR2: four universal '163-counter register boards ---
+    // PC/MAR load full16 from Z (a LOAD captures a 16-bit address; Z_LANE does not apply).
     wire [15:0] pc_w, mar_w, scr1_w, scr2_w;
     (* purpose = "PC register" *)
     register16 pc_reg (
         .clk(clk), .reset_n(reg_reset_n), .z_in(z),
         .load_lo_n(pc_ctrl_n[1]), .load_hi_n(pc_ctrl_n[1]),
-        .count_en(pc_count_en), .drive_left_n(left_src_n[6]), .q(pc_w), .left_out(left)
+        .count_en(pc_count_en), .drive_left_n(left_src_n[6]), .q(pc_w), .left_out(left_raw)
     );
     (* purpose = "MAR register" *)
     register16 mar_reg (
         .clk(clk), .reset_n(reg_reset_n), .z_in(z),
         .load_lo_n(mar_ctrl_n[1]), .load_hi_n(mar_ctrl_n[1]),
-        .count_en(mar_count_en), .drive_left_n(left_src_n[7]), .q(mar_w), .left_out(left)
+        .count_en(mar_count_en), .drive_left_n(left_src_n[7]), .q(mar_w), .left_out(left_raw)
     );
-    // Scratch registers: latch from Z on Z_DEST=SCR1/SCR2 (full16), never count, drive LEFT.
+    // Scratch registers: latch from Z_LOAD on Z_DEST=SCR1/SCR2 (lane-gated), never count, drive LEFT.
     (* purpose = "SCR1 register" *)
     register16 scr1 (
-        .clk(clk), .reset_n(reg_reset_n), .z_in(z),
-        .load_lo_n(z_dest_n[5]), .load_hi_n(z_dest_n[5]),
-        .count_en(1'b0), .drive_left_n(left_src_n[8]), .q(scr1_w), .left_out(left)
+        .clk(clk), .reset_n(reg_reset_n), .z_in(z_load),
+        .load_lo_n(scr_ld_n[0]), .load_hi_n(scr_ld_n[1]),
+        .count_en(1'b0), .drive_left_n(left_src_n[8]), .q(scr1_w), .left_out(left_raw)
     );
     (* purpose = "SCR2 register" *)
     register16 scr2 (
-        .clk(clk), .reset_n(reg_reset_n), .z_in(z),
-        .load_lo_n(z_dest_n[6]), .load_hi_n(z_dest_n[6]),
-        .count_en(1'b0), .drive_left_n(left_src_n[9]), .q(scr2_w), .left_out(left)
+        .clk(clk), .reset_n(reg_reset_n), .z_in(z_load),
+        .load_lo_n(scr_ld_n[2]), .load_hi_n(scr_ld_n[3]),
+        .count_en(1'b0), .drive_left_n(left_src_n[9]), .q(scr2_w), .left_out(left_raw)
     );
     assign pc_q = pc_w;
 
@@ -191,7 +213,7 @@ module cpu #(
         .mem_op_n(mem_op_n), .z_dest_mdr_n(z_dest_n[7]), .left_src_mdr_n(left_src_n[10]),
         .bus_inhibit(loading),
         .addr(addr_logical), .z_lo(z[7:0]),
-        .mdr_q(mdr_q), .left_lo(left[7:0]),
+        .mdr_q(mdr_q), .left_lo(left_raw[7:0]),
         .a(a), .d(d), .rd_n(rd_n), .wr_n(wr_n)
     );
 

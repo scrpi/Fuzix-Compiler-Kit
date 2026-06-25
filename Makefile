@@ -16,7 +16,7 @@ TOP    ?=
 MODE   ?=
 
 .NOTPARALLEL:
-.PHONY: test image browser check lint sim cpu reg alu right cc mem fetch exec bench viz logisim logisim-test digitaljs bom clean help
+.PHONY: test image browser check lint sim cpu reg alu right cc mem lane lanex fetch exec bench viz logisim logisim-test digitaljs bom clean help
 
 ## test:   run the whole suite (image, field-def check, both lints, tool + timed test-benches)
 test: image check lint logisim-test sim
@@ -40,7 +40,7 @@ lint:
 	$(PYTHON) tools/lint/timing_lint.py
 
 ## sim:    the timed, self-checking test-benches
-sim: cpu reg alu right cc mem fetch exec bench
+sim: cpu reg alu right cc mem lane lanex fetch exec bench
 
 ## cpu:    boot copy (real loader + EEPROM -> WCS) then the microsequencer walk
 ##         (INC/JUMP/BRANCH/DISPATCH/WAIT) — the loader is proven on this standard path
@@ -66,6 +66,14 @@ cc:
 ## mem:    the MDR + external-bus port — stage/WRITE/READ round trip vs a memory model
 mem:
 	bash sim/tb/mem/run.sh
+
+## lane:   the byte-lane steer blocks — LEFT_LANE widen/move + Z_LANE byte-promote (unit)
+lane:
+	bash sim/tb/lane/run.sh
+
+## lanex:  byte-lane steering through the whole datapath — Z_LANE byte-build + LEFT_LANE widen
+lanex:
+	bash sim/tb/lanex/run.sh
 
 ## fetch:  REAL instruction fetch — PC -> MMU -> memory model -> MDR -> IR -> DISPATCH
 fetch:

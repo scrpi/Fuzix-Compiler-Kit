@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Build + run the execute-and-branch testbench under Icarus (-gspecify, TIMED; D-47).
-# Boots a directed microprogram that computes, latches CC, and branches on the REAL condition
-# (cond_inject=0) — the milestone that retires cond_drive. Artifacts -> /tmp.
+# Build + run the byte-lane integration testbench under Icarus (-gspecify, TIMED; D-47).
+# Boots a directed microprogram that builds a 16-bit value into SCR1 via Z_LANE and reads it back
+# through every LEFT_LANE mode into SCR2 — proving the steer wiring in cpu.v. Artifacts -> /tmp.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
-python3 "$ROOT/sim/tb/exec/mk_exec_image.py"
-IMG="$ROOT/microcode/build/exec_test.hex"
-OUT=/tmp/blip_exec
+python3 "$ROOT/sim/tb/lanex/mk_lanex_image.py"
+IMG="$ROOT/microcode/build/lanex_test.hex"
+OUT=/tmp/blip_lanex
 mkdir -p "$OUT"
 iverilog -g2012 -gspecify -Wall -D IMG="\"$IMG\"" -o "$OUT/tb" \
     "$ROOT"/hdl/cells/*.v \
@@ -22,5 +22,5 @@ iverilog -g2012 -gspecify -Wall -D IMG="\"$IMG\"" -o "$OUT/tb" \
     "$ROOT/hdl/right_bus.v" \
     "$ROOT/hdl/cc_conditions.v" "$ROOT/hdl/cc_register.v" "$ROOT/hdl/cc.v" \
     "$ROOT/hdl/cpu.v" \
-    "$ROOT/sim/tb/exec/tb_exec.v"
+    "$ROOT/sim/tb/lanex/tb_lanex.v"
 vvp "$OUT/tb"
