@@ -268,12 +268,15 @@ def build_unary_mem(verb, mem):
 # 16-bit shift-by-count on D ------------------------------------------------
 def build_dshift(verb):
     op = {'ASL': 'asl', 'LSR': 'lsr', 'ASR': 'asr'}[verb]
-    lbl = f"{op}d_loop"
+    lbl, done = f"{op}d_loop", f"{op}d_done"
     return [
-        "SCR1 <- [PC]; PC++                # shift count n",
-        "count -> uloop                    # uloop <- n  (n in 0..16; n>16 wraps, undefined per C)",
+        # Read the count n (it posts on Z), set CC.Z if n==0, and load uloop <- ~n IN THE SAME
+        # word — the read is the only Z driver, so uloop latches the live count (n in 0..16).
+        f"_ <- [PC]; PC++ : z ; count -> uloop   # shift count n (n==0 -> CC.Z); uloop <- ~n",
+        f"if z goto {done}                        # n==0: zero-trip, leave D unchanged",
         f"{lbl}:",
         f"D <- {op}(D) : nzvc ; uloop-- ; if not uloop.zero goto {lbl}",
+        f"{done}:",
         "return to fetch",
     ]
 
@@ -496,10 +499,14 @@ HAND = {
  ],
  'MUL': [
     "# unsigned 8x8 -> 16: A*B -> D.  shift-add over the uloop counter.",
+    "# Stage the loop count 8 on Z first (the const-gen tops out at +2), load uloop, then reuse",
+    "# SCR2 for the multiplier — uloop must latch the count from Z in the LOAD word itself.",
+    "SCR2 <- +2                         # 2",
+    "SCR2 <- SCR2 + SCR2                # 4",
+    "SCR2 <- SCR2 + SCR2 ; count -> uloop   # 8 on Z -> uloop <- ~8 (8 iterations)",
     "SCR1 <- high(D)                    # multiplicand A (zero-extended to 16)",
-    "SCR2 <- low(D)                     # multiplier   B",
+    "SCR2 <- low(D)                     # multiplier   B (reuse SCR2)",
     "D <- 0                             # clear the running product",
-    "8 -> uloop",
     "mul_loop:",
     "SCR2 <- lsr(SCR2) : c              # next multiplier bit -> C",
     "if not c goto mul_noadd",

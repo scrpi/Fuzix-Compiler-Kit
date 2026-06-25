@@ -1210,28 +1210,31 @@ routine CMP SP,$nnnn:
 # 0x95 ASL D,$n   (4 cyc)
 .opcode page0 0x95 ASL D,$n
 routine ASL D,$n:
-  SCR1 <- [PC]; PC++                # shift count n
-  count -> uloop                    # uloop <- n  (n in 0..16; n>16 wraps, undefined per C)
+  _ <- [PC]; PC++ : z ; count -> uloop   # shift count n (n==0 -> CC.Z); uloop <- ~n
+  if z goto asld_done                        # n==0: zero-trip, leave D unchanged
 asld_loop:
   D <- asl(D) : nzvc ; uloop-- ; if not uloop.zero goto asld_loop
+asld_done:
   return to fetch
 
 # 0x96 LSR D,$n   (4 cyc)
 .opcode page0 0x96 LSR D,$n
 routine LSR D,$n:
-  SCR1 <- [PC]; PC++                # shift count n
-  count -> uloop                    # uloop <- n  (n in 0..16; n>16 wraps, undefined per C)
+  _ <- [PC]; PC++ : z ; count -> uloop   # shift count n (n==0 -> CC.Z); uloop <- ~n
+  if z goto lsrd_done                        # n==0: zero-trip, leave D unchanged
 lsrd_loop:
   D <- lsr(D) : nzvc ; uloop-- ; if not uloop.zero goto lsrd_loop
+lsrd_done:
   return to fetch
 
 # 0x97 ASR D,$n   (4 cyc)
 .opcode page0 0x97 ASR D,$n
 routine ASR D,$n:
-  SCR1 <- [PC]; PC++                # shift count n
-  count -> uloop                    # uloop <- n  (n in 0..16; n>16 wraps, undefined per C)
+  _ <- [PC]; PC++ : z ; count -> uloop   # shift count n (n==0 -> CC.Z); uloop <- ~n
+  if z goto asrd_done                        # n==0: zero-trip, leave D unchanged
 asrd_loop:
   D <- asr(D) : nzvc ; uloop-- ; if not uloop.zero goto asrd_loop
+asrd_done:
   return to fetch
 
 # ===========================================================================
@@ -1665,14 +1668,18 @@ routine NOP:
 routine SEX:
   D <- sext(B) : nz, v=0 ; return to fetch    # sign-extend B into A:B
 
-# 0xd2 MUL   (11 cyc · REVIEW)
+# 0xd2 MUL   (13 cyc · REVIEW)
 .opcode page0 0xd2 MUL
 routine MUL:
   # unsigned 8x8 -> 16: A*B -> D.  shift-add over the uloop counter.
+  # Stage the loop count 8 on Z first (the const-gen tops out at +2), load uloop, then reuse
+  # SCR2 for the multiplier — uloop must latch the count from Z in the LOAD word itself.
+  SCR2 <- +2                         # 2
+  SCR2 <- SCR2 + SCR2                # 4
+  SCR2 <- SCR2 + SCR2 ; count -> uloop   # 8 on Z -> uloop <- ~8 (8 iterations)
   SCR1 <- high(D)                    # multiplicand A (zero-extended to 16)
-  SCR2 <- low(D)                     # multiplier   B
+  SCR2 <- low(D)                     # multiplier   B (reuse SCR2)
   D <- 0                             # clear the running product
-  8 -> uloop
 mul_loop:
   SCR2 <- lsr(SCR2) : c              # next multiplier bit -> C
   if not c goto mul_noadd
