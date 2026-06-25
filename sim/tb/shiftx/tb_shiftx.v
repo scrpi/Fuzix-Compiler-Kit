@@ -1,5 +1,5 @@
 // Multi-bit shift (ULOOP from memory) testbench (Icarus -gspecify, TIMED; D-47). Runs the REAL
-// blip.uc: `LD A,$01` then `ASL D,$03`. The shift count rides in from memory (the operand byte),
+// blip.uc: `LD B,$01` (B = D's low byte) then `ASL D,$03`. The shift count rides in from memory,
 // posts on Z, and loads the ULOOP counter in the same word; the loop body then runs exactly n=3
 // times, so D = 0x0001 << 3 = 0x0008. Proves Wave 2: the production `count -> uloop` idiom works.
 `timescale 1ns/1ps
@@ -35,7 +35,7 @@ module tb_shiftx;
     integer i;
     initial begin
         for (i = 0; i < 65536; i = i + 1) mem[i] = 8'h00;
-        mem[0] = 8'h00; mem[1] = 8'h01;   // LD A,$01  -> D = 0x0001
+        mem[0] = 8'h0B; mem[1] = 8'h01;   // LD B,$01  -> D = 0x0001 (B = D's low byte)
         mem[2] = 8'h95; mem[3] = 8'h03;   // ASL D,$03 -> D = 0x0008
     end
 
@@ -44,7 +44,7 @@ module tb_shiftx;
         @(negedge clk); @(negedge clk);
         rst_n = 1'b1;
         wait (loading == 1'b0);
-        $display("shiftx: boot done; running LD A,$01 ; ASL D,$03 ...");
+        $display("shiftx: boot done; running LD B,$01 ; ASL D,$03 ...");
 
         n = 0;
         while (dut.d_reg.q !== 16'h0008) begin

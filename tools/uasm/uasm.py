@@ -44,7 +44,7 @@ current routines use and errors clearly on the rest:
   dest <- [PC] ; PC++ ; dispatch         memory read + counter tick + sequencer
   dest <- a + b                          ALU op (b must be SCR1/SCR2/const)
   dest <- sext(src)                      lane-steer (sext/low/high) + pass
-  A <- [MAR] : nz, v=0                   A = D.low; flag clause after ':'
+  A <- [MAR] : nz, v=0                   A = D.high (D=A:B); flag clause after ':'
 
 The opcode LUT is indexed by the REAL opcode byte the `.opcode` directive carries
 (sourced from isa/opcodes.toml, D-48): lut[{page, byte}] = the routine's start
@@ -174,10 +174,10 @@ def parse_dest(tok: str):
         tok, lane = tok[:-4], "LOW"
     elif tok.endswith(".high"):
         tok, lane = tok[:-5], "HIGH"
-    if tok == "A":
-        return "D", "LOW"
-    if tok == "B":
+    if tok == "A":                            # D = A:B with A the HIGH byte (isa.md §8)
         return "D", "HIGH"
+    if tok == "B":
+        return "D", "LOW"
     if tok == "SP":
         return "ACTIVE_SP", lane
     return tok, lane
@@ -199,13 +199,13 @@ def bind_left(expr: str, out: dict, fields: Fields, lineno: int):
         set_field(out, "LEFT_LANE", fields.code_of("LEFT_LANE",
                   {"sext": "SIGN_EXT", "low": "LOW", "high": "HIGH_TO_LOW"}[fn]), lineno)
         return
-    if expr == "A":
-        set_field(out, "LEFT_SRC", fields.code_of("LEFT_SRC", "D"), lineno)
-        set_field(out, "LEFT_LANE", fields.code_of("LEFT_LANE", "LOW"), lineno)
-        return
-    if expr == "B":
+    if expr == "A":                           # A = D's HIGH byte -> bring it to the low lane
         set_field(out, "LEFT_SRC", fields.code_of("LEFT_SRC", "D"), lineno)
         set_field(out, "LEFT_LANE", fields.code_of("LEFT_LANE", "HIGH_TO_LOW"), lineno)
+        return
+    if expr == "B":                           # B = D's LOW byte
+        set_field(out, "LEFT_SRC", fields.code_of("LEFT_SRC", "D"), lineno)
+        set_field(out, "LEFT_LANE", fields.code_of("LEFT_LANE", "LOW"), lineno)
         return
     src = map_src(expr)
     set_field(out, "LEFT_SRC", fields.code_of("LEFT_SRC", src), lineno)

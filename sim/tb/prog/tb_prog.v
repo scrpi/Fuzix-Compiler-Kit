@@ -43,14 +43,14 @@ module tb_prog;
         mem[2] = 8'h00; mem[3] = 8'h05;   // LD A,$05
     end
 
-    // wait until D.low (=A) reaches `val`, or fail after `budget` clocks
+    // wait until A (= D's HIGH byte; D = A:B, A high — isa.md §8) reaches `val`
     task wait_a(input [7:0] val, input integer budget, input [127:0] tag);
         integer n; begin
             n = 0;
-            while (dut.d_reg.q[7:0] !== val) begin
+            while (dut.d_reg.q[15:8] !== val) begin
                 @(negedge clk); n = n + 1;
                 if (n > budget) $fatal(1, "%0s: A never reached %02x (A=%02x PC=%0d uPC=%0d)",
-                                       tag, val, dut.d_reg.q[7:0], pc_q, upc);
+                                       tag, val, dut.d_reg.q[15:8], pc_q, upc);
             end
         end
     endtask
