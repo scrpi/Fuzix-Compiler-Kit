@@ -54,6 +54,9 @@ module microsequencer (
     input  wire [15:0] cond,
     // ---- opcode-LUT dispatch target ({PAGE, IR} lookup, from opcode_lut) ----
     input  wire [11:0] lut_data,
+    // ---- trap-vector encoder: redirect RETURN_FETCH to a pending trap's entry ----
+    input  wire [11:0] trap_entry,
+    input  wire        trap_pending,
     output wire [11:0] upc
 );
     // ---- USEQ_OP one-hot (active LOW): op_n[k] low <=> USEQ_OP == k ----------
@@ -164,17 +167,26 @@ module microsequencer (
     cd74act161 sr2 (.clk(clk), .clr_n(clr_n), .load_n(op_n[6]), .enp(1'b0), .ent(1'b0),
                     .p(upc_plus1[11:8]),  .q(usr_q[11:8]),  .rco(usr_rco[2]));
 
+    // ---- RETURN_FETCH target: a pending trap's entry, else the fetch entry 0 ----------------
+    wire [11:0] fetch_or_trap;
+    (* purpose = "trap_entry / fetch-0 [3:0]" *)
+    sn74ahct157 ft0 (.a(4'b0), .b(trap_entry[3:0]),  .sel(trap_pending), .g_n(1'b0), .y(fetch_or_trap[3:0]));
+    (* purpose = "trap_entry / fetch-0 [7:4]" *)
+    sn74ahct157 ft1 (.a(4'b0), .b(trap_entry[7:4]),  .sel(trap_pending), .g_n(1'b0), .y(fetch_or_trap[7:4]));
+    (* purpose = "trap_entry / fetch-0 [11:8]" *)
+    sn74ahct157 ft2 (.a(4'b0), .b(trap_entry[11:8]), .sel(trap_pending), .g_n(1'b0), .y(fetch_or_trap[11:8]));
+
     // ---- next-address load mux: 6x '153 (4:1, 2 bits each) ------------------
     //   {sel_b, sel_a} = {retfetch|return, dispatch|return}:
     //     00 -> NEXT_ADDR (JUMP/CALL)   01 -> lut_data (DISPATCH)
-    //     10 -> 0 (RETURN_FETCH entry)  11 -> µSR (RETURN)
+    //     10 -> fetch_or_trap (RETURN_FETCH: 0, or a pending trap)   11 -> µSR (RETURN)
     wire [11:0] p;
     genvar i;
     generate for (i = 0; i < 6; i = i + 1) begin : nmux
         sn74act153 m (
             .a(mux_sel_a), .b(mux_sel_b),
-            .g1_n(1'b0), .c1({usr_q[2*i],   1'b0, lut_data[2*i],   next_addr[2*i]}),   .y1(p[2*i]),
-            .g2_n(1'b0), .c2({usr_q[2*i+1], 1'b0, lut_data[2*i+1], next_addr[2*i+1]}), .y2(p[2*i+1])
+            .g1_n(1'b0), .c1({usr_q[2*i],   fetch_or_trap[2*i],   lut_data[2*i],   next_addr[2*i]}),   .y1(p[2*i]),
+            .g2_n(1'b0), .c2({usr_q[2*i+1], fetch_or_trap[2*i+1], lut_data[2*i+1], next_addr[2*i+1]}), .y2(p[2*i+1])
         );
     end endgenerate
 

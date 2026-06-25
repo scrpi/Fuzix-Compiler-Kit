@@ -10,7 +10,7 @@ mkdir -p "$OUT"
 iverilog -g2012 -gspecify -Wall -D IMG="\"$IMG\"" -o "$OUT/tb" \
     "$ROOT"/hdl/cells/*.v \
     "$ROOT/hdl/boot/uc_loader.v" \
-    "$ROOT/hdl/microsequencer.v" \
+    "$ROOT/hdl/microsequencer.v" "$ROOT/hdl/trap_encoder.v" \
     "$ROOT/hdl/microcode_store.v" \
     "$ROOT/hdl/opcode_lut.v" \
     "$ROOT/hdl/control_word_decoder.v" \

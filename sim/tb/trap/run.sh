@@ -1,20 +1,12 @@
 #!/usr/bin/env bash
-# Build + run the cpu microsequencer testbench under Icarus (-gspecify, TIMED; D-47).
-# Power-on -> the loader copies the control store -> loading drops -> the real
-# microsequencer walks a DIRECTED control-store image (generated here) through
-# INC/JUMP/BRANCH/DISPATCH_IR/WAIT, which the bench verifies. Build artifacts go to /tmp.
+# Build + run the trap-vector interception testbench (Icarus -gspecify, TIMED; D-47).
+# A RETURN_FETCH loop is redirected by the trap encoder to the NMI/IRQ entries.
 set -euo pipefail
-
 ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
-
-# The directed sequencer-test image (hand-placed microwords; reuses control_word.toml as the
-# field-definition source of truth). Regenerated each run.
-python3 "$ROOT/sim/tb/cpu/mk_seq_image.py"
-IMG="$ROOT/microcode/build/seq_test.hex"
-
-OUT=/tmp/blip_cpu
+python3 "$ROOT/sim/tb/trap/mk_trap_image.py"
+IMG="$ROOT/microcode/build/trap_test.hex"
+OUT=/tmp/blip_trap
 mkdir -p "$OUT"
-
 iverilog -g2012 -gspecify -Wall -D IMG="\"$IMG\"" -o "$OUT/tb" \
     "$ROOT"/hdl/cells/*.v \
     "$ROOT/hdl/boot/uc_loader.v" \
@@ -30,6 +22,5 @@ iverilog -g2012 -gspecify -Wall -D IMG="\"$IMG\"" -o "$OUT/tb" \
     "$ROOT/hdl/right_bus.v" \
     "$ROOT/hdl/cc_conditions.v" "$ROOT/hdl/cc_register.v" "$ROOT/hdl/cc.v" \
     "$ROOT/hdl/cpu.v" \
-    "$ROOT/sim/tb/cpu/tb_cpu.v"
-
+    "$ROOT/sim/tb/trap/tb_trap.v"
 vvp "$OUT/tb"

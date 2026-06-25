@@ -23,13 +23,15 @@ from uasm import Fields
 
 SEG, NWCS, NSEG = 4096, 11, 13
 
+# IRQ is hardware-masked by CC.I (reset = 1), so clear it first; then the IRQ branch can fire.
 PROGRAM = {
-    0: dict(USEQ_OP="BRANCH", UCOND_SEL="IRQ_PENDING", UCOND_POL="ASSERT", NEXT_ADDR=3),
-    1: dict(USEQ_OP="JUMP", NEXT_ADDR=0),
-    3: dict(USEQ_OP="BRANCH", UCOND_SEL="NMI_PENDING", UCOND_POL="ASSERT", NEXT_ADDR=6),
-    4: dict(USEQ_OP="JUMP", NEXT_ADDR=3),
-    6: dict(USEQ_OP="BRANCH", UCOND_SEL="WAIT_READY", UCOND_POL="NEGATE", NEXT_ADDR=6),
-    7: dict(USEQ_OP="WAIT"),
+    0: dict(USEQ_OP="INC", CC_MI_LOAD="CLR_I"),
+    1: dict(USEQ_OP="BRANCH", UCOND_SEL="IRQ_PENDING", UCOND_POL="ASSERT", NEXT_ADDR=4),
+    2: dict(USEQ_OP="JUMP", NEXT_ADDR=1),
+    4: dict(USEQ_OP="BRANCH", UCOND_SEL="NMI_PENDING", UCOND_POL="ASSERT", NEXT_ADDR=7),
+    5: dict(USEQ_OP="JUMP", NEXT_ADDR=4),
+    7: dict(USEQ_OP="BRANCH", UCOND_SEL="WAIT_READY", UCOND_POL="NEGATE", NEXT_ADDR=7),
+    8: dict(USEQ_OP="WAIT"),
 }
 
 

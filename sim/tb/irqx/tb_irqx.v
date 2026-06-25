@@ -41,29 +41,29 @@ module tb_irqx;
         wait (loading == 1'b0);
         $display("irqx: boot done");
 
-        // --- with no requests, the µPC must spin in the IRQ gate (0/1) ---------
+        // --- µPC0 clears CC.I (unmask IRQ); with no requests, it spins in the IRQ gate (1/2) ---
         settle(6);
-        if (upc > 12'd1) $fatal(1, "IRQ gate: µPC=%0d left the 0/1 spin with irq=0", upc);
+        if (upc < 12'd1 || upc > 12'd2) $fatal(1, "IRQ gate: µPC=%0d left the 1/2 spin with irq=0", upc);
 
-        // --- assert IRQ: the machine must reach the NMI gate (3/4) -------------
+        // --- assert IRQ (now unmasked): the machine must reach the NMI gate (4/5) -------------
         irq = 1'b1;
         settle(4);
-        if (upc < 12'd3 || upc > 12'd4) $fatal(1, "IRQ branch: µPC=%0d exp the 3/4 NMI spin", upc);
+        if (upc < 12'd4 || upc > 12'd5) $fatal(1, "IRQ branch: µPC=%0d exp the 4/5 NMI spin", upc);
 
-        // --- assert NMI: the machine must reach the WAIT_READY gate (6) --------
+        // --- assert NMI: the machine must reach the WAIT_READY gate (7) --------
         nmi = 1'b1;
         settle(4);
-        if (upc !== 12'd6) $fatal(1, "NMI branch: µPC=%0d exp 6 (WAIT_READY gate)", upc);
-        // wait_ready=0 -> `if not wait-ready` keeps it stalled at 6
+        if (upc !== 12'd7) $fatal(1, "NMI branch: µPC=%0d exp 7 (WAIT_READY gate)", upc);
+        // wait_ready=0 -> `if not wait-ready` keeps it stalled at 7
         settle(3);
-        if (upc !== 12'd6) $fatal(1, "WAIT_READY: µPC=%0d left 6 with wait_ready=0", upc);
+        if (upc !== 12'd7) $fatal(1, "WAIT_READY: µPC=%0d left 7 with wait_ready=0", upc);
 
-        // --- assert WAIT_READY: fall through to the WAIT at 7 -----------------
+        // --- assert WAIT_READY: fall through to the WAIT at 8 -----------------
         wait_ready = 1'b1;
         settle(2);
-        if (upc !== 12'd7) $fatal(1, "WAIT_READY branch: µPC=%0d exp 7", upc);
+        if (upc !== 12'd8) $fatal(1, "WAIT_READY branch: µPC=%0d exp 8", upc);
 
-        $display("PASS - irqx: real IRQ/NMI/WAIT_READY conditions gate the sequencer (cond[9..11])");
+        $display("PASS - irqx: IRQ(I-masked)/NMI/WAIT_READY conditions gate the sequencer (cond[9..11])");
         $finish;
     end
 

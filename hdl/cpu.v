@@ -49,8 +49,13 @@
 // user/force), DIRECT_PHYSICAL, and LDMMU/STMMU entry write/read-back. (Icarus note: the is61c64's
 // bidirectional bus + -gspecify limits RUN-time LDMMU writes in sim to the boot-identity path.)
 //
+// The trap-vector encoder (trap_encoder.v) intercepts RETURN_FETCH: a pending NMI/IRQ redirects the
+// µPC to that trap's fixed microroutine entry (NMI > IRQ); IRQ is hardware-masked by CC.I
+// (irq_masked = irq & ~CC.I feeds both cond[9] and the encoder). NMI is taken as a level (the
+// edge-latch is a refinement). The trap microroutine bodies in blip.uc + a .trap address-pin
+// directive are the remaining microcode-side work.
+//
 // SCAFFOLD — what remains:
-//   * The trap-vector encoder (RETURN_FETCH only vectors to 0; no IRQ/NMI/fault interception).
 //   * The fault microconditions cond[14:12] (MULTIBYTE_LAST/PRIV_VIOLATION/ILLEGAL_OPCODE) tie
 //     inactive until their detect logic lands; IRQ is not yet I-masked in hardware (recognition
 //     is microcode policy for now).
@@ -353,12 +358,35 @@ module cpu #(
     uloop u_uloop (.clk(clk), .reset_n(reg_reset_n), .uloop_ctrl(cw_wcs[21:20]),
                    .z_lo(z[4:0]), .uloop_zero(uloop_zero));
 
+    // --- IRQ I-mask + RETURN_FETCH decode (for the trap encoder) -----------
+    // irq_masked = irq & ~CC.I (R-CPU-6: a masked IRQ is never recognised, in hardware — the same
+    // single source feeds cond[9] and the trap encoder). retfetch_active = USEQ_OP==RETURN_FETCH.
+    wire [5:0] tiv;
+    (* purpose = "~CC.I; ~USEQ_OP[1:0]" *)
+    sn74ahct04 tinv (.a({3'b000, cw_wcs[1], cw_wcs[0], cc_q[4]}), .y(tiv));
+    wire nI = tiv[0], nU0 = tiv[1], nU1 = tiv[2];
+    wire [3:0] tand;
+    (* purpose = "irq_masked; retfetch_active" *)
+    sn74ahct08 tandg (.a({1'b0, cw_wcs[2], nU0, irq}), .b({1'b0, tand[1], nU1, nI}), .y(tand));
+    wire irq_masked = tand[0];           // irq & ~CC.I
+    wire retfetch_active = tand[2];      // USEQ_OP==RETURN_FETCH(4) = u2 & ~u1 & ~u0
+
+    // --- trap-vector encoder: redirect RETURN_FETCH to a pending trap entry -
+    // NMI is taken as a level here (the edge-latch is a documented refinement).
+    wire [11:0] trap_entry;
+    wire        trap_pending;
+    (* purpose = "trap-vector priority encoder" *)
+    trap_encoder u_trap (
+        .nmi_pending(nmi), .irq_masked(irq_masked), .retfetch_active(retfetch_active),
+        .trap_entry(trap_entry), .trap_pending(trap_pending)
+    );
+
     // --- condition lines into the sequencer --------------------------------
     // cond[6:0] = cond_inject ? cond_drive[6:0] : CC-derived ; cond[7] = TRUE slot ;
     // cond[15:8] = cond_inject ? cond_drive[15:8] : the internal microconditions:
-    //   [8]=ULOOP [9]=IRQ [10]=NMI [11]=WAIT_READY [12..14]=fault flags (unbuilt) [15]=spare.
+    //   [8]=ULOOP [9]=IRQ(masked) [10]=NMI [11]=WAIT_READY [12..14]=fault flags (unbuilt) [15]=spare.
     wire [15:0] cond_seq;
-    wire [7:0]  internal_cond = {4'b0000, wait_ready, nmi, irq, uloop_zero};
+    wire [7:0]  internal_cond = {4'b0000, wait_ready, nmi, irq_masked, uloop_zero};
     wire [3:0]  cci1_y;
     (* purpose = "cond mux CC vs inject [3:0]" *)
     sn74ahct157 cci0 (.a(cc_cond[3:0]), .b(cond_drive[3:0]), .sel(cond_inject), .g_n(1'b0), .y(cond_seq[3:0]));
@@ -378,7 +406,8 @@ module cpu #(
         .clk(clk), .clr_n(run),
         .useq_op(cw_wcs[2:0]), .next_addr(cw_wcs[14:3]),
         .ucond_sel(cw_wcs[18:15]), .ucond_pol(cw_wcs[19]),
-        .cond(cond_seq), .lut_data(lut_data), .upc(upc)
+        .cond(cond_seq), .lut_data(lut_data),
+        .trap_entry(trap_entry), .trap_pending(trap_pending), .upc(upc)
     );
 
     // --- control store + opcode LUT ----------------------------------------
