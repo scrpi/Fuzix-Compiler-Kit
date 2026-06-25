@@ -42,6 +42,7 @@ module tb_cpu;
     cpu #(.FILE(`IMG)) dut (
         .clk(clk), .rst_n(rst_n), .ir_inject(1'b1), .ir_drive(ir_drive),
         .cond_inject(1'b1), .cond_drive(cond_drive),
+        .irq(1'b0), .nmi(1'b0), .wait_ready(1'b1),
         .loading(loading), .upc(upc), .cw(cw), .lut_out(lut_out)
     );
 

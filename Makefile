@@ -16,7 +16,7 @@ TOP    ?=
 MODE   ?=
 
 .NOTPARALLEL:
-.PHONY: test image browser check lint sim cpu reg alu right cc ccx mem lane lanex fetch exec bench viz logisim logisim-test digitaljs bom clean help
+.PHONY: test image browser check lint sim cpu reg regfile alu right cc ccx mem lane lanex uloop irqx fetch exec bench viz logisim logisim-test digitaljs bom clean help
 
 ## test:   run the whole suite (image, field-def check, both lints, tool + timed test-benches)
 test: image check lint logisim-test sim
@@ -40,7 +40,7 @@ lint:
 	$(PYTHON) tools/lint/timing_lint.py
 
 ## sim:    the timed, self-checking test-benches
-sim: cpu reg alu right cc ccx mem lane lanex fetch exec bench
+sim: cpu reg regfile alu right cc ccx mem lane lanex uloop irqx fetch exec bench
 
 ## cpu:    boot copy (real loader + EEPROM -> WCS) then the microsequencer walk
 ##         (INC/JUMP/BRANCH/DISPATCH/WAIT) — the loader is proven on this standard path
@@ -50,6 +50,10 @@ cpu:
 ## reg:    the universal '163-counter register board (load/count/carry/hold/LEFT)
 reg:
 	bash sim/tb/reg/run.sh
+
+## regfile: D/X/Y/USP/SSP + ACTIVE_SP banking through the datapath
+regfile:
+	bash sim/tb/regfile/run.sh
 
 ## alu:    the 16-bit ALU (arithmetic + logic + shift sections) + N/Z/V/C/H flags
 alu:
@@ -78,6 +82,14 @@ lane:
 ## lanex:  byte-lane steering through the whole datapath — Z_LANE byte-build + LEFT_LANE widen
 lanex:
 	bash sim/tb/lanex/run.sh
+
+## uloop:  the ULOOP micro-loop counter — load n, body runs n times (real cond[8] terminal)
+uloop:
+	bash sim/tb/uloop/run.sh
+
+## irqx:   internal microconditions — IRQ/NMI/WAIT_READY gate the sequencer (real cond[9..11])
+irqx:
+	bash sim/tb/irqx/run.sh
 
 ## fetch:  REAL instruction fetch — PC -> MMU -> memory model -> MDR -> IR -> DISPATCH
 fetch:

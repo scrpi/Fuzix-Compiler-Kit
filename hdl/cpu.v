@@ -21,9 +21,9 @@
 //
 // DEBUG injects (R-DBG-5), used by the unit benches, real otherwise:
 //   ir_inject   1 -> IR from ir_drive (microsequencer bench); 0 -> real fetch (IR <- MDR).
-//   cond_inject 1 -> all 16 sequencer conditions from cond_drive; 0 -> the CC-derived
-//               conditions cond[6:0] come from CC (real branches), cond[15:7] still injected
-//               (the internal conditions IRQ/ULOOP/… are not built yet).
+//   cond_inject 1 -> all 16 sequencer conditions from cond_drive; 0 -> the real conditions:
+//               cond[6:0] from CC (branches) and cond[15:8] from the internal microconditions
+//               ([8]=ULOOP, [9]=IRQ, [10]=NMI, [11]=WAIT_READY).
 //
 // Byte-lane steering is built (D-09 byte-cycle path; cpu-physical-construction.md §6.4(a)):
 //   * LEFT_LANE (FULL16/LOW/SIGN_EXT/HIGH_TO_LOW) — left_lane steers the raw LEFT bus into the
@@ -32,10 +32,15 @@
 //   * Z_LANE (FULL16/LOW/HIGH) — z_lane promotes Z[7:0] onto the high byte and gates the SCR
 //     /load-low and /load-high strobes, so a 16-bit value can land as two byte cycles.
 //
-// SCAFFOLD — the rest of the register file is NOT built yet, so the directed unit tests run but
-// the production blip.uc does not yet: the D/X/Y/USP/SSP registers and the internal
-// microconditions (IRQ/NMI/ULOOP/…) are absent; an unbuilt LEFT_SRC code leaves LEFT_RAW
-// floating, and cond[15:8] still come from cond_drive.
+// The full register file is built: D (A:B, byte-lane-gated), X/Y (off-bus +1 counters), USP/SSP
+// reached either explicitly or as the bank-resolved ACTIVE_SP (sp_bank); and the LEFT sources CC,
+// IR_IMM and MMU_ENTRY. The internal microconditions ULOOP/IRQ/NMI/WAIT_READY are wired into
+// cond[11:8]; the sequencer now runs the production blip.uc with no condition injection.
+//
+// SCAFFOLD — what remains: the MMU translate path (mmu_entry here is only the entry latch, the
+// page table + A[23:0] generation are a separate board); the fault microconditions cond[14:12]
+// (MULTIBYTE_LAST/PRIV_VIOLATION/ILLEGAL_OPCODE) tie inactive until their detect logic lands; and
+// IRQ is not yet I-masked in hardware (recognition is microcode policy for now).
 `timescale 1ns/1ps
 `default_nettype none
 module cpu #(
@@ -46,8 +51,12 @@ module cpu #(
     // privileged debug interface (R-DBG-5)
     input  wire         ir_inject,   // 1 = force IR from ir_drive; 0 = real fetch (IR<-MDR)
     input  wire [7:0]   ir_drive,    // debug opcode deposit (used when ir_inject)
-    input  wire         cond_inject, // 1 = all conditions from cond_drive; 0 = CC drives cond[6:0]
-    input  wire [15:0]  cond_drive,  // injected microconditions (all when cond_inject, else [15:7])
+    input  wire         cond_inject, // 1 = all conditions from cond_drive; 0 = CC/internal conds
+    input  wire [15:0]  cond_drive,  // injected microconditions (used when cond_inject)
+    // external interrupt / bus microcondition lines (interface.md; sequencer cond[10:9],[11])
+    input  wire         irq,         // IRQ request pending (level; I-mask gating is microcode policy)
+    input  wire         nmi,         // NMI request pending (non-maskable)
+    input  wire         wait_ready,  // bus ready (1 = ready; 0 = stretch the cycle)
     // system bus — memory is modelled in the harness (R-SIM-3; interface.md §2)
     output wire [23:0]  a,           // physical address A[23:0]
     inout  wire [7:0]   d,           // data bus D[7:0]
@@ -83,10 +92,10 @@ module cpu #(
     wire [3:0]  ir_load_n, left_lane_n, z_lane_n;
     wire [15:0] left_src_n, z_dest_n, alu_op_n;
     wire [7:0]  alu_shift_n, right_src_n;
-    wire [3:0]  pc_ctrl_n, mar_ctrl_n, mem_op_n, mmu_addr_n;
+    wire [3:0]  pc_ctrl_n, mar_ctrl_n, x_ctrl_n, y_ctrl_n, mem_op_n, mmu_addr_n, mmu_pt_n;
     wire [3:0]  v_src_n, c_src_n, cc_write_n, cc_mi_n;
     wire [4:0]  flag_we;
-    wire        alu_cin, alu_width, z_accum;
+    wire        alu_cin, alu_width, z_accum, sp_bank;
     (* purpose = "datapath decoder" *)
     control_word_decoder dec (
         .cw_dp(cw_wcs[87:24]),
@@ -95,17 +104,19 @@ module cpu #(
         .alu_op_n(alu_op_n), .alu_shift_n(alu_shift_n), .alu_cin(alu_cin), .alu_width(alu_width),
         .flag_we(flag_we), .v_src_n(v_src_n), .c_src_n(c_src_n), .z_accum(z_accum),
         .cc_write_n(cc_write_n), .cc_mi_n(cc_mi_n), .z_dest_n(z_dest_n), .z_lane_n(z_lane_n),
-        .pc_ctrl_n(pc_ctrl_n), .mar_ctrl_n(mar_ctrl_n),
-        .mem_op_n(mem_op_n), .mmu_addr_n(mmu_addr_n)
+        .pc_ctrl_n(pc_ctrl_n), .mar_ctrl_n(mar_ctrl_n), .x_ctrl_n(x_ctrl_n), .y_ctrl_n(y_ctrl_n),
+        .mem_op_n(mem_op_n), .mmu_addr_n(mmu_addr_n), .mmu_pt_n(mmu_pt_n), .sp_bank(sp_bank)
     );
 
-    // --- run = ~loading, plus the PC/MAR COUNT-enable inversions ------------
+    // --- run = ~loading, plus the PC/MAR/X/Y COUNT-enable inversions --------
     wire [5:0] inv_y;
-    (* purpose = "run=~loading; PC/MAR count enables" *)
-    sn74ahct04 inv (.a({3'b000, mar_ctrl_n[2], pc_ctrl_n[2], loading}), .y(inv_y));
-    assign run          = inv_y[0];
-    wire   pc_count_en  = inv_y[1];
-    wire   mar_count_en = inv_y[2];
+    (* purpose = "run=~loading; PC/MAR/X/Y count enables" *)
+    sn74ahct04 inv (.a({y_ctrl_n[2], x_ctrl_n[2], mar_ctrl_n[2], pc_ctrl_n[2], loading, 1'b0}), .y(inv_y));
+    assign run          = inv_y[1];
+    wire   pc_count_en  = inv_y[2];
+    wire   mar_count_en = inv_y[3];
+    wire   x_count_en   = inv_y[4];
+    wire   y_count_en   = inv_y[5];
 
     // --- reg/CC reset = rst_n & run (held through the boot copy) ------------
     wire [3:0] and_y;
@@ -120,6 +131,7 @@ module cpu #(
     // ALU board (right_bus). Z is driven by the ALU; the registers latch from Z_LOAD.
     wire [15:0] left_raw, left, right, z, z_load;
     wire        z_block_lo, z_block_hi;       // Z_LANE lane suppressors (active HIGH)
+    wire        cc_m;                         // CC.M (supervisor) — used by sp_bank / conditions
     wire [7:0]  mdr_q;
     assign z_q = z;
 
@@ -170,6 +182,57 @@ module cpu #(
     );
     assign pc_q = pc_w;
 
+    // --- the rest of the architectural register file (hardware.md §2) -------
+    // D (=A:B accumulator): latches from Z_LOAD on Z_DEST=D, byte-lane-gated exactly like the
+    // scratch regs (A=low, B=high) so 8-bit accumulator ops land in one lane. X/Y are off-bus
+    // +1 counters (load full16 / COUNT / hold, D-36). USP/SSP are plain full16 registers; the
+    // active one is reached as ACTIVE_SP, bank-resolved by sp_bank below. None drives RIGHT.
+    wire [15:0] d_w, x_w, y_w, usp_w, ssp_w;
+    wire [3:0]  d_ld_n;        // {_, _, d_hi, d_lo}
+    (* purpose = "D /load = Z_DEST=D | Z_LANE-block" *)
+    sn74ahct32 dld (.a({2'b00, z_dest_n[1], z_dest_n[1]}),
+                    .b({2'b00, z_block_hi, z_block_lo}), .y(d_ld_n));
+    (* purpose = "D register (A:B accumulator)" *)
+    register16 d_reg (
+        .clk(clk), .reset_n(reg_reset_n), .z_in(z_load),
+        .load_lo_n(d_ld_n[0]), .load_hi_n(d_ld_n[1]),
+        .count_en(1'b0), .drive_left_n(left_src_n[1]), .q(d_w), .left_out(left_raw)
+    );
+    (* purpose = "X register (counter)" *)
+    register16 x_reg (
+        .clk(clk), .reset_n(reg_reset_n), .z_in(z),
+        .load_lo_n(x_ctrl_n[1]), .load_hi_n(x_ctrl_n[1]),
+        .count_en(x_count_en), .drive_left_n(left_src_n[2]), .q(x_w), .left_out(left_raw)
+    );
+    (* purpose = "Y register (counter)" *)
+    register16 y_reg (
+        .clk(clk), .reset_n(reg_reset_n), .z_in(z),
+        .load_lo_n(y_ctrl_n[1]), .load_hi_n(y_ctrl_n[1]),
+        .count_en(y_count_en), .drive_left_n(left_src_n[3]), .q(y_w), .left_out(left_raw)
+    );
+    // USP/SSP: bank-resolved drive/load from sp_bank (explicit USP/SSP OR ACTIVE_SP). Full16, no count.
+    wire usp_drive_n, ssp_drive_n, usp_load_n, ssp_load_n;
+    (* purpose = "ACTIVE_SP bank resolver" *)
+    sp_bank u_sp_bank (
+        .cc_m(cc_m), .sp_bank(sp_bank),
+        .left_active_sp_n(left_src_n[14]), .left_usp_n(left_src_n[4]), .left_ssp_n(left_src_n[5]),
+        .z_active_sp_n(z_dest_n[4]), .z_usp_n(z_dest_n[2]), .z_ssp_n(z_dest_n[3]),
+        .usp_drive_n(usp_drive_n), .ssp_drive_n(ssp_drive_n),
+        .usp_load_n(usp_load_n), .ssp_load_n(ssp_load_n)
+    );
+    (* purpose = "USP register (user SP)" *)
+    register16 usp_reg (
+        .clk(clk), .reset_n(reg_reset_n), .z_in(z),
+        .load_lo_n(usp_load_n), .load_hi_n(usp_load_n),
+        .count_en(1'b0), .drive_left_n(usp_drive_n), .q(usp_w), .left_out(left_raw)
+    );
+    (* purpose = "SSP register (supervisor SP)" *)
+    register16 ssp_reg (
+        .clk(clk), .reset_n(reg_reset_n), .z_in(z),
+        .load_lo_n(ssp_load_n), .load_hi_n(ssp_load_n),
+        .count_en(1'b0), .drive_left_n(ssp_drive_n), .q(ssp_w), .left_out(left_raw)
+    );
+
     // --- RIGHT bus: scratch registers + constant generator -----------------
     (* purpose = "RIGHT bus (SCR + const-gen)" *)
     right_bus rb (.scr1(scr1_w), .scr2(scr2_w), .right_src_n(right_src_n), .right(right));
@@ -184,7 +247,6 @@ module cpu #(
     );
 
     // --- CC: latch the flags, derive the branch conditions -----------------
-    wire        cc_m;
     wire [6:0]  cc_cond;
     (* purpose = "CC (flags + conditions)" *)
     cc u_cc (
@@ -231,10 +293,33 @@ module cpu #(
     sn74ahct574 ir_reg (.Q(ir), .D(ir_d), .CLK(clk), .OE_n(1'b0));
     assign ir_q = ir;
 
+    // --- the remaining LEFT sources: CC, IR_IMM, MMU_ENTRY -----------------
+    // CC (LEFT_SRC=13) and IR_IMM (LEFT_SRC=11) are 8-bit, so they drive only the LEFT low lane
+    // (the LEFT_LANE steer zero-/sign-extends the high byte). IR_IMM is the IR byte as an inline
+    // immediate. MMU_ENTRY (LEFT_SRC=12) is the 16-bit page-table entry latch (LDMMU/STMMU).
+    (* purpose = "CC -> LEFT low lane" *)
+    sn74ahct541 cclr (.a(cc_q), .oe1_n(left_src_n[13]), .oe2_n(1'b0), .y(left_raw[7:0]));
+    (* purpose = "IR_IMM -> LEFT low lane" *)
+    sn74ahct541 irlr (.a(ir), .oe1_n(left_src_n[11]), .oe2_n(1'b0), .y(left_raw[7:0]));
+    (* purpose = "MMU_ENTRY latch + LEFT driver" *)
+    mmu_entry u_mmu_entry (
+        .clk(clk), .left_in(left_raw), .load_n(mmu_pt_n[1]), .drive_n(left_src_n[12]),
+        .q(/* unused until the MMU board lands */), .left_out(left_raw)
+    );
+
+    // --- ULOOP micro-loop counter: terminal -> cond[8] ---------------------
+    // ULOOP_CTRL is the sequencer field cw_wcs[21:20]; the count loads from the Z low bits.
+    wire uloop_zero;
+    (* purpose = "ULOOP micro-loop counter" *)
+    uloop u_uloop (.clk(clk), .reset_n(reg_reset_n), .uloop_ctrl(cw_wcs[21:20]),
+                   .z_lo(z[4:0]), .uloop_zero(uloop_zero));
+
     // --- condition lines into the sequencer --------------------------------
-    // cond[6:0] = cond_inject ? cond_drive[6:0] : CC ; cond[15:7] = cond_drive (internal conds).
-    // cci1's 4th lane is a dead net so bit 7 has a SINGLE driver (the assign) — no bus short.
+    // cond[6:0] = cond_inject ? cond_drive[6:0] : CC-derived ; cond[7] = TRUE slot ;
+    // cond[15:8] = cond_inject ? cond_drive[15:8] : the internal microconditions:
+    //   [8]=ULOOP [9]=IRQ [10]=NMI [11]=WAIT_READY [12..14]=fault flags (unbuilt) [15]=spare.
     wire [15:0] cond_seq;
+    wire [7:0]  internal_cond = {4'b0000, wait_ready, nmi, irq, uloop_zero};
     wire [3:0]  cci1_y;
     (* purpose = "cond mux CC vs inject [3:0]" *)
     sn74ahct157 cci0 (.a(cc_cond[3:0]), .b(cond_drive[3:0]), .sel(cond_inject), .g_n(1'b0), .y(cond_seq[3:0]));
@@ -242,7 +327,10 @@ module cpu #(
     sn74ahct157 cci1 (.a({1'b0, cc_cond[6:4]}), .b({1'b0, cond_drive[6:4]}), .sel(cond_inject), .g_n(1'b0), .y(cci1_y));
     assign cond_seq[6:4]  = cci1_y[2:0];
     assign cond_seq[7]    = cond_drive[7];      // TRUE slot (forced in the sequencer anyway)
-    assign cond_seq[15:8] = cond_drive[15:8];   // internal microconditions (not built yet)
+    (* purpose = "internal cond mux [11:8]" *)
+    sn74ahct157 cii0 (.a(internal_cond[3:0]), .b(cond_drive[11:8]),  .sel(cond_inject), .g_n(1'b0), .y(cond_seq[11:8]));
+    (* purpose = "internal cond mux [15:12]" *)
+    sn74ahct157 cii1 (.a(internal_cond[7:4]), .b(cond_drive[15:12]), .sel(cond_inject), .g_n(1'b0), .y(cond_seq[15:12]));
 
     // --- microsequencer ----------------------------------------------------
     wire [11:0] lut_data;
