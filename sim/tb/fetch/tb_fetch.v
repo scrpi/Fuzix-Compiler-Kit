@@ -57,31 +57,26 @@ module tb_fetch;
         wait (loading == 1'b0);                         // boot copy complete; µPC released at 0
         $display("fetch: boot done; PC=%0d, fetching ...", pc_q);
 
-        // step 0: the fetch-read microword is at µPC 0
+        // step 0: the single FETCH microword is at µPC 0. The read posts the opcode on Z, so the
+        // LUT (indexed by the next-IR value) already resolves the dispatch target this cycle —
+        // BEFORE the registered IR has latched anything (proving the same-cycle decode).
         @(negedge clk);
         if (upc !== 12'd0) $fatal(1, "step0: µPC=%0d, expected 0", upc);
+        #200;
+        if ($isunknown(lut_out)) $fatal(1, "fetch: lut_out has X during the fetch read");
+        if (lut_out !== TARGET) $fatal(1, "fetch: lut_out=%0d, expected %0d (LUT sees the live opcode)", lut_out, TARGET);
 
-        // step 1 (µPC 1): the 0->1 edge latched mem[PC] into MDR and advanced PC
-        @(negedge clk);
-        if (upc !== 12'd1) $fatal(1, "step1: µPC=%0d, expected 1", upc);
-        if (dut.mi.mdr_q !== OPCODE) $fatal(1, "fetch: MDR=%02x, expected %02x from mem[0]", dut.mi.mdr_q, OPCODE);
-        if (pc_q !== 16'd1) $fatal(1, "fetch: PC=%0d, expected 1 (PC-direct read advances PC)", pc_q);
-
-        // step 2 (µPC 2): the 1->2 edge latched MDR into IR; the LUT now sees the real opcode
-        @(negedge clk);
-        if (upc !== 12'd2) $fatal(1, "step2: µPC=%0d, expected 2", upc);
-        if (ir_q !== OPCODE) $fatal(1, "fetch: IR=%02x, expected %02x (opcode from memory, not injected)", ir_q, OPCODE);
-        if (lut_out !== TARGET) $fatal(1, "dispatch: lut_out=%0d, expected %0d", lut_out, TARGET);
-
-        // step 3: DISPATCH_IR vectored the micro-PC to the opcode's handler
+        // step 1: the 0->edge latched the opcode into IR, advanced PC, and DISPATCHed in ONE word
         @(negedge clk);
         if (upc !== TARGET) $fatal(1, "dispatch: µPC=%0d, expected %0d (lut[{0,%02x}])", upc, TARGET, OPCODE);
+        if (ir_q !== OPCODE) $fatal(1, "fetch: IR=%02x, expected %02x (opcode latched from the read byte)", ir_q, OPCODE);
+        if (pc_q !== 16'd1) $fatal(1, "fetch: PC=%0d, expected 1 (PC advanced)", pc_q);
 
         // ...and WAIT holds it there
         @(negedge clk);
         if (upc !== TARGET) $fatal(1, "WAIT: µPC=%0d did not hold at %0d", upc, TARGET);
 
-        $display("PASS - real fetch: mem[0]=%02x -> MDR -> IR -> DISPATCH -> µPC %0d (PC advanced to %0d)",
+        $display("PASS - real single-cycle fetch: mem[0]=%02x -> IR + dispatch -> µPC %0d in one word (PC=%0d)",
                  OPCODE, TARGET, pc_q);
         $finish;
     end

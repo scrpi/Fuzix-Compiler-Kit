@@ -16,7 +16,7 @@ TOP    ?=
 MODE   ?=
 
 .NOTPARALLEL:
-.PHONY: test image browser check lint sim cpu reg regfile alu right cc ccx mem lane lanex uloop irqx fetch exec bench viz logisim logisim-test digitaljs bom clean help
+.PHONY: test image browser check lint sim cpu reg regfile alu right cc ccx mem lane lanex uloop irqx ldz prog fetch exec bench viz logisim logisim-test digitaljs bom clean help
 
 ## test:   run the whole suite (image, field-def check, both lints, tool + timed test-benches)
 test: image check lint logisim-test sim
@@ -40,7 +40,7 @@ lint:
 	$(PYTHON) tools/lint/timing_lint.py
 
 ## sim:    the timed, self-checking test-benches
-sim: cpu reg regfile alu right cc ccx mem lane lanex uloop irqx fetch exec bench
+sim: cpu reg regfile alu right cc ccx mem lane lanex uloop irqx ldz prog fetch exec bench
 
 ## cpu:    boot copy (real loader + EEPROM -> WCS) then the microsequencer walk
 ##         (INC/JUMP/BRANCH/DISPATCH/WAIT) — the loader is proven on this standard path
@@ -82,6 +82,14 @@ lane:
 ## lanex:  byte-lane steering through the whole datapath — Z_LANE byte-build + LEFT_LANE widen
 lanex:
 	bash sim/tb/lanex/run.sh
+
+## ldz:    a memory read posts on Z — latch a register + N/Z in one microword
+ldz:
+	bash sim/tb/ldz/run.sh
+
+## prog:   END-TO-END production blip.uc — fetch/dispatch/execute/refetch a real program
+prog:
+	bash sim/tb/prog/run.sh
 
 ## uloop:  the ULOOP micro-loop counter — load n, body runs n times (real cond[8] terminal)
 uloop:

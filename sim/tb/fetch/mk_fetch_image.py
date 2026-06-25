@@ -31,10 +31,12 @@ SEG, NWCS, NSEG = 4096, 11, 13
 SEG_LUT_LO, SEG_LUT_HI = 11, 12
 IR_OPCODE, DISPATCH_TARGET = 0x42, 48          # opcode placed in memory; its LUT target
 
+# The production single-cycle FETCH (blip.uc:48): read opcode @PC -> IR, PC+1, and dispatch on
+# the just-fetched opcode — all in ONE microword. The read posts the opcode on Z (so IR latches
+# it) and the LUT is indexed by the next-IR value, so the dispatch sees it the same cycle.
 PROGRAM = {
-    0:  dict(USEQ_OP="INC", MMU_ADDR_SRC="TRANSLATE_PC", MEM_OP="READ", PC_CTRL="COUNT"),
-    1:  dict(USEQ_OP="INC", IR_LOAD="OPCODE"),
-    2:  dict(USEQ_OP="DISPATCH_IR", DISPATCH_PAGE="PAGE0"),
+    0:  dict(USEQ_OP="DISPATCH_IR", DISPATCH_PAGE="PAGE0", MMU_ADDR_SRC="TRANSLATE_PC",
+             MEM_OP="READ", PC_CTRL="COUNT", IR_LOAD="OPCODE"),
     DISPATCH_TARGET: dict(USEQ_OP="WAIT"),
 }
 

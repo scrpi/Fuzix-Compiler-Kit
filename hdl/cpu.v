@@ -37,12 +37,14 @@
 // IR_IMM and MMU_ENTRY. The internal microconditions ULOOP/IRQ/NMI/WAIT_READY are wired into
 // cond[11:8]; the sequencer now runs the production blip.uc with no condition injection.
 //
+// A memory read POSTS its byte on Z during /RD (memory_interface zdrv; the combinational bypass),
+// so a read-into-register (`reg <- [PC]`, the LD/operand-fetch idiom) latches it + the flags in
+// one microword; the ALU PASS_L Z drive is suppressed during a read so it can't fight the post.
+// FETCH is single-cycle: IR latches the read byte and the opcode-LUT is indexed by the next-IR
+// value (ir_d), so `IR <- [PC]; PC++; dispatch` fetches and dispatches in one word. The real
+// blip.uc runs end-to-end (sim/tb/prog).
+//
 // SCAFFOLD — what remains:
-//   * MDR->Z read posting: a memory read captures into MDR but MDR is NOT driven onto Z, so a
-//     read-into-register (`reg <- [PC]`, the LD/operand-fetch idiom) and the production
-//     `n -> uloop` (which needs the count on Z) do not work as single microwords yet — that is
-//     the load/store datapath increment (interface.md §4). MDR reaches the ALU only via LEFT
-//     (LEFT_SRC=MDR), so `reg <- MDR` posts it on Z today.
 //   * The MMU translate path (mmu_entry here is only the entry latch; the page table + A[23:0]
 //     generation are a separate board).
 //   * The fault microconditions cond[14:12] (MULTIBYTE_LAST/PRIV_VIOLATION/ILLEGAL_OPCODE) tie
@@ -115,15 +117,24 @@ module cpu #(
         .mem_op_n(mem_op_n), .mmu_addr_n(mmu_addr_n), .mmu_pt_n(mmu_pt_n), .sp_bank(sp_bank)
     );
 
-    // --- run = ~loading, plus the PC/MAR/X/Y COUNT-enable inversions --------
+    // --- run = ~loading, plus the PC/MAR/X/Y COUNT-enable inversions; rd = ~/RD --------
     wire [5:0] inv_y;
-    (* purpose = "run=~loading; PC/MAR/X/Y count enables" *)
-    sn74ahct04 inv (.a({y_ctrl_n[2], x_ctrl_n[2], mar_ctrl_n[2], pc_ctrl_n[2], loading, 1'b0}), .y(inv_y));
+    (* purpose = "run=~loading; PC/MAR/X/Y count enables; rd=~/RD" *)
+    sn74ahct04 inv (.a({y_ctrl_n[2], x_ctrl_n[2], mar_ctrl_n[2], pc_ctrl_n[2], loading, rd_n}), .y(inv_y));
+    wire   rd           = inv_y[0];      // read active-high (suppress the ALU PASS_L Z drive)
     assign run          = inv_y[1];
     wire   pc_count_en  = inv_y[2];
     wire   mar_count_en = inv_y[3];
     wire   x_count_en   = inv_y[4];
     wire   y_count_en   = inv_y[5];
+
+    // A bare read microword leaves ALU_OP=PASS_L (default), which would drive the floating LEFT
+    // onto Z[7:0] and fight the read-byte post. Force the ALU's PASS_L enable HIGH during a read
+    // (the read byte then owns Z); every non-read microword is unchanged.
+    wire [3:0] passl;
+    (* purpose = "ALU PASS_L /enable | read-active" *)
+    sn74ahct32 passlblk (.a({3'b000, alu_op_n[0]}), .b({3'b000, rd}), .y(passl));
+    wire alu_passl_n = passl[0];
 
     // --- reg/CC reset = rst_n & run (held through the boot copy) ------------
     wire [3:0] and_y;
@@ -248,7 +259,7 @@ module cpu #(
     wire fn, fz, fv, fc, fh;
     (* purpose = "ALU" *)
     alu u_alu (
-        .left(left), .right(right), .alu_op_n(alu_op_n), .alu_shift_n(alu_shift_n),
+        .left(left), .right(right), .alu_op_n({alu_op_n[15:1], alu_passl_n}), .alu_shift_n(alu_shift_n),
         .alu_cin(alu_cin), .alu_width(alu_width), .cc_c(cc_q[0]),
         .z(z), .flag_n(fn), .flag_z(fz), .flag_v(fv), .flag_c(fc), .flag_h(fh)
     );
@@ -282,16 +293,19 @@ module cpu #(
         .mem_op_n(mem_op_n), .z_dest_mdr_n(z_dest_n[7]), .left_src_mdr_n(left_src_n[10]),
         .bus_inhibit(loading),
         .addr(addr_logical), .z_lo(z[7:0]),
-        .mdr_q(mdr_q), .left_lo(left_raw[7:0]),
+        .mdr_q(mdr_q), .z_post(z), .left_lo(left_raw[7:0]),
         .a(a), .d(d), .rd_n(rd_n), .wr_n(wr_n)
     );
 
-    // --- opcode register IR: latch from MDR on IR_LOAD, or from ir_drive (debug) --
+    // --- opcode register IR: latch the read byte on IR_LOAD, or from ir_drive (debug) --
+    // The opcode being fetched is on Z[7:0] (the read post) DURING the fetch read, so a single
+    // FETCH word `IR <- [PC]; PC++; dispatch` latches it and (via the LUT indexed on ir_d below)
+    // dispatches on it in the same cycle.
     wire [7:0] ir, ir_inner, ir_d;
-    (* purpose = "IR src: MDR vs hold [3:0]" *)
-    sn74ahct157 iri0 (.a(mdr_q[3:0]), .b(ir[3:0]), .sel(ir_load_n[1]), .g_n(1'b0), .y(ir_inner[3:0]));
-    (* purpose = "IR src: MDR vs hold [7:4]" *)
-    sn74ahct157 iri1 (.a(mdr_q[7:4]), .b(ir[7:4]), .sel(ir_load_n[1]), .g_n(1'b0), .y(ir_inner[7:4]));
+    (* purpose = "IR src: read byte vs hold [3:0]" *)
+    sn74ahct157 iri0 (.a(z[3:0]), .b(ir[3:0]), .sel(ir_load_n[1]), .g_n(1'b0), .y(ir_inner[3:0]));
+    (* purpose = "IR src: read byte vs hold [7:4]" *)
+    sn74ahct157 iri1 (.a(z[7:4]), .b(ir[7:4]), .sel(ir_load_n[1]), .g_n(1'b0), .y(ir_inner[7:4]));
     (* purpose = "IR src: inject vs fetch [3:0]" *)
     sn74ahct157 iro0 (.a(ir_inner[3:0]), .b(ir_drive[3:0]), .sel(ir_inject), .g_n(1'b0), .y(ir_d[3:0]));
     (* purpose = "IR src: inject vs fetch [7:4]" *)
@@ -359,7 +373,7 @@ module cpu #(
     );
     (* purpose = "opcode LUT (dispatch)" *)
     opcode_lut lut (
-        .clk(clk), .loader_addr(loader_addr), .dispatch_page(cw_wcs[22]), .ir(ir), .loading(loading),
+        .clk(clk), .loader_addr(loader_addr), .dispatch_page(cw_wcs[22]), .ir(ir_d), .loading(loading),
         .wdata(loader_wdata), .wbuf_oe_n(run), .oe_n(loading),
         .cs_n(cs_sel_n[12:11]), .lut_lo(lut_lo), .lut_hi(lut_hi)
     );

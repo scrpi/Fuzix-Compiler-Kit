@@ -60,7 +60,8 @@ module memory_interface (
     // --- internal datapath buses -------------------------------------------------
     input  wire [15:0] addr,            // selected logical address -> MMU (PC/MAR, muxed upstream)
     input  wire [7:0]  z_lo,            // Z bus low byte (the staged write data)
-    output wire [7:0]  mdr_q,           // MDR contents — internal tap / Z-post source
+    output wire [7:0]  mdr_q,           // MDR contents — internal tap
+    output wire [15:0] z_post,          // read byte posted on Z (3-state, during /RD): {8'h00, D}
     output wire [7:0]  left_lo,         // MDR -> LEFT low lane (3-state; driven by LEFT_SRC=MDR)
 
     // --- external functional interface (interface.md §2) -------------------------
@@ -108,5 +109,14 @@ module memory_interface (
     // ---- LEFT-bus driver: MDR -> LEFT low lane, enabled by LEFT_SRC=MDR ----------
     (* purpose = "MDR -> LEFT low-lane driver" *)
     sn74ahct541 ldrv (.a(mdr_q), .oe1_n(left_src_mdr_n), .oe2_n(1'b0), .y(left_lo));
+
+    // ---- read-byte -> Z post (the combinational bypass; microcode-source.md §13) ----------
+    // A read posts its byte on Z *during* the read so a named Z_DEST + the flags capture it in
+    // the same microword (parallel capture, NOT the registered/stale mdr_q). Source the LIVE pad
+    // `d` — the same byte MDR is simultaneously capturing — gated by /RD; zero-extend Z[15:8].
+    (* purpose = "read byte -> Z[7:0]" *)
+    sn74ahct541 zdrv  (.a(d),     .oe1_n(rd_n), .oe2_n(1'b0), .y(z_post[7:0]));
+    (* purpose = "read zero-ext -> Z[15:8]" *)
+    sn74ahct541 zdrvh (.a(8'h00), .oe1_n(rd_n), .oe2_n(1'b0), .y(z_post[15:8]));
 endmodule
 `default_nettype wire
