@@ -16,7 +16,7 @@ TOP    ?=
 MODE   ?=
 
 .NOTPARALLEL:
-.PHONY: test image browser check lint sim cpu reg regfile alu right cc ccx mem lane lanex uloop irqx ldz prog shiftx fetch exec bench viz logisim logisim-test digitaljs bom clean help
+.PHONY: test image browser check lint sim cpu useq reg regfile alu right cc ccx mem lane lanex uloop irqx ldz prog shiftx fetch exec bench viz logisim logisim-test digitaljs bom clean help
 
 ## test:   run the whole suite (image, field-def check, both lints, tool + timed test-benches)
 test: image check lint logisim-test sim
@@ -40,12 +40,16 @@ lint:
 	$(PYTHON) tools/lint/timing_lint.py
 
 ## sim:    the timed, self-checking test-benches
-sim: cpu reg regfile alu right cc ccx mem lane lanex uloop irqx ldz prog shiftx fetch exec bench
+sim: cpu useq reg regfile alu right cc ccx mem lane lanex uloop irqx ldz prog shiftx fetch exec bench
 
 ## cpu:    boot copy (real loader + EEPROM -> WCS) then the microsequencer walk
 ##         (INC/JUMP/BRANCH/DISPATCH/WAIT) — the loader is proven on this standard path
 cpu:
 	bash sim/tb/cpu/run.sh
+
+## useq:   micro-sequencer CALL/RETURN + µSR — subroutine return register
+useq:
+	bash sim/tb/useq/run.sh
 
 ## reg:    the universal '163-counter register board (load/count/carry/hold/LEFT)
 reg:

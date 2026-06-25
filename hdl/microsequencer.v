@@ -8,17 +8,23 @@
 //   JUMP         µPC <- NEXT_ADDR             (unconditional)
 //   BRANCH       µPC <- NEXT_ADDR if (cond ^ UCOND_POL) else µPC + 1
 //   DISPATCH_IR  µPC <- lut_data              (the opcode-LUT start address, {PAGE,IR})
+//   CALL         µSR <- µPC+1 ; µPC <- NEXT_ADDR   (leaf micro-subroutine call, D-42)
+//   RETURN       µPC <- µSR                        (return to the caller's next step)
 //   RETURN_FETCH µPC <- 0                      (the fetch entry; trap-vector encoder TODO)
 //   WAIT         µPC hold                      (a stretched bus cycle / single-step)
 //
-// DEFERRED (fall through to INC/count for now, harmlessly): CALL / RETURN + the µSR return
-// register, the ULOOP loop counter, the trap-vector priority encoder, and the registered
-// (pipelined) control-word output. The control word is read combinationally from the WCS,
-// so the word at µPC drives this logic and the µPC clocks to the next value each cycle.
+// DEFERRED (fall through to INC/count for now, harmlessly): the trap-vector priority encoder
+// (RETURN_FETCH only vectors to 0) and the registered (pipelined) control-word output. The
+// control word is read combinationally from the WCS, so the word at µPC drives this logic and
+// the µPC clocks to the next value each cycle.
 //
 // Structure (the BOM):
 //   3x cd74act161  -> the 12-bit µPC: synchronous LOAD# (load the next-address mux output)
 //                     or count (+1) or hold; CLR# clears it to the fetch entry (0) in boot.
+//   3x sn74f283    -> the µPC+1 adder feeding the µSR (the CALL return address).
+//   3x cd74act161  -> the 12-bit µSR (depth-1, load-only on CALL); RETURN reads it.
+//   1x sn74ahct04  -> call_active/return_active (+ the existing op-decode inverters).
+//   1x sn74ahct32  -> the widened mux selects + the CALL/RETURN do_load terms.
 //   1x sn74ahct138 -> USEQ_OP one-hot (active-low op lines).
 //   1x sn74ahct04  -> invert the op lines we act on (branch/jump/dispatch/retfetch) and
 //                     form LOAD# = ~do_load.
@@ -94,33 +100,81 @@ module microsequencer (
     sn74ahct08 brand (.a({3'b0, branch_active}), .b({3'b0, cond_taken}), .y(and_y));
     wire br_term = and_y[0];
 
-    // do_load = jump | br_term | dispatch | retfetch  (three gates of one '32; the package's
+    // base_do_load = jump | br_term | dispatch | retfetch  (three gates of one '32; the package's
     // own gate-0/gate-1 outputs feed gate-2 — an ordinary on-board cascade, not a loop):
     //   y[0] = jump_active   | br_term
     //   y[1] = dispatch_active | retfetch_active
-    //   y[2] = y[0] | y[1]   = do_load
+    //   y[2] = y[0] | y[1]   = base_do_load
     wire [3:0] or_y;
-    (* purpose = "do_load OR tree" *)
+    (* purpose = "do_load base OR tree" *)
     sn74ahct32 lor (
         .a({1'b0, or_y[0], dispatch_active, jump_active}),
         .b({1'b0, or_y[1], retfetch_active, br_term}),
         .y(or_y));
-    assign do_load = or_y[2];
+    wire base_do_load = or_y[2];
+
+    // CALL/RETURN active-high (op_n[6]/op_n[7] are the active-low CALL/RETURN strobes).
+    wire [5:0] cr_inv;
+    (* purpose = "call_active; return_active" *)
+    sn74ahct04 crinv (.a({4'b0000, op_n[7], op_n[6]}), .y(cr_inv));
+    wire call_active = cr_inv[0], return_active = cr_inv[1];
+
+    // Widen the next-addr select so RETURN picks slot 11 (the µSR), and add the CALL/RETURN load
+    // terms. sq[3] reads sq[2] — a feed-forward cascade within the package (the same idiom as
+    // `lor`), not a true loop.
+    //   sq[0] = dispatch | return = mux_sel_a    sq[2] = call | return = cr
+    //   sq[1] = retfetch | return = mux_sel_b    sq[3] = base | cr     = do_load
+    wire [3:0] sq;
+    (* purpose = "mux selects; call|return; do_load" *)
+    sn74ahct32 seqor (
+        .a({base_do_load, call_active,  retfetch_active, dispatch_active}),
+        .b({sq[2],        return_active, return_active,  return_active}),
+        .y(sq));
+    wire mux_sel_a = sq[0];
+    wire mux_sel_b = sq[1];
+    assign do_load = sq[3];
 
     // count enable = NOT WAIT: op_n[5] is LOW only on WAIT, so use it directly as the
     // active-high count enable (hold on WAIT; LOAD# dominates on load ops).
     wire count_en = op_n[5];
 
+    // ---- µPC+1 adder (3x '283): the CALL return address (caller's next step) -----
+    // The µPC '161 hides its internal +1 and on a CALL edge loads NEXT_ADDR, so the return point
+    // cannot be captured from the counter — a dedicated adder on upc_q is required.
+    wire [11:0] upc_plus1;
+    wire [2:0]  addc;
+    (* purpose = "uPC+1 [3:0]" *)
+    sn74f283 ad0 (.A(upc_q[3:0]),   .B(4'b0000), .C0(1'b1),    .S(upc_plus1[3:0]),   .C4(addc[0]));
+    (* purpose = "uPC+1 [7:4]" *)
+    sn74f283 ad1 (.A(upc_q[7:4]),   .B(4'b0000), .C0(addc[0]), .S(upc_plus1[7:4]),   .C4(addc[1]));
+    (* purpose = "uPC+1 [11:8]" *)
+    sn74f283 ad2 (.A(upc_q[11:8]),  .B(4'b0000), .C0(addc[1]), .S(upc_plus1[11:8]),  .C4(addc[2]));
+
+    // ---- µSR: depth-1 micro-subroutine return register; loads µPC+1 on CALL ------
+    // Leaf-only (a called routine must not itself CALL — microcode discipline, not interlocked).
+    wire [11:0] usr_q;
+    wire [2:0]  usr_rco;
+    (* purpose = "uSR [3:0]" *)
+    cd74act161 sr0 (.clk(clk), .clr_n(clr_n), .load_n(op_n[6]), .enp(1'b0), .ent(1'b0),
+                    .p(upc_plus1[3:0]),   .q(usr_q[3:0]),   .rco(usr_rco[0]));
+    (* purpose = "uSR [7:4]" *)
+    cd74act161 sr1 (.clk(clk), .clr_n(clr_n), .load_n(op_n[6]), .enp(1'b0), .ent(1'b0),
+                    .p(upc_plus1[7:4]),   .q(usr_q[7:4]),   .rco(usr_rco[1]));
+    (* purpose = "uSR [11:8]" *)
+    cd74act161 sr2 (.clk(clk), .clr_n(clr_n), .load_n(op_n[6]), .enp(1'b0), .ent(1'b0),
+                    .p(upc_plus1[11:8]),  .q(usr_q[11:8]),  .rco(usr_rco[2]));
+
     // ---- next-address load mux: 6x '153 (4:1, 2 bits each) ------------------
-    //   {sel_b, sel_a} = {retfetch_active, dispatch_active}:
-    //     00 -> NEXT_ADDR   01 -> lut_data   10 -> 0 (fetch entry)   11 -> 0
+    //   {sel_b, sel_a} = {retfetch|return, dispatch|return}:
+    //     00 -> NEXT_ADDR (JUMP/CALL)   01 -> lut_data (DISPATCH)
+    //     10 -> 0 (RETURN_FETCH entry)  11 -> µSR (RETURN)
     wire [11:0] p;
     genvar i;
     generate for (i = 0; i < 6; i = i + 1) begin : nmux
         sn74act153 m (
-            .a(dispatch_active), .b(retfetch_active),
-            .g1_n(1'b0), .c1({2'b00, lut_data[2*i],   next_addr[2*i]}),   .y1(p[2*i]),
-            .g2_n(1'b0), .c2({2'b00, lut_data[2*i+1], next_addr[2*i+1]}), .y2(p[2*i+1])
+            .a(mux_sel_a), .b(mux_sel_b),
+            .g1_n(1'b0), .c1({usr_q[2*i],   1'b0, lut_data[2*i],   next_addr[2*i]}),   .y1(p[2*i]),
+            .g2_n(1'b0), .c2({usr_q[2*i+1], 1'b0, lut_data[2*i+1], next_addr[2*i+1]}), .y2(p[2*i+1])
         );
     end endgenerate
 
