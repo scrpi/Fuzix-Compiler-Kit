@@ -22,7 +22,7 @@
 #   R <- 0        load a const-gen value via PASS_R (CLR / clears)
 #   goto L / if <cond> goto L / call R / return / return to fetch / dispatch [page1]
 #   count -> uloop ; uloop-- ; if not uloop.zero goto L      the dedicated loop counter
-#   cc(whole|and|or) / mi(enter|from_z|set_i|clr_i) / map(kernel|user|imm8) / pt(read|write)
+#   cc(whole|and|or) / mi(enter|set_i|clr_i) / map(kernel|user|imm8) / pt(read|write)
 #   lock / unlock   hold the bus across an RMW (TAS_LOCK)
 #   vector(NAME)    the hardwired trap-vector slot address (materialized by the trap logic)
 #   reg[src]/reg[dst]   the register-move selector nibbles drive the register-file ports
@@ -1742,7 +1742,7 @@ routine PULS mask8:
   MAR <- SP                          # walk the frame upward from SP
   SCR2 <- lsr(SCR2) : c             # shift next mask bit (lsb-first) into C
   if not c goto puls_skip0             # CC not in mask
-  CC <- [MAR]; MAR++
+  CC <- [MAR]; MAR++ ; cc(whole)    # restore CC (M/I priv-gated)
 puls_skip0:
   SCR2 <- lsr(SCR2) : c             # shift next mask bit (lsb-first) into C
   if not c goto puls_skip1             # A not in mask
@@ -1784,13 +1784,13 @@ puls_skip7:
 .opcode page0 0xd6 ANDCC $nn
 routine ANDCC $nn:
   SCR1 <- [PC]; PC++                # AND-mask
-  CC <- CC & SCR1 ; cc(and) ; return to fetch
+  _ <- SCR1 ; cc(and) ; return to fetch    # CC <- CC & mask (M/I priv-gated)
 
 # 0xd7 ORCC $nn   (2 cyc)
 .opcode page0 0xd7 ORCC $nn
 routine ORCC $nn:
   SCR1 <- [PC]; PC++                # OR-mask
-  CC <- CC | SCR1 ; cc(or) ; return to fetch
+  _ <- SCR1 ; cc(or) ; return to fetch     # CC <- CC | mask (M/I priv-gated)
 
 # 0xd8 LD reg,reg   (2 cyc)
 .opcode page0 0xd8 LD reg,reg
@@ -1932,7 +1932,7 @@ sync_wait:
 .opcode page1 0x02 RTI
 routine RTI:
   MAR <- SP                                       # supervisor frame: CC on top
-  CC  <- [MAR]; MAR++ ; cc(whole) ; mi(from_z)    # restore CC (incl. M, I)
+  CC  <- [MAR]; MAR++ ; cc(whole)                 # restore CC (incl. M, I — supervisor, so priv-gated load takes)
   SCR1.low  <- [MAR]; MAR++                       # pull PC low
   SCR1.high <- [MAR]; MAR++                       # pull PC high
   SP  <- MAR                                      # SP += 3
@@ -1984,7 +1984,7 @@ routine SWI3:
 .opcode page1 0x06 CWAI $nn
 routine CWAI $nn:
   SCR1 <- [PC]; PC++                # AND-mask
-  CC <- CC & SCR1 ; cc(and)         # apply the mask
+  _ <- SCR1 ; cc(and)              # CC <- CC & mask (M/I priv-gated)
 cwai_wait:
   if not irq goto cwai_wait         # wait for an interrupt (REVIEW: CWAI should pre-stack the full register frame for a fast interruptible entry)
   return to fetch

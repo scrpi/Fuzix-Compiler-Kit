@@ -9,7 +9,7 @@ module tb_cc;
     // decoded one-hot active-low helpers
     function [3:0] oh4(input [1:0] v); oh4 = ~(4'd1 << v); endfunction
     // V_SRC/C_SRC: FROM_ALU=0 FORCE_0=1 FORCE_1=2 ; CC_WRITE: ALU=0 WHOLE_Z=1 AND=2 OR=3
-    // CC_MI: HOLD=0 SET_ON_ENTRY=1 FROM_Z=2 EXPLICIT=3
+    // CC_MI: HOLD=0 SET_ON_ENTRY=1 SET_I=2 CLR_I=3
     localparam [4:0] WE_H=5'b00001, WE_N=5'b00010, WE_Z=5'b00100, WE_V=5'b01000, WE_C=5'b10000;
 
     reg clk = 1'b0; always #500 clk = ~clk;
@@ -86,8 +86,9 @@ module tb_cc;
         nop_ctrl; fn=1'b0; flag_we=WE_N; tick;
         if (cc_q[5] !== 1'b1) begin $display("FAIL H hold: H=%b exp 1 (a WE_N write cleared H)", cc_q[5]); errors=errors+1; end
 
-        // ---- WHOLE_Z: load low flags from Z (RTI/PULS CC); M/I held ---------------
-        nop_ctrl; cc_write_n=oh4(1); z_lo=8'h2E; tick;   // bit5 H=1,3 N=1,2 Z=1,1 V=1,0 C=0
+        // ---- WHOLE_Z: load the WHOLE byte from Z (RTI/PULS CC) — M/I too, priv-gated.
+        // In supervisor, M/I track the byte; here the byte carries M=1,I=1 so they stay set.
+        nop_ctrl; cc_write_n=oh4(1); z_lo=8'hBE; tick;   // M1 .6 H1 I1 N1 Z1 V1 C0
         chk(8'hBE, "WHOLE_Z");             // M1 H1 I1 N1 Z1 V1 C0 = 1011_1110
         // ---- AND_MASK: clear V via mask -------------------------------------------
         nop_ctrl; cc_write_n=oh4(2); z_lo=8'hFD; tick;   // mask clears bit1 (V)
@@ -96,23 +97,39 @@ module tb_cc;
         nop_ctrl; cc_write_n=oh4(3); z_lo=8'h01; tick;
         chk(8'hBD, "OR_MASK");
 
-        // ---- CC_MI_LOAD ------------------------------------------------------------
-        // SET_ON_ENTRY: M=1,I=1 regardless of Z
+        // ---- CC_MI_LOAD: SET_ON_ENTRY forces M=1,I=1 (entry bypasses privilege) ----
         nop_ctrl; cc_mi_n=oh4(1); tick;
-        if (cc_q[7] !== 1'b1 || cc_q[4] !== 1'b1) begin $display("FAIL SET_ON_ENTRY: M=%b I=%b", cc_q[7], cc_q[4]); errors=errors+1; end
-        // FROM_Z: the I source is z_lo[4] and the M source is z_lo[7] INDEPENDENTLY.
-        nop_ctrl; cc_mi_n=oh4(2); z_lo=8'h10; tick;          // I=1, M=0
-        if (cc_q[7] !== 1'b0 || cc_q[4] !== 1'b1) begin $display("FAIL FROM_Z I-src: M=%b I=%b exp 0,1", cc_q[7], cc_q[4]); errors=errors+1; end
-        nop_ctrl; cc_mi_n=oh4(1); tick;                      // back to supervisor (M=1,I=1)
-        nop_ctrl; cc_mi_n=oh4(2); z_lo=8'h80; tick;          // M=1, I=0 (proves M-src=z_lo[7])
-        if (cc_q[7] !== 1'b1 || cc_q[4] !== 1'b0) begin $display("FAIL FROM_Z M-src: M=%b I=%b exp 1,0", cc_q[7], cc_q[4]); errors=errors+1; end
-        // privilege: drop to user (M=0), then FROM_Z trying to set M=1 must be IGNORED
-        nop_ctrl; cc_mi_n=oh4(2); z_lo=8'h00; tick;          // M<-0 (loaded while still supervisor)
-        nop_ctrl; cc_mi_n=oh4(2); z_lo=8'h90; tick;          // user now; the M=1 attempt is ignored
-        if (cc_q[7] !== 1'b0) begin $display("FAIL priv: user changed M to %b (must stay 0)", cc_q[7]); errors=errors+1; end
+        if (cc_q[7] !== 1'b1 || cc_q[4] !== 1'b1) begin $display("FAIL SET_ON_ENTRY: M=%b I=%b exp 1,1", cc_q[7], cc_q[4]); errors=errors+1; end
+
+        // ---- SEI/CLI: SET_I/CLR_I change I ALONE, M held (in supervisor) -----------
+        nop_ctrl; cc_mi_n=oh4(3); tick;                      // CLR_I: I<-0, M held
+        if (cc_q[4] !== 1'b0 || cc_q[7] !== 1'b1) begin $display("FAIL CLR_I: M=%b I=%b exp 1,0", cc_q[7], cc_q[4]); errors=errors+1; end
+        nop_ctrl; cc_mi_n=oh4(2); tick;                      // SET_I: I<-1, M held
+        if (cc_q[4] !== 1'b1 || cc_q[7] !== 1'b1) begin $display("FAIL SET_I: M=%b I=%b exp 1,1", cc_q[7], cc_q[4]); errors=errors+1; end
+
+        // ---- ANDCC/ORCC mask M/I in supervisor; M held while I moves --------------
+        nop_ctrl; cc_write_n=oh4(2); z_lo=8'hEF; tick;       // CC <- CC & 0xEF  -> clear I, M held
+        if (cc_q[4] !== 1'b0 || cc_q[7] !== 1'b1) begin $display("FAIL AND_MASK I: M=%b I=%b exp 1,0", cc_q[7], cc_q[4]); errors=errors+1; end
+        nop_ctrl; cc_write_n=oh4(3); z_lo=8'h10; tick;       // CC <- CC | 0x10  -> set I, M held
+        if (cc_q[4] !== 1'b1 || cc_q[7] !== 1'b1) begin $display("FAIL OR_MASK I: M=%b I=%b exp 1,1", cc_q[7], cc_q[4]); errors=errors+1; end
+
+        // ---- WHOLE_Z (RTI/PULS CC) restores M and I independently from the stack byte
+        nop_ctrl; cc_write_n=oh4(1); z_lo=8'h80; tick;       // CC <- whole(0x80): M<-1, I<-0
+        if (cc_q[7] !== 1'b1 || cc_q[4] !== 1'b0) begin $display("FAIL WHOLE_Z M/I indep: M=%b I=%b exp 1,0", cc_q[7], cc_q[4]); errors=errors+1; end
+        nop_ctrl; cc_write_n=oh4(1); z_lo=8'h00; tick;       // CC <- whole(0x00): M<-0 (drop to user), I<-0
+        if (cc_q[7] !== 1'b0 || cc_q[4] !== 1'b0) begin $display("FAIL WHOLE_Z M/I clear: M=%b I=%b exp 0,0", cc_q[7], cc_q[4]); errors=errors+1; end
+
+        // ---- privilege: now in USER (M=0). M/I writes are IGNORED; low flags still load.
+        nop_ctrl; cc_write_n=oh4(1); z_lo=8'hFF; tick;       // WHOLE_Z tries M=1,I=1 -> held; H/N/Z/V/C load
+        if (cc_q[7] !== 1'b0 || cc_q[4] !== 1'b0) begin $display("FAIL priv WHOLE_Z: user changed M/I to %b,%b (must stay 0)", cc_q[7], cc_q[4]); errors=errors+1; end
+        if (cc_q[3] !== 1'b1) begin $display("FAIL priv low-flags: N=%b exp 1 (low flags still write in user)", cc_q[3]); errors=errors+1; end
+        nop_ctrl; cc_write_n=oh4(3); z_lo=8'h90; tick;       // OR_MASK tries to set M,I -> held
+        if (cc_q[7] !== 1'b0 || cc_q[4] !== 1'b0) begin $display("FAIL priv OR_MASK: user set M/I=%b,%b (must stay 0)", cc_q[7], cc_q[4]); errors=errors+1; end
+        nop_ctrl; cc_mi_n=oh4(2); tick;                      // SET_I (SEI) in user -> ignored
+        if (cc_q[4] !== 1'b0) begin $display("FAIL priv SET_I: user set I=%b (must stay 0)", cc_q[4]); errors=errors+1; end
 
         if (errors == 0)
-            $display("PASS - cc: reset, FLAG_WE writes, V/C_SRC, Z_ACCUM, 7 conditions, WHOLE_Z/AND/OR, M/I privilege");
+            $display("PASS - cc: reset, FLAG_WE writes, V/C_SRC, Z_ACCUM, 7 conditions, WHOLE_Z/AND/OR, SET_I/CLR_I, M/I privilege");
         else
             $fatal(1, "cc: %0d check(s) FAILED", errors);
         $finish;

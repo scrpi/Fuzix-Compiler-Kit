@@ -374,8 +374,7 @@ def bind_control(part: str, out: dict, labels: dict, fields: Fields, lineno: int
                       {"whole": "WHOLE_Z", "and": "AND_MASK", "or": "OR_MASK"}[arg]), lineno)
         elif fn == "mi":
             set_field(out, "CC_MI_LOAD", fields.code_of("CC_MI_LOAD",
-                      {"enter": "SET_ON_ENTRY", "from_z": "FROM_Z",
-                       "set_i": "EXPLICIT", "clr_i": "EXPLICIT"}[arg]), lineno)
+                      {"enter": "SET_ON_ENTRY", "set_i": "SET_I", "clr_i": "CLR_I"}[arg]), lineno)
         elif fn == "map":
             set_field(out, "MMU_MAP_SEL", fields.code_of("MMU_MAP_SEL",
                       {"kernel": "FORCE_KERNEL", "user": "FORCE_USER", "imm8": "FROM_IMM8"}[arg]), lineno)

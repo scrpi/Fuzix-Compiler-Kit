@@ -440,7 +440,11 @@ def build_puls():
             continue
         lbl = f"puls_skip{i}"
         out.append(f"if not c goto {lbl}             # {reg} not in mask")
-        if reg == 'PC':
+        if reg == 'CC':
+            # CC pull drives the CC write controls: cc(whole) loads H/N/Z/V/C from the stack
+            # byte, and (privilege-gated) M/I too — held in user mode (isa.md §8.7).
+            out += ["CC <- [MAR]; MAR++ ; cc(whole)    # restore CC (M/I priv-gated)"]
+        elif reg == 'PC':
             out += ["SCR1.low  <- [MAR]; MAR++",
                     "SCR1.high <- [MAR]; MAR++",
                     "SP <- MAR                          # commit SP (LEFT = MAR)",
@@ -484,7 +488,7 @@ HAND = {
  ],
  'RTI': [
     "MAR <- SP                                       # supervisor frame: CC on top",
-    "CC  <- [MAR]; MAR++ ; cc(whole) ; mi(from_z)    # restore CC (incl. M, I)",
+    "CC  <- [MAR]; MAR++ ; cc(whole)                 # restore CC (incl. M, I — supervisor, so priv-gated load takes)",
     "SCR1.low  <- [MAR]; MAR++                       # pull PC low",
     "SCR1.high <- [MAR]; MAR++                       # pull PC high",
     "SP  <- MAR                                      # SP += 3",
@@ -556,15 +560,18 @@ def build(op):
     if verb == 'PULS':
         return build_puls()
 
+    # ANDCC/ORCC/CWAI stage the immediate mask on Z; the CC register itself ANDs/ORs it with CC
+    # (cc(and)/cc(or)) across all bits, so M/I are masked too in supervisor and held in user
+    # (isa.md §8.7) — no CC-on-LEFT read needed.
     if verb == 'ANDCC':
         return ["SCR1 <- [PC]; PC++                # AND-mask",
-                "CC <- CC & SCR1 ; cc(and) ; return to fetch"]
+                "_ <- SCR1 ; cc(and) ; return to fetch    # CC <- CC & mask (M/I priv-gated)"]
     if verb == 'ORCC':
         return ["SCR1 <- [PC]; PC++                # OR-mask",
-                "CC <- CC | SCR1 ; cc(or) ; return to fetch"]
+                "_ <- SCR1 ; cc(or) ; return to fetch     # CC <- CC | mask (M/I priv-gated)"]
     if verb == 'CWAI':
         return ["SCR1 <- [PC]; PC++                # AND-mask",
-                "CC <- CC & SCR1 ; cc(and)         # apply the mask",
+                "_ <- SCR1 ; cc(and)              # CC <- CC & mask (M/I priv-gated)",
                 "cwai_wait:",
                 "if not irq goto cwai_wait         # wait for an interrupt (REVIEW: CWAI should pre-stack the full register frame for a fast interruptible entry)",
                 "return to fetch"]
@@ -662,7 +669,7 @@ HEADER = '''\
 #   R <- 0        load a const-gen value via PASS_R (CLR / clears)
 #   goto L / if <cond> goto L / call R / return / return to fetch / dispatch [page1]
 #   count -> uloop ; uloop-- ; if not uloop.zero goto L      the dedicated loop counter
-#   cc(whole|and|or) / mi(enter|from_z|set_i|clr_i) / map(kernel|user|imm8) / pt(read|write)
+#   cc(whole|and|or) / mi(enter|set_i|clr_i) / map(kernel|user|imm8) / pt(read|write)
 #   lock / unlock   hold the bus across an RMW (TAS_LOCK)
 #   vector(NAME)    the hardwired trap-vector slot address (materialized by the trap logic)
 #   reg[src]/reg[dst]   the register-move selector nibbles drive the register-file ports
