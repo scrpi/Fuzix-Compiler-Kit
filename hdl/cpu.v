@@ -55,6 +55,10 @@
 // edge-latch is a refinement). The trap microroutine bodies in blip.uc + a .trap address-pin
 // directive are the remaining microcode-side work.
 //
+// The bus arbiter (bus_arbiter.v) grants the bus on /BUSREQ (tri-stating A//RD//WR via the south-
+// edge buffers, inhibiting the CPU's own transfers); TAS_LOCK holds the bus across an RMW so the
+// grant is refused mid-lock. /BUSGRANT leaves the CPU.
+//
 // SCAFFOLD — what remains:
 //   * cond[12]=MULTIBYTE_LAST ties inactive (its counter is unbuilt; under-specified). The
 //     trap encoder does not yet take illegal/priv as sync sources (they need a dispatch-time
@@ -75,11 +79,13 @@ module cpu #(
     input  wire         irq,         // IRQ request pending (level; I-mask gating is microcode policy)
     input  wire         nmi,         // NMI request pending (non-maskable)
     input  wire         wait_ready,  // bus ready (1 = ready; 0 = stretch the cycle)
+    input  wire         busreq_n,    // /BUSREQ — an external master asks for the bus (interface.md §4.6)
+    output wire         busgrant_n,  // /BUSGRANT — the CPU has tri-stated A//RD//WR
     // system bus — memory is modelled in the harness (R-SIM-3; interface.md §2)
-    output wire [23:0]  a,           // physical address A[23:0]
+    output wire [23:0]  a,           // physical address A[23:0] (tri-state on bus grant)
     inout  wire [7:0]   d,           // data bus D[7:0]
-    output wire         rd_n,        // /RD
-    output wire         wr_n,        // /WR
+    output wire         rd_n,        // /RD (tri-state on bus grant)
+    output wire         wr_n,        // /WR (tri-state on bus grant)
     // observability — privileged debug taps (R-DBG-5)
     output wire         loading,     // HIGH while the boot copy runs
     output wire [11:0]  upc,         // the micro-PC once running
@@ -114,7 +120,7 @@ module cpu #(
     wire [3:0]  mmu_addr_n, mmu_map_n, mmu_pt_n;
     wire [3:0]  v_src_n, c_src_n, cc_write_n, cc_mi_n;
     wire [4:0]  flag_we;
-    wire        alu_cin, alu_width, z_accum, sp_bank;
+    wire        alu_cin, alu_width, z_accum, sp_bank, tas_lock;
     (* purpose = "datapath decoder" *)
     control_word_decoder dec (
         .cw_dp(cw_wcs[87:24]),
@@ -125,8 +131,21 @@ module cpu #(
         .cc_write_n(cc_write_n), .cc_mi_n(cc_mi_n), .z_dest_n(z_dest_n), .z_lane_n(z_lane_n),
         .pc_ctrl_n(pc_ctrl_n), .mar_ctrl_n(mar_ctrl_n), .x_ctrl_n(x_ctrl_n), .y_ctrl_n(y_ctrl_n),
         .mem_op_n(mem_op_n), .mmu_addr_n(mmu_addr_n), .mmu_map_n(mmu_map_n),
-        .mmu_pt_n(mmu_pt_n), .sp_bank(sp_bank)
+        .mmu_pt_n(mmu_pt_n), .sp_bank(sp_bank), .tas_lock(tas_lock)
     );
+
+    // --- bus arbiter: /BUSREQ -> /BUSGRANT; TAS_LOCK holds the bus across an RMW ---
+    wire granted, bus_oe_n;
+    (* purpose = "bus arbiter (/BUSREQ-/BUSGRANT)" *)
+    bus_arbiter u_arb (
+        .clk(clk), .busreq_n(busreq_n), .bus_locked(tas_lock), .loading(loading),
+        .granted(granted), .busgrant_n(busgrant_n), .bus_oe_n(bus_oe_n)
+    );
+    // the CPU inhibits its own transfers while booting OR while the bus is granted away
+    wire [3:0] inhib;
+    (* purpose = "bus_inhibit = loading | granted" *)
+    sn74ahct32 inhg (.a({3'b0, loading}), .b({3'b0, granted}), .y(inhib));
+    wire bus_inhibit = inhib[0];
 
     // --- run = ~loading, plus the PC/MAR/X/Y COUNT-enable inversions; rd = ~/RD --------
     wire [5:0] inv_y;
@@ -300,24 +319,34 @@ module cpu #(
     // --- MMU: translate the logical address to A[23:0] (owns the address bus) ---
     wire [15:0] mmu_entry_q;
     wire [10:0] mmu_entry_rd;
+    wire [23:0] a_pre;
     (* purpose = "MMU (translate + page table)" *)
     mmu u_mmu (
         .clk(clk), .loading(loading), .loader_addr(loader_addr), .addr_logical(addr_logical),
         .mmu_addr_n(mmu_addr_n), .mmu_map_n(mmu_map_n), .mmu_pt_n(mmu_pt_n), .cc_m(cc_m),
-        .entry_in(mmu_entry_q[10:0]), .entry_rd(mmu_entry_rd), .a(a)
+        .entry_in(mmu_entry_q[10:0]), .entry_rd(mmu_entry_rd), .a(a_pre)
     );
+    // A[23:0] south-edge drivers — tri-stated on a bus grant (interface.md §4.6).
+    (* purpose = "A drive [7:0]" *)   sn74ahct244 ad0 (.a(a_pre[7:0]),   .oe1_n(bus_oe_n), .oe2_n(bus_oe_n), .y(a[7:0]));
+    (* purpose = "A drive [15:8]" *)  sn74ahct244 ad1 (.a(a_pre[15:8]),  .oe1_n(bus_oe_n), .oe2_n(bus_oe_n), .y(a[15:8]));
+    (* purpose = "A drive [23:16]" *) sn74ahct244 ad2 (.a(a_pre[23:16]), .oe1_n(bus_oe_n), .oe2_n(bus_oe_n), .y(a[23:16]));
 
     // --- MDR + external bus port. MDR drives LEFT (low lane); write data = Z low. ---
     // (The MMU owns A[23:0] now, so memory_interface's own identity-A output is left unconnected.)
     (* purpose = "MDR + memory bus port" *)
+    wire mi_rd_n, mi_wr_n;
     memory_interface mi (
         .clk(clk),
         .mem_op_n(mem_op_n), .z_dest_mdr_n(z_dest_n[7]), .left_src_mdr_n(left_src_n[10]),
-        .bus_inhibit(loading),
+        .bus_inhibit(bus_inhibit),
         .addr(addr_logical), .z_lo(z[7:0]),
         .mdr_q(mdr_q), .z_post(z), .left_lo(left_raw[7:0]),
-        .a(), .d(d), .rd_n(rd_n), .wr_n(wr_n)
+        .a(), .d(d), .rd_n(mi_rd_n), .wr_n(mi_wr_n)
     );
+    // /RD //WR south-edge drivers — tri-stated on a bus grant.
+    (* purpose = "/RD //WR drive (tri-state on grant)" *)
+    sn74ahct541 rwdrv (.a({6'b0, mi_wr_n, mi_rd_n}), .oe1_n(bus_oe_n), .oe2_n(1'b0), .y({rwz, wr_n, rd_n}));
+    wire [5:0] rwz;     // the '541's unused high outputs
 
     // --- opcode register IR: latch the read byte on IR_LOAD, or from ir_drive (debug) --
     // The opcode being fetched is on Z[7:0] (the read post) DURING the fetch read, so a single

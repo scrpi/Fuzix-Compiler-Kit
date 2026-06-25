@@ -24,6 +24,7 @@ module tb_regfile;
         .clk(clk), .rst_n(rst_n), .ir_inject(1'b0), .ir_drive(8'h00),
         .cond_inject(1'b0), .cond_drive(16'h0000),
         .irq(1'b0), .nmi(1'b0), .wait_ready(1'b1),
+        .busreq_n(1'b1), .busgrant_n(),
         .a(a), .d(d), .rd_n(rd_n), .wr_n(wr_n),
         .loading(loading), .upc(upc), .cw(cw), .lut_out(lut_out), .ir_q(ir_q),
         .pc_q(pc_q), .z_q(z_q), .cc_q(cc_q)
