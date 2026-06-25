@@ -16,7 +16,7 @@ TOP    ?=
 MODE   ?=
 
 .NOTPARALLEL:
-.PHONY: test image browser check lint sim cpu useq reg regfile alu right cc ccx mmu mem lane lanex uloop irqx trap fault arbx tasx ldz prog shiftx fetch exec bench viz logisim logisim-test digitaljs bom clean help
+.PHONY: test image browser check lint sim cpu useq reg regfile alu right cc ccx mmu mem lane lanex uloop irqx trap fault arbx tasx ldz prog shiftx fetch exec bench ctests viz logisim logisim-test digitaljs bom clean help
 
 ## test:   run the whole suite (image, field-def check, both lints, tool + timed test-benches)
 test: image check lint logisim-test sim
@@ -138,6 +138,12 @@ exec:
 ## bench:  two-engine throughput benchmark (Verilator vs timed Icarus)
 bench:
 	bash sim/bench/run.sh
+
+## ctests: compile real C programs (tools/fcc) and run them on the gate-level CPU, checking
+##         output + exit against the emublip emulator (oracle). Not in `test` yet — surfaces a
+##         gate-microcode gap (RTS) that blocks compiled C; see sim/ctests/README.md.
+ctests:
+	bash sim/ctests/run.sh
 
 ## viz:    schematic SVG of every HDL block — Yosys -> netlistsvg (one via TOP=<module>)
 viz:
