@@ -31,7 +31,8 @@ module tb_fetch;
 
     // ir_inject=0 -> REAL fetch (IR from MDR, never from ir_drive). cond_drive unused (no branch).
     cpu #(.FILE(`IMG)) dut (
-        .clk(clk), .rst_n(rst_n), .ir_inject(1'b0), .ir_drive(8'h00), .cond_drive(16'h0000),
+        .clk(clk), .rst_n(rst_n), .ir_inject(1'b0), .ir_drive(8'h00),
+        .cond_inject(1'b1), .cond_drive(16'h0000),
         .a(a), .d(d), .rd_n(rd_n), .wr_n(wr_n),
         .loading(loading), .upc(upc), .cw(cw), .lut_out(lut_out), .ir_q(ir_q), .pc_q(pc_q)
     );

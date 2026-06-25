@@ -16,7 +16,7 @@ TOP    ?=
 MODE   ?=
 
 .NOTPARALLEL:
-.PHONY: test image browser check lint sim cpu reg alu right mem fetch bench viz logisim logisim-test digitaljs clean help
+.PHONY: test image browser check lint sim cpu reg alu right cc mem fetch exec bench viz logisim logisim-test digitaljs bom clean help
 
 ## test:   run the whole suite (image, field-def check, both lints, tool + timed test-benches)
 test: image check lint logisim-test sim
@@ -40,7 +40,7 @@ lint:
 	$(PYTHON) tools/lint/timing_lint.py
 
 ## sim:    the timed, self-checking test-benches
-sim: cpu reg alu right mem fetch bench
+sim: cpu reg alu right cc mem fetch exec bench
 
 ## cpu:    boot copy (real loader + EEPROM -> WCS) then the microsequencer walk
 ##         (INC/JUMP/BRANCH/DISPATCH/WAIT) — the loader is proven on this standard path
@@ -59,6 +59,10 @@ alu:
 right:
 	bash sim/tb/right/run.sh
 
+## cc:     the condition-code board — flag writes, V/C_SRC, Z_ACCUM, conditions, M/I privilege
+cc:
+	bash sim/tb/cc/run.sh
+
 ## mem:    the MDR + external-bus port — stage/WRITE/READ round trip vs a memory model
 mem:
 	bash sim/tb/mem/run.sh
@@ -66,6 +70,10 @@ mem:
 ## fetch:  REAL instruction fetch — PC -> MMU -> memory model -> MDR -> IR -> DISPATCH
 fetch:
 	bash sim/tb/fetch/run.sh
+
+## exec:   REAL execute + branch — compute -> CC -> branch on the live condition (closes cond_drive)
+exec:
+	bash sim/tb/exec/run.sh
 
 ## bench:  two-engine throughput benchmark (Verilator vs timed Icarus)
 bench:
@@ -91,6 +99,10 @@ logisim-test:
 ##            bus DigitalJS can't model — use `make viz` for the cpu schematic)
 digitaljs:
 	bash tools/viz/digitaljs.sh $(TOP)
+
+## bom:    package count — flatten each board-level top (Yosys) and tally real chips
+bom:
+	$(PYTHON) tools/bom/chipcount.py
 
 ## clean:  remove generated artifacts (keeps the hand-edited logisim/build/*.circ)
 clean:
