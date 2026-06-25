@@ -609,15 +609,8 @@ static void blip_step(void)
 	case 0x0D5: do_puls(op_mask); break;
 	case 0x0D6: CC &= (uint8_t)op_imm; break;                 /* ANDCC (supervisor here) */
 	case 0x0D7: CC |= (uint8_t)op_imm; break;                 /* ORCC */
-	case 0x0D8: { int src = (op_sel >> 4) & 0xF, dst = op_sel & 0xF; /* LD reg,reg */
-		uint16_t v = sel_get(src);
-		if (sel_is16(dst) || dst == M_A || dst == M_B || dst == M_CC)
-			sel_put(dst, v);
-		} break;
-	case 0x0D9: { int a = (op_sel >> 4) & 0xF, b = op_sel & 0xF; /* XCHG reg,reg */
-		uint16_t va = sel_get(a), vb = sel_get(b);
-		sel_put(a, vb); sel_put(b, va);
-		} break;
+	case 0x0D8: sel_put(M_D, X); break;                      /* LD D,X (CC unaffected) */
+	case 0x0D9: X = getD(); break;                           /* LD X,D */
 	case 0x0DA: { uint8_t v = rd8(X); set_nz8(v); CC &= ~F_V; wr8(X, 0xFF); } break;          /* TAS (X) */
 	case 0x0DB: { uint16_t ea = ea_add(X, op_off); uint8_t v = rd8(ea); set_nz8(v); CC &= ~F_V; wr8(ea, 0xFF); } break;
 	case 0x0DC: X = ea_add(X, op_off); setf(F_Z, X == 0); break;   /* LEA X,X+n8 (Z only) */
@@ -633,6 +626,8 @@ static void blip_step(void)
 	case 0x0E6: Y = ea_add(SP, op_off); setf(F_Z, Y == 0); break;
 	case 0x0E7: SP = ea_add(SP, op_off); break;                   /* LEA SP — no flags */
 	case 0x0E8: SP = ea_add(X, op_off); break;
+	case 0x0E9: { uint16_t t = getD(); sel_put(M_D, Y); Y = t; } break;  /* XCHG D,Y (CC unaffected) */
+	case 0x0EA: { uint16_t t = getD(); sel_put(M_D, X); X = t; } break;  /* XCHG D,X (CC unaffected) */
 
 	/* ───────────────────── page 1 ───────────────────── */
 

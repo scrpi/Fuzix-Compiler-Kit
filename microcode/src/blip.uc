@@ -1874,21 +1874,15 @@ routine ORCC $nn:
   SCR1 <- [PC]; PC++                # OR-mask
   _ <- SCR1 ; cc(or) ; return to fetch     # CC <- CC | mask (M/I priv-gated)
 
-# 0xd8 LD reg,reg   (2 cyc)
-.opcode page0 0xd8 LD reg,reg
-routine LD reg,reg:
-  SCR2 <- [PC]; PC++                # src|dst register-select byte
-  # the selector nibbles drive the register-file read/write ports
-  # (a datapath mux fed by SCR2, not a control-word field):
-  reg[dst] <- reg[src] ; return to fetch
+# 0xd8 LD D,X   (1 cyc)
+.opcode page0 0xd8 LD D,X
+routine LD D,X:
+  D <- X ; return to fetch
 
-# 0xd9 XCHG reg,reg   (4 cyc)
-.opcode page0 0xd9 XCHG reg,reg
-routine XCHG reg,reg:
-  SCR2 <- [PC]; PC++                # the two register-select nibbles
-  SCR1 <- reg[dst]                  # selector-driven (see LD reg,reg)
-  reg[dst] <- reg[src]
-  reg[src] <- SCR1 ; return to fetch
+# 0xd9 LD X,D   (1 cyc)
+.opcode page0 0xd9 LD X,D
+routine LD X,D:
+  X <- D ; return to fetch
 
 # 0xda TAS (X)   (6 cyc)
 .opcode page0 0xda TAS (X)
@@ -1993,6 +1987,20 @@ routine LEA SP,X+n8:
   MDR  <- [PC]; PC++                # 8-bit displacement
   SCR1 <- sext(MDR)
   SP <- X + SCR1 ; return to fetch
+
+# 0xe9 XCHG D,Y   (3 cyc)
+.opcode page0 0xe9 XCHG D,Y
+routine XCHG D,Y:
+  SCR1 <- D
+  D <- Y
+  Y <- SCR1 ; return to fetch
+
+# 0xea XCHG D,X   (3 cyc)
+.opcode page0 0xea XCHG D,X
+routine XCHG D,X:
+  SCR1 <- D
+  D <- X
+  X <- SCR1 ; return to fetch
 
 # ===========================================================================
 # PAGE 1 · System / privileged / cold TAS & LEA

@@ -1950,19 +1950,19 @@ priv = false
 [[op]]
 page = 0
 byte = 0xD8
-mnem = "LD reg,reg"
+mnem = "LD D,X"
 group = "System / inherent / LEA / moves"
-trailing = ["movsel"]
-length = 2
+trailing = []
+length = 1
 priv = false
 
 [[op]]
 page = 0
 byte = 0xD9
-mnem = "XCHG reg,reg"
+mnem = "LD X,D"
 group = "System / inherent / LEA / moves"
-trailing = ["movsel"]
-length = 2
+trailing = []
+length = 1
 priv = false
 
 [[op]]
@@ -2098,6 +2098,24 @@ mnem = "LEA SP,X+n8"
 group = "System / inherent / LEA / moves"
 trailing = ["off8"]
 length = 2
+priv = false
+
+[[op]]
+page = 0
+byte = 0xE9
+mnem = "XCHG D,Y"
+group = "System / inherent / LEA / moves"
+trailing = []
+length = 1
+priv = false
+
+[[op]]
+page = 0
+byte = 0xEA
+mnem = "XCHG D,X"
+group = "System / inherent / LEA / moves"
+trailing = []
+length = 1
 priv = false
 
 # ── page 1 · System / privileged / cold TAS & LEA ──

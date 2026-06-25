@@ -400,23 +400,8 @@ def build_tas(arg, mem):
     ] + store_bytes([("SCR2", "")], tail="unlock")   # set: store the all-ones, release the bus lock
 
 
-# register-register & USP-banking moves -------------------------------------
-def build_reg_move(verb):
-    if verb == 'LD':
-        return [
-            "SCR2 <- [PC]; PC++                # src|dst register-select byte",
-            "# the selector nibbles drive the register-file read/write ports",
-            "# (a datapath mux fed by SCR2, not a control-word field):",
-            "reg[dst] <- reg[src] ; return to fetch",
-        ]
-    return [
-        "SCR2 <- [PC]; PC++                # the two register-select nibbles",
-        "SCR1 <- reg[dst]                  # selector-driven (see LD reg,reg)",
-        "reg[dst] <- reg[src]",
-        "reg[src] <- SCR1 ; return to fetch",
-    ]
-
-
+# USP-banking moves ---------------------------------------------------------
+# (Register-register moves are dedicated opcodes now — LD D,X / LD X,D / XCHG D,Y in HAND above.)
 def build_usp_move(verb, tgt, operand):
     if verb == 'LD':
         return [f"{tgt} <- {operand} ; return to fetch"]
@@ -482,6 +467,12 @@ def build_puls():
 # fully hand-written irregular routines -------------------------------------
 HAND = {
  'NOP': ["return to fetch"],
+ # explicit register-register moves — the only pairs the C backend emits (D-NN). Each is a plain
+ # register pass on the existing buses; no selector datapath. Moves preserve CC (no flag clause).
+ 'LD D,X':   ["D <- X ; return to fetch"],
+ 'LD X,D':   ["X <- D ; return to fetch"],
+ 'XCHG D,Y': ["SCR1 <- D", "D <- Y", "Y <- SCR1 ; return to fetch"],
+ 'XCHG D,X': ["SCR1 <- D", "D <- X", "X <- SCR1 ; return to fetch"],
  'RTS': [
     "MAR  <- SP                         # frame top = return-addr low byte",
     "SCR1.low  <- [MAR]; MAR++          # pull return addr low",
@@ -550,10 +541,6 @@ def build(op):
     if mnem in HAND:
         return HAND[mnem]
 
-    if mnem == 'LD reg,reg':
-        return build_reg_move('LD')
-    if mnem == 'XCHG reg,reg':
-        return build_reg_move('XCHG')
     if verb in ('LD', 'XCHG') and (tgt == 'USP' or operand == 'USP'):
         return build_usp_move(verb, tgt, operand)
 
