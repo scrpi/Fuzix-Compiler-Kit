@@ -1929,14 +1929,14 @@ routine DAA:
   A <- A + SCR1 : nzvc ; return to fetch
 
 # 0x01 SYNC   (2 cyc · privileged)
-.opcode page1 0x01 SYNC
+.opcode page1 0x01 SYNC priv
 routine SYNC:
 sync_wait:
   if not irq goto sync_wait          # privileged: spin until an interrupt is pending
   return to fetch
 
 # 0x02 RTI   (6 cyc · privileged)
-.opcode page1 0x02 RTI
+.opcode page1 0x02 RTI priv
 routine RTI:
   MAR <- SP                                       # supervisor frame: CC on top
   CC  <- [MAR]; MAR++ ; cc(whole)                 # restore CC (incl. M, I — supervisor, so priv-gated load takes)
@@ -1997,79 +1997,79 @@ cwai_wait:
   return to fetch
 
 # 0x07 SEI   (1 cyc · privileged)
-.opcode page1 0x07 SEI
+.opcode page1 0x07 SEI priv
 routine SEI:
   mi(set_i) ; return to fetch       # privileged: set the IRQ mask
 
 # 0x08 CLI   (1 cyc · privileged)
-.opcode page1 0x08 CLI
+.opcode page1 0x08 CLI priv
 routine CLI:
   mi(clr_i) ; return to fetch       # privileged: clear the IRQ mask
 
 # 0x09 HALT   (1 cyc · privileged)
-.opcode page1 0x09 HALT
+.opcode page1 0x09 HALT priv
 routine HALT:
 halt_spin:
   goto halt_spin                     # privileged: stop until RESET
 
 # 0x0a LDMMU $nn   (2 cyc · privileged · REVIEW)
-.opcode page1 0x0a LDMMU $nn
+.opcode page1 0x0a LDMMU $nn priv
 routine LDMMU $nn:
   SCR1 <- [PC]; PC++                # page-table slot selector
   MMU_ENTRY <- D ; pt(write) ; map(imm8) ; return to fetch   # REVIEW: entry source/format
 
 # 0x0b STMMU $nn   (2 cyc · privileged · REVIEW)
-.opcode page1 0x0b STMMU $nn
+.opcode page1 0x0b STMMU $nn priv
 routine STMMU $nn:
   SCR1 <- [PC]; PC++                # page-table slot selector
   D <- MMU_ENTRY ; pt(read) ; map(imm8) ; return to fetch    # REVIEW: entry dest/format
 
 # 0x0c LD USP,X   (1 cyc · privileged)
-.opcode page1 0x0c LD USP,X
+.opcode page1 0x0c LD USP,X priv
 routine LD USP,X:
   USP <- X ; return to fetch
 
 # 0x0d LD USP,Y   (1 cyc · privileged)
-.opcode page1 0x0d LD USP,Y
+.opcode page1 0x0d LD USP,Y priv
 routine LD USP,Y:
   USP <- Y ; return to fetch
 
 # 0x0e LD USP,D   (1 cyc · privileged)
-.opcode page1 0x0e LD USP,D
+.opcode page1 0x0e LD USP,D priv
 routine LD USP,D:
   USP <- D ; return to fetch
 
 # 0x0f LD X,USP   (1 cyc · privileged)
-.opcode page1 0x0f LD X,USP
+.opcode page1 0x0f LD X,USP priv
 routine LD X,USP:
   X <- USP ; return to fetch
 
 # 0x10 LD Y,USP   (1 cyc · privileged)
-.opcode page1 0x10 LD Y,USP
+.opcode page1 0x10 LD Y,USP priv
 routine LD Y,USP:
   Y <- USP ; return to fetch
 
 # 0x11 LD D,USP   (1 cyc · privileged)
-.opcode page1 0x11 LD D,USP
+.opcode page1 0x11 LD D,USP priv
 routine LD D,USP:
   D <- USP ; return to fetch
 
 # 0x12 XCHG X,USP   (3 cyc · privileged)
-.opcode page1 0x12 XCHG X,USP
+.opcode page1 0x12 XCHG X,USP priv
 routine XCHG X,USP:
   SCR1 <- X
   X <- USP
   USP <- SCR1 ; return to fetch
 
 # 0x13 XCHG Y,USP   (3 cyc · privileged)
-.opcode page1 0x13 XCHG Y,USP
+.opcode page1 0x13 XCHG Y,USP priv
 routine XCHG Y,USP:
   SCR1 <- Y
   Y <- USP
   USP <- SCR1 ; return to fetch
 
 # 0x14 XCHG D,USP   (3 cyc · privileged)
-.opcode page1 0x14 XCHG D,USP
+.opcode page1 0x14 XCHG D,USP priv
 routine XCHG D,USP:
   SCR1 <- D
   D <- USP

@@ -759,7 +759,8 @@ def emit():
         review = " · REVIEW" if any('REVIEW' in ln for ln in lines) else ""
         note = f"# {op['byte']:#04x} {op['mnem']}   ({nc} cyc{priv}{review})"
         L.append(note)
-        L.append(f".opcode page{op['page']} {op['byte']:#04x} {op['mnem']}")
+        L.append(f".opcode page{op['page']} {op['byte']:#04x} {op['mnem']}"
+                 + (" priv" if op.get('priv') else ""))
         L.append(f"routine {op['mnem']}:")
         L += fmt_routine(lines)
         L.append("")

@@ -486,13 +486,16 @@ def parse(text: str, fields: Fields):
                 ptoks = rest.split(None, 2)
                 if len(ptoks) != 3 or ptoks[0].lower() not in ("page0", "page1"):
                     raise AsmError(f"line {lineno}: .opcode expects "
-                                   f"'page0|page1 <byte> <mnemonic>'")
+                                   f"'page0|page1 <byte> <mnemonic> [priv]'")
                 try:
                     byte = int(ptoks[1], 0)
                 except ValueError:
                     raise AsmError(f"line {lineno}: .opcode byte {ptoks[1]!r} is not a number")
+                mnem, priv = ptoks[2].strip(), False
+                if mnem.endswith(" priv"):       # the privileged-opcode marker -> LUT priv bit
+                    mnem, priv = mnem[:-5].strip(), True
                 opcodes.append((0 if ptoks[0].lower() == "page0" else 1,
-                                byte, ptoks[2].strip(), lineno))
+                                byte, mnem, priv, lineno))
             else:
                 raise AsmError(f"line {lineno}: unknown directive {d!r}")
             continue
@@ -551,7 +554,7 @@ def assemble(text: str, fields: Fields):
     clut = [0] * LUT_ENTRIES
     seen: dict[tuple[int, int], str] = {}
     entries: list[tuple[int, int, str]] = []
-    for page, byte, mnem, lineno in opcodes:
+    for page, byte, mnem, priv, lineno in opcodes:
         if mnem not in labels:
             raise AsmError(f"line {lineno}: .opcode {mnem!r} has no matching 'routine'")
         if not 0 <= byte < 256:
@@ -560,7 +563,10 @@ def assemble(text: str, fields: Fields):
             raise AsmError(f"line {lineno}: opcode page{page} {byte:#04x} already "
                            f"bound to {seen[(page, byte)]!r}")
         seen[(page, byte)] = mnem
-        clut[(page << 8) | byte] = labels[mnem]
+        # LUT entry: 12-bit start address, + priv at bit 12 (-> lut_hi[4], AND'd with ~CC.M by the
+        # priv-violation detector) + VALID at bit 13 (-> lut_hi[5]; an unbound byte stays 0 so
+        # lut_hi[5]=0 -> illegal-opcode).
+        clut[(page << 8) | byte] = labels[mnem] | ((1 << 12) if priv else 0) | (1 << 13)
         entries.append((page, byte, mnem))
 
     return words, labels, clut, entries
@@ -608,7 +614,7 @@ def build_image(words, clut, fields: Fields) -> bytearray:
             img[k * SEG_SIZE + mw.addr] = (w >> (8 * k)) & 0xFF
     for i, entry in enumerate(clut):
         img[SEG_LUT_LO * SEG_SIZE + i] = entry & 0xFF
-        img[SEG_LUT_HI * SEG_SIZE + i] = (entry >> 8) & 0x0F
+        img[SEG_LUT_HI * SEG_SIZE + i] = (entry >> 8) & 0x3F   # addr[11:8] + priv[4] + valid[5]
     return img
 
 

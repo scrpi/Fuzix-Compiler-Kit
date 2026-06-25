@@ -56,9 +56,9 @@
 // directive are the remaining microcode-side work.
 //
 // SCAFFOLD — what remains:
-//   * The fault microconditions cond[14:12] (MULTIBYTE_LAST/PRIV_VIOLATION/ILLEGAL_OPCODE) tie
-//     inactive until their detect logic lands; IRQ is not yet I-masked in hardware (recognition
-//     is microcode policy for now).
+//   * cond[12]=MULTIBYTE_LAST ties inactive (its counter is unbuilt; under-specified). The
+//     trap encoder does not yet take illegal/priv as sync sources (they need a dispatch-time
+//     redirect + a current-page register for page-1 opcodes) — cond[13]/[14] are live conditions.
 `timescale 1ns/1ps
 `default_nettype none
 module cpu #(
@@ -361,15 +361,20 @@ module cpu #(
     // --- IRQ I-mask + RETURN_FETCH decode (for the trap encoder) -----------
     // irq_masked = irq & ~CC.I (R-CPU-6: a masked IRQ is never recognised, in hardware — the same
     // single source feeds cond[9] and the trap encoder). retfetch_active = USEQ_OP==RETURN_FETCH.
+    // ---- fault detectors: PRIV_VIOLATION (priv opcode in user) + ILLEGAL_OPCODE (LUT VALID=0).
+    // The opcode-LUT carries a privileged bit (lut_hi[4]) and a VALID bit (lut_hi[5]); both index
+    // off the current IR (ir_d). These (combinational) drive cond[13]/[14] for the microcode to
+    // branch on; wiring them as RETURN_FETCH/dispatch trap sources is the remaining refinement.
     wire [5:0] tiv;
-    (* purpose = "~CC.I; ~USEQ_OP[1:0]" *)
-    sn74ahct04 tinv (.a({3'b000, cw_wcs[1], cw_wcs[0], cc_q[4]}), .y(tiv));
-    wire nI = tiv[0], nU0 = tiv[1], nU1 = tiv[2];
+    (* purpose = "~CC.I; ~USEQ_OP[1:0]; ~CC.M; illegal=~VALID" *)
+    sn74ahct04 tinv (.a({1'b0, lut_hi[5], cc_q[7], cw_wcs[1], cw_wcs[0], cc_q[4]}), .y(tiv));
+    wire nI = tiv[0], nU0 = tiv[1], nU1 = tiv[2], nM = tiv[3], illegal_op = tiv[4];
     wire [3:0] tand;
-    (* purpose = "irq_masked; retfetch_active" *)
-    sn74ahct08 tandg (.a({1'b0, cw_wcs[2], nU0, irq}), .b({1'b0, tand[1], nU1, nI}), .y(tand));
+    (* purpose = "irq_masked; retfetch_active; priv_violation" *)
+    sn74ahct08 tandg (.a({lut_hi[4], cw_wcs[2], nU0, irq}), .b({nM, tand[1], nU1, nI}), .y(tand));
     wire irq_masked = tand[0];           // irq & ~CC.I
     wire retfetch_active = tand[2];      // USEQ_OP==RETURN_FETCH(4) = u2 & ~u1 & ~u0
+    wire priv_violation = tand[3];       // lut_priv & ~CC.M
 
     // --- trap-vector encoder: redirect RETURN_FETCH to a pending trap entry -
     // NMI is taken as a level here (the edge-latch is a documented refinement).
@@ -386,7 +391,8 @@ module cpu #(
     // cond[15:8] = cond_inject ? cond_drive[15:8] : the internal microconditions:
     //   [8]=ULOOP [9]=IRQ(masked) [10]=NMI [11]=WAIT_READY [12..14]=fault flags (unbuilt) [15]=spare.
     wire [15:0] cond_seq;
-    wire [7:0]  internal_cond = {4'b0000, wait_ready, nmi, irq_masked, uloop_zero};
+    wire [7:0]  internal_cond = {1'b0, illegal_op, priv_violation, 1'b0,
+                                 wait_ready, nmi, irq_masked, uloop_zero};
     wire [3:0]  cci1_y;
     (* purpose = "cond mux CC vs inject [3:0]" *)
     sn74ahct157 cci0 (.a(cc_cond[3:0]), .b(cond_drive[3:0]), .sel(cond_inject), .g_n(1'b0), .y(cond_seq[3:0]));

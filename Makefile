@@ -16,7 +16,7 @@ TOP    ?=
 MODE   ?=
 
 .NOTPARALLEL:
-.PHONY: test image browser check lint sim cpu useq reg regfile alu right cc ccx mmu mem lane lanex uloop irqx trap ldz prog shiftx fetch exec bench viz logisim logisim-test digitaljs bom clean help
+.PHONY: test image browser check lint sim cpu useq reg regfile alu right cc ccx mmu mem lane lanex uloop irqx trap fault ldz prog shiftx fetch exec bench viz logisim logisim-test digitaljs bom clean help
 
 ## test:   run the whole suite (image, field-def check, both lints, tool + timed test-benches)
 test: image check lint logisim-test sim
@@ -40,7 +40,7 @@ lint:
 	$(PYTHON) tools/lint/timing_lint.py
 
 ## sim:    the timed, self-checking test-benches
-sim: cpu useq reg regfile alu right cc ccx mmu mem lane lanex uloop irqx trap ldz prog shiftx fetch exec bench
+sim: cpu useq reg regfile alu right cc ccx mmu mem lane lanex uloop irqx trap fault ldz prog shiftx fetch exec bench
 
 ## cpu:    boot copy (real loader + EEPROM -> WCS) then the microsequencer walk
 ##         (INC/JUMP/BRANCH/DISPATCH/WAIT) — the loader is proven on this standard path
@@ -106,6 +106,10 @@ shiftx:
 ## uloop:  the ULOOP micro-loop counter — load n, body runs n times (real cond[8] terminal)
 uloop:
 	bash sim/tb/uloop/run.sh
+
+## fault:  fault detectors — PRIV_VIOLATION (priv & ~CC.M) + ILLEGAL_OPCODE (~VALID) -> cond[13]/[14]
+fault:
+	bash sim/tb/fault/run.sh
 
 ## trap:   trap-vector encoder — RETURN_FETCH intercept to IRQ/NMI entries (I-masked)
 trap:
