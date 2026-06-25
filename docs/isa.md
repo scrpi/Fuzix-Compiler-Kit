@@ -619,9 +619,10 @@ count `n` in one instruction: left (logical = arithmetic), logical right (unsign
 **no** 16-bit shift on `D` at all (it otherwise costs an `ASL B`+`ROL A`-style pair
 *per bit*), and a constant multi-bit shift (scaling by a power of two, field
 extraction — the dominant C case) collapses to a single instruction (R-ISA-6,
-R-BUILD-1). The count is an immediate byte; the microcode shifts `n` positions and
-saturates at 16 (C leaves shifts ≥ the operand width undefined, so conforming code
-never relies on a larger count).
+R-BUILD-1). The count is an immediate byte; the microcode shifts `n` positions for
+`n` in `0..16`. Larger counts are **don't-care, not clamped** — the loop counter
+takes `n` modulo its width, because C leaves shifts ≥ the operand width undefined, so
+conforming code never emits a larger count.
 
 A **runtime-variable** shift count is deliberately not encoded: the value occupies
 `D = A:B`, so a register-held count would have to live in `X`/`Y` — the pointer and

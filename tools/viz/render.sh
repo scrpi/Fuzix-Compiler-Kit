@@ -69,6 +69,7 @@ render_one() {
   #       The part number is kept in parentheses, so the box still reads as a real part.
   python3 - "${OUT}/${TOP}.json" <<'PY'
 import json, sys
+from xml.sax.saxutils import escape   # labels become SVG <text>; netlistsvg does NOT escape
 p = sys.argv[1]; d = json.load(open(p))
 for m in d.get("modules", {}).values():
     for port in m.get("ports", {}).values():
@@ -81,7 +82,8 @@ for m in d.get("modules", {}).values():
         if t.startswith("$"):            # yosys builtins (constants, $_split_/$_join_) keep their glyph
             continue
         note = (cell.get("attributes", {}) or {}).get("purpose") or name
-        cell["type"] = f"{note}  ({t})"  # "<purpose | instance>  (<part number>)"
+        # XML-escape (& < >) so a label like "ADD&ALU_CIN" or "Z<-SUM" can't break the SVG.
+        cell["type"] = f"{escape(str(note))}  ({escape(t)})"  # "<purpose | instance>  (<part number>)"
 json.dump(d, open(p, "w"))
 PY
 

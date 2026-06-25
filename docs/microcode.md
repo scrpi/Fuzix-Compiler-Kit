@@ -175,7 +175,7 @@ Everything that drives a register / bus / ALU / memory / flag / MMU, always pres
 | `C_SRC` | 2 | bin | C source when `WE_C`: from-ALU / force-0 / force-1 |
 | `Z_ACCUM` | 1 | lit | latch this lane's Z / AND with prior lane (16-bit `Z` over two byte cycles) |
 | `CC_WRITE_SRC` | 2 | bin | whole/masked `CC` write: ALU-flags / whole-Z / AND-mask / OR-mask (`RTI`,`PULS CC`,`ANDCC`/`ORCC`) |
-| `CC_MI_LOAD` | 2 | bin | privileged `M`/`I`: hold / set-on-entry / from-Z (RTI) / explicit (SEI/CLI) |
+| `CC_MI_LOAD` | 2 | bin | privileged `M`/`I`: hold / set-on-entry / set-I / clear-I (SEI/CLI); `M`/`I` restore on a whole/masked `CC` write rides `CC_WRITE_SRC` (`RTI`/`PULS CC`/`ANDCC`/`ORCC`), priv-gated |
 | `Z_DEST` | 4 | bin | latch-from-Z dest: `NONE D USP SSP ACTIVE_SP SCR1 SCR2 MDR IR CC`; the strobe also clocks the panel shadow (R-DBG-1, D-13) |
 | `Z_LANE` | 2 | bin | which lane the dest latches: full16 / low (B) / high (A) |
 | `PC_CTRL` | 2 | bin | hold / load-from-Z / count+1 (D-36) |

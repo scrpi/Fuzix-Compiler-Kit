@@ -37,8 +37,13 @@ module tb_cpu;
     wire [87:0] cw;
     wire [11:0] lut_out;
 
+    // ir_inject=1: this bench injects the opcode via ir_drive (it tests the microsequencer
+    // walk, not a memory fetch); the system-bus ports float (no memory model attached).
     cpu #(.FILE(`IMG)) dut (
-        .clk(clk), .rst_n(rst_n), .ir_drive(ir_drive), .cond_drive(cond_drive),
+        .clk(clk), .rst_n(rst_n), .ir_inject(1'b1), .ir_drive(ir_drive),
+        .cond_inject(1'b1), .cond_drive(cond_drive),
+        .irq(1'b0), .nmi(1'b0), .wait_ready(1'b1),
+        .busreq_n(1'b1), .busgrant_n(),
         .loading(loading), .upc(upc), .cw(cw), .lut_out(lut_out)
     );
 

@@ -38,7 +38,7 @@ current routines use and errors clearly on the rest:
 
   # comment to end of line
   .fetch NAME                 the fetch entry (the named routine must be at addr 0)
-  .opcode page0 LD A,(X+n8)   bind a routine as that mnemonic's opcode entry
+  .opcode page0 0x04 LD A,(X+n8)   bind a routine as opcode {page,byte}'s LUT entry
   routine NAME:               start a routine; the indented lines are its microwords
 
   dest <- [PC] ; PC++ ; dispatch         memory read + counter tick + sequencer
@@ -46,8 +46,9 @@ current routines use and errors clearly on the rest:
   dest <- sext(src)                      lane-steer (sext/low/high) + pass
   A <- [MAR] : nz, v=0                   A = D.low; flag clause after ':'
 
-NOTE: opcode byte values are not yet assigned (D-41), so `.opcode` bindings get
-placeholder sequential indices per page until the mnemonic->byte pass exists.
+The opcode LUT is indexed by the REAL opcode byte the `.opcode` directive carries
+(sourced from isa/opcodes.toml, D-48): lut[{page, byte}] = the routine's start
+microaddress. Unbound bytes stay 0 (-> FETCH), a safe landing for an undefined opcode.
 """
 from __future__ import annotations
 
@@ -150,6 +151,22 @@ def set_field(out: dict, fname: str, code: int, lineno: int):
     out[fname] = code
 
 
+# 16-bit architectural registers — an ALU result landing here is a 16-bit op
+# (ALU_WIDTH=16); A/B and the byte lanes of a scratch stay 8-bit (lane != None).
+WIDE16 = ("D", "X", "Y", "ACTIVE_SP", "MAR", "PC", "USP", "SSP")
+
+# condition token -> UCOND_SEL (microcode-source.md §9). `not` prefixes invert
+# the polarity (UCOND_POL). `uloop.zero` is the loop-terminal-zero condition.
+COND_SEL = {
+    "z": "Z", "c": "C", "n": "N", "v": "V",
+    "c|z": "C_OR_Z", "n^v": "N_XOR_V", "z|(n^v)": "Z_OR_NXORV", "true": "TRUE",
+    "uloop": "ULOOP", "uloop.zero": "ULOOP",
+    "irq": "IRQ_PENDING", "nmi": "NMI_PENDING", "wait-ready": "WAIT_READY",
+    "multibyte-last": "MULTIBYTE_LAST", "priv": "PRIV_VIOLATION",
+    "illegal": "ILLEGAL_OPCODE",
+}
+
+
 def parse_dest(tok: str):
     """Return (register, lane|None), resolving A/B/SP and the .low/.high suffix."""
     lane = None
@@ -170,6 +187,35 @@ def map_src(tok: str) -> str:
     return "ACTIVE_SP" if tok == "SP" else tok
 
 
+def bind_left(expr: str, out: dict, fields: Fields, lineno: int):
+    """Drive the LEFT bus from a source expression: a lane function, A/B (= the
+       byte lanes of D), an explicit SP, or a plain LEFT_SRC register."""
+    expr = expr.strip()
+    m = re.fullmatch(r"(sext|low|high)\((.+)\)", expr)
+    if m:
+        fn, inner = m.group(1), m.group(2).strip()
+        src = "D" if inner in ("A", "B") else map_src(inner)   # A/B are lanes of D
+        set_field(out, "LEFT_SRC", fields.code_of("LEFT_SRC", src), lineno)
+        set_field(out, "LEFT_LANE", fields.code_of("LEFT_LANE",
+                  {"sext": "SIGN_EXT", "low": "LOW", "high": "HIGH_TO_LOW"}[fn]), lineno)
+        return
+    if expr == "A":
+        set_field(out, "LEFT_SRC", fields.code_of("LEFT_SRC", "D"), lineno)
+        set_field(out, "LEFT_LANE", fields.code_of("LEFT_LANE", "LOW"), lineno)
+        return
+    if expr == "B":
+        set_field(out, "LEFT_SRC", fields.code_of("LEFT_SRC", "D"), lineno)
+        set_field(out, "LEFT_LANE", fields.code_of("LEFT_LANE", "HIGH_TO_LOW"), lineno)
+        return
+    src = map_src(expr)
+    set_field(out, "LEFT_SRC", fields.code_of("LEFT_SRC", src), lineno)
+    # 8-bit LEFT sources drive only the low lane; default LEFT_LANE=LOW so the high byte is a
+    # defined 0x00 (zero-extend) rather than the floating LEFT_RAW[15:8] that FULL16 would pass
+    # into the ALU. An explicit lane (sext/low/high) is handled above and is unaffected.
+    if src in ("CC", "IR_IMM", "MDR"):
+        set_field(out, "LEFT_LANE", fields.code_of("LEFT_LANE", "LOW"), lineno)
+
+
 def map_right(tok: str, fields: Fields, lineno: int) -> int:
     if tok in ("SCR1", "SCR2"):
         return fields.code_of("RIGHT_SRC", tok)
@@ -186,6 +232,8 @@ def map_right(tok: str, fields: Fields, lineno: int) -> int:
 
 
 def set_result_dest(out: dict, dst: str, fields: Fields, lineno: int):
+    if dst == "_":                       # compute for flags only (Z_DEST = none)
+        return
     d, lane = parse_dest(dst)
     if d in COUNTERS:
         if lane:
@@ -195,6 +243,8 @@ def set_result_dest(out: dict, dst: str, fields: Fields, lineno: int):
         set_field(out, "Z_DEST", fields.code_of("Z_DEST", d), lineno)
         if lane:
             set_field(out, "Z_LANE", fields.code_of("Z_LANE", lane), lineno)
+    if d in WIDE16 and lane is None:     # a 16-bit result -> ALU_WIDTH=16
+        set_field(out, "ALU_WIDTH", fields.code_of("ALU_WIDTH", "W16"), lineno)
 
 
 def bind_read(dst: str, addr: str, out: dict, fields: Fields, lineno: int):
@@ -204,7 +254,9 @@ def bind_read(dst: str, addr: str, out: dict, fields: Fields, lineno: int):
         raise AsmError(f"line {lineno}: read address [{addr}] — expected [PC] or [MAR]")
     set_field(out, "MMU_ADDR_SRC", fields.code_of("MMU_ADDR_SRC", mmu), lineno)
     d, lane = parse_dest(dst)
-    if d == "IR":
+    if d == "_":
+        pass  # read that only sets flags (TST mem) — lands in MDR, no Z dest
+    elif d == "IR":
         set_field(out, "IR_LOAD", fields.code_of("IR_LOAD", "OPCODE"), lineno)
     elif d == "MDR":
         pass  # MDR is the default read capture (microcode.md §3.2)
@@ -215,28 +267,57 @@ def bind_read(dst: str, addr: str, out: dict, fields: Fields, lineno: int):
             set_field(out, "Z_LANE", fields.code_of("Z_LANE", lane), lineno)
 
 
+def bind_write(addr: str, src: str, out: dict, fields: Fields, lineno: int):
+    set_field(out, "MEM_OP", fields.code_of("MEM_OP", "WRITE"), lineno)
+    if addr != "MAR":
+        raise AsmError(f"line {lineno}: write [{addr}] <- … — writes address via MAR")
+    set_field(out, "MMU_ADDR_SRC", fields.code_of("MMU_ADDR_SRC", "TRANSLATE_MAR"), lineno)
+    bind_left(src, out, fields, lineno)   # the source drives the data bus on LEFT
+
+
 def bind_alu(dst: str, rhs: str, out: dict, fields: Fields, lineno: int):
     m = re.fullmatch(r"(sext|low|high)\((.+)\)", rhs)
-    if m:
-        fn, inner = m.group(1), m.group(2).strip()
-        set_field(out, "LEFT_SRC", fields.code_of("LEFT_SRC", map_src(inner)), lineno)
-        lane = {"sext": "SIGN_EXT", "low": "LOW", "high": "HIGH_TO_LOW"}[fn]
-        set_field(out, "LEFT_LANE", fields.code_of("LEFT_LANE", lane), lineno)
+    if m:                                  # lane-steer pass
+        bind_left(rhs, out, fields, lineno)
         set_field(out, "ALU_OP", fields.code_of("ALU_OP", "PASS_L"), lineno)
         set_result_dest(out, dst, fields, lineno)
         return
-    for sym, op in ((" + ", "ADD"), (" - ", "SUB"), (" & ", "AND"),
-                    (" | ", "OR"), (" ^ ", "EOR")):
+    m = re.fullmatch(r"(asl|lsr|asr|rol|ror)\((.+)\)", rhs)
+    if m:                                  # shift / rotate
+        fn, inner = m.group(1), m.group(2).strip()
+        bind_left(inner, out, fields, lineno)
+        set_field(out, "ALU_OP", fields.code_of("ALU_OP", "SHIFT"), lineno)
+        set_field(out, "ALU_SHIFT", fields.code_of("ALU_SHIFT", fn.upper()), lineno)
+        set_result_dest(out, dst, fields, lineno)
+        return
+    if rhs.startswith("~"):                 # COM (unary)
+        bind_left(rhs[1:].strip(), out, fields, lineno)
+        set_field(out, "ALU_OP", fields.code_of("ALU_OP", "COM"), lineno)
+        set_result_dest(out, dst, fields, lineno)
+        return
+    if rhs.startswith("-") and " - " not in rhs:   # NEG (unary)
+        bind_left(rhs[1:].strip(), out, fields, lineno)
+        set_field(out, "ALU_OP", fields.code_of("ALU_OP", "NEG"), lineno)
+        set_result_dest(out, dst, fields, lineno)
+        return
+    for sym, op in ((" +c ", "ADC"), (" -c ", "SBC"), (" + ", "ADD"),
+                    (" - ", "SUB"), (" & ", "AND"), (" | ", "OR"), (" ^ ", "EOR")):
         if sym in rhs:
             a, b = rhs.split(sym, 1)
-            set_field(out, "LEFT_SRC", fields.code_of("LEFT_SRC", map_src(a.strip())), lineno)
+            bind_left(a.strip(), out, fields, lineno)
             set_field(out, "RIGHT_SRC", map_right(b.strip(), fields, lineno), lineno)
             set_field(out, "ALU_OP", fields.code_of("ALU_OP", op), lineno)
             set_result_dest(out, dst, fields, lineno)
             return
-    # plain source -> PASS_L
-    set_field(out, "LEFT_SRC", fields.code_of("LEFT_SRC", map_src(rhs.strip())), lineno)
-    set_field(out, "ALU_OP", fields.code_of("ALU_OP", "PASS_L"), lineno)
+    try:                                   # a bare const-gen value -> PASS_R
+        n = int(rhs, 0)
+    except ValueError:
+        bind_left(rhs.strip(), out, fields, lineno)     # plain source -> PASS_L
+        set_field(out, "ALU_OP", fields.code_of("ALU_OP", "PASS_L"), lineno)
+        set_result_dest(out, dst, fields, lineno)
+        return
+    set_field(out, "RIGHT_SRC", map_right(str(n), fields, lineno), lineno)
+    set_field(out, "ALU_OP", fields.code_of("ALU_OP", "PASS_R"), lineno)
     set_result_dest(out, dst, fields, lineno)
 
 
@@ -247,7 +328,19 @@ def bind_counter_inc(part: str, out: dict, fields: Fields, lineno: int):
     set_field(out, f"{reg}_CTRL", fields.code_of(f"{reg}_CTRL", "COUNT"), lineno)
 
 
-def bind_control(part: str, out: dict, fields: Fields, lineno: int):
+def bind_cond(cond: str, out: dict, fields: Fields, lineno: int):
+    """Bind UCOND_SEL/UCOND_POL from a condition string (with optional `not`)."""
+    pol = "ASSERT"
+    if cond.startswith("not "):
+        pol, cond = "NEGATE", cond[4:].strip()
+    sel = COND_SEL.get(cond)
+    if sel is None:
+        raise AsmError(f"line {lineno}: unknown condition {cond!r}")
+    set_field(out, "UCOND_SEL", fields.code_of("UCOND_SEL", sel), lineno)
+    set_field(out, "UCOND_POL", fields.code_of("UCOND_POL", pol), lineno)
+
+
+def bind_control(part: str, out: dict, labels: dict, fields: Fields, lineno: int):
     toks = part.split()
     kw = toks[0]
     if kw == "dispatch":
@@ -257,8 +350,47 @@ def bind_control(part: str, out: dict, fields: Fields, lineno: int):
                 set_field(out, "DISPATCH_PAGE", fields.code_of("DISPATCH_PAGE", "PAGE1"), lineno)
             else:
                 raise AsmError(f"line {lineno}: dispatch qualifier {toks[1]!r} — expected 'page1'")
-    elif kw in ("goto", "call", "return", "wait", "if", "repeat"):
-        raise AsmError(f"line {lineno}: control '{kw}' not yet implemented in the v0 parser")
+    elif kw == "goto":
+        set_field(out, "USEQ_OP", fields.code_of("USEQ_OP", "JUMP"), lineno)
+        set_field(out, "NEXT_ADDR", 0, lineno)
+        labels["NEXT_ADDR"] = toks[1]
+    elif kw == "call":
+        set_field(out, "USEQ_OP", fields.code_of("USEQ_OP", "CALL"), lineno)
+        set_field(out, "NEXT_ADDR", 0, lineno)
+        labels["NEXT_ADDR"] = toks[1]
+    elif kw == "if":
+        gi = toks.index("goto")
+        bind_cond(" ".join(toks[1:gi]), out, fields, lineno)
+        set_field(out, "USEQ_OP", fields.code_of("USEQ_OP", "BRANCH"), lineno)
+        set_field(out, "NEXT_ADDR", 0, lineno)
+        labels["NEXT_ADDR"] = toks[gi + 1]
+    elif kw == "return":
+        op = "RETURN_FETCH" if toks[1:3] == ["to", "fetch"] else "RETURN"
+        set_field(out, "USEQ_OP", fields.code_of("USEQ_OP", op), lineno)
+    elif kw == "wait":
+        set_field(out, "USEQ_OP", fields.code_of("USEQ_OP", "WAIT"), lineno)
+    elif kw == "uloop--":
+        set_field(out, "ULOOP_CTRL", fields.code_of("ULOOP_CTRL", "DECREMENT"), lineno)
+    elif kw in ("lock", "unlock"):
+        set_field(out, "TAS_LOCK", fields.code_of("TAS_LOCK", "LOCK" if kw == "lock" else "OFF"), lineno)
+    elif "(" in kw:                         # cc(…) / mi(…) / map(…) / pt(…) / vector(…)
+        fn, arg = re.fullmatch(r"(\w+)\((\w+)\)", kw).groups()
+        if fn == "cc":
+            set_field(out, "CC_WRITE_SRC", fields.code_of("CC_WRITE_SRC",
+                      {"whole": "WHOLE_Z", "and": "AND_MASK", "or": "OR_MASK"}[arg]), lineno)
+        elif fn == "mi":
+            set_field(out, "CC_MI_LOAD", fields.code_of("CC_MI_LOAD",
+                      {"enter": "SET_ON_ENTRY", "set_i": "SET_I", "clr_i": "CLR_I"}[arg]), lineno)
+        elif fn == "map":
+            set_field(out, "MMU_MAP_SEL", fields.code_of("MMU_MAP_SEL",
+                      {"kernel": "FORCE_KERNEL", "user": "FORCE_USER", "imm8": "FROM_IMM8"}[arg]), lineno)
+        elif fn == "pt":
+            set_field(out, "MMU_PT_OP", fields.code_of("MMU_PT_OP",
+                      {"write": "WRITE_ENTRY", "read": "READ_ENTRY"}[arg]), lineno)
+        elif fn == "vector":
+            pass  # the trap-vector slot address is materialized by the trap logic
+        else:
+            raise AsmError(f"line {lineno}: unknown clause {kw!r}")
     else:
         raise AsmError(f"line {lineno}: unrecognized clause {part!r}")
 
@@ -269,7 +401,10 @@ def bind_flags(flagstr: str, out: dict, fields: Fields, lineno: int):
         item = item.strip()
         if not item:
             continue
-        if "=" in item:
+        if item == "z+":                   # accumulate Z across a 16-bit op's two lanes
+            we.append("Z")
+            set_field(out, "Z_ACCUM", fields.code_of("Z_ACCUM", "ACCUM"), lineno)
+        elif "=" in item:
             f, val = (x.strip() for x in item.split("=", 1))
             f = f.upper()
             we.append(f)
@@ -290,24 +425,41 @@ def bind_flags(flagstr: str, out: dict, fields: Fields, lineno: int):
 
 def bind_statement(s: str, fields: Fields, lineno: int) -> dict:
     out: dict[str, int] = {}
-    main, _, flagstr = s.partition(":")
-    for part in (p.strip() for p in main.split(";")):
+    labels: dict[str, str] = {}            # field -> label (resolved to an address later)
+    # The flag clause is introduced by ':' and runs to the next ';'; everything
+    # else (transfer + concurrent + control clauses) is ';'-separated.
+    flagstr = ""
+    if ":" in s:
+        pre, _, rest = s.partition(":")
+        flagstr, _, post = rest.partition(";")
+        s = pre + (";" + post if post.strip() else "")
+    for part in (p.strip() for p in s.split(";")):
         if not part:
+            continue
+        if "reg[" in part:
+            continue  # selector-driven register move — no control-word field routes it
+        if "->" in part:                   # count -> uloop  (load the loop counter)
+            set_field(out, "ULOOP_CTRL", fields.code_of("ULOOP_CTRL", "LOAD"), lineno)
             continue
         if "<-" in part:
             dst, rhs = (x.strip() for x in part.split("<-", 1))
-            if rhs.startswith("["):
-                addr = rhs[1:rhs.index("]")].strip()
-                bind_read(dst, addr, out, fields, lineno)
+            if dst == "MMU_ENTRY":         # LDMMU: data on LEFT, written via pt(write)
+                bind_left(rhs, out, fields, lineno)
+            elif dst.startswith("["):
+                bind_write(dst[1:dst.index("]")].strip(), rhs, out, fields, lineno)
+            elif rhs.startswith("["):
+                bind_read(dst, rhs[1:rhs.index("]")].strip(), out, fields, lineno)
+            elif rhs.startswith("vector("):
+                set_result_dest(out, dst, fields, lineno)   # MAR <- vector(NAME)
             else:
                 bind_alu(dst, rhs, out, fields, lineno)
         elif part.endswith("++"):
             bind_counter_inc(part, out, fields, lineno)
         else:
-            bind_control(part, out, fields, lineno)
+            bind_control(part, out, labels, fields, lineno)
     if flagstr:
         bind_flags(flagstr, out, fields, lineno)
-    return {f: (c, None) for f, c in out.items()}
+    return {f: (c, labels.get(f)) for f, c in out.items()}
 
 
 # ---------------------------------------------------------------------------
@@ -316,7 +468,7 @@ def bind_statement(s: str, fields: Fields, lineno: int) -> dict:
 def parse(text: str, fields: Fields):
     words: list[Microword] = []
     labels: dict[str, int] = {}            # routine/label name -> word index
-    opcodes: list[tuple[int, str, int]] = []   # (page, mnemonic, lineno)
+    opcodes: list[tuple[int, int, str, int]] = []   # (page, byte, mnemonic, lineno)
     fetch_label = None
     pending: list[tuple[str, int]] = []    # labels awaiting their microword
 
@@ -331,11 +483,19 @@ def parse(text: str, fields: Fields):
             if d == ".fetch":
                 fetch_label = rest
             elif d == ".opcode":
-                ptoks = rest.split(None, 1)
-                if len(ptoks) != 2 or ptoks[0].lower() not in ("page0", "page1"):
-                    raise AsmError(f"line {lineno}: .opcode expects 'page0|page1 <mnemonic>'")
+                ptoks = rest.split(None, 2)
+                if len(ptoks) != 3 or ptoks[0].lower() not in ("page0", "page1"):
+                    raise AsmError(f"line {lineno}: .opcode expects "
+                                   f"'page0|page1 <byte> <mnemonic> [priv]'")
+                try:
+                    byte = int(ptoks[1], 0)
+                except ValueError:
+                    raise AsmError(f"line {lineno}: .opcode byte {ptoks[1]!r} is not a number")
+                mnem, priv = ptoks[2].strip(), False
+                if mnem.endswith(" priv"):       # the privileged-opcode marker -> LUT priv bit
+                    mnem, priv = mnem[:-5].strip(), True
                 opcodes.append((0 if ptoks[0].lower() == "page0" else 1,
-                                ptoks[1].strip(), lineno))
+                                byte, mnem, priv, lineno))
             else:
                 raise AsmError(f"line {lineno}: unknown directive {d!r}")
             continue
@@ -387,20 +547,29 @@ def assemble(text: str, fields: Fields):
 
     validate_rules(words, fields)
 
-    # opcode -> start-address LUT. Byte values are unassigned (D-41), so each
-    # binding gets a placeholder sequential index per page for now.
+    # opcode -> start-address LUT, indexed by the REAL opcode byte (the .opcode
+    # directive carries it, sourced from isa/opcodes.toml). lut[{page, byte}] =
+    # the routine's start microaddress. Unbound bytes stay 0 (-> FETCH), a safe
+    # landing for an undefined opcode.
     clut = [0] * LUT_ENTRIES
-    page_next = {0: 0, 1: 0}
-    placeholders: list[tuple[int, int, str]] = []
-    for page, mnem, lineno in opcodes:
+    seen: dict[tuple[int, int], str] = {}
+    entries: list[tuple[int, int, str]] = []
+    for page, byte, mnem, priv, lineno in opcodes:
         if mnem not in labels:
             raise AsmError(f"line {lineno}: .opcode {mnem!r} has no matching 'routine'")
-        idx = page_next[page]
-        page_next[page] += 1
-        clut[(page << 8) | idx] = labels[mnem]
-        placeholders.append((page, idx, mnem))
+        if not 0 <= byte < 256:
+            raise AsmError(f"line {lineno}: .opcode byte {byte:#x} out of range 0..255")
+        if (page, byte) in seen:
+            raise AsmError(f"line {lineno}: opcode page{page} {byte:#04x} already "
+                           f"bound to {seen[(page, byte)]!r}")
+        seen[(page, byte)] = mnem
+        # LUT entry: 12-bit start address, + priv at bit 12 (-> lut_hi[4], AND'd with ~CC.M by the
+        # priv-violation detector) + VALID at bit 13 (-> lut_hi[5]; an unbound byte stays 0 so
+        # lut_hi[5]=0 -> illegal-opcode).
+        clut[(page << 8) | byte] = labels[mnem] | ((1 << 12) if priv else 0) | (1 << 13)
+        entries.append((page, byte, mnem))
 
-    return words, labels, clut, placeholders
+    return words, labels, clut, entries
 
 
 def field_value(mw: Microword, fname: str) -> int:
@@ -445,7 +614,7 @@ def build_image(words, clut, fields: Fields) -> bytearray:
             img[k * SEG_SIZE + mw.addr] = (w >> (8 * k)) & 0xFF
     for i, entry in enumerate(clut):
         img[SEG_LUT_LO * SEG_SIZE + i] = entry & 0xFF
-        img[SEG_LUT_HI * SEG_SIZE + i] = (entry >> 8) & 0x0F
+        img[SEG_LUT_HI * SEG_SIZE + i] = (entry >> 8) & 0x3F   # addr[11:8] + priv[4] + valid[5]
     return img
 
 
@@ -511,7 +680,7 @@ def main(argv: list[str]) -> int:
         fields = Fields(tomllib.load(f))
 
     try:
-        words, labels, clut, placeholders = assemble(src.read_text(), fields)
+        words, labels, clut, entries = assemble(src.read_text(), fields)
         img = build_image(words, clut, fields)
         roundtrip(img, words, clut, fields)
     except AsmError as e:
@@ -522,12 +691,11 @@ def main(argv: list[str]) -> int:
     emit(img, outdir)
 
     used = sum(1 for b in img if b != FILL)
-    print(f"assembled {src.name}: {len(words)} microwords, {len(placeholders)} opcode entries")
-    print("  routines: " + ", ".join(f"{n}@{a}" for n, a in sorted(labels.items(), key=lambda x: x[1])))
-    if placeholders:
-        print("  opcode LUT (placeholder indices — byte values unassigned, D-41):")
-        for page, idx, mnem in placeholders:
-            print(f"    page{page} #{idx} -> {mnem} @{labels[mnem]}")
+    p0 = sum(1 for p, _, _ in entries if p == 0)
+    print(f"assembled {src.name}: {len(words)} microwords, {len(labels)} routines, "
+          f"{len(entries)} opcode entries")
+    print(f"  opcode LUT (indexed by real opcode byte): "
+          f"page0 {p0} entries, page1 {len(entries) - p0} entries")
     print(f"  image:  {outdir/'blip_microcode.bin'} (+ .hex)  "
           f"({IMG_BYTES} bytes, {used} non-zero, {N_SEG} segments)")
     print(f"  sim in: blip_microcode.hex — single image; loader fans out to {N_SEG} SRAMs")

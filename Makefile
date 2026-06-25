@@ -16,7 +16,7 @@ TOP    ?=
 MODE   ?=
 
 .NOTPARALLEL:
-.PHONY: test image check lint sim cpu bench viz logisim logisim-test digitaljs clean help
+.PHONY: test image browser check lint sim cpu useq reg regfile alu right cc ccx mmu mem lane lanex uloop irqx trap fault arbx tasx ldz prog shiftx fetch exec bench viz logisim logisim-test digitaljs bom clean help
 
 ## test:   run the whole suite (image, field-def check, both lints, tool + timed test-benches)
 test: image check lint logisim-test sim
@@ -25,6 +25,10 @@ test: image check lint logisim-test sim
 ## image:  assemble the microcode into the single EEPROM image (microcode/build/)
 image:
 	$(PYTHON) tools/uasm/uasm.py
+
+## browser: generate the HTML microcode browser (microcode/build/microcode.html)
+browser:
+	$(PYTHON) microcode/gen_browser.py
 
 ## check:  validate the 88-bit control-word field definition
 check:
@@ -36,12 +40,100 @@ lint:
 	$(PYTHON) tools/lint/timing_lint.py
 
 ## sim:    the timed, self-checking test-benches
-sim: cpu bench
+sim: cpu useq reg regfile alu right cc ccx mmu mem lane lanex uloop irqx trap fault arbx tasx ldz prog shiftx fetch exec bench
 
 ## cpu:    boot copy (real loader + EEPROM -> WCS) then the microsequencer walk
 ##         (INC/JUMP/BRANCH/DISPATCH/WAIT) — the loader is proven on this standard path
 cpu:
 	bash sim/tb/cpu/run.sh
+
+## useq:   micro-sequencer CALL/RETURN + µSR — subroutine return register
+useq:
+	bash sim/tb/useq/run.sh
+
+## reg:    the universal '163-counter register board (load/count/carry/hold/LEFT)
+reg:
+	bash sim/tb/reg/run.sh
+
+## regfile: D/X/Y/USP/SSP + ACTIVE_SP banking through the datapath
+regfile:
+	bash sim/tb/regfile/run.sh
+
+## alu:    the 16-bit ALU (arithmetic + logic + shift sections) + N/Z/V/C/H flags
+alu:
+	bash sim/tb/alu/run.sh
+
+## right:  the ALU RIGHT source bus — SCR1/SCR2 + const-gen {-2,-1,0,+1,+2}
+right:
+	bash sim/tb/right/run.sh
+
+## cc:     the condition-code board — flag writes, V/C_SRC, Z_ACCUM, conditions, M/I privilege
+cc:
+	bash sim/tb/cc/run.sh
+
+## ccx:    privileged M/I through the datapath — SEI/CLI (I-only), WHOLE_Z restore, user-mode lock
+ccx:
+	bash sim/tb/ccx/run.sh
+
+## mmu:    the MMU — identity translate, page-table geometry, map-select, DIRECT_PHYSICAL
+mmu:
+	bash sim/tb/mmu/run.sh
+
+## mem:    the MDR + external-bus port — stage/WRITE/READ round trip vs a memory model
+mem:
+	bash sim/tb/mem/run.sh
+
+## lane:   the byte-lane steer blocks — LEFT_LANE widen/move + Z_LANE byte-promote (unit)
+lane:
+	bash sim/tb/lane/run.sh
+
+## lanex:  byte-lane steering through the whole datapath — Z_LANE byte-build + LEFT_LANE widen
+lanex:
+	bash sim/tb/lanex/run.sh
+
+## ldz:    a memory read posts on Z — latch a register + N/Z in one microword
+ldz:
+	bash sim/tb/ldz/run.sh
+
+## prog:   END-TO-END production blip.uc — fetch/dispatch/execute/refetch a real program
+prog:
+	bash sim/tb/prog/run.sh
+
+## shiftx: multi-bit shift — ASL D,$n loop count from memory via ULOOP
+shiftx:
+	bash sim/tb/shiftx/run.sh
+
+## uloop:  the ULOOP micro-loop counter — load n, body runs n times (real cond[8] terminal)
+uloop:
+	bash sim/tb/uloop/run.sh
+
+## fault:  fault detectors — PRIV_VIOLATION (priv & ~CC.M) + ILLEGAL_OPCODE (~VALID) -> cond[13]/[14]
+fault:
+	bash sim/tb/fault/run.sh
+
+## trap:   trap-vector encoder — RETURN_FETCH intercept to IRQ/NMI entries (I-masked)
+trap:
+	bash sim/tb/trap/run.sh
+
+## irqx:   internal microconditions — IRQ/NMI/WAIT_READY gate the sequencer (real cond[9..11])
+irqx:
+	bash sim/tb/irqx/run.sh
+
+## arbx:   bus arbiter — /BUSREQ -> /BUSGRANT, A//RD//WR tri-state, and a held grant STALLS the core
+arbx:
+	bash sim/tb/arbx/run.sh
+
+## tasx:   TAS_LOCK holds the bus across a locked RMW — a pending /BUSREQ is refused mid-lock
+tasx:
+	bash sim/tb/tasx/run.sh
+
+## fetch:  REAL instruction fetch — PC -> MMU -> memory model -> MDR -> IR -> DISPATCH
+fetch:
+	bash sim/tb/fetch/run.sh
+
+## exec:   REAL execute + branch — compute -> CC -> branch on the live condition (closes cond_drive)
+exec:
+	bash sim/tb/exec/run.sh
 
 ## bench:  two-engine throughput benchmark (Verilator vs timed Icarus)
 bench:
@@ -67,6 +159,10 @@ logisim-test:
 ##            bus DigitalJS can't model — use `make viz` for the cpu schematic)
 digitaljs:
 	bash tools/viz/digitaljs.sh $(TOP)
+
+## bom:    package count — flatten each board-level top (Yosys) and tally real chips
+bom:
+	$(PYTHON) tools/bom/chipcount.py
 
 ## clean:  remove generated artifacts (keeps the hand-edited logisim/build/*.circ)
 clean:

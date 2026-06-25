@@ -222,9 +222,14 @@ name    = "CC_MI_LOAD"
 section = "datapath"
 width   = 2
 enc     = "bin"
+# The privileged M/I bits. HOLD leaves them; SET_ON_ENTRY forces both to 1 on a trap
+# (the only code that bypasses the privilege interlock, since it is itself the entry to
+# supervisor); SET_I/CLR_I set/clear I alone (M held) for the privileged SEI/CLI. A whole
+# or masked CC write (CC_WRITE_SRC=WHOLE_Z/AND/OR) restores/masks M and I on its own —
+# privilege-gated — so RTI/PULS CC/ANDCC/ORCC need no CC_MI_LOAD code.
 role    = "privileged M/I bits"
 default = "HOLD"
-values   = { HOLD = 0, SET_ON_ENTRY = 1, FROM_Z = 2, EXPLICIT = 3 }
+values   = { HOLD = 0, SET_ON_ENTRY = 1, SET_I = 2, CLR_I = 3 }
 
 [[field]]
 name    = "Z_DEST"
