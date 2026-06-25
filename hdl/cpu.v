@@ -57,7 +57,10 @@
 //
 // The bus arbiter (bus_arbiter.v) grants the bus on /BUSREQ (tri-stating A//RD//WR via the south-
 // edge buffers, inhibiting the CPU's own transfers); TAS_LOCK holds the bus across an RMW so the
-// grant is refused mid-lock. /BUSGRANT leaves the CPU.
+// grant is refused mid-lock. /BUSGRANT leaves the CPU. A held grant also STALLS THE WHOLE CORE:
+// `granted` freezes the µPC (microsequencer `hold`), CC (`hold`) and every register/MDR/IR/ULOOP/
+// page-table load+count strobe (the bus-grant freeze block below), so no architectural state
+// mutates while an external master owns the bus (interface.md §4.6, R-IF-4).
 //
 // SCAFFOLD — what remains:
 //   * cond[12]=MULTIBYTE_LAST ties inactive (its counter is unbuilt; under-specified). The
@@ -177,6 +180,28 @@ module cpu #(
     sn74ahct08 rstgate (.a({3'b000, rst_n}), .b({3'b000, run}), .y(and_y));
     wire reg_reset_n = and_y[0];
 
+    // === bus-grant freeze (interface.md §4.6, R-IF-4): a HELD GRANT STALLS THE WHOLE CORE. =======
+    // The registered `granted` now freezes EVERY architectural load/count strobe — not just the
+    // memory bus — so the µPC (microsequencer `hold`), the registers, CC (`hold`), MDR, IR, ULOOP
+    // and the page table cannot mutate while an external master owns the bus. Without this the µPC
+    // free-ran through microcode during a grant: a fetch/read word drove the read-post on Z to
+    // high-Z (memory inhibited) and the running microcode latched garbage (adversarial-review
+    // finding, HIGH). Active-LOW load strobes are OR'd HIGH (inactive) here; active-HIGH count
+    // enables are muxed to 0 (granted ? 0 : en). The remaining freeze points sit beside the strobes
+    // they gate (SCR/D/USP/SSP/MDR/MMU/IR below; µPC and CC inside their own blocks).
+    //
+    // PC/MAR/X/Y: load# forced HIGH, count_en forced 0.
+    wire [3:0] pcmxy_ld;
+    (* purpose = "freeze PC/MAR/X/Y load# (| granted)" *)
+    sn74ahct32 frzld0 (.a({pc_ctrl_n[1], mar_ctrl_n[1], x_ctrl_n[1], y_ctrl_n[1]}),
+                       .b({4{granted}}), .y(pcmxy_ld));
+    wire pc_ld_g = pcmxy_ld[3], mar_ld_g = pcmxy_ld[2], x_ld_g = pcmxy_ld[1], y_ld_g = pcmxy_ld[0];
+    wire [3:0] pcmxy_cnt;
+    (* purpose = "freeze PC/MAR/X/Y count_en (granted?0)" *)
+    sn74ahct157 frzcnt (.a({pc_count_en, mar_count_en, x_count_en, y_count_en}),
+                        .b(4'b0000), .sel(granted), .g_n(1'b0), .y(pcmxy_cnt));
+    wire pc_cnt_g = pcmxy_cnt[3], mar_cnt_g = pcmxy_cnt[2], x_cnt_g = pcmxy_cnt[1], y_cnt_g = pcmxy_cnt[0];
+
     // --- the three datapath buses ------------------------------------------
     // LEFT_RAW and Z are shared, tri-state (wired-OR of the register/MDR drivers). The LEFT_LANE
     // steer maps LEFT_RAW -> the ALU's LEFT input (widen a byte / move the high byte down). The
@@ -204,6 +229,10 @@ module cpu #(
     (* purpose = "SCR1/SCR2 /load = Z_DEST | Z_LANE-block" *)
     sn74ahct32 scrld (.a({z_dest_n[6], z_dest_n[6], z_dest_n[5], z_dest_n[5]}),
                       .b({z_block_hi, z_block_lo, z_block_hi, z_block_lo}), .y(scr_ld_n));
+    // bus-grant freeze: force all four SCR /load strobes HIGH while granted.
+    wire [3:0] scr_ld_g;
+    (* purpose = "freeze SCR load# (| granted)" *)
+    sn74ahct32 frzscr (.a(scr_ld_n), .b({4{granted}}), .y(scr_ld_g));
 
     // --- PC, MAR, SCR1, SCR2: four universal '163-counter register boards ---
     // PC/MAR load full16 from Z (a LOAD captures a 16-bit address; Z_LANE does not apply).
@@ -211,26 +240,26 @@ module cpu #(
     (* purpose = "PC register" *)
     register16 pc_reg (
         .clk(clk), .reset_n(reg_reset_n), .z_in(z),
-        .load_lo_n(pc_ctrl_n[1]), .load_hi_n(pc_ctrl_n[1]),
-        .count_en(pc_count_en), .drive_left_n(left_src_n[6]), .q(pc_w), .left_out(left_raw)
+        .load_lo_n(pc_ld_g), .load_hi_n(pc_ld_g),
+        .count_en(pc_cnt_g), .drive_left_n(left_src_n[6]), .q(pc_w), .left_out(left_raw)
     );
     (* purpose = "MAR register" *)
     register16 mar_reg (
         .clk(clk), .reset_n(reg_reset_n), .z_in(z),
-        .load_lo_n(mar_ctrl_n[1]), .load_hi_n(mar_ctrl_n[1]),
-        .count_en(mar_count_en), .drive_left_n(left_src_n[7]), .q(mar_w), .left_out(left_raw)
+        .load_lo_n(mar_ld_g), .load_hi_n(mar_ld_g),
+        .count_en(mar_cnt_g), .drive_left_n(left_src_n[7]), .q(mar_w), .left_out(left_raw)
     );
     // Scratch registers: latch from Z_LOAD on Z_DEST=SCR1/SCR2 (lane-gated), never count, drive LEFT.
     (* purpose = "SCR1 register" *)
     register16 scr1 (
         .clk(clk), .reset_n(reg_reset_n), .z_in(z_load),
-        .load_lo_n(scr_ld_n[0]), .load_hi_n(scr_ld_n[1]),
+        .load_lo_n(scr_ld_g[0]), .load_hi_n(scr_ld_g[1]),
         .count_en(1'b0), .drive_left_n(left_src_n[8]), .q(scr1_w), .left_out(left_raw)
     );
     (* purpose = "SCR2 register" *)
     register16 scr2 (
         .clk(clk), .reset_n(reg_reset_n), .z_in(z_load),
-        .load_lo_n(scr_ld_n[2]), .load_hi_n(scr_ld_n[3]),
+        .load_lo_n(scr_ld_g[2]), .load_hi_n(scr_ld_g[3]),
         .count_en(1'b0), .drive_left_n(left_src_n[9]), .q(scr2_w), .left_out(left_raw)
     );
     assign pc_q = pc_w;
@@ -245,23 +274,31 @@ module cpu #(
     (* purpose = "D /load = Z_DEST=D | Z_LANE-block" *)
     sn74ahct32 dld (.a({2'b00, z_dest_n[1], z_dest_n[1]}),
                     .b({2'b00, z_block_hi, z_block_lo}), .y(d_ld_n));
+    // bus-grant freeze (one '32 fills four gates): D lo/hi, the MDR /load (Z_DEST=MDR) and the MMU
+    // page-table WRITE_ENTRY strobe — all forced inactive (HIGH) while granted. mdr_ld_g feeds
+    // memory_interface and mmu_wr_g feeds both the MMU table-write decode and the MMU_ENTRY latch.
+    wire [3:0] dmm_ld;
+    (* purpose = "freeze D/MDR/MMU-write (| granted)" *)
+    sn74ahct32 frzdmm (.a({mmu_pt_n[1], z_dest_n[7], d_ld_n[1], d_ld_n[0]}),
+                       .b({4{granted}}), .y(dmm_ld));
+    wire d_ld_g_lo = dmm_ld[0], d_ld_g_hi = dmm_ld[1], mdr_ld_g = dmm_ld[2], mmu_wr_g = dmm_ld[3];
     (* purpose = "D register (A:B accumulator)" *)
     register16 d_reg (
         .clk(clk), .reset_n(reg_reset_n), .z_in(z_load),
-        .load_lo_n(d_ld_n[0]), .load_hi_n(d_ld_n[1]),
+        .load_lo_n(d_ld_g_lo), .load_hi_n(d_ld_g_hi),
         .count_en(1'b0), .drive_left_n(left_src_n[1]), .q(d_w), .left_out(left_raw)
     );
     (* purpose = "X register (counter)" *)
     register16 x_reg (
         .clk(clk), .reset_n(reg_reset_n), .z_in(z),
-        .load_lo_n(x_ctrl_n[1]), .load_hi_n(x_ctrl_n[1]),
-        .count_en(x_count_en), .drive_left_n(left_src_n[2]), .q(x_w), .left_out(left_raw)
+        .load_lo_n(x_ld_g), .load_hi_n(x_ld_g),
+        .count_en(x_cnt_g), .drive_left_n(left_src_n[2]), .q(x_w), .left_out(left_raw)
     );
     (* purpose = "Y register (counter)" *)
     register16 y_reg (
         .clk(clk), .reset_n(reg_reset_n), .z_in(z),
-        .load_lo_n(y_ctrl_n[1]), .load_hi_n(y_ctrl_n[1]),
-        .count_en(y_count_en), .drive_left_n(left_src_n[3]), .q(y_w), .left_out(left_raw)
+        .load_lo_n(y_ld_g), .load_hi_n(y_ld_g),
+        .count_en(y_cnt_g), .drive_left_n(left_src_n[3]), .q(y_w), .left_out(left_raw)
     );
     // USP/SSP: bank-resolved drive/load from sp_bank (explicit USP/SSP OR ACTIVE_SP). Full16, no count.
     wire usp_drive_n, ssp_drive_n, usp_load_n, ssp_load_n;
@@ -273,16 +310,23 @@ module cpu #(
         .usp_drive_n(usp_drive_n), .ssp_drive_n(ssp_drive_n),
         .usp_load_n(usp_load_n), .ssp_load_n(ssp_load_n)
     );
+    // bus-grant freeze: USP/SSP /load strobes forced HIGH, and the IR source-mux select forced to
+    // the HOLD side (ir_hold_sel) so the always-clocked IR '574 re-latches itself during a grant.
+    wire [3:0] spir_ld;
+    (* purpose = "freeze USP/SSP load# + IR hold-sel (| granted)" *)
+    sn74ahct32 frzspir (.a({1'b0, ir_load_n[1], ssp_load_n, usp_load_n}),
+                        .b({4{granted}}), .y(spir_ld));
+    wire usp_ld_g = spir_ld[0], ssp_ld_g = spir_ld[1], ir_hold_sel = spir_ld[2];
     (* purpose = "USP register (user SP)" *)
     register16 usp_reg (
         .clk(clk), .reset_n(reg_reset_n), .z_in(z),
-        .load_lo_n(usp_load_n), .load_hi_n(usp_load_n),
+        .load_lo_n(usp_ld_g), .load_hi_n(usp_ld_g),
         .count_en(1'b0), .drive_left_n(usp_drive_n), .q(usp_w), .left_out(left_raw)
     );
     (* purpose = "SSP register (supervisor SP)" *)
     register16 ssp_reg (
         .clk(clk), .reset_n(reg_reset_n), .z_in(z),
-        .load_lo_n(ssp_load_n), .load_hi_n(ssp_load_n),
+        .load_lo_n(ssp_ld_g), .load_hi_n(ssp_ld_g),
         .count_en(1'b0), .drive_left_n(ssp_drive_n), .q(ssp_w), .left_out(left_raw)
     );
 
@@ -306,7 +350,7 @@ module cpu #(
         .clk(clk), .reset_n(reg_reset_n),
         .flag_n(fn), .flag_z(fz), .flag_v(fv), .flag_c(fc), .flag_h(fh),
         .flag_we(flag_we), .v_src_n(v_src_n), .c_src_n(c_src_n), .z_accum(z_accum),
-        .cc_write_n(cc_write_n), .cc_mi_n(cc_mi_n), .z_lo(z[7:0]),
+        .cc_write_n(cc_write_n), .cc_mi_n(cc_mi_n), .z_lo(z[7:0]), .hold(granted),
         .cc_q(cc_q), .cc_m(cc_m), .cond(cc_cond)
     );
 
@@ -328,7 +372,8 @@ module cpu #(
     (* purpose = "MMU (translate + page table)" *)
     mmu u_mmu (
         .clk(clk), .loading(loading), .loader_addr(loader_addr), .addr_logical(addr_logical),
-        .mmu_addr_n(mmu_addr_n), .mmu_map_n(mmu_map_n), .mmu_pt_n(mmu_pt_n), .cc_m(cc_m),
+        .mmu_addr_n(mmu_addr_n), .mmu_map_n(mmu_map_n),
+        .mmu_pt_n({mmu_pt_n[3:2], mmu_wr_g, mmu_pt_n[0]}), .cc_m(cc_m),
         .entry_in(mmu_entry_q[10:0]), .entry_rd(mmu_entry_rd), .a(a_pre)
     );
     // A[23:0] south-edge drivers — tri-stated on a bus grant (interface.md §4.6).
@@ -341,7 +386,7 @@ module cpu #(
     (* purpose = "MDR + memory bus port" *)
     memory_interface mi (
         .clk(clk),
-        .mem_op_n(mem_op_n), .z_dest_mdr_n(z_dest_n[7]), .left_src_mdr_n(left_src_n[10]),
+        .mem_op_n(mem_op_n), .z_dest_mdr_n(mdr_ld_g), .left_src_mdr_n(left_src_n[10]),
         .bus_inhibit(bus_inhibit),
         .addr(addr_logical), .z_lo(z[7:0]),
         .mdr_q(mdr_q), .z_post(z), .left_lo(left_raw[7:0]),
@@ -358,9 +403,9 @@ module cpu #(
     // dispatches on it in the same cycle.
     wire [7:0] ir, ir_inner, ir_d;
     (* purpose = "IR src: read byte vs hold [3:0]" *)
-    sn74ahct157 iri0 (.a(z[3:0]), .b(ir[3:0]), .sel(ir_load_n[1]), .g_n(1'b0), .y(ir_inner[3:0]));
+    sn74ahct157 iri0 (.a(z[3:0]), .b(ir[3:0]), .sel(ir_hold_sel), .g_n(1'b0), .y(ir_inner[3:0]));
     (* purpose = "IR src: read byte vs hold [7:4]" *)
-    sn74ahct157 iri1 (.a(z[7:4]), .b(ir[7:4]), .sel(ir_load_n[1]), .g_n(1'b0), .y(ir_inner[7:4]));
+    sn74ahct157 iri1 (.a(z[7:4]), .b(ir[7:4]), .sel(ir_hold_sel), .g_n(1'b0), .y(ir_inner[7:4]));
     (* purpose = "IR src: inject vs fetch [3:0]" *)
     sn74ahct157 iro0 (.a(ir_inner[3:0]), .b(ir_drive[3:0]), .sel(ir_inject), .g_n(1'b0), .y(ir_d[3:0]));
     (* purpose = "IR src: inject vs fetch [7:4]" *)
@@ -380,15 +425,20 @@ module cpu #(
     (* purpose = "MMU_ENTRY latch + LEFT driver" *)
     mmu_entry u_mmu_entry (
         .clk(clk), .left_in(left_raw), .entry_rd(mmu_entry_rd),
-        .load_n(mmu_pt_n[1]), .read_n(mmu_pt_n[2]), .drive_n(left_src_n[12]),
+        .load_n(mmu_wr_g), .read_n(mmu_pt_n[2]), .drive_n(left_src_n[12]),
         .q(mmu_entry_q), .left_out(left_raw)
     );
 
     // --- ULOOP micro-loop counter: terminal -> cond[8] ---------------------
     // ULOOP_CTRL is the sequencer field cw_wcs[21:20]; the count loads from the Z low bits.
     wire uloop_zero;
+    // bus-grant freeze: force ULOOP_CTRL to HOLD (00) while granted so the loop counter neither
+    // loads nor decrements during a grant.
+    wire [3:0] ulc;
+    (* purpose = "freeze ULOOP_CTRL -> HOLD (granted?0)" *)
+    sn74ahct157 frzulc (.a({2'b0, cw_wcs[21], cw_wcs[20]}), .b(4'b0), .sel(granted), .g_n(1'b0), .y(ulc));
     (* purpose = "ULOOP micro-loop counter" *)
-    uloop u_uloop (.clk(clk), .reset_n(reg_reset_n), .uloop_ctrl(cw_wcs[21:20]),
+    uloop u_uloop (.clk(clk), .reset_n(reg_reset_n), .uloop_ctrl(ulc[1:0]),
                    .z_lo(z[4:0]), .uloop_zero(uloop_zero));
 
     // --- IRQ I-mask + RETURN_FETCH decode (for the trap encoder) -----------
@@ -446,7 +496,7 @@ module cpu #(
         .useq_op(cw_wcs[2:0]), .next_addr(cw_wcs[14:3]),
         .ucond_sel(cw_wcs[18:15]), .ucond_pol(cw_wcs[19]),
         .cond(cond_seq), .lut_data(lut_data),
-        .trap_entry(trap_entry), .trap_pending(trap_pending), .upc(upc)
+        .trap_entry(trap_entry), .trap_pending(trap_pending), .hold(granted), .upc(upc)
     );
 
     // --- control store + opcode LUT ----------------------------------------

@@ -40,6 +40,7 @@ module cc_register (
     input  wire [3:0]  cc_write_n,     // CC_WRITE_SRC one-hot (ALU_FLAGS=0,WHOLE_Z=1,AND=2,OR=3)
     input  wire [3:0]  cc_mi_n,        // CC_MI_LOAD one-hot (HOLD=0,SET_ON_ENTRY=1,SET_I=2,CLR_I=3)
     input  wire [7:0]  z_lo,           // Z-bus low byte (WHOLE_Z / mask source)
+    input  wire        hold,           // bus-grant stall: HIGH recirculates CC (no write commits)
     // ---- outputs ----
     output wire [7:0]  cc_q,           // the CC register
     output wire        cc_m            // CC.M (supervisor) — to SP-bank / MMU / sequencer
@@ -173,12 +174,20 @@ module cc_register (
     wire [7:0] cc_dn = {dn1[1], cc_q[6], dn1[0], dn1[2], dn0[3], dn0[2], dn0[1], dn0[0]};
     // positions: [7]=M(dn1[1]) [6]=cc_q[6] [5]=H(dn1[0]) [4]=I(dn1[2]) [3]=N(dn0[3]) [2]=Z(dn0[2]) [1]=V(dn0[1]) [0]=C(dn0[0])
 
-    // ---- reset mux: reset_n ? cc_dn : 0x90, then the register -----------------------
+    // ---- bus-grant freeze: while `hold`, recirculate CC (cc_held = cc_q) so no flag/mode write
+    // commits while an external master owns the bus; reset still dominates below (R-IF-4). ------
+    wire [7:0] cc_held;
+    (* purpose = "hold mux [3:0] (recirc on grant)" *)
+    sn74ahct157 hm0 (.a(cc_dn[3:0]), .b(cc_q[3:0]), .sel(hold), .g_n(1'b0), .y(cc_held[3:0]));
+    (* purpose = "hold mux [7:4] (recirc on grant)" *)
+    sn74ahct157 hm1 (.a(cc_dn[7:4]), .b(cc_q[7:4]), .sel(hold), .g_n(1'b0), .y(cc_held[7:4]));
+
+    // ---- reset mux: reset_n ? cc_held : 0x90, then the register ----------------------
     wire [7:0] cc_d;
     (* purpose = "reset mux [3:0]" *)
-    sn74ahct157 rm0 (.a(4'h0), .b(cc_dn[3:0]), .sel(reset_n), .g_n(1'b0), .y(cc_d[3:0]));
+    sn74ahct157 rm0 (.a(4'h0), .b(cc_held[3:0]), .sel(reset_n), .g_n(1'b0), .y(cc_d[3:0]));
     (* purpose = "reset mux [7:4]" *)
-    sn74ahct157 rm1 (.a(4'h9), .b(cc_dn[7:4]), .sel(reset_n), .g_n(1'b0), .y(cc_d[7:4]));
+    sn74ahct157 rm1 (.a(4'h9), .b(cc_held[7:4]), .sel(reset_n), .g_n(1'b0), .y(cc_d[7:4]));
     (* purpose = "CC register" *)
     sn74ahct574 ccr (.Q(cc_q), .D(cc_d), .CLK(clk), .OE_n(1'b0));
 endmodule

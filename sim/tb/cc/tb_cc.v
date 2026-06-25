@@ -27,7 +27,7 @@ module tb_cc;
         .clk(clk), .reset_n(reset_n),
         .flag_n(fn), .flag_z(fz), .flag_v(fv), .flag_c(fc), .flag_h(fh),
         .flag_we(flag_we), .v_src_n(v_src_n), .c_src_n(c_src_n), .z_accum(z_accum),
-        .cc_write_n(cc_write_n), .cc_mi_n(cc_mi_n), .z_lo(z_lo),
+        .cc_write_n(cc_write_n), .cc_mi_n(cc_mi_n), .z_lo(z_lo), .hold(1'b0),
         .cc_q(cc_q), .cc_m(cc_m), .cond(cond)
     );
 

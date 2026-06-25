@@ -57,6 +57,9 @@ module microsequencer (
     // ---- trap-vector encoder: redirect RETURN_FETCH to a pending trap's entry ----
     input  wire [11:0] trap_entry,
     input  wire        trap_pending,
+    // ---- bus-grant stall: HIGH freezes the µPC (no count, no load) so a held bus grant
+    //      stalls the core (interface.md §4.6, R-IF-4). Forces count_en LOW and LOAD# HIGH. ----
+    input  wire        hold,
     output wire [11:0] upc
 );
     // ---- USEQ_OP one-hot (active LOW): op_n[k] low <=> USEQ_OP == k ----------
@@ -93,28 +96,35 @@ module microsequencer (
     wire retfetch_active = inv_y[3];   // also next-addr mux select B (pick fetch entry 0)
     wire do_load, load_n;
     assign load_n = inv_y[4];
-    assign inv_a  = {1'b0, do_load, op_n[4], op_n[3], op_n[2], op_n[1]};
-    (* purpose = "op decode + LOAD#" *)
+    wire   nhold  = inv_y[5];                  // ~hold (spare '04 inverter; HIGH when running)
+    assign inv_a  = {hold, do_load, op_n[4], op_n[3], op_n[2], op_n[1]};
+    (* purpose = "op decode + LOAD# + ~hold" *)
     sn74ahct04 inv (.a(inv_a), .y(inv_y));
 
-    // BRANCH load term: branch_active & cond_taken  (one '08 gate)
+    // BRANCH load term: branch_active & cond_taken  (one '08 gate). Gate 1 of the same '08 forms
+    // the µPC count enable = (NOT WAIT) & (NOT hold): a held bus grant freezes the count.
     wire [3:0] and_y;
-    (* purpose = "branch AND" *)
-    sn74ahct08 brand (.a({3'b0, branch_active}), .b({3'b0, cond_taken}), .y(and_y));
-    wire br_term = and_y[0];
+    (* purpose = "branch AND; count_en = ~WAIT & ~hold" *)
+    sn74ahct08 brand (.a({2'b0, op_n[5], branch_active}), .b({2'b0, nhold, cond_taken}), .y(and_y));
+    wire br_term  = and_y[0];
+    wire count_en = and_y[1];                  // op_n[5] (NOT WAIT) AND ~hold
 
     // base_do_load = jump | br_term | dispatch | retfetch  (three gates of one '32; the package's
     // own gate-0/gate-1 outputs feed gate-2 — an ordinary on-board cascade, not a loop):
     //   y[0] = jump_active   | br_term
     //   y[1] = dispatch_active | retfetch_active
     //   y[2] = y[0] | y[1]   = base_do_load
+    // Gate 3 of the same '32 forms LOAD#_eff = LOAD# | hold: a held bus grant forces LOAD# HIGH
+    // (no load). load_n (=~do_load) depends on or_y[2] via seqor→inv, and or_y[3] feeds nothing
+    // back into or_y[0..2] — a feed-forward extension of the on-board cascade, not a loop.
     wire [3:0] or_y;
-    (* purpose = "do_load base OR tree" *)
+    (* purpose = "do_load base OR tree; LOAD#|hold" *)
     sn74ahct32 lor (
-        .a({1'b0, or_y[0], dispatch_active, jump_active}),
-        .b({1'b0, or_y[1], retfetch_active, br_term}),
+        .a({load_n, or_y[0], dispatch_active, jump_active}),
+        .b({hold,   or_y[1], retfetch_active, br_term}),
         .y(or_y));
     wire base_do_load = or_y[2];
+    wire load_n_eff   = or_y[3];               // LOAD# forced HIGH while hold
 
     // CALL/RETURN active-high (op_n[6]/op_n[7] are the active-low CALL/RETURN strobes).
     wire [5:0] cr_inv;
@@ -137,9 +147,8 @@ module microsequencer (
     wire mux_sel_b = sq[1];
     assign do_load = sq[3];
 
-    // count enable = NOT WAIT: op_n[5] is LOW only on WAIT, so use it directly as the
-    // active-high count enable (hold on WAIT; LOAD# dominates on load ops).
-    wire count_en = op_n[5];
+    // count enable (count_en) is computed in `brand` above: op_n[5] (NOT WAIT) AND ~hold, so the
+    // µPC holds on WAIT or while the bus is granted away; LOAD#_eff dominates on a load op.
 
     // ---- µPC+1 adder (3x '283): the CALL return address (caller's next step) -----
     // The µPC '161 hides its internal +1 and on a CALL edge loads NEXT_ADDR, so the return point
@@ -194,13 +203,13 @@ module microsequencer (
     wire [11:0] upc_q;
     wire [2:0]  upc_rco;
     (* purpose = "uPC [3:0]" *)
-    cd74act161 u0 (.clk(clk), .clr_n(clr_n), .load_n(load_n), .enp(count_en), .ent(count_en),
+    cd74act161 u0 (.clk(clk), .clr_n(clr_n), .load_n(load_n_eff), .enp(count_en), .ent(count_en),
                    .p(p[3:0]),   .q(upc_q[3:0]),  .rco(upc_rco[0]));
     (* purpose = "uPC [7:4]" *)
-    cd74act161 u1 (.clk(clk), .clr_n(clr_n), .load_n(load_n), .enp(count_en), .ent(upc_rco[0]),
+    cd74act161 u1 (.clk(clk), .clr_n(clr_n), .load_n(load_n_eff), .enp(count_en), .ent(upc_rco[0]),
                    .p(p[7:4]),   .q(upc_q[7:4]),  .rco(upc_rco[1]));
     (* purpose = "uPC [11:8]" *)
-    cd74act161 u2 (.clk(clk), .clr_n(clr_n), .load_n(load_n), .enp(count_en), .ent(upc_rco[1]),
+    cd74act161 u2 (.clk(clk), .clr_n(clr_n), .load_n(load_n_eff), .enp(count_en), .ent(upc_rco[1]),
                    .p(p[11:8]),  .q(upc_q[11:8]), .rco(upc_rco[2]));
     assign upc = upc_q;
 endmodule

@@ -15,6 +15,7 @@ module cc (
     input  wire [3:0]  cc_write_n,
     input  wire [3:0]  cc_mi_n,
     input  wire [7:0]  z_lo,
+    input  wire        hold,          // bus-grant stall: HIGH freezes CC (R-IF-4)
     output wire [7:0]  cc_q,
     output wire        cc_m,
     output wire [6:0]  cond          // CC-derived microconditions (sequencer cond[6:0])
@@ -24,7 +25,7 @@ module cc (
         .clk(clk), .reset_n(reset_n),
         .flag_n(flag_n), .flag_z(flag_z), .flag_v(flag_v), .flag_c(flag_c), .flag_h(flag_h),
         .flag_we(flag_we), .v_src_n(v_src_n), .c_src_n(c_src_n), .z_accum(z_accum),
-        .cc_write_n(cc_write_n), .cc_mi_n(cc_mi_n), .z_lo(z_lo),
+        .cc_write_n(cc_write_n), .cc_mi_n(cc_mi_n), .z_lo(z_lo), .hold(hold),
         .cc_q(cc_q), .cc_m(cc_m)
     );
     (* purpose = "CC condition generation" *)
