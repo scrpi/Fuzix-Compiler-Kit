@@ -15,7 +15,7 @@
 # Notation used here (docs/microcode-source.md §14 left some glyphs open; these
 # are the choices this source commits to):
 #   <-            register transfer            : nz, v=0   flag write clause
-#   [PC] / [MAR]  memory read at PC / MAR       [MAR] <-   memory write (LEFT drives data)
+#   [PC] / [MAR]  memory read at PC / MAR       [MAR] <- MDR   memory write (stage `MDR <- X` first)
 #   R++           off-bus +1 counter tick       R - 1      ALU add of a -2..+2 const-gen value
 #   low(r)/high(r)/sext(r)   lane steer         a +c b / a -c b   ADC / SBC (carry-in = CC.C)
 #   _ <- expr     compute for flags only (Z_DEST = none — CMP/BIT/TST)
@@ -209,117 +209,133 @@ routine LD B,(Y+n8):
   MAR  <- Y + SCR1
   B  <- [MAR] : nz, v=0 ; return to fetch
 
-# 0x16 ST A,(SP+n8)   (4 cyc)
+# 0x16 ST A,(SP+n8)   (5 cyc)
 .opcode page0 0x16 ST A,(SP+n8)
 routine ST A,(SP+n8):
   MDR  <- [PC]; PC++
   SCR1 <- sext(MDR)
   MAR  <- SP + SCR1
-  [MAR] <- A : nz, v=0 ; return to fetch
+  MDR <- A : nz, v=0
+  [MAR] <- MDR ; return to fetch
 
-# 0x17 ST A,(X)   (2 cyc)
+# 0x17 ST A,(X)   (3 cyc)
 .opcode page0 0x17 ST A,(X)
 routine ST A,(X):
   MAR  <- X
-  [MAR] <- A : nz, v=0 ; return to fetch
+  MDR <- A : nz, v=0
+  [MAR] <- MDR ; return to fetch
 
-# 0x18 ST A,(X+n8)   (4 cyc)
+# 0x18 ST A,(X+n8)   (5 cyc)
 .opcode page0 0x18 ST A,(X+n8)
 routine ST A,(X+n8):
   MDR  <- [PC]; PC++
   SCR1 <- sext(MDR)
   MAR  <- X + SCR1
-  [MAR] <- A : nz, v=0 ; return to fetch
+  MDR <- A : nz, v=0
+  [MAR] <- MDR ; return to fetch
 
-# 0x19 ST A,(X+)   (2 cyc)
+# 0x19 ST A,(X+)   (3 cyc)
 .opcode page0 0x19 ST A,(X+)
 routine ST A,(X+):
   MAR  <- X
-  [MAR] <- A ; X++ : nz, v=0 ; return to fetch
+  MDR <- A ; X++ : nz, v=0
+  [MAR] <- MDR ; return to fetch
 
-# 0x1a ST A,($nnnn)   (4 cyc)
+# 0x1a ST A,($nnnn)   (5 cyc)
 .opcode page0 0x1a ST A,($nnnn)
 routine ST A,($nnnn):
   SCR1.low  <- [PC]; PC++
   SCR1.high <- [PC]; PC++
   MAR  <- SCR1
-  [MAR] <- A : nz, v=0 ; return to fetch
+  MDR <- A : nz, v=0
+  [MAR] <- MDR ; return to fetch
 
-# 0x1b ST A,(Y)   (2 cyc)
+# 0x1b ST A,(Y)   (3 cyc)
 .opcode page0 0x1b ST A,(Y)
 routine ST A,(Y):
   MAR  <- Y
-  [MAR] <- A : nz, v=0 ; return to fetch
+  MDR <- A : nz, v=0
+  [MAR] <- MDR ; return to fetch
 
-# 0x1c ST A,(Y+n8)   (4 cyc)
+# 0x1c ST A,(Y+n8)   (5 cyc)
 .opcode page0 0x1c ST A,(Y+n8)
 routine ST A,(Y+n8):
   MDR  <- [PC]; PC++
   SCR1 <- sext(MDR)
   MAR  <- Y + SCR1
-  [MAR] <- A : nz, v=0 ; return to fetch
+  MDR <- A : nz, v=0
+  [MAR] <- MDR ; return to fetch
 
-# 0x1d ST A,(Y+)   (2 cyc)
+# 0x1d ST A,(Y+)   (3 cyc)
 .opcode page0 0x1d ST A,(Y+)
 routine ST A,(Y+):
   MAR  <- Y
-  [MAR] <- A ; Y++ : nz, v=0 ; return to fetch
+  MDR <- A ; Y++ : nz, v=0
+  [MAR] <- MDR ; return to fetch
 
-# 0x1e ST B,(SP+n8)   (4 cyc)
+# 0x1e ST B,(SP+n8)   (5 cyc)
 .opcode page0 0x1e ST B,(SP+n8)
 routine ST B,(SP+n8):
   MDR  <- [PC]; PC++
   SCR1 <- sext(MDR)
   MAR  <- SP + SCR1
-  [MAR] <- B : nz, v=0 ; return to fetch
+  MDR <- B : nz, v=0
+  [MAR] <- MDR ; return to fetch
 
-# 0x1f ST B,(X)   (2 cyc)
+# 0x1f ST B,(X)   (3 cyc)
 .opcode page0 0x1f ST B,(X)
 routine ST B,(X):
   MAR  <- X
-  [MAR] <- B : nz, v=0 ; return to fetch
+  MDR <- B : nz, v=0
+  [MAR] <- MDR ; return to fetch
 
-# 0x20 ST B,(X+n8)   (4 cyc)
+# 0x20 ST B,(X+n8)   (5 cyc)
 .opcode page0 0x20 ST B,(X+n8)
 routine ST B,(X+n8):
   MDR  <- [PC]; PC++
   SCR1 <- sext(MDR)
   MAR  <- X + SCR1
-  [MAR] <- B : nz, v=0 ; return to fetch
+  MDR <- B : nz, v=0
+  [MAR] <- MDR ; return to fetch
 
-# 0x21 ST B,(X+)   (2 cyc)
+# 0x21 ST B,(X+)   (3 cyc)
 .opcode page0 0x21 ST B,(X+)
 routine ST B,(X+):
   MAR  <- X
-  [MAR] <- B ; X++ : nz, v=0 ; return to fetch
+  MDR <- B ; X++ : nz, v=0
+  [MAR] <- MDR ; return to fetch
 
-# 0x22 ST B,($nnnn)   (4 cyc)
+# 0x22 ST B,($nnnn)   (5 cyc)
 .opcode page0 0x22 ST B,($nnnn)
 routine ST B,($nnnn):
   SCR1.low  <- [PC]; PC++
   SCR1.high <- [PC]; PC++
   MAR  <- SCR1
-  [MAR] <- B : nz, v=0 ; return to fetch
+  MDR <- B : nz, v=0
+  [MAR] <- MDR ; return to fetch
 
-# 0x23 ST B,(Y)   (2 cyc)
+# 0x23 ST B,(Y)   (3 cyc)
 .opcode page0 0x23 ST B,(Y)
 routine ST B,(Y):
   MAR  <- Y
-  [MAR] <- B : nz, v=0 ; return to fetch
+  MDR <- B : nz, v=0
+  [MAR] <- MDR ; return to fetch
 
-# 0x24 ST B,(Y+n8)   (4 cyc)
+# 0x24 ST B,(Y+n8)   (5 cyc)
 .opcode page0 0x24 ST B,(Y+n8)
 routine ST B,(Y+n8):
   MDR  <- [PC]; PC++
   SCR1 <- sext(MDR)
   MAR  <- Y + SCR1
-  [MAR] <- B : nz, v=0 ; return to fetch
+  MDR <- B : nz, v=0
+  [MAR] <- MDR ; return to fetch
 
-# 0x25 ST B,(Y+)   (2 cyc)
+# 0x25 ST B,(Y+)   (3 cyc)
 .opcode page0 0x25 ST B,(Y+)
 routine ST B,(Y+):
   MAR  <- Y
-  [MAR] <- B ; Y++ : nz, v=0 ; return to fetch
+  MDR <- B ; Y++ : nz, v=0
+  [MAR] <- MDR ; return to fetch
 
 # ===========================================================================
 # PAGE 0 · 16-bit load/store (D, X, Y, SP)
@@ -380,32 +396,38 @@ routine LD Y,($nnnn):
   SCR1.high <- [MAR]; MAR++
   Y <- SCR1 : nz, v=0 ; return to fetch
 
-# 0x2d ST D,($nnnn)   (5 cyc)
+# 0x2d ST D,($nnnn)   (7 cyc)
 .opcode page0 0x2d ST D,($nnnn)
 routine ST D,($nnnn):
   SCR1.low  <- [PC]; PC++
   SCR1.high <- [PC]; PC++
   MAR  <- SCR1
-  [MAR] <- low(D); MAR++ : z
-  [MAR] <- high(D); MAR++ : nz, v=0, z+ ; return to fetch
+  MDR <- low(D) : z
+  [MAR] <- MDR
+  MDR <- high(D) ; MAR++ : nz, v=0, z+
+  [MAR] <- MDR ; return to fetch
 
-# 0x2e ST X,($nnnn)   (5 cyc)
+# 0x2e ST X,($nnnn)   (7 cyc)
 .opcode page0 0x2e ST X,($nnnn)
 routine ST X,($nnnn):
   SCR1.low  <- [PC]; PC++
   SCR1.high <- [PC]; PC++
   MAR  <- SCR1
-  [MAR] <- low(X); MAR++ : z
-  [MAR] <- high(X); MAR++ : nz, v=0, z+ ; return to fetch
+  MDR <- low(X) : z
+  [MAR] <- MDR
+  MDR <- high(X) ; MAR++ : nz, v=0, z+
+  [MAR] <- MDR ; return to fetch
 
-# 0x2f ST Y,($nnnn)   (5 cyc)
+# 0x2f ST Y,($nnnn)   (7 cyc)
 .opcode page0 0x2f ST Y,($nnnn)
 routine ST Y,($nnnn):
   SCR1.low  <- [PC]; PC++
   SCR1.high <- [PC]; PC++
   MAR  <- SCR1
-  [MAR] <- low(Y); MAR++ : z
-  [MAR] <- high(Y); MAR++ : nz, v=0, z+ ; return to fetch
+  MDR <- low(Y) : z
+  [MAR] <- MDR
+  MDR <- high(Y) ; MAR++ : nz, v=0, z+
+  [MAR] <- MDR ; return to fetch
 
 # 0x30 LD D,(X)   (3 cyc)
 .opcode page0 0x30 LD D,(X)
@@ -414,12 +436,14 @@ routine LD D,(X):
   D.low  <- [MAR]; MAR++ : z
   D.high <- [MAR]; MAR++ : nz, v=0, z+ ; return to fetch
 
-# 0x31 ST D,(X)   (3 cyc)
+# 0x31 ST D,(X)   (5 cyc)
 .opcode page0 0x31 ST D,(X)
 routine ST D,(X):
   MAR  <- X
-  [MAR] <- low(D); MAR++ : z
-  [MAR] <- high(D); MAR++ : nz, v=0, z+ ; return to fetch
+  MDR <- low(D) : z
+  [MAR] <- MDR
+  MDR <- high(D) ; MAR++ : nz, v=0, z+
+  [MAR] <- MDR ; return to fetch
 
 # 0x32 LD D,(X+n8)   (5 cyc)
 .opcode page0 0x32 LD D,(X+n8)
@@ -430,14 +454,16 @@ routine LD D,(X+n8):
   D.low  <- [MAR]; MAR++ : z
   D.high <- [MAR]; MAR++ : nz, v=0, z+ ; return to fetch
 
-# 0x33 ST D,(X+n8)   (5 cyc)
+# 0x33 ST D,(X+n8)   (7 cyc)
 .opcode page0 0x33 ST D,(X+n8)
 routine ST D,(X+n8):
   MDR  <- [PC]; PC++
   SCR1 <- sext(MDR)
   MAR  <- X + SCR1
-  [MAR] <- low(D); MAR++ : z
-  [MAR] <- high(D); MAR++ : nz, v=0, z+ ; return to fetch
+  MDR <- low(D) : z
+  [MAR] <- MDR
+  MDR <- high(D) ; MAR++ : nz, v=0, z+
+  [MAR] <- MDR ; return to fetch
 
 # 0x34 LD D,(X++)   (4 cyc)
 .opcode page0 0x34 LD D,(X++)
@@ -447,13 +473,15 @@ routine LD D,(X++):
   D.high <- [MAR]; MAR++ : nz, v=0, z+
   X <- MAR ; return to fetch
 
-# 0x35 ST D,(X++)   (4 cyc)
+# 0x35 ST D,(X++)   (6 cyc)
 .opcode page0 0x35 ST D,(X++)
 routine ST D,(X++):
   MAR  <- X
-  [MAR] <- low(D); MAR++ : z
-  [MAR] <- high(D); MAR++ : nz, v=0, z+
-  X <- MAR ; return to fetch
+  MDR <- low(D) : z
+  [MAR] <- MDR
+  MDR <- high(D) ; MAR++ : nz, v=0, z+
+  [MAR] <- MDR
+  X <- MAR + 1 ; return to fetch
 
 # 0x36 LD D,(SP+n8)   (5 cyc)
 .opcode page0 0x36 LD D,(SP+n8)
@@ -484,32 +512,38 @@ routine LD Y,(SP+n8):
   SCR1.high <- [MAR]; MAR++
   Y <- SCR1 : nz, v=0 ; return to fetch
 
-# 0x39 ST D,(SP+n8)   (5 cyc)
+# 0x39 ST D,(SP+n8)   (7 cyc)
 .opcode page0 0x39 ST D,(SP+n8)
 routine ST D,(SP+n8):
   MDR  <- [PC]; PC++
   SCR1 <- sext(MDR)
   MAR  <- SP + SCR1
-  [MAR] <- low(D); MAR++ : z
-  [MAR] <- high(D); MAR++ : nz, v=0, z+ ; return to fetch
+  MDR <- low(D) : z
+  [MAR] <- MDR
+  MDR <- high(D) ; MAR++ : nz, v=0, z+
+  [MAR] <- MDR ; return to fetch
 
-# 0x3a ST X,(SP+n8)   (5 cyc)
+# 0x3a ST X,(SP+n8)   (7 cyc)
 .opcode page0 0x3a ST X,(SP+n8)
 routine ST X,(SP+n8):
   MDR  <- [PC]; PC++
   SCR1 <- sext(MDR)
   MAR  <- SP + SCR1
-  [MAR] <- low(X); MAR++ : z
-  [MAR] <- high(X); MAR++ : nz, v=0, z+ ; return to fetch
+  MDR <- low(X) : z
+  [MAR] <- MDR
+  MDR <- high(X) ; MAR++ : nz, v=0, z+
+  [MAR] <- MDR ; return to fetch
 
-# 0x3b ST Y,(SP+n8)   (5 cyc)
+# 0x3b ST Y,(SP+n8)   (7 cyc)
 .opcode page0 0x3b ST Y,(SP+n8)
 routine ST Y,(SP+n8):
   MDR  <- [PC]; PC++
   SCR1 <- sext(MDR)
   MAR  <- SP + SCR1
-  [MAR] <- low(Y); MAR++ : z
-  [MAR] <- high(Y); MAR++ : nz, v=0, z+ ; return to fetch
+  MDR <- low(Y) : z
+  [MAR] <- MDR
+  MDR <- high(Y) ; MAR++ : nz, v=0, z+
+  [MAR] <- MDR ; return to fetch
 
 # 0x3c LD D,(X+D)   (4 cyc)
 .opcode page0 0x3c LD D,(X+D)
@@ -519,13 +553,15 @@ routine LD D,(X+D):
   D.low  <- [MAR]; MAR++ : z
   D.high <- [MAR]; MAR++ : nz, v=0, z+ ; return to fetch
 
-# 0x3d ST D,(X+D)   (4 cyc)
+# 0x3d ST D,(X+D)   (6 cyc)
 .opcode page0 0x3d ST D,(X+D)
 routine ST D,(X+D):
   SCR1 <- D
   MAR  <- X + SCR1
-  [MAR] <- low(D); MAR++ : z
-  [MAR] <- high(D); MAR++ : nz, v=0, z+ ; return to fetch
+  MDR <- low(D) : z
+  [MAR] <- MDR
+  MDR <- high(D) ; MAR++ : nz, v=0, z+
+  [MAR] <- MDR ; return to fetch
 
 # 0x3e LD D,(Y)   (3 cyc)
 .opcode page0 0x3e LD D,(Y)
@@ -534,12 +570,14 @@ routine LD D,(Y):
   D.low  <- [MAR]; MAR++ : z
   D.high <- [MAR]; MAR++ : nz, v=0, z+ ; return to fetch
 
-# 0x3f ST D,(Y)   (3 cyc)
+# 0x3f ST D,(Y)   (5 cyc)
 .opcode page0 0x3f ST D,(Y)
 routine ST D,(Y):
   MAR  <- Y
-  [MAR] <- low(D); MAR++ : z
-  [MAR] <- high(D); MAR++ : nz, v=0, z+ ; return to fetch
+  MDR <- low(D) : z
+  [MAR] <- MDR
+  MDR <- high(D) ; MAR++ : nz, v=0, z+
+  [MAR] <- MDR ; return to fetch
 
 # 0x40 LD D,(Y+n8)   (5 cyc)
 .opcode page0 0x40 LD D,(Y+n8)
@@ -550,14 +588,16 @@ routine LD D,(Y+n8):
   D.low  <- [MAR]; MAR++ : z
   D.high <- [MAR]; MAR++ : nz, v=0, z+ ; return to fetch
 
-# 0x41 ST D,(Y+n8)   (5 cyc)
+# 0x41 ST D,(Y+n8)   (7 cyc)
 .opcode page0 0x41 ST D,(Y+n8)
 routine ST D,(Y+n8):
   MDR  <- [PC]; PC++
   SCR1 <- sext(MDR)
   MAR  <- Y + SCR1
-  [MAR] <- low(D); MAR++ : z
-  [MAR] <- high(D); MAR++ : nz, v=0, z+ ; return to fetch
+  MDR <- low(D) : z
+  [MAR] <- MDR
+  MDR <- high(D) ; MAR++ : nz, v=0, z+
+  [MAR] <- MDR ; return to fetch
 
 # ===========================================================================
 # PAGE 0 · Byte ALU (ADD/SUB/CMP/AND/OR on A, B)
@@ -1310,15 +1350,16 @@ routine ASR B:
 routine ASL B:
   B <- asl(B) : nzvc ; return to fetch
 
-# 0xa6 INC (X)   (4 cyc)
+# 0xa6 INC (X)   (5 cyc)
 .opcode page0 0xa6 INC (X)
 routine INC (X):
   MAR  <- X
   SCR1 <- [MAR]
   SCR1 <- SCR1 + 1 : nzv
-  [MAR] <- SCR1 ; return to fetch
+  MDR <- SCR1
+  [MAR] <- MDR ; return to fetch
 
-# 0xa7 INC (X+n8)   (6 cyc)
+# 0xa7 INC (X+n8)   (7 cyc)
 .opcode page0 0xa7 INC (X+n8)
 routine INC (X+n8):
   MDR  <- [PC]; PC++
@@ -1326,9 +1367,10 @@ routine INC (X+n8):
   MAR  <- X + SCR1
   SCR1 <- [MAR]
   SCR1 <- SCR1 + 1 : nzv
-  [MAR] <- SCR1 ; return to fetch
+  MDR <- SCR1
+  [MAR] <- MDR ; return to fetch
 
-# 0xa8 INC (SP+n8)   (6 cyc)
+# 0xa8 INC (SP+n8)   (7 cyc)
 .opcode page0 0xa8 INC (SP+n8)
 routine INC (SP+n8):
   MDR  <- [PC]; PC++
@@ -1336,17 +1378,19 @@ routine INC (SP+n8):
   MAR  <- SP + SCR1
   SCR1 <- [MAR]
   SCR1 <- SCR1 + 1 : nzv
-  [MAR] <- SCR1 ; return to fetch
+  MDR <- SCR1
+  [MAR] <- MDR ; return to fetch
 
-# 0xa9 DEC (X)   (4 cyc)
+# 0xa9 DEC (X)   (5 cyc)
 .opcode page0 0xa9 DEC (X)
 routine DEC (X):
   MAR  <- X
   SCR1 <- [MAR]
   SCR1 <- SCR1 - 1 : nzv
-  [MAR] <- SCR1 ; return to fetch
+  MDR <- SCR1
+  [MAR] <- MDR ; return to fetch
 
-# 0xaa DEC (X+n8)   (6 cyc)
+# 0xaa DEC (X+n8)   (7 cyc)
 .opcode page0 0xaa DEC (X+n8)
 routine DEC (X+n8):
   MDR  <- [PC]; PC++
@@ -1354,9 +1398,10 @@ routine DEC (X+n8):
   MAR  <- X + SCR1
   SCR1 <- [MAR]
   SCR1 <- SCR1 - 1 : nzv
-  [MAR] <- SCR1 ; return to fetch
+  MDR <- SCR1
+  [MAR] <- MDR ; return to fetch
 
-# 0xab DEC (SP+n8)   (6 cyc)
+# 0xab DEC (SP+n8)   (7 cyc)
 .opcode page0 0xab DEC (SP+n8)
 routine DEC (SP+n8):
   MDR  <- [PC]; PC++
@@ -1364,23 +1409,26 @@ routine DEC (SP+n8):
   MAR  <- SP + SCR1
   SCR1 <- [MAR]
   SCR1 <- SCR1 - 1 : nzv
-  [MAR] <- SCR1 ; return to fetch
+  MDR <- SCR1
+  [MAR] <- MDR ; return to fetch
 
-# 0xac CLR (X)   (3 cyc)
+# 0xac CLR (X)   (4 cyc)
 .opcode page0 0xac CLR (X)
 routine CLR (X):
   MAR  <- X
   SCR1 <- 0
-  [MAR] <- SCR1 : nz, v=0, c=0 ; return to fetch
+  MDR <- SCR1 : nz, v=0, c=0
+  [MAR] <- MDR ; return to fetch
 
-# 0xad CLR (X+n8)   (5 cyc)
+# 0xad CLR (X+n8)   (6 cyc)
 .opcode page0 0xad CLR (X+n8)
 routine CLR (X+n8):
   MDR  <- [PC]; PC++
   SCR1 <- sext(MDR)
   MAR  <- X + SCR1
   SCR1 <- 0
-  [MAR] <- SCR1 : nz, v=0, c=0 ; return to fetch
+  MDR <- SCR1 : nz, v=0, c=0
+  [MAR] <- MDR ; return to fetch
 
 # 0xae TST (X)   (2 cyc)
 .opcode page0 0xae TST (X)
@@ -1396,7 +1444,7 @@ routine TST (X+n8):
   MAR  <- X + SCR1
   _ <- [MAR] : nz, v=0 ; return to fetch
 
-# 0xb0 INC ($nnnn)   (6 cyc)
+# 0xb0 INC ($nnnn)   (7 cyc)
 .opcode page0 0xb0 INC ($nnnn)
 routine INC ($nnnn):
   SCR1.low  <- [PC]; PC++
@@ -1404,9 +1452,10 @@ routine INC ($nnnn):
   MAR  <- SCR1
   SCR1 <- [MAR]
   SCR1 <- SCR1 + 1 : nzv
-  [MAR] <- SCR1 ; return to fetch
+  MDR <- SCR1
+  [MAR] <- MDR ; return to fetch
 
-# 0xb1 DEC ($nnnn)   (6 cyc)
+# 0xb1 DEC ($nnnn)   (7 cyc)
 .opcode page0 0xb1 DEC ($nnnn)
 routine DEC ($nnnn):
   SCR1.low  <- [PC]; PC++
@@ -1414,7 +1463,8 @@ routine DEC ($nnnn):
   MAR  <- SCR1
   SCR1 <- [MAR]
   SCR1 <- SCR1 - 1 : nzv
-  [MAR] <- SCR1 ; return to fetch
+  MDR <- SCR1
+  [MAR] <- MDR ; return to fetch
 
 # ===========================================================================
 # PAGE 0 · Control flow
@@ -1530,14 +1580,16 @@ routine BLE rel8:
   SCR1 <- sext(MDR) ; if z|(n^v) goto BR_TAKEN
   return to fetch
 
-# 0xc2 BSR rel8   (6 cyc)
+# 0xc2 BSR rel8   (8 cyc)
 .opcode page0 0xc2 BSR rel8
 routine BSR rel8:
   MDR  <- [PC]; PC++                # rel8; PC -> return address
   SCR1 <- sext(MDR)
   SP <- SP - 2 ; MAR <- SP - 2      # reserve the return slot
-  [MAR] <- low(PC); MAR++           # push return PC low
-  [MAR] <- high(PC)                 # push return PC high
+  MDR <- low(PC)
+  [MAR] <- MDR
+  MDR <- high(PC) ; MAR++
+  [MAR] <- MDR
   PC <- PC + SCR1 ; return to fetch # take the call
 
 # 0xc3 RTS   (5 cyc)
@@ -1593,44 +1645,52 @@ routine JMP (X+D):
   SCR1.high <- [MAR]; MAR++
   PC <- SCR1 ; return to fetch
 
-# 0xca JSR $nnnn   (6 cyc)
+# 0xca JSR $nnnn   (8 cyc)
 .opcode page0 0xca JSR $nnnn
 routine JSR $nnnn:
   SCR1.low  <- [PC]; PC++
   SCR1.high <- [PC]; PC++
   SP <- SP - 2 ; MAR <- SP - 2      # reserve the return slot
-  [MAR] <- low(PC); MAR++           # push return PC low
-  [MAR] <- high(PC)                 # push return PC high
+  MDR <- low(PC)
+  [MAR] <- MDR
+  MDR <- high(PC) ; MAR++
+  [MAR] <- MDR
   PC <- SCR1 ; return to fetch
 
-# 0xcb JSR (X)   (7 cyc)
+# 0xcb JSR (X)   (9 cyc)
 .opcode page0 0xcb JSR (X)
 routine JSR (X):
   MAR  <- X
   SCR1.low  <- [MAR]; MAR++
   SCR1.high <- [MAR]; MAR++
   SP <- SP - 2 ; MAR <- SP - 2      # reserve the return slot
-  [MAR] <- low(PC); MAR++           # push return PC low
-  [MAR] <- high(PC)                 # push return PC high
+  MDR <- low(PC)
+  [MAR] <- MDR
+  MDR <- high(PC) ; MAR++
+  [MAR] <- MDR
   PC <- SCR1 ; return to fetch
 
-# 0xcc JSR Y   (4 cyc)
+# 0xcc JSR Y   (6 cyc)
 .opcode page0 0xcc JSR Y
 routine JSR Y:
   SP <- SP - 2 ; MAR <- SP - 2      # reserve the return slot
-  [MAR] <- low(PC); MAR++           # push return PC low
-  [MAR] <- high(PC)                 # push return PC high
+  MDR <- low(PC)
+  [MAR] <- MDR
+  MDR <- high(PC) ; MAR++
+  [MAR] <- MDR
   PC <- Y ; return to fetch
 
-# 0xcd JSR X   (4 cyc)
+# 0xcd JSR X   (6 cyc)
 .opcode page0 0xcd JSR X
 routine JSR X:
   SP <- SP - 2 ; MAR <- SP - 2      # reserve the return slot
-  [MAR] <- low(PC); MAR++           # push return PC low
-  [MAR] <- high(PC)                 # push return PC high
+  MDR <- low(PC)
+  [MAR] <- MDR
+  MDR <- high(PC) ; MAR++
+  [MAR] <- MDR
   PC <- X ; return to fetch
 
-# 0xce JSR (X+n8)   (9 cyc)
+# 0xce JSR (X+n8)   (11 cyc)
 .opcode page0 0xce JSR (X+n8)
 routine JSR (X+n8):
   MDR  <- [PC]; PC++
@@ -1639,11 +1699,13 @@ routine JSR (X+n8):
   SCR1.low  <- [MAR]; MAR++
   SCR1.high <- [MAR]; MAR++
   SP <- SP - 2 ; MAR <- SP - 2      # reserve the return slot
-  [MAR] <- low(PC); MAR++           # push return PC low
-  [MAR] <- high(PC)                 # push return PC high
+  MDR <- low(PC)
+  [MAR] <- MDR
+  MDR <- high(PC) ; MAR++
+  [MAR] <- MDR
   PC <- SCR1 ; return to fetch
 
-# 0xcf JSR (X+D)   (8 cyc)
+# 0xcf JSR (X+D)   (10 cyc)
 .opcode page0 0xcf JSR (X+D)
 routine JSR (X+D):
   SCR1 <- D
@@ -1651,8 +1713,10 @@ routine JSR (X+D):
   SCR1.low  <- [MAR]; MAR++
   SCR1.high <- [MAR]; MAR++
   SP <- SP - 2 ; MAR <- SP - 2      # reserve the return slot
-  [MAR] <- low(PC); MAR++           # push return PC low
-  [MAR] <- high(PC)                 # push return PC high
+  MDR <- low(PC)
+  [MAR] <- MDR
+  MDR <- high(PC) ; MAR++
+  [MAR] <- MDR
   PC <- SCR1 ; return to fetch
 
 # ===========================================================================
@@ -1696,49 +1760,60 @@ routine ABX:
   SCR1 <- low(D)                     # zero-extend B (D low byte)
   X <- X + SCR1 ; return to fetch    # X += B  (unsigned)
 
-# 0xd4 PSHS mask8   (35 cyc)
+# 0xd4 PSHS mask8   (46 cyc)
 .opcode page0 0xd4 PSHS mask8
 routine PSHS mask8:
   SCR2 <- [PC]; PC++                # push mask
   SCR2 <- asl(SCR2) : c             # shift next mask bit (msb-first) into C
   if not c goto pshs_skip0             # PC not in mask
   SP <- SP - 2 ; MAR <- SP - 2
-  [MAR] <- low(PC); MAR++
-  [MAR] <- high(PC)
+  MDR <- low(PC)
+  [MAR] <- MDR
+  MDR <- high(PC) ; MAR++
+  [MAR] <- MDR
 pshs_skip0:
   SCR2 <- asl(SCR2) : c             # shift next mask bit (msb-first) into C
   if not c goto pshs_skip1             # SP not in mask
   SP <- SP - 2 ; MAR <- SP - 2
-  [MAR] <- low(SP); MAR++
-  [MAR] <- high(SP)
+  MDR <- low(SP)
+  [MAR] <- MDR
+  MDR <- high(SP) ; MAR++
+  [MAR] <- MDR
 pshs_skip1:
   SCR2 <- asl(SCR2) : c             # shift next mask bit (msb-first) into C
   if not c goto pshs_skip2             # Y not in mask
   SP <- SP - 2 ; MAR <- SP - 2
-  [MAR] <- low(Y); MAR++
-  [MAR] <- high(Y)
+  MDR <- low(Y)
+  [MAR] <- MDR
+  MDR <- high(Y) ; MAR++
+  [MAR] <- MDR
 pshs_skip2:
   SCR2 <- asl(SCR2) : c             # shift next mask bit (msb-first) into C
   if not c goto pshs_skip3             # X not in mask
   SP <- SP - 2 ; MAR <- SP - 2
-  [MAR] <- low(X); MAR++
-  [MAR] <- high(X)
+  MDR <- low(X)
+  [MAR] <- MDR
+  MDR <- high(X) ; MAR++
+  [MAR] <- MDR
 pshs_skip3:
   SCR2 <- asl(SCR2) : c             # shift next mask bit (msb-first) into C
   SCR2 <- asl(SCR2) : c             # shift next mask bit (msb-first) into C
   if not c goto pshs_skip5             # B not in mask
   SP <- SP - 1 ; MAR <- SP - 1
-  [MAR] <- B
+  MDR <- B
+  [MAR] <- MDR
 pshs_skip5:
   SCR2 <- asl(SCR2) : c             # shift next mask bit (msb-first) into C
   if not c goto pshs_skip6             # A not in mask
   SP <- SP - 1 ; MAR <- SP - 1
-  [MAR] <- A
+  MDR <- A
+  [MAR] <- MDR
 pshs_skip6:
   SCR2 <- asl(SCR2) : c             # shift next mask bit (msb-first) into C
   if not c goto pshs_skip7             # CC not in mask
   SP <- SP - 1 ; MAR <- SP - 1
-  [MAR] <- CC
+  MDR <- CC
+  [MAR] <- MDR
 pshs_skip7:
   return to fetch
 
@@ -1815,16 +1890,17 @@ routine XCHG reg,reg:
   reg[dst] <- reg[src]
   reg[src] <- SCR1 ; return to fetch
 
-# 0xda TAS (X)   (5 cyc)
+# 0xda TAS (X)   (6 cyc)
 .opcode page0 0xda TAS (X)
 routine TAS (X):
   MAR  <- X
   SCR1 <- [MAR] : nz, v=0 ; lock    # test: read the lock byte, hold the bus
   SCR2 <- 0
   SCR2 <- ~SCR2                     # the set value (all-ones)
-  [MAR] <- SCR2 ; unlock ; return to fetch   # set: store, release the bus lock
+  MDR <- SCR2
+  [MAR] <- MDR ; unlock ; return to fetch
 
-# 0xdb TAS (X+n8)   (7 cyc)
+# 0xdb TAS (X+n8)   (8 cyc)
 .opcode page0 0xdb TAS (X+n8)
 routine TAS (X+n8):
   MDR  <- [PC]; PC++
@@ -1833,7 +1909,8 @@ routine TAS (X+n8):
   SCR1 <- [MAR] : nz, v=0 ; lock    # test: read the lock byte, hold the bus
   SCR2 <- 0
   SCR2 <- ~SCR2                     # the set value (all-ones)
-  [MAR] <- SCR2 ; unlock ; return to fetch   # set: store, release the bus lock
+  MDR <- SCR2
+  [MAR] <- MDR ; unlock ; return to fetch
 
 # 0xdc LEA X,X+n8   (3 cyc)
 .opcode page0 0xdc LEA X,X+n8
@@ -1945,42 +2022,51 @@ routine RTI:
   SP  <- MAR                                      # SP += 3
   PC  <- SCR1 ; return to fetch                   # resume interrupted context
 
-# 0x03 SWI   (10 cyc)
+# 0x03 SWI   (13 cyc)
 .opcode page1 0x03 SWI
 routine SWI:
   SSP <- SSP - 2 ; MAR <- SSP - 2 ; map(kernel)   # reserve 2 bytes for PC on the supervisor stack
-  [MAR] <- low(PC); MAR++ ; map(kernel)           # push return PC low
-  [MAR] <- high(PC) ; map(kernel)                 # push return PC high
+  MDR <- low(PC) ; map(kernel)
+  [MAR] <- MDR ; map(kernel)
+  MDR <- high(PC) ; MAR++ ; map(kernel)
+  [MAR] <- MDR ; map(kernel)
   SSP <- SSP - 1 ; MAR <- SSP - 1 ; map(kernel)   # reserve 1 byte for CC (top of frame)
-  [MAR] <- CC ; map(kernel)                       # push interrupted CC
+  MDR <- CC ; map(kernel)
+  [MAR] <- MDR ; map(kernel)
   mi(enter)                                       # enter supervisor mode, set I
   MAR <- vector(SWI) ; map(kernel)             # hardwired SWI vector slot
   SCR1.low  <- [MAR]; MAR++ ; map(kernel)         # handler address low
   SCR1.high <- [MAR] ; map(kernel)                # handler address high
   PC <- SCR1 ; return to fetch                    # enter the handler
 
-# 0x04 SWI2   (10 cyc)
+# 0x04 SWI2   (13 cyc)
 .opcode page1 0x04 SWI2
 routine SWI2:
   SSP <- SSP - 2 ; MAR <- SSP - 2 ; map(kernel)   # reserve 2 bytes for PC on the supervisor stack
-  [MAR] <- low(PC); MAR++ ; map(kernel)           # push return PC low
-  [MAR] <- high(PC) ; map(kernel)                 # push return PC high
+  MDR <- low(PC) ; map(kernel)
+  [MAR] <- MDR ; map(kernel)
+  MDR <- high(PC) ; MAR++ ; map(kernel)
+  [MAR] <- MDR ; map(kernel)
   SSP <- SSP - 1 ; MAR <- SSP - 1 ; map(kernel)   # reserve 1 byte for CC (top of frame)
-  [MAR] <- CC ; map(kernel)                       # push interrupted CC
+  MDR <- CC ; map(kernel)
+  [MAR] <- MDR ; map(kernel)
   mi(enter)                                       # enter supervisor mode, set I
   MAR <- vector(SWI2) ; map(kernel)             # hardwired SWI2 vector slot
   SCR1.low  <- [MAR]; MAR++ ; map(kernel)         # handler address low
   SCR1.high <- [MAR] ; map(kernel)                # handler address high
   PC <- SCR1 ; return to fetch                    # enter the handler
 
-# 0x05 SWI3   (10 cyc)
+# 0x05 SWI3   (13 cyc)
 .opcode page1 0x05 SWI3
 routine SWI3:
   SSP <- SSP - 2 ; MAR <- SSP - 2 ; map(kernel)   # reserve 2 bytes for PC on the supervisor stack
-  [MAR] <- low(PC); MAR++ ; map(kernel)           # push return PC low
-  [MAR] <- high(PC) ; map(kernel)                 # push return PC high
+  MDR <- low(PC) ; map(kernel)
+  [MAR] <- MDR ; map(kernel)
+  MDR <- high(PC) ; MAR++ ; map(kernel)
+  [MAR] <- MDR ; map(kernel)
   SSP <- SSP - 1 ; MAR <- SSP - 1 ; map(kernel)   # reserve 1 byte for CC (top of frame)
-  [MAR] <- CC ; map(kernel)                       # push interrupted CC
+  MDR <- CC ; map(kernel)
+  [MAR] <- MDR ; map(kernel)
   mi(enter)                                       # enter supervisor mode, set I
   MAR <- vector(SWI3) ; map(kernel)             # hardwired SWI3 vector slot
   SCR1.low  <- [MAR]; MAR++ ; map(kernel)         # handler address low
@@ -2075,16 +2161,17 @@ routine XCHG D,USP:
   D <- USP
   USP <- SCR1 ; return to fetch
 
-# 0x15 TAS (Y)   (5 cyc)
+# 0x15 TAS (Y)   (6 cyc)
 .opcode page1 0x15 TAS (Y)
 routine TAS (Y):
   MAR  <- Y
   SCR1 <- [MAR] : nz, v=0 ; lock    # test: read the lock byte, hold the bus
   SCR2 <- 0
   SCR2 <- ~SCR2                     # the set value (all-ones)
-  [MAR] <- SCR2 ; unlock ; return to fetch   # set: store, release the bus lock
+  MDR <- SCR2
+  [MAR] <- MDR ; unlock ; return to fetch
 
-# 0x16 TAS (Y+n8)   (7 cyc)
+# 0x16 TAS (Y+n8)   (8 cyc)
 .opcode page1 0x16 TAS (Y+n8)
 routine TAS (Y+n8):
   MDR  <- [PC]; PC++
@@ -2093,9 +2180,10 @@ routine TAS (Y+n8):
   SCR1 <- [MAR] : nz, v=0 ; lock    # test: read the lock byte, hold the bus
   SCR2 <- 0
   SCR2 <- ~SCR2                     # the set value (all-ones)
-  [MAR] <- SCR2 ; unlock ; return to fetch   # set: store, release the bus lock
+  MDR <- SCR2
+  [MAR] <- MDR ; unlock ; return to fetch
 
-# 0x17 TAS (SP+n8)   (7 cyc)
+# 0x17 TAS (SP+n8)   (8 cyc)
 .opcode page1 0x17 TAS (SP+n8)
 routine TAS (SP+n8):
   MDR  <- [PC]; PC++
@@ -2104,9 +2192,10 @@ routine TAS (SP+n8):
   SCR1 <- [MAR] : nz, v=0 ; lock    # test: read the lock byte, hold the bus
   SCR2 <- 0
   SCR2 <- ~SCR2                     # the set value (all-ones)
-  [MAR] <- SCR2 ; unlock ; return to fetch   # set: store, release the bus lock
+  MDR <- SCR2
+  [MAR] <- MDR ; unlock ; return to fetch
 
-# 0x18 TAS ($nnnn)   (7 cyc)
+# 0x18 TAS ($nnnn)   (8 cyc)
 .opcode page1 0x18 TAS ($nnnn)
 routine TAS ($nnnn):
   SCR1.low  <- [PC]; PC++
@@ -2115,7 +2204,8 @@ routine TAS ($nnnn):
   SCR1 <- [MAR] : nz, v=0 ; lock    # test: read the lock byte, hold the bus
   SCR2 <- 0
   SCR2 <- ~SCR2                     # the set value (all-ones)
-  [MAR] <- SCR2 ; unlock ; return to fetch   # set: store, release the bus lock
+  MDR <- SCR2
+  [MAR] <- MDR ; unlock ; return to fetch
 
 # 0x19 LEA X,X+n16   (3 cyc)
 .opcode page1 0x19 LEA X,X+n16
@@ -2273,14 +2363,16 @@ routine LBLE rel16:
   SCR1.high <- [PC]; PC++ ; if z|(n^v) goto BR_TAKEN
   return to fetch
 
-# 0x2f LBSR rel16   (6 cyc)
+# 0x2f LBSR rel16   (8 cyc)
 .opcode page1 0x2f LBSR rel16
 routine LBSR rel16:
   SCR1.low  <- [PC]; PC++           # rel16; PC -> return address
   SCR1.high <- [PC]; PC++
   SP <- SP - 2 ; MAR <- SP - 2      # reserve the return slot
-  [MAR] <- low(PC); MAR++           # push return PC low
-  [MAR] <- high(PC)                 # push return PC high
+  MDR <- low(PC)
+  [MAR] <- MDR
+  MDR <- high(PC) ; MAR++
+  [MAR] <- MDR
   PC <- PC + SCR1 ; return to fetch # take the call
 
 # 0x30 JMP (X+n16)   (6 cyc)
@@ -2386,7 +2478,7 @@ routine JMP (PC+n16):
   SCR1.high <- [MAR]; MAR++
   PC <- SCR1 ; return to fetch
 
-# 0x3b JSR (X+n16)   (9 cyc)
+# 0x3b JSR (X+n16)   (11 cyc)
 .opcode page1 0x3b JSR (X+n16)
 routine JSR (X+n16):
   SCR1.low  <- [PC]; PC++
@@ -2395,11 +2487,13 @@ routine JSR (X+n16):
   SCR1.low  <- [MAR]; MAR++
   SCR1.high <- [MAR]; MAR++
   SP <- SP - 2 ; MAR <- SP - 2      # reserve the return slot
-  [MAR] <- low(PC); MAR++           # push return PC low
-  [MAR] <- high(PC)                 # push return PC high
+  MDR <- low(PC)
+  [MAR] <- MDR
+  MDR <- high(PC) ; MAR++
+  [MAR] <- MDR
   PC <- SCR1 ; return to fetch
 
-# 0x3c JSR (X+A)   (8 cyc)
+# 0x3c JSR (X+A)   (10 cyc)
 .opcode page1 0x3c JSR (X+A)
 routine JSR (X+A):
   SCR1 <- sext(A)
@@ -2407,11 +2501,13 @@ routine JSR (X+A):
   SCR1.low  <- [MAR]; MAR++
   SCR1.high <- [MAR]; MAR++
   SP <- SP - 2 ; MAR <- SP - 2      # reserve the return slot
-  [MAR] <- low(PC); MAR++           # push return PC low
-  [MAR] <- high(PC)                 # push return PC high
+  MDR <- low(PC)
+  [MAR] <- MDR
+  MDR <- high(PC) ; MAR++
+  [MAR] <- MDR
   PC <- SCR1 ; return to fetch
 
-# 0x3d JSR (X+B)   (8 cyc)
+# 0x3d JSR (X+B)   (10 cyc)
 .opcode page1 0x3d JSR (X+B)
 routine JSR (X+B):
   SCR1 <- sext(B)
@@ -2419,22 +2515,26 @@ routine JSR (X+B):
   SCR1.low  <- [MAR]; MAR++
   SCR1.high <- [MAR]; MAR++
   SP <- SP - 2 ; MAR <- SP - 2      # reserve the return slot
-  [MAR] <- low(PC); MAR++           # push return PC low
-  [MAR] <- high(PC)                 # push return PC high
+  MDR <- low(PC)
+  [MAR] <- MDR
+  MDR <- high(PC) ; MAR++
+  [MAR] <- MDR
   PC <- SCR1 ; return to fetch
 
-# 0x3e JSR (Y)   (7 cyc)
+# 0x3e JSR (Y)   (9 cyc)
 .opcode page1 0x3e JSR (Y)
 routine JSR (Y):
   MAR  <- Y
   SCR1.low  <- [MAR]; MAR++
   SCR1.high <- [MAR]; MAR++
   SP <- SP - 2 ; MAR <- SP - 2      # reserve the return slot
-  [MAR] <- low(PC); MAR++           # push return PC low
-  [MAR] <- high(PC)                 # push return PC high
+  MDR <- low(PC)
+  [MAR] <- MDR
+  MDR <- high(PC) ; MAR++
+  [MAR] <- MDR
   PC <- SCR1 ; return to fetch
 
-# 0x3f JSR (Y+n8)   (9 cyc)
+# 0x3f JSR (Y+n8)   (11 cyc)
 .opcode page1 0x3f JSR (Y+n8)
 routine JSR (Y+n8):
   MDR  <- [PC]; PC++
@@ -2443,11 +2543,13 @@ routine JSR (Y+n8):
   SCR1.low  <- [MAR]; MAR++
   SCR1.high <- [MAR]; MAR++
   SP <- SP - 2 ; MAR <- SP - 2      # reserve the return slot
-  [MAR] <- low(PC); MAR++           # push return PC low
-  [MAR] <- high(PC)                 # push return PC high
+  MDR <- low(PC)
+  [MAR] <- MDR
+  MDR <- high(PC) ; MAR++
+  [MAR] <- MDR
   PC <- SCR1 ; return to fetch
 
-# 0x40 JSR (Y+n16)   (9 cyc)
+# 0x40 JSR (Y+n16)   (11 cyc)
 .opcode page1 0x40 JSR (Y+n16)
 routine JSR (Y+n16):
   SCR1.low  <- [PC]; PC++
@@ -2456,11 +2558,13 @@ routine JSR (Y+n16):
   SCR1.low  <- [MAR]; MAR++
   SCR1.high <- [MAR]; MAR++
   SP <- SP - 2 ; MAR <- SP - 2      # reserve the return slot
-  [MAR] <- low(PC); MAR++           # push return PC low
-  [MAR] <- high(PC)                 # push return PC high
+  MDR <- low(PC)
+  [MAR] <- MDR
+  MDR <- high(PC) ; MAR++
+  [MAR] <- MDR
   PC <- SCR1 ; return to fetch
 
-# 0x41 JSR (Y+A)   (8 cyc)
+# 0x41 JSR (Y+A)   (10 cyc)
 .opcode page1 0x41 JSR (Y+A)
 routine JSR (Y+A):
   SCR1 <- sext(A)
@@ -2468,11 +2572,13 @@ routine JSR (Y+A):
   SCR1.low  <- [MAR]; MAR++
   SCR1.high <- [MAR]; MAR++
   SP <- SP - 2 ; MAR <- SP - 2      # reserve the return slot
-  [MAR] <- low(PC); MAR++           # push return PC low
-  [MAR] <- high(PC)                 # push return PC high
+  MDR <- low(PC)
+  [MAR] <- MDR
+  MDR <- high(PC) ; MAR++
+  [MAR] <- MDR
   PC <- SCR1 ; return to fetch
 
-# 0x42 JSR (Y+B)   (8 cyc)
+# 0x42 JSR (Y+B)   (10 cyc)
 .opcode page1 0x42 JSR (Y+B)
 routine JSR (Y+B):
   SCR1 <- sext(B)
@@ -2480,11 +2586,13 @@ routine JSR (Y+B):
   SCR1.low  <- [MAR]; MAR++
   SCR1.high <- [MAR]; MAR++
   SP <- SP - 2 ; MAR <- SP - 2      # reserve the return slot
-  [MAR] <- low(PC); MAR++           # push return PC low
-  [MAR] <- high(PC)                 # push return PC high
+  MDR <- low(PC)
+  [MAR] <- MDR
+  MDR <- high(PC) ; MAR++
+  [MAR] <- MDR
   PC <- SCR1 ; return to fetch
 
-# 0x43 JSR (Y+D)   (8 cyc)
+# 0x43 JSR (Y+D)   (10 cyc)
 .opcode page1 0x43 JSR (Y+D)
 routine JSR (Y+D):
   SCR1 <- D
@@ -2492,11 +2600,13 @@ routine JSR (Y+D):
   SCR1.low  <- [MAR]; MAR++
   SCR1.high <- [MAR]; MAR++
   SP <- SP - 2 ; MAR <- SP - 2      # reserve the return slot
-  [MAR] <- low(PC); MAR++           # push return PC low
-  [MAR] <- high(PC)                 # push return PC high
+  MDR <- low(PC)
+  [MAR] <- MDR
+  MDR <- high(PC) ; MAR++
+  [MAR] <- MDR
   PC <- SCR1 ; return to fetch
 
-# 0x44 JSR (PC+n8)   (9 cyc)
+# 0x44 JSR (PC+n8)   (11 cyc)
 .opcode page1 0x44 JSR (PC+n8)
 routine JSR (PC+n8):
   MDR  <- [PC]; PC++
@@ -2505,11 +2615,13 @@ routine JSR (PC+n8):
   SCR1.low  <- [MAR]; MAR++
   SCR1.high <- [MAR]; MAR++
   SP <- SP - 2 ; MAR <- SP - 2      # reserve the return slot
-  [MAR] <- low(PC); MAR++           # push return PC low
-  [MAR] <- high(PC)                 # push return PC high
+  MDR <- low(PC)
+  [MAR] <- MDR
+  MDR <- high(PC) ; MAR++
+  [MAR] <- MDR
   PC <- SCR1 ; return to fetch
 
-# 0x45 JSR (PC+n16)   (9 cyc)
+# 0x45 JSR (PC+n16)   (11 cyc)
 .opcode page1 0x45 JSR (PC+n16)
 routine JSR (PC+n16):
   SCR1.low  <- [PC]; PC++
@@ -2518,24 +2630,28 @@ routine JSR (PC+n16):
   SCR1.low  <- [MAR]; MAR++
   SCR1.high <- [MAR]; MAR++
   SP <- SP - 2 ; MAR <- SP - 2      # reserve the return slot
-  [MAR] <- low(PC); MAR++           # push return PC low
-  [MAR] <- high(PC)                 # push return PC high
+  MDR <- low(PC)
+  [MAR] <- MDR
+  MDR <- high(PC) ; MAR++
+  [MAR] <- MDR
   PC <- SCR1 ; return to fetch
 
 # ===========================================================================
 # PAGE 1 · Byte load/store (cold modes)
 # ===========================================================================
-# 0x46 ST A,(SP)   (2 cyc)
+# 0x46 ST A,(SP)   (3 cyc)
 .opcode page1 0x46 ST A,(SP)
 routine ST A,(SP):
   MAR  <- SP
-  [MAR] <- A : nz, v=0 ; return to fetch
+  MDR <- A : nz, v=0
+  [MAR] <- MDR ; return to fetch
 
-# 0x47 ST B,(SP)   (2 cyc)
+# 0x47 ST B,(SP)   (3 cyc)
 .opcode page1 0x47 ST B,(SP)
 routine ST B,(SP):
   MAR  <- SP
-  [MAR] <- B : nz, v=0 ; return to fetch
+  MDR <- B : nz, v=0
+  [MAR] <- MDR ; return to fetch
 
 # 0x48 LD A,(X++)   (3 cyc)
 .opcode page1 0x48 LD A,(X++)
@@ -2575,43 +2691,49 @@ routine LD B,(-X):
   MAR  <- X - 1 ; X <- X - 1
   B  <- [MAR] : nz, v=0 ; return to fetch
 
-# 0x4e ST A,(X++)   (3 cyc)
+# 0x4e ST A,(X++)   (4 cyc)
 .opcode page1 0x4e ST A,(X++)
 routine ST A,(X++):
   MAR  <- X
-  [MAR] <- A : nz, v=0
+  MDR <- A : nz, v=0
+  [MAR] <- MDR
   X <- MAR ; return to fetch
 
-# 0x4f ST B,(X++)   (3 cyc)
+# 0x4f ST B,(X++)   (4 cyc)
 .opcode page1 0x4f ST B,(X++)
 routine ST B,(X++):
   MAR  <- X
-  [MAR] <- B : nz, v=0
+  MDR <- B : nz, v=0
+  [MAR] <- MDR
   X <- MAR ; return to fetch
 
-# 0x50 ST A,(--X)   (2 cyc)
+# 0x50 ST A,(--X)   (3 cyc)
 .opcode page1 0x50 ST A,(--X)
 routine ST A,(--X):
   MAR  <- X - 2 ; X <- X - 2
-  [MAR] <- A : nz, v=0 ; return to fetch
+  MDR <- A : nz, v=0
+  [MAR] <- MDR ; return to fetch
 
-# 0x51 ST B,(--X)   (2 cyc)
+# 0x51 ST B,(--X)   (3 cyc)
 .opcode page1 0x51 ST B,(--X)
 routine ST B,(--X):
   MAR  <- X - 2 ; X <- X - 2
-  [MAR] <- B : nz, v=0 ; return to fetch
+  MDR <- B : nz, v=0
+  [MAR] <- MDR ; return to fetch
 
-# 0x52 ST A,(-X)   (2 cyc)
+# 0x52 ST A,(-X)   (3 cyc)
 .opcode page1 0x52 ST A,(-X)
 routine ST A,(-X):
   MAR  <- X - 1 ; X <- X - 1
-  [MAR] <- A : nz, v=0 ; return to fetch
+  MDR <- A : nz, v=0
+  [MAR] <- MDR ; return to fetch
 
-# 0x53 ST B,(-X)   (2 cyc)
+# 0x53 ST B,(-X)   (3 cyc)
 .opcode page1 0x53 ST B,(-X)
 routine ST B,(-X):
   MAR  <- X - 1 ; X <- X - 1
-  [MAR] <- B : nz, v=0 ; return to fetch
+  MDR <- B : nz, v=0
+  [MAR] <- MDR ; return to fetch
 
 # 0x54 LD A,(X+A)   (3 cyc)
 .opcode page1 0x54 LD A,(X+A)
@@ -2641,47 +2763,53 @@ routine LD B,(X+B):
   MAR  <- X + SCR1
   B  <- [MAR] : nz, v=0 ; return to fetch
 
-# 0x58 ST A,(X+A)   (3 cyc)
+# 0x58 ST A,(X+A)   (4 cyc)
 .opcode page1 0x58 ST A,(X+A)
 routine ST A,(X+A):
   SCR1 <- sext(A)
   MAR  <- X + SCR1
-  [MAR] <- A : nz, v=0 ; return to fetch
+  MDR <- A : nz, v=0
+  [MAR] <- MDR ; return to fetch
 
-# 0x59 ST A,(X+B)   (3 cyc)
+# 0x59 ST A,(X+B)   (4 cyc)
 .opcode page1 0x59 ST A,(X+B)
 routine ST A,(X+B):
   SCR1 <- sext(B)
   MAR  <- X + SCR1
-  [MAR] <- A : nz, v=0 ; return to fetch
+  MDR <- A : nz, v=0
+  [MAR] <- MDR ; return to fetch
 
-# 0x5a ST A,(X+D)   (3 cyc)
+# 0x5a ST A,(X+D)   (4 cyc)
 .opcode page1 0x5a ST A,(X+D)
 routine ST A,(X+D):
   SCR1 <- D
   MAR  <- X + SCR1
-  [MAR] <- A : nz, v=0 ; return to fetch
+  MDR <- A : nz, v=0
+  [MAR] <- MDR ; return to fetch
 
-# 0x5b ST B,(X+A)   (3 cyc)
+# 0x5b ST B,(X+A)   (4 cyc)
 .opcode page1 0x5b ST B,(X+A)
 routine ST B,(X+A):
   SCR1 <- sext(A)
   MAR  <- X + SCR1
-  [MAR] <- B : nz, v=0 ; return to fetch
+  MDR <- B : nz, v=0
+  [MAR] <- MDR ; return to fetch
 
-# 0x5c ST B,(X+B)   (3 cyc)
+# 0x5c ST B,(X+B)   (4 cyc)
 .opcode page1 0x5c ST B,(X+B)
 routine ST B,(X+B):
   SCR1 <- sext(B)
   MAR  <- X + SCR1
-  [MAR] <- B : nz, v=0 ; return to fetch
+  MDR <- B : nz, v=0
+  [MAR] <- MDR ; return to fetch
 
-# 0x5d ST B,(X+D)   (3 cyc)
+# 0x5d ST B,(X+D)   (4 cyc)
 .opcode page1 0x5d ST B,(X+D)
 routine ST B,(X+D):
   SCR1 <- D
   MAR  <- X + SCR1
-  [MAR] <- B : nz, v=0 ; return to fetch
+  MDR <- B : nz, v=0
+  [MAR] <- MDR ; return to fetch
 
 # 0x5e LD A,(X+n16)   (4 cyc)
 .opcode page1 0x5e LD A,(X+n16)
@@ -2699,21 +2827,23 @@ routine LD B,(X+n16):
   MAR  <- X + SCR1
   B  <- [MAR] : nz, v=0 ; return to fetch
 
-# 0x60 ST A,(X+n16)   (4 cyc)
+# 0x60 ST A,(X+n16)   (5 cyc)
 .opcode page1 0x60 ST A,(X+n16)
 routine ST A,(X+n16):
   SCR1.low  <- [PC]; PC++
   SCR1.high <- [PC]; PC++
   MAR  <- X + SCR1
-  [MAR] <- A : nz, v=0 ; return to fetch
+  MDR <- A : nz, v=0
+  [MAR] <- MDR ; return to fetch
 
-# 0x61 ST B,(X+n16)   (4 cyc)
+# 0x61 ST B,(X+n16)   (5 cyc)
 .opcode page1 0x61 ST B,(X+n16)
 routine ST B,(X+n16):
   SCR1.low  <- [PC]; PC++
   SCR1.high <- [PC]; PC++
   MAR  <- X + SCR1
-  [MAR] <- B : nz, v=0 ; return to fetch
+  MDR <- B : nz, v=0
+  [MAR] <- MDR ; return to fetch
 
 # 0x62 LD A,(SP+n16)   (4 cyc)
 .opcode page1 0x62 LD A,(SP+n16)
@@ -2731,21 +2861,23 @@ routine LD B,(SP+n16):
   MAR  <- SP + SCR1
   B  <- [MAR] : nz, v=0 ; return to fetch
 
-# 0x64 ST A,(SP+n16)   (4 cyc)
+# 0x64 ST A,(SP+n16)   (5 cyc)
 .opcode page1 0x64 ST A,(SP+n16)
 routine ST A,(SP+n16):
   SCR1.low  <- [PC]; PC++
   SCR1.high <- [PC]; PC++
   MAR  <- SP + SCR1
-  [MAR] <- A : nz, v=0 ; return to fetch
+  MDR <- A : nz, v=0
+  [MAR] <- MDR ; return to fetch
 
-# 0x65 ST B,(SP+n16)   (4 cyc)
+# 0x65 ST B,(SP+n16)   (5 cyc)
 .opcode page1 0x65 ST B,(SP+n16)
 routine ST B,(SP+n16):
   SCR1.low  <- [PC]; PC++
   SCR1.high <- [PC]; PC++
   MAR  <- SP + SCR1
-  [MAR] <- B : nz, v=0 ; return to fetch
+  MDR <- B : nz, v=0
+  [MAR] <- MDR ; return to fetch
 
 # 0x66 LD A,(-Y)   (2 cyc)
 .opcode page1 0x66 LD A,(-Y)
@@ -2759,17 +2891,19 @@ routine LD B,(-Y):
   MAR  <- Y - 1 ; Y <- Y - 1
   B  <- [MAR] : nz, v=0 ; return to fetch
 
-# 0x68 ST A,(-Y)   (2 cyc)
+# 0x68 ST A,(-Y)   (3 cyc)
 .opcode page1 0x68 ST A,(-Y)
 routine ST A,(-Y):
   MAR  <- Y - 1 ; Y <- Y - 1
-  [MAR] <- A : nz, v=0 ; return to fetch
+  MDR <- A : nz, v=0
+  [MAR] <- MDR ; return to fetch
 
-# 0x69 ST B,(-Y)   (2 cyc)
+# 0x69 ST B,(-Y)   (3 cyc)
 .opcode page1 0x69 ST B,(-Y)
 routine ST B,(-Y):
   MAR  <- Y - 1 ; Y <- Y - 1
-  [MAR] <- B : nz, v=0 ; return to fetch
+  MDR <- B : nz, v=0
+  [MAR] <- MDR ; return to fetch
 
 # ===========================================================================
 # PAGE 1 · 16-bit load/store (cold modes)
@@ -2782,12 +2916,14 @@ routine LD X,(Y):
   SCR1.high <- [MAR]; MAR++
   X <- SCR1 : nz, v=0 ; return to fetch
 
-# 0x6b ST X,(Y)   (3 cyc)
+# 0x6b ST X,(Y)   (5 cyc)
 .opcode page1 0x6b ST X,(Y)
 routine ST X,(Y):
   MAR  <- Y
-  [MAR] <- low(X); MAR++ : z
-  [MAR] <- high(X); MAR++ : nz, v=0, z+ ; return to fetch
+  MDR <- low(X) : z
+  [MAR] <- MDR
+  MDR <- high(X) ; MAR++ : nz, v=0, z+
+  [MAR] <- MDR ; return to fetch
 
 # 0x6c LD Y,(X)   (4 cyc)
 .opcode page1 0x6c LD Y,(X)
@@ -2797,12 +2933,14 @@ routine LD Y,(X):
   SCR1.high <- [MAR]; MAR++
   Y <- SCR1 : nz, v=0 ; return to fetch
 
-# 0x6d ST Y,(X)   (3 cyc)
+# 0x6d ST Y,(X)   (5 cyc)
 .opcode page1 0x6d ST Y,(X)
 routine ST Y,(X):
   MAR  <- X
-  [MAR] <- low(Y); MAR++ : z
-  [MAR] <- high(Y); MAR++ : nz, v=0, z+ ; return to fetch
+  MDR <- low(Y) : z
+  [MAR] <- MDR
+  MDR <- high(Y) ; MAR++ : nz, v=0, z+
+  [MAR] <- MDR ; return to fetch
 
 # 0x6e LD D,(SP)   (3 cyc)
 .opcode page1 0x6e LD D,(SP)
@@ -2827,26 +2965,32 @@ routine LD Y,(SP):
   SCR1.high <- [MAR]; MAR++
   Y <- SCR1 : nz, v=0 ; return to fetch
 
-# 0x71 ST D,(SP)   (3 cyc)
+# 0x71 ST D,(SP)   (5 cyc)
 .opcode page1 0x71 ST D,(SP)
 routine ST D,(SP):
   MAR  <- SP
-  [MAR] <- low(D); MAR++ : z
-  [MAR] <- high(D); MAR++ : nz, v=0, z+ ; return to fetch
+  MDR <- low(D) : z
+  [MAR] <- MDR
+  MDR <- high(D) ; MAR++ : nz, v=0, z+
+  [MAR] <- MDR ; return to fetch
 
-# 0x72 ST X,(SP)   (3 cyc)
+# 0x72 ST X,(SP)   (5 cyc)
 .opcode page1 0x72 ST X,(SP)
 routine ST X,(SP):
   MAR  <- SP
-  [MAR] <- low(X); MAR++ : z
-  [MAR] <- high(X); MAR++ : nz, v=0, z+ ; return to fetch
+  MDR <- low(X) : z
+  [MAR] <- MDR
+  MDR <- high(X) ; MAR++ : nz, v=0, z+
+  [MAR] <- MDR ; return to fetch
 
-# 0x73 ST Y,(SP)   (3 cyc)
+# 0x73 ST Y,(SP)   (5 cyc)
 .opcode page1 0x73 ST Y,(SP)
 routine ST Y,(SP):
   MAR  <- SP
-  [MAR] <- low(Y); MAR++ : z
-  [MAR] <- high(Y); MAR++ : nz, v=0, z+ ; return to fetch
+  MDR <- low(Y) : z
+  [MAR] <- MDR
+  MDR <- high(Y) ; MAR++ : nz, v=0, z+
+  [MAR] <- MDR ; return to fetch
 
 # 0x74 LD X,(X++)   (4 cyc)
 .opcode page1 0x74 LD X,(X++)
@@ -2865,13 +3009,15 @@ routine LD Y,(X++):
   Y <- SCR1 : nz, v=0
   X <- MAR ; return to fetch
 
-# 0x76 ST Y,(X++)   (4 cyc)
+# 0x76 ST Y,(X++)   (6 cyc)
 .opcode page1 0x76 ST Y,(X++)
 routine ST Y,(X++):
   MAR  <- X
-  [MAR] <- low(Y); MAR++ : z
-  [MAR] <- high(Y); MAR++ : nz, v=0, z+
-  X <- MAR ; return to fetch
+  MDR <- low(Y) : z
+  [MAR] <- MDR
+  MDR <- high(Y) ; MAR++ : nz, v=0, z+
+  [MAR] <- MDR
+  X <- MAR + 1 ; return to fetch
 
 # 0x77 LD D,(Y++)   (4 cyc)
 .opcode page1 0x77 LD D,(Y++)
@@ -2881,13 +3027,15 @@ routine LD D,(Y++):
   D.high <- [MAR]; MAR++ : nz, v=0, z+
   Y <- MAR ; return to fetch
 
-# 0x78 ST D,(Y++)   (4 cyc)
+# 0x78 ST D,(Y++)   (6 cyc)
 .opcode page1 0x78 ST D,(Y++)
 routine ST D,(Y++):
   MAR  <- Y
-  [MAR] <- low(D); MAR++ : z
-  [MAR] <- high(D); MAR++ : nz, v=0, z+
-  Y <- MAR ; return to fetch
+  MDR <- low(D) : z
+  [MAR] <- MDR
+  MDR <- high(D) ; MAR++ : nz, v=0, z+
+  [MAR] <- MDR
+  Y <- MAR + 1 ; return to fetch
 
 # 0x79 LD X,(Y++)   (5 cyc)
 .opcode page1 0x79 LD X,(Y++)
@@ -2898,13 +3046,15 @@ routine LD X,(Y++):
   X <- SCR1 : nz, v=0
   Y <- MAR ; return to fetch
 
-# 0x7a ST X,(Y++)   (4 cyc)
+# 0x7a ST X,(Y++)   (6 cyc)
 .opcode page1 0x7a ST X,(Y++)
 routine ST X,(Y++):
   MAR  <- Y
-  [MAR] <- low(X); MAR++ : z
-  [MAR] <- high(X); MAR++ : nz, v=0, z+
-  Y <- MAR ; return to fetch
+  MDR <- low(X) : z
+  [MAR] <- MDR
+  MDR <- high(X) ; MAR++ : nz, v=0, z+
+  [MAR] <- MDR
+  Y <- MAR + 1 ; return to fetch
 
 # 0x7b LD D,(--X)   (3 cyc)
 .opcode page1 0x7b LD D,(--X)
@@ -2913,19 +3063,23 @@ routine LD D,(--X):
   D.low  <- [MAR]; MAR++ : z
   D.high <- [MAR]; MAR++ : nz, v=0, z+ ; return to fetch
 
-# 0x7c ST D,(--X)   (3 cyc)
+# 0x7c ST D,(--X)   (5 cyc)
 .opcode page1 0x7c ST D,(--X)
 routine ST D,(--X):
   MAR  <- X - 2 ; X <- X - 2
-  [MAR] <- low(D); MAR++ : z
-  [MAR] <- high(D); MAR++ : nz, v=0, z+ ; return to fetch
+  MDR <- low(D) : z
+  [MAR] <- MDR
+  MDR <- high(D) ; MAR++ : nz, v=0, z+
+  [MAR] <- MDR ; return to fetch
 
-# 0x7d ST Y,(--X)   (3 cyc)
+# 0x7d ST Y,(--X)   (5 cyc)
 .opcode page1 0x7d ST Y,(--X)
 routine ST Y,(--X):
   MAR  <- X - 2 ; X <- X - 2
-  [MAR] <- low(Y); MAR++ : z
-  [MAR] <- high(Y); MAR++ : nz, v=0, z+ ; return to fetch
+  MDR <- low(Y) : z
+  [MAR] <- MDR
+  MDR <- high(Y) ; MAR++ : nz, v=0, z+
+  [MAR] <- MDR ; return to fetch
 
 # 0x7e LD D,(--Y)   (3 cyc)
 .opcode page1 0x7e LD D,(--Y)
@@ -2934,19 +3088,23 @@ routine LD D,(--Y):
   D.low  <- [MAR]; MAR++ : z
   D.high <- [MAR]; MAR++ : nz, v=0, z+ ; return to fetch
 
-# 0x7f ST D,(--Y)   (3 cyc)
+# 0x7f ST D,(--Y)   (5 cyc)
 .opcode page1 0x7f ST D,(--Y)
 routine ST D,(--Y):
   MAR  <- Y - 2 ; Y <- Y - 2
-  [MAR] <- low(D); MAR++ : z
-  [MAR] <- high(D); MAR++ : nz, v=0, z+ ; return to fetch
+  MDR <- low(D) : z
+  [MAR] <- MDR
+  MDR <- high(D) ; MAR++ : nz, v=0, z+
+  [MAR] <- MDR ; return to fetch
 
-# 0x80 ST X,(--Y)   (3 cyc)
+# 0x80 ST X,(--Y)   (5 cyc)
 .opcode page1 0x80 ST X,(--Y)
 routine ST X,(--Y):
   MAR  <- Y - 2 ; Y <- Y - 2
-  [MAR] <- low(X); MAR++ : z
-  [MAR] <- high(X); MAR++ : nz, v=0, z+ ; return to fetch
+  MDR <- low(X) : z
+  [MAR] <- MDR
+  MDR <- high(X) ; MAR++ : nz, v=0, z+
+  [MAR] <- MDR ; return to fetch
 
 # 0x81 LD Y,(X+n8)   (6 cyc)
 .opcode page1 0x81 LD Y,(X+n8)
@@ -2958,14 +3116,16 @@ routine LD Y,(X+n8):
   SCR1.high <- [MAR]; MAR++
   Y <- SCR1 : nz, v=0 ; return to fetch
 
-# 0x82 ST Y,(X+n8)   (5 cyc)
+# 0x82 ST Y,(X+n8)   (7 cyc)
 .opcode page1 0x82 ST Y,(X+n8)
 routine ST Y,(X+n8):
   MDR  <- [PC]; PC++
   SCR1 <- sext(MDR)
   MAR  <- X + SCR1
-  [MAR] <- low(Y); MAR++ : z
-  [MAR] <- high(Y); MAR++ : nz, v=0, z+ ; return to fetch
+  MDR <- low(Y) : z
+  [MAR] <- MDR
+  MDR <- high(Y) ; MAR++ : nz, v=0, z+
+  [MAR] <- MDR ; return to fetch
 
 # 0x83 LD X,(Y+n8)   (6 cyc)
 .opcode page1 0x83 LD X,(Y+n8)
@@ -2977,14 +3137,16 @@ routine LD X,(Y+n8):
   SCR1.high <- [MAR]; MAR++
   X <- SCR1 : nz, v=0 ; return to fetch
 
-# 0x84 ST X,(Y+n8)   (5 cyc)
+# 0x84 ST X,(Y+n8)   (7 cyc)
 .opcode page1 0x84 ST X,(Y+n8)
 routine ST X,(Y+n8):
   MDR  <- [PC]; PC++
   SCR1 <- sext(MDR)
   MAR  <- Y + SCR1
-  [MAR] <- low(X); MAR++ : z
-  [MAR] <- high(X); MAR++ : nz, v=0, z+ ; return to fetch
+  MDR <- low(X) : z
+  [MAR] <- MDR
+  MDR <- high(X) ; MAR++ : nz, v=0, z+
+  [MAR] <- MDR ; return to fetch
 
 # 0x85 LD D,(X+n16)   (5 cyc)
 .opcode page1 0x85 LD D,(X+n16)
@@ -3005,23 +3167,27 @@ routine LD X,(X+n16):
   SCR1.high <- [MAR]; MAR++
   X <- SCR1 : nz, v=0 ; return to fetch
 
-# 0x87 ST D,(X+n16)   (5 cyc)
+# 0x87 ST D,(X+n16)   (7 cyc)
 .opcode page1 0x87 ST D,(X+n16)
 routine ST D,(X+n16):
   SCR1.low  <- [PC]; PC++
   SCR1.high <- [PC]; PC++
   MAR  <- X + SCR1
-  [MAR] <- low(D); MAR++ : z
-  [MAR] <- high(D); MAR++ : nz, v=0, z+ ; return to fetch
+  MDR <- low(D) : z
+  [MAR] <- MDR
+  MDR <- high(D) ; MAR++ : nz, v=0, z+
+  [MAR] <- MDR ; return to fetch
 
-# 0x88 ST X,(X+n16)   (5 cyc)
+# 0x88 ST X,(X+n16)   (7 cyc)
 .opcode page1 0x88 ST X,(X+n16)
 routine ST X,(X+n16):
   SCR1.low  <- [PC]; PC++
   SCR1.high <- [PC]; PC++
   MAR  <- X + SCR1
-  [MAR] <- low(X); MAR++ : z
-  [MAR] <- high(X); MAR++ : nz, v=0, z+ ; return to fetch
+  MDR <- low(X) : z
+  [MAR] <- MDR
+  MDR <- high(X) ; MAR++ : nz, v=0, z+
+  [MAR] <- MDR ; return to fetch
 
 # 0x89 LD D,(SP+n16)   (5 cyc)
 .opcode page1 0x89 LD D,(SP+n16)
@@ -3052,32 +3218,38 @@ routine LD Y,(SP+n16):
   SCR1.high <- [MAR]; MAR++
   Y <- SCR1 : nz, v=0 ; return to fetch
 
-# 0x8c ST D,(SP+n16)   (5 cyc)
+# 0x8c ST D,(SP+n16)   (7 cyc)
 .opcode page1 0x8c ST D,(SP+n16)
 routine ST D,(SP+n16):
   SCR1.low  <- [PC]; PC++
   SCR1.high <- [PC]; PC++
   MAR  <- SP + SCR1
-  [MAR] <- low(D); MAR++ : z
-  [MAR] <- high(D); MAR++ : nz, v=0, z+ ; return to fetch
+  MDR <- low(D) : z
+  [MAR] <- MDR
+  MDR <- high(D) ; MAR++ : nz, v=0, z+
+  [MAR] <- MDR ; return to fetch
 
-# 0x8d ST X,(SP+n16)   (5 cyc)
+# 0x8d ST X,(SP+n16)   (7 cyc)
 .opcode page1 0x8d ST X,(SP+n16)
 routine ST X,(SP+n16):
   SCR1.low  <- [PC]; PC++
   SCR1.high <- [PC]; PC++
   MAR  <- SP + SCR1
-  [MAR] <- low(X); MAR++ : z
-  [MAR] <- high(X); MAR++ : nz, v=0, z+ ; return to fetch
+  MDR <- low(X) : z
+  [MAR] <- MDR
+  MDR <- high(X) ; MAR++ : nz, v=0, z+
+  [MAR] <- MDR ; return to fetch
 
-# 0x8e ST Y,(SP+n16)   (5 cyc)
+# 0x8e ST Y,(SP+n16)   (7 cyc)
 .opcode page1 0x8e ST Y,(SP+n16)
 routine ST Y,(SP+n16):
   SCR1.low  <- [PC]; PC++
   SCR1.high <- [PC]; PC++
   MAR  <- SP + SCR1
-  [MAR] <- low(Y); MAR++ : z
-  [MAR] <- high(Y); MAR++ : nz, v=0, z+ ; return to fetch
+  MDR <- low(Y) : z
+  [MAR] <- MDR
+  MDR <- high(Y) ; MAR++ : nz, v=0, z+
+  [MAR] <- MDR ; return to fetch
 
 # 0x8f LD Y,(X+D)   (5 cyc)
 .opcode page1 0x8f LD Y,(X+D)
@@ -3088,13 +3260,15 @@ routine LD Y,(X+D):
   SCR1.high <- [MAR]; MAR++
   Y <- SCR1 : nz, v=0 ; return to fetch
 
-# 0x90 ST Y,(X+D)   (4 cyc)
+# 0x90 ST Y,(X+D)   (6 cyc)
 .opcode page1 0x90 ST Y,(X+D)
 routine ST Y,(X+D):
   SCR1 <- D
   MAR  <- X + SCR1
-  [MAR] <- low(Y); MAR++ : z
-  [MAR] <- high(Y); MAR++ : nz, v=0, z+ ; return to fetch
+  MDR <- low(Y) : z
+  [MAR] <- MDR
+  MDR <- high(Y) ; MAR++ : nz, v=0, z+
+  [MAR] <- MDR ; return to fetch
 
 # 0x91 LD D,(Y+D)   (4 cyc)
 .opcode page1 0x91 LD D,(Y+D)
@@ -3114,14 +3288,16 @@ routine LD SP,($nnnn):
   SCR1.high <- [MAR]; MAR++
   SP <- SCR1 : nz, v=0 ; return to fetch
 
-# 0x93 ST SP,($nnnn)   (5 cyc)
+# 0x93 ST SP,($nnnn)   (7 cyc)
 .opcode page1 0x93 ST SP,($nnnn)
 routine ST SP,($nnnn):
   SCR1.low  <- [PC]; PC++
   SCR1.high <- [PC]; PC++
   MAR  <- SCR1
-  [MAR] <- low(SP); MAR++ : z
-  [MAR] <- high(SP); MAR++ : nz, v=0, z+ ; return to fetch
+  MDR <- low(SP) : z
+  [MAR] <- MDR
+  MDR <- high(SP) ; MAR++ : nz, v=0, z+
+  [MAR] <- MDR ; return to fetch
 
 # ===========================================================================
 # PAGE 1 · Byte ALU (cold modes + ADC/SBC/EOR/BIT)
@@ -3726,44 +3902,49 @@ routine ROL B:
 routine ROR B:
   B <- ror(B) : nzvc ; return to fetch
 
-# 0xe0 INC (X+)   (4 cyc)
+# 0xe0 INC (X+)   (5 cyc)
 .opcode page1 0xe0 INC (X+)
 routine INC (X+):
   MAR  <- X
   SCR1 <- [MAR] ; X++
   SCR1 <- SCR1 + 1 : nzv
-  [MAR] <- SCR1 ; return to fetch
+  MDR <- SCR1
+  [MAR] <- MDR ; return to fetch
 
-# 0xe1 DEC (X+)   (4 cyc)
+# 0xe1 DEC (X+)   (5 cyc)
 .opcode page1 0xe1 DEC (X+)
 routine DEC (X+):
   MAR  <- X
   SCR1 <- [MAR] ; X++
   SCR1 <- SCR1 - 1 : nzv
-  [MAR] <- SCR1 ; return to fetch
+  MDR <- SCR1
+  [MAR] <- MDR ; return to fetch
 
-# 0xe2 INC (Y)   (4 cyc)
+# 0xe2 INC (Y)   (5 cyc)
 .opcode page1 0xe2 INC (Y)
 routine INC (Y):
   MAR  <- Y
   SCR1 <- [MAR]
   SCR1 <- SCR1 + 1 : nzv
-  [MAR] <- SCR1 ; return to fetch
+  MDR <- SCR1
+  [MAR] <- MDR ; return to fetch
 
-# 0xe3 DEC (Y)   (4 cyc)
+# 0xe3 DEC (Y)   (5 cyc)
 .opcode page1 0xe3 DEC (Y)
 routine DEC (Y):
   MAR  <- Y
   SCR1 <- [MAR]
   SCR1 <- SCR1 - 1 : nzv
-  [MAR] <- SCR1 ; return to fetch
+  MDR <- SCR1
+  [MAR] <- MDR ; return to fetch
 
-# 0xe4 CLR (Y)   (3 cyc)
+# 0xe4 CLR (Y)   (4 cyc)
 .opcode page1 0xe4 CLR (Y)
 routine CLR (Y):
   MAR  <- Y
   SCR1 <- 0
-  [MAR] <- SCR1 : nz, v=0, c=0 ; return to fetch
+  MDR <- SCR1 : nz, v=0, c=0
+  [MAR] <- MDR ; return to fetch
 
 # 0xe5 TST (Y)   (2 cyc)
 .opcode page1 0xe5 TST (Y)

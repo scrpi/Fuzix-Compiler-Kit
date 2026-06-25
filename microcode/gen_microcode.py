@@ -124,6 +124,30 @@ WIDE_ALU = {
 
 
 # ---------------------------------------------------------------------------
+# memory WRITE — staged through MDR (BLIP's real-memory write protocol).
+# A device captures a write on /WR's rising edge with the address and data held valid through it
+# (interface.md §4.2). A single-cycle `[MAR] <- X` cannot provide that: the byte is live on Z and
+# gone the next cycle, and a `MAR++` would step the address at the very capture edge. So every write
+# is two microwords — stage the byte into the registered MDR (held stable on D), then `[MAR] <- MDR`
+# with [MAR] held. Any MAR++ rides the STAGING word of the next byte, never a write word.
+# ---------------------------------------------------------------------------
+def store_bytes(items, lead='', ride='', tail=''):
+    """Emit staged writes for `items` (list of (src, flags)) to ascending [MAR] addresses.
+    `lead` rides the first stage word (e.g. a post-increment X++); `ride` rides every word
+    (e.g. map(kernel) across a trap frame); `tail` rides the last write word (e.g. TAS unlock).
+    Flags land on the stage word, where the ALU computes the byte."""
+    out, last = [], len(items) - 1
+    for i, (src, flags) in enumerate(items):
+        st_extra = (['MAR++'] if i else ([lead] if lead else [])) + ([ride] if ride else [])
+        stage = ' ; '.join([f"MDR <- {src}"] + st_extra)
+        if flags:
+            stage += f" : {flags}"
+        wr_extra = ([ride] if ride else []) + ([tail] if (i == last and tail) else [])
+        out += [stage, ' ; '.join(['[MAR] <- MDR'] + wr_extra)]
+    return out
+
+
+# ---------------------------------------------------------------------------
 # read / write a wide (16-bit) value at MAR
 # ---------------------------------------------------------------------------
 def read16_to_scr(conc=''):
@@ -141,9 +165,7 @@ def load16_reg(tgt, conc=''):
 
 
 def store16_reg(tgt, conc=''):
-    c = f" ; {conc}" if conc else ""
-    return [f"[MAR] <- low({tgt}); MAR++{c} : z",
-            f"[MAR] <- high({tgt}); MAR++ : nz, v=0, z+"]
+    return store_bytes([(f"low({tgt})", "z"), (f"high({tgt})", "nz, v=0, z+")], lead=conc)
 
 
 # ---------------------------------------------------------------------------
@@ -164,8 +186,7 @@ def build_load_byte(tgt, operand, mem):
 def build_store_byte(tgt, operand, mem):
     mode, base = mem
     lines, conc, post = ea(mode, base)
-    c = f" ; {conc} " if conc else " "
-    lines.append(f"[MAR] <- {tgt}{c}: {F_LDST}")
+    lines += store_bytes([(tgt, F_LDST)], lead=conc)
     if post:
         lines.append(post[1])
     return lines
@@ -191,8 +212,8 @@ def build_store_wide(tgt, operand, mem):
     mode, base = mem
     lines, conc, post = ea(mode, base)
     lines += store16_reg(tgt, conc)
-    if post:
-        lines.append(post[1])
+    if post:                                   # (R++): the staged 2-byte store leaves MAR at
+        lines.append(f"{post[0]} <- MAR + 1")  # base+1, so the +2 post-increment commit is MAR+1
     return lines
 
 
@@ -250,14 +271,14 @@ def build_unary_mem(verb, mem):
     c = f" ; {conc}" if conc else ""
     if verb == 'CLR':
         lines.append("SCR1 <- 0")
-        lines.append(f"[MAR] <- SCR1{c} : nz, v=0, c=0")
+        lines += store_bytes([("SCR1", "nz, v=0, c=0")], lead=conc)
     elif verb == 'TST':
         lines.append(f"_ <- [MAR]{c} : nz, v=0")
     elif verb in ('INC', 'DEC'):
         op = '+ 1' if verb == 'INC' else '- 1'
         lines.append(f"SCR1 <- [MAR]{c}")
         lines.append(f"SCR1 <- SCR1 {op} : {F_INCDEC}")
-        lines.append("[MAR] <- SCR1")
+        lines += store_bytes([("SCR1", "")])
     else:
         raise Unhandled(f"unary mem {verb}")
     if post:
@@ -310,11 +331,8 @@ def build_branch(verb, wide):
 
 
 # JMP / JSR -----------------------------------------------------------------
-PUSH_PC = [
-    "SP <- SP - 2 ; MAR <- SP - 2      # reserve the return slot",
-    "[MAR] <- low(PC); MAR++           # push return PC low",
-    "[MAR] <- high(PC)                 # push return PC high",
-]
+PUSH_PC = ["SP <- SP - 2 ; MAR <- SP - 2      # reserve the return slot"] + \
+    store_bytes([("low(PC)", ""), ("high(PC)", "")])
 
 
 def jump_target_to_scr(arg, mem):
@@ -379,8 +397,7 @@ def build_tas(arg, mem):
         "SCR1 <- [MAR] : nz, v=0 ; lock    # test: read the lock byte, hold the bus",
         "SCR2 <- 0",
         "SCR2 <- ~SCR2                     # the set value (all-ones)",
-        "[MAR] <- SCR2 ; unlock            # set: store, release the bus lock",
-    ]
+    ] + store_bytes([("SCR2", "")], tail="unlock")   # set: store the all-ones, release the bus lock
 
 
 # register-register & USP-banking moves -------------------------------------
@@ -421,12 +438,11 @@ def build_pshs():
         lbl = f"pshs_skip{i}"
         out.append(f"if not c goto {lbl}             # {reg} not in mask")
         if w == 2:
-            out += [f"SP <- SP - 2 ; MAR <- SP - 2",
-                    f"[MAR] <- low({reg}); MAR++",
-                    f"[MAR] <- high({reg})"]
+            out += [f"SP <- SP - 2 ; MAR <- SP - 2"]
+            out += store_bytes([(f"low({reg})", ""), (f"high({reg})", "")])
         else:
-            out += [f"SP <- SP - 1 ; MAR <- SP - 1",
-                    f"[MAR] <- {reg}"]
+            out += [f"SP <- SP - 1 ; MAR <- SP - 1"]
+            out += store_bytes([(reg, "")])
         out.append(f"{lbl}:")
     out.append("return to fetch")
     return out
@@ -592,10 +608,9 @@ def build(op):
     if verb in ('SWI', 'SWI2', 'SWI3'):
         return [
             "SSP <- SSP - 2 ; MAR <- SSP - 2 ; map(kernel)   # reserve 2 bytes for PC on the supervisor stack",
-            "[MAR] <- low(PC); MAR++ ; map(kernel)           # push return PC low",
-            "[MAR] <- high(PC) ; map(kernel)                 # push return PC high",
+            *store_bytes([("low(PC)", ""), ("high(PC)", "")], ride="map(kernel)"),   # push return PC
             "SSP <- SSP - 1 ; MAR <- SSP - 1 ; map(kernel)   # reserve 1 byte for CC (top of frame)",
-            "[MAR] <- CC ; map(kernel)                       # push interrupted CC",
+            *store_bytes([("CC", "")], ride="map(kernel)"),                          # push interrupted CC
             "mi(enter)                                       # enter supervisor mode, set I",
             f"MAR <- vector({verb}) ; map(kernel)             # hardwired {verb} vector slot",
             "SCR1.low  <- [MAR]; MAR++ ; map(kernel)         # handler address low",
@@ -669,7 +684,7 @@ HEADER = '''\
 # Notation used here (docs/microcode-source.md §14 left some glyphs open; these
 # are the choices this source commits to):
 #   <-            register transfer            : nz, v=0   flag write clause
-#   [PC] / [MAR]  memory read at PC / MAR       [MAR] <-   memory write (LEFT drives data)
+#   [PC] / [MAR]  memory read at PC / MAR       [MAR] <- MDR   memory write (stage `MDR <- X` first)
 #   R++           off-bus +1 counter tick       R - 1      ALU add of a -2..+2 const-gen value
 #   low(r)/high(r)/sext(r)   lane steer         a +c b / a -c b   ADC / SBC (carry-in = CC.C)
 #   _ <- expr     compute for flags only (Z_DEST = none — CMP/BIT/TST)

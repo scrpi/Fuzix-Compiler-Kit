@@ -68,10 +68,13 @@ module tb_csim;
         if (fd == 0) begin $display("[ERROR] tb_csim: cannot open +OUT file"); $finish; end
     end
 
-    // A device captures a write on /WR's rising edge (interface.md §4.2). Decode the I/O page there;
-    // every other write lands in RAM.
+    // A real device captures a write on /WR's rising (deasserting) edge, with A and D held valid
+    // through that edge (interface.md §4.2) — model that faithfully. The I/O page (0xFF00-0xFF03) is
+    // decoded here; every other write lands in RAM.
     always @(posedge wr_n) begin
-        if (!$isunknown({a[15:0], d})) begin
+        // guard each signal separately — $isunknown over a concatenation trips an Icarus quirk
+        // (returns true even when every operand is known). Skips genuinely-unknown boot-phase writes.
+        if (!$isunknown(a[15:0]) && !$isunknown(d)) begin
             case (a[15:0])
                 16'hFF00: io_lo <= d;                                   // latch int low byte
                 16'hFF01: begin pv = {d, io_lo}; $fwrite(fd, "%0d\n", pv); end  // print signed int
@@ -92,6 +95,23 @@ module tb_csim;
         rst_n = 1'b1;
         wait (loading == 1'b0);
         $display("[CSIM] boot done; running program ...");
+    end
+
+    // optional datapath trace (+TRACE=<opcodehex>): once IR first hits the trigger opcode, dump the
+    // µPC / sequencer / stack datapath every cycle (debug aid for instruction bring-up).
+    reg        do_trace = 1'b0, tracing = 1'b0;
+    reg [7:0]  trig_op;
+    integer    tcount = 0;
+    initial if ($value$plusargs("TRACE=%h", trig_op)) do_trace = 1'b1;
+    always @(negedge clk) if (do_trace) begin
+        if (!tracing && ir_q === trig_op) tracing <= 1'b1;
+        if (tracing) begin
+            $display("uPC=%0d op=%0d PC=%04x IR=%02x Dreg=%04x Xreg=%04x MAR=%04x SCR1=%04x Z=%04x A=%06x D=%02x rd=%b wr=%b",
+                     upc, cw[2:0], pc_q, ir_q, dut.d_reg.q, dut.x_reg.q, dut.mar_w, dut.scr1_w,
+                     z_q, a, d, rd_n, wr_n);
+            tcount = tcount + 1;
+            if (tcount > 100) begin $display("[TRACE done]"); $fclose(fd); $finish; end
+        end
     end
 
     // wall-clock backstop: a real-program hang must not run forever
