@@ -207,7 +207,13 @@ def bind_left(expr: str, out: dict, fields: Fields, lineno: int):
         set_field(out, "LEFT_SRC", fields.code_of("LEFT_SRC", "D"), lineno)
         set_field(out, "LEFT_LANE", fields.code_of("LEFT_LANE", "HIGH_TO_LOW"), lineno)
         return
-    set_field(out, "LEFT_SRC", fields.code_of("LEFT_SRC", map_src(expr)), lineno)
+    src = map_src(expr)
+    set_field(out, "LEFT_SRC", fields.code_of("LEFT_SRC", src), lineno)
+    # 8-bit LEFT sources drive only the low lane; default LEFT_LANE=LOW so the high byte is a
+    # defined 0x00 (zero-extend) rather than the floating LEFT_RAW[15:8] that FULL16 would pass
+    # into the ALU. An explicit lane (sext/low/high) is handled above and is unaffected.
+    if src in ("CC", "IR_IMM", "MDR"):
+        set_field(out, "LEFT_LANE", fields.code_of("LEFT_LANE", "LOW"), lineno)
 
 
 def map_right(tok: str, fields: Fields, lineno: int) -> int:

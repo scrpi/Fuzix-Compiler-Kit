@@ -37,10 +37,17 @@
 // IR_IMM and MMU_ENTRY. The internal microconditions ULOOP/IRQ/NMI/WAIT_READY are wired into
 // cond[11:8]; the sequencer now runs the production blip.uc with no condition injection.
 //
-// SCAFFOLD — what remains: the MMU translate path (mmu_entry here is only the entry latch, the
-// page table + A[23:0] generation are a separate board); the fault microconditions cond[14:12]
-// (MULTIBYTE_LAST/PRIV_VIOLATION/ILLEGAL_OPCODE) tie inactive until their detect logic lands; and
-// IRQ is not yet I-masked in hardware (recognition is microcode policy for now).
+// SCAFFOLD — what remains:
+//   * MDR->Z read posting: a memory read captures into MDR but MDR is NOT driven onto Z, so a
+//     read-into-register (`reg <- [PC]`, the LD/operand-fetch idiom) and the production
+//     `n -> uloop` (which needs the count on Z) do not work as single microwords yet — that is
+//     the load/store datapath increment (interface.md §4). MDR reaches the ALU only via LEFT
+//     (LEFT_SRC=MDR), so `reg <- MDR` posts it on Z today.
+//   * The MMU translate path (mmu_entry here is only the entry latch; the page table + A[23:0]
+//     generation are a separate board).
+//   * The fault microconditions cond[14:12] (MULTIBYTE_LAST/PRIV_VIOLATION/ILLEGAL_OPCODE) tie
+//     inactive until their detect logic lands; IRQ is not yet I-masked in hardware (recognition
+//     is microcode policy for now).
 `timescale 1ns/1ps
 `default_nettype none
 module cpu #(

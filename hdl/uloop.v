@@ -4,18 +4,27 @@
 // loops.
 //
 // LOAD VALUE — a deliberate design decision. The control word carries no loop-count field
-// (ULOOP_CTRL is just HOLD / LOAD / DECREMENT); the assembler's `n -> uloop` sets ULOOP_CTRL=LOAD
-// and discards the literal n. So the count must ride a bus: this counter loads from the Z-bus low
-// bits, i.e. whatever a prior microword posted on Z (e.g. the multi-bit shift's `SCR1 <- [PC]`
-// posts the shift count n). The constant generator can't make every count, so a fixed-constant
-// load source would not serve the variable-n shifts; the Z bus does.
+// (ULOOP_CTRL is just HOLD / LOAD / DECREMENT), so the count must ride a bus: this counter loads
+// from the Z-bus low bits. The Z bus is combinational (the ALU output) and holds no value across
+// cycles, so the count MUST be driven onto Z in the SAME microword that asserts ULOOP_CTRL=LOAD —
+// the load microword has to source a register/const onto LEFT and PASS it to Z (as the directed
+// `uloop` bench does: `_ <- SCR1 + 1 ; ULOOP_CTRL=LOAD`).
+//
+// SCAFFOLD: the production `n -> uloop` idiom (gen_microcode's multi-bit shifts / MUL) does NOT
+// yet do this — `n -> uloop` assembles to ULOOP_CTRL=LOAD alone, and the read that fetched n
+// (`SCR1 <- [PC]`) does not post on Z either, because the MDR->Z read-post path is unwired
+// (memory_interface §SCAFFOLD; cpu.v). So those routines load an undefined count until the
+// load/store datapath (MDR->Z posting) and the `-> uloop` source-binding land. The COUNTER below
+// is correct and verified for the count-on-Z case; what is missing is upstream.
 //
 // HOW IT COUNTS — the '163 is an UP counter, so a decrement-to-zero loop is realized by loading
 // the one's-complement ~n and counting UP to a fixed terminal. With a 5-bit counter, loading ~n
 // (= 31 - n) and counting up, the value q[4:1] first reaches all-ones (count = 30) on the n-th
-// iteration — so `uloop.zero` (the terminal) asserts there and the body runs exactly n times. The
-// condition is evaluated combinationally in the same microword as `uloop--`, so the one's-
-// complement load already accounts for that one-cycle lead. 5 bits covers every ISA loop (n<=16).
+// iteration — so `uloop.zero` (the terminal) asserts there and the body runs n times for n in
+// 1..16. Two caveats the microcode must honour: the loop word `body ; uloop-- ; if not uloop.zero`
+// is a DO-WHILE (the body is unconditional), so n=0 runs the body once — a zero-trip loop needs a
+// `if uloop.zero` guard before the body. And there is NO saturation: the count is masked to 5 bits
+// (z[4:0]), so n>16 wraps mod 32 — fine because the ISA leaves shifts >= width undefined (n<=16).
 //
 // Structure (the BOM): 1x sn74ahct139 (ULOOP_CTRL decode), 1x sn74ahct04 (~Z load value +
 // count-enable sense), 2x cd74act163 (the 5-bit up-counter), 2x sn74ahct08 (the q[4:1] terminal).

@@ -271,7 +271,7 @@ def build_dshift(verb):
     lbl = f"{op}d_loop"
     return [
         "SCR1 <- [PC]; PC++                # shift count n",
-        "count -> uloop                    # uloop <- n  (saturates at 16)",
+        "count -> uloop                    # uloop <- n  (n in 0..16; n>16 wraps, undefined per C)",
         f"{lbl}:",
         f"D <- {op}(D) : nzvc ; uloop-- ; if not uloop.zero goto {lbl}",
         "return to fetch",

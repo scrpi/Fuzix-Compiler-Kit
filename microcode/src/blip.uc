@@ -1211,7 +1211,7 @@ routine CMP SP,$nnnn:
 .opcode page0 0x95 ASL D,$n
 routine ASL D,$n:
   SCR1 <- [PC]; PC++                # shift count n
-  count -> uloop                    # uloop <- n  (saturates at 16)
+  count -> uloop                    # uloop <- n  (n in 0..16; n>16 wraps, undefined per C)
 asld_loop:
   D <- asl(D) : nzvc ; uloop-- ; if not uloop.zero goto asld_loop
   return to fetch
@@ -1220,7 +1220,7 @@ asld_loop:
 .opcode page0 0x96 LSR D,$n
 routine LSR D,$n:
   SCR1 <- [PC]; PC++                # shift count n
-  count -> uloop                    # uloop <- n  (saturates at 16)
+  count -> uloop                    # uloop <- n  (n in 0..16; n>16 wraps, undefined per C)
 lsrd_loop:
   D <- lsr(D) : nzvc ; uloop-- ; if not uloop.zero goto lsrd_loop
   return to fetch
@@ -1229,7 +1229,7 @@ lsrd_loop:
 .opcode page0 0x97 ASR D,$n
 routine ASR D,$n:
   SCR1 <- [PC]; PC++                # shift count n
-  count -> uloop                    # uloop <- n  (saturates at 16)
+  count -> uloop                    # uloop <- n  (n in 0..16; n>16 wraps, undefined per C)
 asrd_loop:
   D <- asr(D) : nzvc ; uloop-- ; if not uloop.zero goto asrd_loop
   return to fetch
