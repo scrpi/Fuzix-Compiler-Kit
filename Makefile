@@ -16,7 +16,7 @@ TOP    ?=
 MODE   ?=
 
 .NOTPARALLEL:
-.PHONY: test image browser check lint sim cpu useq reg regfile alu right cc ccx mmu mem lane lanex uloop irqx trap fault ldz prog shiftx fetch exec bench viz logisim logisim-test digitaljs bom clean help
+.PHONY: test image browser check lint sim cpu useq reg regfile alu right cc ccx mmu mem lane lanex uloop irqx trap fault arbx tasx ldz prog shiftx fetch exec bench viz logisim logisim-test digitaljs bom clean help
 
 ## test:   run the whole suite (image, field-def check, both lints, tool + timed test-benches)
 test: image check lint logisim-test sim
@@ -40,7 +40,7 @@ lint:
 	$(PYTHON) tools/lint/timing_lint.py
 
 ## sim:    the timed, self-checking test-benches
-sim: cpu useq reg regfile alu right cc ccx mmu mem lane lanex uloop irqx trap fault ldz prog shiftx fetch exec bench
+sim: cpu useq reg regfile alu right cc ccx mmu mem lane lanex uloop irqx trap fault arbx tasx ldz prog shiftx fetch exec bench
 
 ## cpu:    boot copy (real loader + EEPROM -> WCS) then the microsequencer walk
 ##         (INC/JUMP/BRANCH/DISPATCH/WAIT) — the loader is proven on this standard path
@@ -118,6 +118,14 @@ trap:
 ## irqx:   internal microconditions — IRQ/NMI/WAIT_READY gate the sequencer (real cond[9..11])
 irqx:
 	bash sim/tb/irqx/run.sh
+
+## arbx:   bus arbiter — /BUSREQ -> /BUSGRANT, A//RD//WR tri-state, and a held grant STALLS the core
+arbx:
+	bash sim/tb/arbx/run.sh
+
+## tasx:   TAS_LOCK holds the bus across a locked RMW — a pending /BUSREQ is refused mid-lock
+tasx:
+	bash sim/tb/tasx/run.sh
 
 ## fetch:  REAL instruction fetch — PC -> MMU -> memory model -> MDR -> IR -> DISPATCH
 fetch:

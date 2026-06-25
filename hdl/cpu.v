@@ -148,9 +148,14 @@ module cpu #(
     wire bus_inhibit = inhib[0];
 
     // --- run = ~loading, plus the PC/MAR/X/Y COUNT-enable inversions; rd = ~/RD --------
+    // `rd` derives from the INTERNAL read strobe mi_rd_n (memory_interface's pre-tri-state /RD),
+    // NEVER from the external `rd_n` pin: that pin is tri-stated on a bus grant (rwdrv below), so
+    // ~rd_n would be X and X-poison the ALU PASS_L enable -> the Z bus. mi_rd_n is forced HIGH/idle
+    // by bus_inhibit during a grant, so rd=0 and Z stays defined (R-IF-4; review-confirmed).
+    wire mi_rd_n, mi_wr_n;               // memory_interface's pre-tri-state /RD //WR (declared early)
     wire [5:0] inv_y;
-    (* purpose = "run=~loading; PC/MAR/X/Y count enables; rd=~/RD" *)
-    sn74ahct04 inv (.a({y_ctrl_n[2], x_ctrl_n[2], mar_ctrl_n[2], pc_ctrl_n[2], loading, rd_n}), .y(inv_y));
+    (* purpose = "run=~loading; PC/MAR/X/Y count enables; rd=~mi_rd_n" *)
+    sn74ahct04 inv (.a({y_ctrl_n[2], x_ctrl_n[2], mar_ctrl_n[2], pc_ctrl_n[2], loading, mi_rd_n}), .y(inv_y));
     wire   rd           = inv_y[0];      // read active-high (suppress the ALU PASS_L Z drive)
     assign run          = inv_y[1];
     wire   pc_count_en  = inv_y[2];
@@ -334,7 +339,6 @@ module cpu #(
     // --- MDR + external bus port. MDR drives LEFT (low lane); write data = Z low. ---
     // (The MMU owns A[23:0] now, so memory_interface's own identity-A output is left unconnected.)
     (* purpose = "MDR + memory bus port" *)
-    wire mi_rd_n, mi_wr_n;
     memory_interface mi (
         .clk(clk),
         .mem_op_n(mem_op_n), .z_dest_mdr_n(z_dest_n[7]), .left_src_mdr_n(left_src_n[10]),
