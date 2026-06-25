@@ -17,7 +17,7 @@ iverilog -g2012 -gspecify -Wall -D IMG="\"$IMG\"" -o "$OUT/tb" \
     "$ROOT/hdl/control_word_decoder.v" \
     "$ROOT/hdl/register16.v" \
     "$ROOT/hdl/left_lane.v" "$ROOT/hdl/z_lane.v" \
-    "$ROOT/hdl/sp_bank.v" "$ROOT/hdl/mmu_entry.v" "$ROOT/hdl/uloop.v" \
+    "$ROOT/hdl/sp_bank.v" "$ROOT/hdl/mmu_entry.v" "$ROOT/hdl/mmu.v" "$ROOT/hdl/uloop.v" \
     "$ROOT/hdl/memory_interface.v" \
     "$ROOT/hdl/alu_arithmetic.v" "$ROOT/hdl/alu_logic.v" "$ROOT/hdl/alu_shift.v" "$ROOT/hdl/alu.v" \
     "$ROOT/hdl/right_bus.v" \

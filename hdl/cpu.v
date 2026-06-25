@@ -44,9 +44,13 @@
 // value (ir_d), so `IR <- [PC]; PC++; dispatch` fetches and dispatches in one word. The real
 // blip.uc runs end-to-end (sim/tb/prog).
 //
+// The MMU is built (mmu.v): an 8 KB-page translate (offset pass-through, 8-slot index, 11-bit PPN
+// -> A[23:13]) over a 16x11 page table that boots to the identity map, with MMU_MAP_SEL (kernel/
+// user/force), DIRECT_PHYSICAL, and LDMMU/STMMU entry write/read-back. (Icarus note: the is61c64's
+// bidirectional bus + -gspecify limits RUN-time LDMMU writes in sim to the boot-identity path.)
+//
 // SCAFFOLD — what remains:
-//   * The MMU translate path (mmu_entry here is only the entry latch; the page table + A[23:0]
-//     generation are a separate board).
+//   * The trap-vector encoder (RETURN_FETCH only vectors to 0; no IRQ/NMI/fault interception).
 //   * The fault microconditions cond[14:12] (MULTIBYTE_LAST/PRIV_VIOLATION/ILLEGAL_OPCODE) tie
 //     inactive until their detect logic lands; IRQ is not yet I-masked in hardware (recognition
 //     is microcode policy for now).
@@ -101,7 +105,8 @@ module cpu #(
     wire [3:0]  ir_load_n, left_lane_n, z_lane_n;
     wire [15:0] left_src_n, z_dest_n, alu_op_n;
     wire [7:0]  alu_shift_n, right_src_n;
-    wire [3:0]  pc_ctrl_n, mar_ctrl_n, x_ctrl_n, y_ctrl_n, mem_op_n, mmu_addr_n, mmu_pt_n;
+    wire [3:0]  pc_ctrl_n, mar_ctrl_n, x_ctrl_n, y_ctrl_n, mem_op_n;
+    wire [3:0]  mmu_addr_n, mmu_map_n, mmu_pt_n;
     wire [3:0]  v_src_n, c_src_n, cc_write_n, cc_mi_n;
     wire [4:0]  flag_we;
     wire        alu_cin, alu_width, z_accum, sp_bank;
@@ -114,7 +119,8 @@ module cpu #(
         .flag_we(flag_we), .v_src_n(v_src_n), .c_src_n(c_src_n), .z_accum(z_accum),
         .cc_write_n(cc_write_n), .cc_mi_n(cc_mi_n), .z_dest_n(z_dest_n), .z_lane_n(z_lane_n),
         .pc_ctrl_n(pc_ctrl_n), .mar_ctrl_n(mar_ctrl_n), .x_ctrl_n(x_ctrl_n), .y_ctrl_n(y_ctrl_n),
-        .mem_op_n(mem_op_n), .mmu_addr_n(mmu_addr_n), .mmu_pt_n(mmu_pt_n), .sp_bank(sp_bank)
+        .mem_op_n(mem_op_n), .mmu_addr_n(mmu_addr_n), .mmu_map_n(mmu_map_n),
+        .mmu_pt_n(mmu_pt_n), .sp_bank(sp_bank)
     );
 
     // --- run = ~loading, plus the PC/MAR/X/Y COUNT-enable inversions; rd = ~/RD --------
@@ -286,7 +292,18 @@ module cpu #(
     (* purpose = "addr mux PC/MAR [15:12]" *)
     sn74ahct157 am3 (.a(pc_w[15:12]), .b(mar_w[15:12]), .sel(mmu_addr_n[1]), .g_n(1'b0), .y(addr_logical[15:12]));
 
+    // --- MMU: translate the logical address to A[23:0] (owns the address bus) ---
+    wire [15:0] mmu_entry_q;
+    wire [10:0] mmu_entry_rd;
+    (* purpose = "MMU (translate + page table)" *)
+    mmu u_mmu (
+        .clk(clk), .loading(loading), .loader_addr(loader_addr), .addr_logical(addr_logical),
+        .mmu_addr_n(mmu_addr_n), .mmu_map_n(mmu_map_n), .mmu_pt_n(mmu_pt_n), .cc_m(cc_m),
+        .entry_in(mmu_entry_q[10:0]), .entry_rd(mmu_entry_rd), .a(a)
+    );
+
     // --- MDR + external bus port. MDR drives LEFT (low lane); write data = Z low. ---
+    // (The MMU owns A[23:0] now, so memory_interface's own identity-A output is left unconnected.)
     (* purpose = "MDR + memory bus port" *)
     memory_interface mi (
         .clk(clk),
@@ -294,7 +311,7 @@ module cpu #(
         .bus_inhibit(loading),
         .addr(addr_logical), .z_lo(z[7:0]),
         .mdr_q(mdr_q), .z_post(z), .left_lo(left_raw[7:0]),
-        .a(a), .d(d), .rd_n(rd_n), .wr_n(wr_n)
+        .a(), .d(d), .rd_n(rd_n), .wr_n(wr_n)
     );
 
     // --- opcode register IR: latch the read byte on IR_LOAD, or from ir_drive (debug) --
@@ -324,8 +341,9 @@ module cpu #(
     sn74ahct541 irlr (.a(ir), .oe1_n(left_src_n[11]), .oe2_n(1'b0), .y(left_raw[7:0]));
     (* purpose = "MMU_ENTRY latch + LEFT driver" *)
     mmu_entry u_mmu_entry (
-        .clk(clk), .left_in(left_raw), .load_n(mmu_pt_n[1]), .drive_n(left_src_n[12]),
-        .q(/* unused until the MMU board lands */), .left_out(left_raw)
+        .clk(clk), .left_in(left_raw), .entry_rd(mmu_entry_rd),
+        .load_n(mmu_pt_n[1]), .read_n(mmu_pt_n[2]), .drive_n(left_src_n[12]),
+        .q(mmu_entry_q), .left_out(left_raw)
     );
 
     // --- ULOOP micro-loop counter: terminal -> cond[8] ---------------------
