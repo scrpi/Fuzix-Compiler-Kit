@@ -11,6 +11,9 @@ mkdir -p "$OUT"
 
 iverilog -g2012 -gspecify -Wall -o "$OUT/tb" \
     "$ROOT"/hdl/cells/*.v \
+    "$ROOT/hdl/alu_arithmetic.v" \
+    "$ROOT/hdl/alu_logic.v" \
+    "$ROOT/hdl/alu_shift.v" \
     "$ROOT/hdl/alu.v" \
     "$ROOT/sim/tb/alu/tb_alu.v"
 

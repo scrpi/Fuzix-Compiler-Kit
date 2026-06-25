@@ -9,16 +9,21 @@
 `default_nettype none
 module tb_alu;
     // op encodings (ALU_OP); the DUT takes the one-hot, active-low form ~(1<<op).
-    localparam ADD=2, ADC=3, SUB=4, SBC=5, AND_=6, OR_=7, EOR=8, COM=9, NEG=10, PASSL=0, PASSR=1;
+    localparam ADD=2, ADC=3, SUB=4, SBC=5, AND_=6, OR_=7, EOR=8, COM=9, NEG=10, PASSL=0, PASSR=1, SHIFT=11;
+
+    // shift-type encodings (ALU_SHIFT)
+    localparam ASL=0, LSR=1, ASR=2, ROL=3, ROR=4;
 
     reg  [15:0] left, right;
     reg  [15:0] op_n;
+    reg  [7:0]  shf = 8'hFF;        // ALU_SHIFT one-hot, active-low (FF = no shift selected)
     reg         cinf, width, ccc;
     wire [15:0] z;
     wire        fn, fz, fv, fc, fh;
 
     alu dut (
-        .left(left), .right(right), .alu_op_n(op_n), .alu_cin(cinf), .alu_width(width), .cc_c(ccc),
+        .left(left), .right(right), .alu_op_n(op_n), .alu_shift_n(shf), .alu_cin(cinf),
+        .alu_width(width), .cc_c(ccc),
         .z(z), .flag_n(fn), .flag_z(fz), .flag_v(fv), .flag_c(fc), .flag_h(fh)
     );
 
@@ -74,6 +79,40 @@ module tb_alu;
         end
     endtask
 
+    // shift check: ALU_OP=SHIFT + ALU_SHIFT=sh; check Z (low byte for W8) + C/N/Z/V (V=N^C).
+    reg [15:0] sez; reg sec, sen, sezf, sev;
+    task chk_shift(input [3:0] sh, input [15:0] L, input w, input c);
+        begin
+            left=L; right=16'h0; cinf=1'b0; width=w; ccc=c; shf = ~(8'd1 << sh); op_n = ~(16'd1 << SHIFT); #300;
+            if (w) begin
+                case (sh)
+                    ASL: begin sez={L[14:0],1'b0}; sec=L[15]; end
+                    LSR: begin sez={1'b0,L[15:1]};  sec=L[0];  end
+                    ASR: begin sez={L[15],L[15:1]}; sec=L[0];  end
+                    ROL: begin sez={L[14:0],c};     sec=L[15]; end
+                    ROR: begin sez={c,L[15:1]};     sec=L[0];  end
+                endcase
+                sen=sez[15]; sezf=(sez==16'h0);
+                if (z !== sez) begin $display("FAIL sh%0d %04x w16: Z=%04x exp %04x", sh,L,z,sez); errors=errors+1; end
+            end else begin
+                case (sh)
+                    ASL: begin sez[7:0]={L[6:0],1'b0}; sec=L[7]; end
+                    LSR: begin sez[7:0]={1'b0,L[7:1]};  sec=L[0]; end
+                    ASR: begin sez[7:0]={L[7],L[7:1]};  sec=L[0]; end
+                    ROL: begin sez[7:0]={L[6:0],c};     sec=L[7]; end
+                    ROR: begin sez[7:0]={c,L[7:1]};     sec=L[0]; end
+                endcase
+                sen=sez[7]; sezf=(sez[7:0]==8'h0);
+                if (z[7:0] !== sez[7:0]) begin $display("FAIL sh%0d %04x w8: Z[7:0]=%02x exp %02x", sh,L,z[7:0],sez[7:0]); errors=errors+1; end
+            end
+            sev = sen ^ sec;
+            if (fc !== sec)  begin $display("FAIL sh%0d %04x w%0d: C=%b exp %b", sh,L,w,fc,sec); errors=errors+1; end
+            if (fn !== sen)  begin $display("FAIL sh%0d %04x w%0d: N=%b exp %b", sh,L,w,fn,sen); errors=errors+1; end
+            if (fz !== sezf) begin $display("FAIL sh%0d %04x w%0d: Zf=%b exp %b", sh,L,w,fz,sezf); errors=errors+1; end
+            if (fv !== sev)  begin $display("FAIL sh%0d %04x w%0d: V=%b exp %b", sh,L,w,fv,sev); errors=errors+1; end
+        end
+    endtask
+
     initial begin
         // ---- ADD ----
         chk_arith(ADD, 16'h1234, 16'h1111, 0, 1, 0);   // plain
@@ -103,9 +142,22 @@ module tb_alu;
         chk_log(COM,  16'h1234, 16'h0000, 1, 16'hEDCB);
         chk_log(PASSL,16'hCAFE, 16'h0000, 1, 16'hCAFE);
         chk_log(PASSR,16'h0000, 16'hBEEF, 1, 16'hBEEF);
+        // ---- shifts (W16) ----
+        chk_shift(ASL, 16'h4001, 1, 0);   // -> 8002, C=0
+        chk_shift(ASL, 16'h8001, 1, 0);   // -> 0002, C=1
+        chk_shift(LSR, 16'h0003, 1, 0);   // -> 0001, C=1
+        chk_shift(ASR, 16'h8002, 1, 0);   // -> C001 (sign kept), C=0
+        chk_shift(ROL, 16'h4000, 1, 1);   // -> 8001, C=0
+        chk_shift(ROR, 16'h0001, 1, 1);   // -> 8000, C=1
+        // ---- shifts (W8) ----
+        chk_shift(ASL, 16'h0040, 0, 0);   // low -> 80, C=0
+        chk_shift(ASL, 16'h0080, 0, 0);   // low -> 00, C=1, Z=1
+        chk_shift(LSR, 16'h0001, 0, 0);   // low -> 00, C=1
+        chk_shift(ASR, 16'h0081, 0, 0);   // low -> C0 (sign kept), C=1
+        chk_shift(ROR, 16'h0001, 0, 1);   // low -> 80, C=1
 
         if (errors == 0)
-            $display("PASS - alu: ADD/ADC/SUB/SBC/NEG (W8+W16, C/borrow/V/H) + AND/OR/EOR/COM + PASS");
+            $display("PASS - alu: ADD/ADC/SUB/SBC/NEG + AND/OR/EOR/COM + PASS + ASL/LSR/ASR/ROL/ROR (W8+W16, flags)");
         else
             $fatal(1, "alu: %0d check(s) FAILED", errors);
         $finish;
