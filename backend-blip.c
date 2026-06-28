@@ -1455,11 +1455,18 @@ unsigned gen_node(struct node *n)
 
 	/* ---- casts (integer size changes) ---------------------------- */
 	case T_CAST: {
+		unsigned dt = n->type;
 		unsigned rt = n->right->type;
 		unsigned rs;
+		/* A pointer is a 16-bit unsigned for cast purposes — on either side.
+		   Mapping the destination too lets int<->pointer casts (e.g.
+		   (unsigned char *)addr) lower as plain width moves instead of falling
+		   through to a runtime helper. */
+		if (PTR(dt))
+			dt = USHORT;
 		if (PTR(rt))
 			rt = USHORT;
-		if (!IS_INTARITH(n->type) || !IS_INTARITH(rt))
+		if (!IS_INTARITH(dt) || !IS_INTARITH(rt))
 			return 0;
 		rs = get_size(rt);
 		/* Shrinking or same size: nothing to emit (value already in the
