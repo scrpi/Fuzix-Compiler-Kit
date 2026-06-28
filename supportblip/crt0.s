@@ -2,10 +2,10 @@
 ;	crt0.s — BLIP C runtime startup (library copy).
 ;
 ;	Boot path for a flat image linked at 0 (entered at PC=0):
-;	    * set SP just below the I/O page,
+;	    * set SP at the top of RAM,
 ;	    * JSR _main,
 ;	    * main returns its 16-bit value in X (§7 ABI); exit with its low
-;	      byte through the emulator exit port 0xFF03.
+;	      byte through the I/O exit port (OUT B,$03; D-54 separate I/O space).
 ;
 ;	This mirrors tools/fcc/test/testcrt0_blip.s.  The acceptance harness
 ;	links testcrt0_blip.o explicitly, so libblip.a itself only needs the
@@ -18,6 +18,6 @@ start:
 	LD SP,$FEFF
 	JSR _main
 	LD D,X			; D <- X (main's 16-bit return); B = low byte
-	ST B,($FF03)		; exit(B)
+	OUT B,$03		; exit(B)
 	; not reached
-	ST B,($FF03)
+	OUT B,$03
