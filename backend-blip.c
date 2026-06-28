@@ -1300,9 +1300,11 @@ unsigned gen_node(struct node *n)
 			printf("\tLD D,X\n");
 		return 1;
 	case T_FUNCCALL:
-		/* Indirect call: the function pointer is in D. */
+		/* Indirect call: the function pointer is in D -> X, and X holds the
+		   target address itself, so call through the register (JSR X), not
+		   through memory at X (JSR (X), which is a pointer-to-pointer load). */
 		d_to_x();
-		printf("\tJSR (X)\n");
+		printf("\tJSR X\n");
 		if (!nr)
 			printf("\tLD D,X\n");
 		return 1;
