@@ -1,17 +1,23 @@
 # rules.blip — copt peephole patterns for the BLIP backend.
 #
 # BLIP had no patterns file, so `fcc -mblip -O2` failed ("can't open patterns
-# file") and the kernel built at -O0.  These rules are the cheap, *always-safe*
-# control-flow rewrites the Fuzix Compiler Kit's stack-machine codegen leaves
-# behind: an unconditional transfer to the label on the very next line, and dead
-# code after an unconditional transfer.  They are register- and flag-independent
-# (they only delete instructions that cannot change observable state), so no
-# liveness analysis is needed and they cannot miscompile.
+# file") and the kernel built at -O0.  Two classes of *always-safe* rewrites the
+# Fuzix Compiler Kit's stack-machine codegen leaves behind:
+#   (1) control flow — an unconditional transfer to the label on the next line,
+#       and dead code after an unconditional transfer (register/flag-independent);
+#   (2) redundant memory/register traffic that the matcher can prove safe purely
+#       from operand identity — reloading a just-stored stack slot, and moves the
+#       next instruction overwrites.  These touch only (SP+n) (non-volatile) and
+#       bare register moves (which set no flags), never (X)/(Y)/(_sym) (possible
+#       I/O aliases).  Each was adversarially reviewed and validated by the
+#       38-test -O0/-O2 ctest equivalence run; copt adds no new opcodes, so
+#       gate/emulator parity is unchanged.
 #
-# Deliberately NOT touched: JSR/BSR/LBSR (calls — side effects), and any
-# load/store fusion (would need volatile/aliasing analysis the matcher lacks).
-# The patterns self-guard: they only fire when the operand is a label that is
-# literally the following line, so a computed JMP (X) / JMP $nnnn never matches.
+# Deliberately NOT touched: JSR/BSR/LBSR (calls — side effects), and any fusion
+# through (X)/(Y)/(_sym) (would need volatile/aliasing analysis the matcher
+# lacks).  The control-flow patterns self-guard: they only fire when the operand
+# is a label that is literally the following line, so a computed JMP (X) /
+# JMP $nnnn never matches.
 
 # --- unconditional transfer to the next line is a no-op: drop it ---
 	JMP %1
@@ -44,3 +50,37 @@
 	JMP %2
 =
 	BRA %1
+
+# --- redundant reload of a just-stored stack slot ----------------------------
+# The backend emits a bare ';' statement separator between a store and a reload
+# of the same slot.  The register still holds the value and (SP+n) is ordinary
+# (non-volatile) stack RAM, so the reload is a no-op.  The ';' line is also the
+# guard: a label there (a branch target) is a different line, so the rule cannot
+# fire across a point where the store might not have run.
+	ST D,(SP+%1)
+;
+	LD D,(SP+%1)
+=
+	ST D,(SP+%1)
+;
+
+	ST B,(SP+%1)
+;
+	LD B,(SP+%1)
+=
+	ST B,(SP+%1)
+;
+
+# --- redundant register moves ------------------------------------------------
+# "LD X,D" right after "LD D,X" writes X back the value it already holds; and a
+# "LD D,X" the next instruction overwrites ("LD D,(X)") is dead.  Register moves
+# set no flags and touch no memory, so nothing downstream can depend on them.
+	LD D,X
+	LD X,D
+=
+	LD D,X
+
+	LD D,X
+	LD D,(X)
+=
+	LD D,(X)
