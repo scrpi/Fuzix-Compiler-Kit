@@ -8,11 +8,12 @@ all: Preprocessor cc cc0 \
      cc2.8070 cc2.8086 \
      cc2.ee200 cc2.nova cc2.ddp cc2.7000 cc2.hc08 cc2.sm83 \
      cc1.8080-32 cc2.8080-32 \
+     cc1.blip cc2.blip \
      copt fmake \
      support6303 support6502 support65c816 support6800 support6803 \
      support6809 support68hc11 support8070 support8080 support8085 supportz80 \
      supportz8 supportsuper8 supportee200 supportnova supportnova3 supporttms7000 \
-     supportsm83 support8080-32 \
+     supportsm83 support8080-32 supportblip \
      test
 
 bootstuff: Preprocessor cc cc0 \
@@ -24,12 +25,13 @@ bootstuff: Preprocessor cc cc0 \
      cc2.6502 cc2.z8 cc2.super8 cc2.1802 cc2.6800 cc2.6809 \
      cc2.8070 cc2.8086 cc2.ee200 cc2.nova cc2.ddp cc2.7000 \
      cc2.hc08 cc2.sm83 cc2.8080-32 \
+     cc1.blip cc2.blip \
      copt fmake
 
 .PHONY: support6303 support6502 support65c816 support6800 support6803 \
 	support6809 support68hc11 support8070 support8080 support8085 \
 	supportsuper8 supportz8 supportz80 supportee200 supportnova \
-	supportnova3 supporttms7000 supportsm83 support8080-32 \
+	supportnova3 supporttms7000 supportsm83 support8080-32 supportblip \
 	test Preprocessor fmake
 
 CCROOT ?=/opt/fcc/
@@ -278,6 +280,10 @@ supportz8:
 supportz80:
 	(cd supportz80; make)
 
+# supportblip uses a shell build script (asblip + system ar), not a Makefile.
+supportblip:
+	(cd supportblip; sh build.sh)
+
 test:
 	(cd test; make)
 
@@ -302,6 +308,7 @@ clean:
 	rm -f cc1.hc08 cc2.hc08
 	rm -f cc1.sm83 cc2.sm83
 	rm -f cc1.8080-32 cc2.8080-32
+	rm -f cc1.blip cc2.blip
 	rm -f *~ *.o
 	(cd support6303; make clean)
 	(cd support6502; make clean)
@@ -480,6 +487,12 @@ bootinst:
 	cp cc1.8080-32 $(CCROOT)/lib
 	cp cc2.8080-32 $(CCROOT)/lib
 #	cp rules.8080-32 $(CCROOT)/lib
+	# blip (FUZIX target; little-endian, fcc backend "blip"). No rules.blip
+	# (copt) or lorder: blip compiles at -O0 and ldblip resolves libs in order.
+	mkdir -p $(CCROOT)/lib/blip
+	mkdir -p $(CCROOT)/lib/blip/include
+	cp cc1.blip $(CCROOT)/lib
+	cp cc2.blip $(CCROOT)/lib
 
 #
 #	Install the support libraries
@@ -548,6 +561,9 @@ libinst:
 	cp supportsm83/include/*.h $(CCROOT)/lib/sm83/include/
 	cp supportsm83/libsm83.a $(CCROOT)/lib/sm83/libsm83.a
 	ar cq $(CCROOT)/lib/sm83/libc.a
+	cp supportblip/crt0.o $(CCROOT)/lib/blip/
+	cp supportblip/libblip.a $(CCROOT)/lib/blip/libblip.a
+	ar cq $(CCROOT)/lib/blip/libc.a
 
 #
 #	Build the tools then install them
