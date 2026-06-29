@@ -1,0 +1,46 @@
+# rules.blip — copt peephole patterns for the BLIP backend.
+#
+# BLIP had no patterns file, so `fcc -mblip -O2` failed ("can't open patterns
+# file") and the kernel built at -O0.  These rules are the cheap, *always-safe*
+# control-flow rewrites the Fuzix Compiler Kit's stack-machine codegen leaves
+# behind: an unconditional transfer to the label on the very next line, and dead
+# code after an unconditional transfer.  They are register- and flag-independent
+# (they only delete instructions that cannot change observable state), so no
+# liveness analysis is needed and they cannot miscompile.
+#
+# Deliberately NOT touched: JSR/BSR/LBSR (calls — side effects), and any
+# load/store fusion (would need volatile/aliasing analysis the matcher lacks).
+# The patterns self-guard: they only fire when the operand is a label that is
+# literally the following line, so a computed JMP (X) / JMP $nnnn never matches.
+
+# --- unconditional transfer to the next line is a no-op: drop it ---
+	JMP %1
+%1:
+=
+%1:
+
+	LBRA %1
+%1:
+=
+%1:
+
+	BRA %1
+%1:
+=
+%1:
+
+# --- dead code: a second unconditional transfer right after the first ---
+	JMP %1
+	JMP %2
+=
+	JMP %1
+
+	LBRA %1
+	JMP %2
+=
+	LBRA %1
+
+	BRA %1
+	JMP %2
+=
+	BRA %1

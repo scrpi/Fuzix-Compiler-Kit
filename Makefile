@@ -487,12 +487,15 @@ bootinst:
 	cp cc1.8080-32 $(CCROOT)/lib
 	cp cc2.8080-32 $(CCROOT)/lib
 #	cp rules.8080-32 $(CCROOT)/lib
-	# blip (FUZIX target; little-endian, fcc backend "blip"). No rules.blip
-	# (copt) or lorder: blip compiles at -O0 and ldblip resolves libs in order.
+	# blip (FUZIX target; little-endian, fcc backend "blip").  rules.blip gives
+	# copt the safe control-flow peephole patterns, so `fcc -mblip -O2` runs the
+	# optimizer (the BLIP cc2 backend ignores the level, so -O2 == -O0 codegen +
+	# copt — a pure code-size win).  No lorder: ldblip resolves libs in order.
 	mkdir -p $(CCROOT)/lib/blip
 	mkdir -p $(CCROOT)/lib/blip/include
 	cp cc1.blip $(CCROOT)/lib
 	cp cc2.blip $(CCROOT)/lib
+	cp rules.blip $(CCROOT)/lib
 
 #
 #	Install the support libraries
