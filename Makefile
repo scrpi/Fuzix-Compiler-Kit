@@ -562,6 +562,7 @@ libinst:
 	cp supportsm83/libsm83.a $(CCROOT)/lib/sm83/libsm83.a
 	ar cq $(CCROOT)/lib/sm83/libc.a
 	cp supportblip/crt0.o $(CCROOT)/lib/blip/
+	cp supportblip/include/*.h $(CCROOT)/lib/blip/include/
 	cp supportblip/libblip.a $(CCROOT)/lib/blip/libblip.a
 	ar cq $(CCROOT)/lib/blip/libc.a
 
