@@ -65,6 +65,34 @@ static void emit_neg32(void);
 static void emit_add32_stack(void);
 
 /*
+ *	Stack displacements are encoded as a SIGNED 8-bit offset, (SP+n8), with a
+ *	16-bit (SP+n16) form for the load/store opcodes that have one (isa.md
+ *	§8.2). A few stack-relative forms have NO n16 encoding: LEA X,SP+n /
+ *	LEA Y,SP+n (only LEA SP,SP+n16 exists) and the ALU CMP/ADD/SUB ... ,(SP+n)
+ *	ops. A large frame (e.g. printf's number buffer) can push a local past the
+ *	+127 ceiling, so an offset that does not fit the signed-8-bit field must be
+ *	materialised via a register rather than emitted as an unencodable (SP+big).
+ *
+ *	FITS_S8 tests a final stack displacement (offset already biased by the
+ *	dynamic push depth). lea_x_sp emits "X = SP + off" correctly for ANY off:
+ *	when off fits it is the single LEA X,SP+n8; otherwise X is first set to SP
+ *	(LEA X,SP+0) and then advanced with LEA X,X+n16 (which does have a 16-bit
+ *	form), keeping a true effective-address computation with no opcode that
+ *	exceeds its encodable range.
+ */
+#define FITS_S8(v)	((int)(v) >= -128 && (int)(v) <= 127)
+
+static void lea_x_sp(unsigned off)
+{
+	if (FITS_S8(off))
+		printf("\tLEA X,SP+%u\n", off);
+	else {
+		printf("\tLEA X,SP+0\n");
+		printf("\tLEA X,X+%u\n", off);
+	}
+}
+
+/*
  *	Size handling
  */
 static unsigned get_size(unsigned t)
@@ -492,6 +520,14 @@ static unsigned alu16_d(struct node *r, const char *op)
 {
 	if (!simple_rhs(r))
 		return 0;
+	/* CMP/ADD/SUB D,(SP+n) has only the signed-8-bit offset form (no n16).
+	   For a local past the +127 ceiling, materialise its address in X and use
+	   the register-indirect form (op D,(X) exists for ADD/SUB/CMP). */
+	if (r->op == T_LREF && !FITS_S8(r->value + sp)) {
+		lea_x_sp((unsigned)r->value + sp);
+		printf("\t%s D,(X)\n", op);
+		return 1;
+	}
 	printf("\t%s D,", op);
 	mem_operand(r, 0, 2);
 	printf("\n");
@@ -505,6 +541,13 @@ static unsigned alu8_b(struct node *r, const char *op)
 {
 	if (!simple_rhs(r))
 		return 0;
+	/* op B,(SP+n) has only the signed-8-bit offset form; spill a too-large
+	   local offset through X (op B,(X) exists for ADD/SUB/CMP). */
+	if (r->op == T_LREF && !FITS_S8(r->value + sp)) {
+		lea_x_sp((unsigned)r->value + sp);
+		printf("\t%s B,(X)\n", op);
+		return 1;
+	}
 	printf("\t%s B,", op);
 	mem_operand(r, 0, 1);
 	printf("\n");
@@ -538,7 +581,7 @@ static unsigned alu_bitwise(struct node *r, const char *op, unsigned s)
 			printf("\t%s A,(%s+%u)\n", op, namestr(r->snum), (unsigned)r->value + 1);
 		return 1;
 	case T_LREF:
-		printf("\tLEA X,SP+%u\n", (unsigned)r->value + sp);
+		lea_x_sp((unsigned)r->value + sp);
 		printf("\t%s B,(X)\n", op);
 		if (s == 2)
 			printf("\t%s A,(X+1)\n", op);
@@ -690,7 +733,12 @@ static unsigned cmp_simple(struct node *n)
 
 	if (s > 2 || !simple_rhs(r) || bcc == NULL)
 		return 0;
-	if (s == 1) {
+	/* CMP B/D,(SP+n) has only the signed-8-bit offset form; a local past the
+	   +127 ceiling is reached through X (CMP B/D,(X) both exist). */
+	if (r->op == T_LREF && !FITS_S8(r->value + sp)) {
+		lea_x_sp((unsigned)r->value + sp);
+		printf("\tCMP %s,(X)\n", s == 1 ? "B" : "D");
+	} else if (s == 1) {
 		printf("\tCMP B,");
 		mem_operand(r, 0, 1);
 		printf("\n");
@@ -1237,7 +1285,7 @@ unsigned gen_node(struct node *n)
 		return 0;
 	case T_LOCAL:	/* Address of a local */
 	case T_ARGUMENT:
-		printf("\tLEA X,SP+%u\n", v + sp);
+		lea_x_sp(v + sp);
 		/* X now holds the address; move it into D as the value. */
 		printf("\tLD D,X\n");
 		return 1;
