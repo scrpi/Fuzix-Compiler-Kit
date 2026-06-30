@@ -84,3 +84,50 @@
 	LD D,(X)
 =
 	LD D,(X)
+
+# ============================================================================
+# Code-size additions (verified against the FUZIX O0/O2 corpus; all flag-safe
+# per isa.md 8.5; all sites measured). Added after the store-then-reload rule.
+# ============================================================================
+
+# --- Z2: char compare-to-zero feeding a Z-only branch: CMP B,$00 -> TST B ----
+# CMP B,$00 and TST B set N/Z identically; they differ only in V, C, H, none of
+# which a Z-only branch (LBNE/LBEQ) reads. The branch on the next line is the
+# guard. 144 sites, -1 B each.
+	CMP B,$00
+	LBNE %1
+=
+	TST B
+	LBNE %1
+
+	CMP B,$00
+	LBEQ %1
+=
+	TST B
+	LBEQ %1
+
+# --- call-abi / prologue: fuse caller-pop cleanup LEA + frame-teardown LEA ----
+# LEA SP is flag-free (8.5 all-dashes); SP+=a;SP+=b == SP+=(a+b). The literal
+# ';' separator and the literal RTS anchor the fold to the epilogue-adjacent
+# no-intervening-code case; a label between the LEAs blocks the match. asblip
+# picks the n8/n16 width, so an oversized sum cannot overflow. 12 sites, -2 B.
+	LEA SP,SP+%1
+;
+	LEA SP,SP+%2
+	RTS
+=
+	LEA SP,SP+%eval(%1 %2 +)
+	RTS
+
+# --- redundant-mem: drop reload of a stack slot still live in D after a store -
+# ST D never writes D and (SP+n) is non-volatile, so D still holds the slot.
+# Flag-neutral (ST sets N/Z from the same value the dropped LD would). The ';'
+# guards branch-in. Sound for any (%2) target since the store is kept. 3 sites.
+	LD D,(SP+%1)
+	ST D,(%2)
+;
+	LD D,(SP+%1)
+=
+	LD D,(SP+%1)
+	ST D,(%2)
+;

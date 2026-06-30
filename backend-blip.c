@@ -783,7 +783,7 @@ unsigned gen_direct(struct node *n)
 			unsigned k = 0;
 			if (m == 0) {
 				if (s == 1)
-					printf("\tLD B,$00\n");
+					printf("\tCLR B\n");
 				else
 					printf("\tLD D,$0000\n");
 				return 1;
@@ -794,7 +794,7 @@ unsigned gen_direct(struct node *n)
 			if (m == 1) {	/* pure power of two */
 				if (s == 1) {
 					if (k >= 8) {
-						printf("\tLD B,$00\n");
+						printf("\tCLR B\n");
 						return 1;
 					}
 					while (k--)
@@ -906,7 +906,7 @@ static unsigned shift_const(struct node *n, const char *op16, const char *op8)
 	v = r->value & 0xFF;
 	if (s == 1) {
 		if (v >= 8) {
-			printf("\tLD B,$00\n");
+			printf("\tCLR B\n");
 			return 1;
 		}
 		/* The 8-bit shifts take no count; repeat. */
@@ -1003,7 +1003,7 @@ static unsigned op_eq_node(struct node *n)
 		   signedness for divide/modulo. */
 		if (s == 1) {				/* widen rhs (B) -> D = RHS */
 			if (n->op == T_STAREQ || uns)
-				printf("\tLD A,$00\n");
+				printf("\tCLR A\n");
 			else
 				printf("\tSEX\n");
 		}
@@ -1012,7 +1012,7 @@ static unsigned op_eq_node(struct node *n)
 		if (s == 1) {
 			printf("\tLD B,(X)\n");		/* B = *lval */
 			if (n->op == T_STAREQ || uns)	/* widen *lval (B) -> D = LHS */
-				printf("\tLD A,$00\n");
+				printf("\tCLR A\n");
 			else
 				printf("\tSEX\n");
 		} else {
@@ -1476,7 +1476,7 @@ unsigned gen_node(struct node *n)
 		/* Widening 1 -> 2 bytes. */
 		if (rs == 1 && s == 2) {
 			if (rt & UNSIGNED)
-				printf("\tLD A,$00\n");	/* zero-extend */
+				printf("\tCLR A\n");	/* zero-extend */
 			else
 				printf("\tSEX\n");	/* sign-extend B into A */
 			return 1;
@@ -1486,7 +1486,7 @@ unsigned gen_node(struct node *n)
 		if (s == 4) {
 			if (rs == 1) {
 				if (rt & UNSIGNED)
-					printf("\tLD A,$00\n");
+					printf("\tCLR A\n");
 				else
 					printf("\tSEX\n");
 			}
