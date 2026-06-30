@@ -490,9 +490,12 @@ bootinst:
 	# blip (FUZIX target; little-endian, fcc backend "blip").  rules.blip gives
 	# copt the safe control-flow peephole patterns, so `fcc -mblip -O2` runs the
 	# optimizer (the BLIP cc2 backend ignores the level, so -O2 == -O0 codegen +
-	# copt — a pure code-size win).  No lorder: ldblip resolves libs in order.
+	# copt — a pure code-size win).  lorderblip topologically orders archive
+	# members (referencer before definer) for the one-pass ldblip, so the libc
+	# build (`ar rc syslibblip.lib `lorderblip ... | tsort``) links cleanly.
 	mkdir -p $(CCROOT)/lib/blip
 	mkdir -p $(CCROOT)/lib/blip/include
+	cp lorderblip $(CCROOT)/bin/lorderblip
 	cp cc1.blip $(CCROOT)/lib
 	cp cc2.blip $(CCROOT)/lib
 	cp rules.blip $(CCROOT)/lib

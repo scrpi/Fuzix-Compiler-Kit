@@ -17,7 +17,13 @@ ar=${AR:-ar}
 # resolves an already-undefined symbol, so a member that DEFINES a symbol must
 # come AFTER the members that reference it.  div16x16 (divide.o) is referenced
 # by __div.o/__divu.o, so divide.o is placed last.
-SRCS="__pluseql.s __minuseql.s __pop.s __mul.s __mull.s __divl.s __divul.s __divu.s __div.s __shl.s __shr.s __shru.s __shll.s __shrl.s __shrul.s __switch.s __switchc.s divide.s"
+# The long (32-bit) op-assign helpers __muleql / __diveql / __divequl /
+# __remeql / __remequl delegate to the matching value helpers (__mull / __divl
+# / __divul / __reml / __remul).  The one-pass librarian pulls a member only to
+# resolve an already-undefined symbol, so each referencer must precede its
+# definer: the op-assign helpers go before __mull (in __mull.s) and before
+# __divl / __divul (which define __divl/__reml and __divul/__remul).
+SRCS="__pluseql.s __minuseql.s __pop.s __muleql.s __mul.s __mull.s __diveql.s __divequl.s __remeql.s __remequl.s __divl.s __divul.s __divu.s __div.s __shl.s __shr.s __shru.s __shll.s __shrl.s __shrul.s __switch.s __switchc.s divide.s"
 
 OBJS=""
 for s in $SRCS; do
