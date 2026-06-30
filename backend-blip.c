@@ -559,14 +559,45 @@ static unsigned alu_bitwise(struct node *r, const char *op, unsigned s)
    later tests the 16-bit value). */
 static void make_bool_from_cc(const char *bcc)
 {
-	unsigned lt = label++;
-	unsigned le = label++;
-	printf("\t%s X%u\n", bcc, lt);
-	printf("\tLD D,$0000\n");
-	printf("\tLBRA X%u\n", le);
-	printf("X%u:\n", lt);
-	printf("\tLD D,$0001\n");
-	printf("X%u:\n", le);
+	/* Materialise a comparison's boolean (D = cond ? 1 : 0) in ONE opcode,
+	   S<cc> D (the per-condition set-on-condition family, D-59), instead of the
+	   ~14-byte "Bcc-skip; LD D,#0; LBRA; LD D,#1" idiom.  bcc is the long-branch
+	   mnemonic taken when the comparison is TRUE ("LBEQ", "LBLS", ...); the
+	   matching Scc shares its two-char condition suffix (LBEQ->SEQ, LBHI->SHI,
+	   ...).  SCC sets N/Z/V from the 0/1 result (Z = !cond), exactly the flag
+	   state the old idiom's final LD left, so a following LBEQ/LBNE testing Z
+	   still works.  And because there is no control flow, no join can expose
+	   stale flags — the hazard that makes the branch-elision fold unsafe and is
+	   the reason this opcode family exists. */
+	static const char *const scc_cc[] = {
+		"HI", "LS", "CC", "CS", "NE", "EQ", "VC",
+		"VS", "PL", "MI", "GE", "LT", "GT", "LE", NULL
+	};
+	const char *cc = bcc;
+	int i;
+
+	if (cc[0] == 'L' && cc[1] == 'B')	/* "LBxx" -> "xx" */
+		cc += 2;
+	else if (cc[0] == 'B')			/* "Bxx" (defensive) */
+		cc += 1;
+	if (cc[0] && cc[1] && cc[2] == '\0')
+		for (i = 0; scc_cc[i]; i++)
+			if (cc[0] == scc_cc[i][0] && cc[1] == scc_cc[i][1]) {
+				printf("\tS%s D\n", cc);
+				return;
+			}
+
+	/* Unknown condition (no Scc member): fall back to the explicit idiom. */
+	{
+		unsigned lt = label++;
+		unsigned le = label++;
+		printf("\t%s X%u\n", bcc, lt);
+		printf("\tLD D,$0000\n");
+		printf("\tLBRA X%u\n", le);
+		printf("X%u:\n", lt);
+		printf("\tLD D,$0001\n");
+		printf("X%u:\n", le);
+	}
 }
 
 /* Map a comparison op to the branch mnemonic that is taken when true, for the
