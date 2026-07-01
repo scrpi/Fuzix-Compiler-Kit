@@ -956,6 +956,19 @@ static unsigned inc_dec_node(struct node *n, int sign)
 unsigned gen_shortcut(struct node *n)
 {
 	switch (n->op) {
+	case T_COMMA:
+		/* The comma operator evaluates the left side for its side
+		   effects, discards its value, then evaluates the right side —
+		   whose value is the result.  Handle it here (before the generic
+		   tree-walk) so the left operand is generated NORETURN rather than
+		   pushed: a void left, e.g. (void_fn(), x), otherwise reaches
+		   gen_push with no pushable size and falls to a bogus "__push"
+		   helper.  The parent's NORETURN requirement passes to the right. */
+		n->left->flags |= NORETURN;
+		codegen_lr(n->left);
+		n->right->flags |= (n->flags & NORETURN);
+		codegen_lr(n->right);
+		return 1;
 	case T_PLUSPLUS:
 		return inc_dec_node(n, +1);
 	case T_MINUSMINUS:
