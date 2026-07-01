@@ -26,7 +26,7 @@ ar=${AR:-ar}
 # The bitwise (__andeql/__oreql/__xoreql) and shift (__shleq/__shreq/__shrequ +
 # long __sh*eql) op-assign helpers are self-contained — they operate on *p in
 # place and delegate to nothing — so their archive position is unconstrained.
-SRCS="__pluseql.s __minuseql.s __pop.s __muleql.s __mul.s __mull.s __diveql.s __divequl.s __remeql.s __remequl.s __divl.s __divul.s __divu.s __div.s __andeql.s __oreql.s __xoreql.s __shl.s __shr.s __shru.s __shll.s __shrl.s __shrul.s __shleq.s __shreq.s __shrequ.s __shleql.s __shreql.s __shrequl.s __switch.s __switchc.s divide.s"
+SRCS="__pluseql.s __minuseql.s __postdecl.s __postincl.s __pop.s __muleql.s __mul.s __mull.s __diveql.s __divequl.s __remeql.s __remequl.s __divl.s __divul.s __divu.s __div.s __andeql.s __oreql.s __xoreql.s __shl.s __shr.s __shru.s __shll.s __shrl.s __shrul.s __shleq.s __shreq.s __shrequ.s __shleql.s __shreql.s __shrequl.s __switch.s __switchc.s divide.s"
 
 OBJS=""
 for s in $SRCS; do
