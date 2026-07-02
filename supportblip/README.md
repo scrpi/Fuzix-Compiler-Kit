@@ -16,7 +16,7 @@ assembly:
 The backend emits, for `a OP b`:
 
     LD D,(SP+2)        ; LHS
-    PSHS $06           ; push LHS (D = A:B) -> at (SP+2) above the return addr
+    PUSH $06           ; push LHS (D = A:B) -> at (SP+2) above the return addr
     LD D,<rhs>         ; RHS in the working register D
     JSR __op           ; no caller cleanup follows
 

@@ -2,7 +2,7 @@
 ;	__mul — 16x16 -> 16 signed/unsigned multiply.
 ;
 ;	Calling convention (matches backend-blip.c gen for '*'):
-;	    LHS pushed by caller (PSHS $06) -> at (SP+2) above the 2-byte
+;	    LHS pushed by caller (PUSH $06) -> at (SP+2) above the 2-byte
 ;	    return address; RHS in D on entry; result returned in D.
 ;	    The helper pops its own LHS + return address (caller does NOT
 ;	    clean up) and returns via JMP X.
@@ -19,7 +19,7 @@
 	.code
 
 __mul:
-	PSHS $06		; save R.  Frame now:
+	PUSH $06		; save R.  Frame now:
 				;  (SP+0)=Rlo (SP+1)=Rhi
 				;  (SP+2)=ret_lo (SP+3)=ret_hi
 				;  (SP+4)=Llo (SP+5)=Lhi
@@ -27,7 +27,7 @@ __mul:
 	LD A,(SP+5)		; A = Lhi
 	LD B,(SP+0)		; B = Rlo
 	MUL
-	PSHS $04		; push B (cross partial). Frame shifts +1:
+	PUSH $04		; push B (cross partial). Frame shifts +1:
 				;  (SP+0)=cross
 				;  (SP+1)=Rlo (SP+2)=Rhi
 				;  (SP+3)=ret_lo (SP+4)=ret_hi

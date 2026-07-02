@@ -23,7 +23,7 @@
 ;	Y holds the running parity of negations (odd => negate quotient).
 ;
 __div:
-	PSHS $20		; save Y
+	PUSH $20		; save Y
 				; Frame: (SP+0..1)=savedY (SP+2..3)=ret
 				;        (SP+4)=Llo (SP+5)=Lhi
 	LD Y,$0000		; sign parity = 0
@@ -58,7 +58,7 @@ dv_done:
 ;	Y low byte holds the dividend sign flag (nonzero => negate remainder).
 ;
 __rem:
-	PSHS $20		; save Y
+	PUSH $20		; save Y
 				; Frame: (SP+0..1)=savedY (SP+2..3)=ret
 				;        (SP+4)=Llo (SP+5)=Lhi
 	; --- divisor (in D): take |divisor| into X (sign irrelevant) ---
@@ -87,7 +87,7 @@ rm_done:
 ;	Frame here: (SP+0..1)=savedY (SP+2..3)=ret (SP+4)=L word
 ;
 divpop:
-	PULS $20		; restore Y ; Frame: (SP+0..1)=ret (SP+2)=L word
+	POP $20		; restore Y ; Frame: (SP+0..1)=ret (SP+2)=L word
 	LD X,(SP)		; X = return address
 	LEA SP,SP+4		; drop return(2) + LHS(2)
 	ADD D,$0000		; set N,Z from result

@@ -452,10 +452,10 @@ unsigned gen_push(struct node *n)
 	sp += s;
 	switch (s) {
 	case 2:
-		printf("\tPSHS $06\n");	/* D = A:B */
+		printf("\tPUSH $06\n");	/* D = A:B */
 		return 1;
 	case 4:
-		printf("\tPSHS $26\n");	/* D + Y (high word) */
+		printf("\tPUSH $26\n");	/* D + Y (high word) */
 		return 1;
 	default:
 		return 0;
@@ -489,6 +489,62 @@ static void imm_operand(unsigned long v, unsigned s)
 		printf("$%04X", (unsigned)(v & 0xFFFF));
 }
 
+/* True when a 16-bit constant is encodable as the 2-byte sign-extended #n8
+   immediate form (0x0000..0x007F / 0xFF80..0xFFFF). Only compile-time
+   constants qualify: a symbolic/relocatable operand has no sign-extending
+   relocation and must keep the 3-byte $nnnn form (the assembler rejects it). */
+static int fits_simm8(unsigned long v)
+{
+	unsigned w = (unsigned)(v & 0xFFFF);
+	return w <= 0x007F || w >= 0xFF80;
+}
+
+/* Emit "op D,<imm16>" for LD/ADD/SUB/CMP D, selecting the 2-byte
+   sign-extended #n8 form when the constant fits. The #n8 forms are
+   flag-identical to the $nnnn forms (sign-extension is two's-complement
+   exact), so the selection is invisible to every flag consumer. */
+static void op_d_imm(const char *op, unsigned long v)
+{
+	unsigned w = (unsigned)(v & 0xFFFF);
+	if (fits_simm8(w))
+		printf("\t%s D,#%d\n", op, w >= 0x8000 ? (int)w - 0x10000 : (int)w);
+	else
+		printf("\t%s D,$%04X\n", op, w);
+}
+
+/* Load a 16-bit constant into D: CLR D for zero (1 B), LD D,#n8 when the
+   value fits a sign-extended byte (2 B), else LD D,$nnnn (3 B). CLR D sets
+   N=0,Z=1,V=0 exactly as an LD of zero does; it also clears C, which no
+   constant-load site consumes (the flag-chained multi-word helpers set and
+   use C strictly between their own adjacent instructions). */
+static void load_d_const(unsigned long v)
+{
+	if ((v & 0xFFFF) == 0)
+		printf("\tCLR D\n");
+	else
+		op_d_imm("LD", v);
+}
+
+/* Does a branch condition read the carry flag? (HI/LS/CC-HS/CS-LO do;
+   EQ/NE/PL/MI/VC/VS and the signed GE/LT/GT/LE do not.) Accepts the "LBcc"
+   long-branch spelling used throughout, plus "Bcc" defensively (the same
+   stripping make_bool_from_cc applies). */
+static int cc_reads_carry(const char *bcc)
+{
+	const char *cc = bcc;
+	if (cc[0] == 'L' && cc[1] == 'B')
+		cc += 2;
+	else if (cc[0] == 'B')
+		cc += 1;
+	if (cc[0] == 'H' && cc[1] == 'I')	/* HI: C or Z */
+		return 1;
+	if (cc[0] == 'L' && cc[1] == 'S')	/* LS: C or Z */
+		return 1;
+	if (cc[0] == 'C' && (cc[1] == 'C' || cc[1] == 'S'))	/* CC/HS, CS/LO */
+		return 1;
+	return 0;
+}
+
 /* Print a memory/value operand for a simple node, with extra byte offset. */
 static void mem_operand(struct node *r, unsigned off, unsigned s)
 {
@@ -520,6 +576,11 @@ static unsigned alu16_d(struct node *r, const char *op)
 {
 	if (!simple_rhs(r))
 		return 0;
+	/* A compile-time constant picks the 2-byte #n8 form when it fits. */
+	if (r->op == T_CONSTANT) {
+		op_d_imm(op, r->value);
+		return 1;
+	}
 	/* CMP/ADD/SUB D,(SP+n) has only the signed-8-bit offset form (no n16).
 	   For a local past the +127 ceiling, materialise its address in X and use
 	   the register-indirect form (op D,(X) exists for ADD/SUB/CMP). */
@@ -535,7 +596,7 @@ static unsigned alu16_d(struct node *r, const char *op)
 }
 
 /* Emit "op B,<rhs>" for an 8-bit ALU op against a simple operand. The 8-bit
-   ALU ops (ADD/SUB/CMP) accept (SP+n8); AND/OR/EOR do not, but those are
+   ALU ops (ADD/SUB/CMP) accept (SP+n8); AND/OR/XOR do not, but those are
    routed through alu_bitwise instead. Returns 1 on success. */
 static unsigned alu8_b(struct node *r, const char *op)
 {
@@ -555,11 +616,16 @@ static unsigned alu8_b(struct node *r, const char *op)
 }
 
 /*
- *	Bitwise AND/OR/EOR. There is no 16-bit form, and the byte forms have no
- *	(SP+n8) operand, so we handle each case explicitly and stay native:
- *	  - constant : op B,$lo  [op A,$hi]
- *	  - global   : op B,(name+0) [op A,(name+1)]
- *	  - local    : point X at the slot then op B,(X) [op A,(X+1)]
+ *	Bitwise AND/OR/XOR. The 16-bit D forms (AND/OR/XOR D) cover the
+ *	immediate, stack and register-indirect modes, plus absolute for AND/OR;
+ *	what they don't cover falls back to the byte-pair idiom. Note the D
+ *	forms set Z from the full 16-bit result where the byte pair left Z from
+ *	the high byte only — strictly more correct, and no consumer reads the
+ *	old quirk. The byte forms have no (SP+n8) operand, so the 8-bit local
+ *	case goes through X:
+ *	  - constant : op D,$nnnn        (8-bit: op B,$lo)
+ *	  - global   : op D,(name+0)     (XOR has no ($nnnn) form: byte pair)
+ *	  - local    : op D,(SP+n)       (8-bit: point X at the slot, op B,(X))
  */
 static unsigned alu_bitwise(struct node *r, const char *op, unsigned s)
 {
@@ -567,24 +633,41 @@ static unsigned alu_bitwise(struct node *r, const char *op, unsigned s)
 		return 0;
 	switch (r->op) {
 	case T_CONSTANT:
+		if (s == 2) {
+			printf("\t%s D,$%04X\n", op, (unsigned)(r->value & 0xFFFF));
+			return 1;
+		}
 		printf("\t%s B,$%02X\n", op, (unsigned)(r->value & 0xFF));
-		if (s == 2)
-			printf("\t%s A,$%02X\n", op, (unsigned)((r->value >> 8) & 0xFF));
 		return 1;
 	case T_NAME:
-		/* AND/OR/EOR of an address constant is rare; let the stack path
+		/* AND/OR/XOR of an address constant is rare; let the stack path
 		   in gen_node handle it. */
 		return 0;
 	case T_NREF:
+		/* AND/OR D have an absolute ($nnnn) form; XOR D does not, so a
+		   16-bit XOR of a global keeps the byte-pair idiom. */
+		if (s == 2 && op[0] != 'X') {
+			printf("\t%s D,(%s+%u)\n", op, namestr(r->snum), (unsigned)r->value);
+			return 1;
+		}
 		printf("\t%s B,(%s+%u)\n", op, namestr(r->snum), (unsigned)r->value);
 		if (s == 2)
 			printf("\t%s A,(%s+%u)\n", op, namestr(r->snum), (unsigned)r->value + 1);
 		return 1;
 	case T_LREF:
+		if (s == 2) {
+			/* AND/OR/XOR D,(SP+n) all exist (signed-8-bit offset only);
+			   a local past the ceiling goes through X (op D,(X)). */
+			if (FITS_S8(r->value + sp)) {
+				printf("\t%s D,(SP+%u)\n", op, (unsigned)r->value + sp);
+				return 1;
+			}
+			lea_x_sp((unsigned)r->value + sp);
+			printf("\t%s D,(X)\n", op);
+			return 1;
+		}
 		lea_x_sp((unsigned)r->value + sp);
 		printf("\t%s B,(X)\n", op);
-		if (s == 2)
-			printf("\t%s A,(X+1)\n", op);
 		return 1;
 	}
 	return 0;
@@ -630,15 +713,17 @@ static void make_bool_from_cc(const char *bcc)
 				return;
 			}
 
-	/* Unknown condition (no Scc member): fall back to the explicit idiom. */
+	/* Unknown condition (no Scc member): fall back to the explicit idiom.
+	   Both arms leave the LD-of-constant flags (Z=!D) a following
+	   LBEQ/LBNE needs; CLR D and LD D,#1 preserve that. */
 	{
 		unsigned lt = label++;
 		unsigned le = label++;
 		printf("\t%s X%u\n", bcc, lt);
-		printf("\tLD D,$0000\n");
+		load_d_const(0);
 		printf("\tLBRA X%u\n", le);
 		printf("X%u:\n", lt);
-		printf("\tLD D,$0001\n");
+		load_d_const(1);
 		printf("X%u:\n", le);
 	}
 }
@@ -673,14 +758,14 @@ static void make_bool_long_zero(int zero_true)
 {
 	unsigned lnz = label++;
 	unsigned ldn = label++;
-	printf("\tCMP D,$0000\n");
+	printf("\tTST D\n");		/* Z-only consumer: TST == CMP D,$0000 */
 	printf("\tLBNE X%u\n", lnz);	/* low word nonzero -> value nonzero */
-	printf("\tCMP Y,$0000\n");
+	printf("\tCMP Y,$0000\n");	/* (no TST Y form) */
 	printf("\tLBNE X%u\n", lnz);	/* high word nonzero -> value nonzero */
-	printf("\tLD D,$%04X\n", zero_true ? 1 : 0);	/* D:Y == 0 */
+	load_d_const(zero_true ? 1 : 0);	/* D:Y == 0 */
 	printf("\tLBRA X%u\n", ldn);
 	printf("X%u:\n", lnz);
-	printf("\tLD D,$%04X\n", zero_true ? 0 : 1);
+	load_d_const(zero_true ? 0 : 1);
 	printf("X%u:\n", ldn);
 }
 
@@ -738,6 +823,16 @@ static unsigned cmp_simple(struct node *n)
 	if (r->op == T_LREF && !FITS_S8(r->value + sp)) {
 		lea_x_sp((unsigned)r->value + sp);
 		printf("\tCMP %s,(X)\n", s == 1 ? "B" : "D");
+	} else if (s == 2 && r->op == T_CONSTANT) {
+		/* Compare-with-zero: TST D (1 B) sets N/Z from D and V=0 exactly
+		   as CMP D,$0000 does; they differ only in C (CMP forces C=0, TST
+		   leaves it), so a carry-reading condition (HI/LS/CC/CS) must keep
+		   the CMP. Nonzero constants pick the 2-byte #n8 form when
+		   they fit (flag-identical, C included). */
+		if ((r->value & 0xFFFF) == 0 && !cc_reads_carry(bcc))
+			printf("\tTST D\n");
+		else
+			op_d_imm("CMP", r->value);
 	} else if (s == 1) {
 		printf("\tCMP B,");
 		mem_operand(r, 0, 1);
@@ -830,7 +925,7 @@ unsigned gen_direct(struct node *n)
 	case T_OR:
 		return alu_bitwise(r, "OR", s);
 	case T_HAT:
-		return alu_bitwise(r, "EOR", s);
+		return alu_bitwise(r, "XOR", s);
 	case T_EQEQ:
 	case T_BANGEQ:
 	case T_LT:
@@ -864,7 +959,7 @@ unsigned gen_direct(struct node *n)
 				if (s == 1)
 					printf("\tCLR B\n");
 				else
-					printf("\tLD D,$0000\n");
+					load_d_const(0);
 				return 1;
 			}
 			if (m == 1)
@@ -881,7 +976,7 @@ unsigned gen_direct(struct node *n)
 					return 1;
 				}
 				if (k >= 16) {
-					printf("\tLD D,$0000\n");
+					load_d_const(0);
 					return 1;
 				}
 				printf("\tASL D,%u\n", k);	/* decimal count, as shift_const */
@@ -926,10 +1021,10 @@ static unsigned inc_dec_node(struct node *n, int sign)
 				printf("\t%s B,$%02X\n", sign > 0 ? "SUB" : "ADD", delta & 0xFF);
 		} else {
 			printf("\tLD D,(%s+%u)\n", namestr(l->snum), (unsigned)l->value);
-			printf("\t%s D,$%04X\n", sign > 0 ? "ADD" : "SUB", delta);
+			op_d_imm(sign > 0 ? "ADD" : "SUB", delta);
 			printf("\tST D,(%s+%u)\n", namestr(l->snum), (unsigned)l->value);
 			if (!nr)
-				printf("\t%s D,$%04X\n", sign > 0 ? "SUB" : "ADD", delta);
+				op_d_imm(sign > 0 ? "SUB" : "ADD", delta);
 		}
 		return 1;
 	}
@@ -943,10 +1038,10 @@ static unsigned inc_dec_node(struct node *n, int sign)
 				printf("\t%s B,$%02X\n", sign > 0 ? "SUB" : "ADD", delta & 0xFF);
 		} else {
 			printf("\tLD D,(SP+%u)\n", off);
-			printf("\t%s D,$%04X\n", sign > 0 ? "ADD" : "SUB", delta);
+			op_d_imm(sign > 0 ? "ADD" : "SUB", delta);
 			printf("\tST D,(SP+%u)\n", off);
 			if (!nr)
-				printf("\t%s D,$%04X\n", sign > 0 ? "SUB" : "ADD", delta);
+				op_d_imm(sign > 0 ? "SUB" : "ADD", delta);
 		}
 		return 1;
 	}
@@ -1013,7 +1108,7 @@ static unsigned shift_const(struct node *n, const char *op16, const char *op8)
 	if (v == 0)
 		return 1;
 	if (v >= 16) {
-		printf("\tLD D,$0000\n");
+		load_d_const(0);
 		return 1;
 	}
 	/* The shift count is a small decimal literal, not a $-prefixed hex
@@ -1062,18 +1157,17 @@ static unsigned op_eq_node(struct node *n)
 			case T_MINUSEQ: printf("\tNEG B\n\tADD B,(X)\n"); break;
 			case T_ANDEQ:   printf("\tAND B,(X)\n"); break;
 			case T_OREQ:    printf("\tOR B,(X)\n"); break;
-			case T_HATEQ:   printf("\tEOR B,(X)\n"); break;
+			case T_HATEQ:   printf("\tXOR B,(X)\n"); break;
 			}
 			printf("\tST B,(X)\n");
 		} else {
 			switch (n->op) {
 			case T_PLUSEQ:  printf("\tADD D,(X)\n"); break;
 			/* -(rhs) + *lval == *lval - rhs (no memory-minus-D form). */
-			case T_MINUSEQ: printf("\tCOM A\n\tCOM B\n\tADD D,$0001\n\tADD D,(X)\n"); break;
-			/* No 16-bit bitwise op; do it a byte at a time. */
-			case T_ANDEQ:   printf("\tAND B,(X)\n\tAND A,(X+1)\n"); break;
-			case T_OREQ:    printf("\tOR B,(X)\n\tOR A,(X+1)\n"); break;
-			case T_HATEQ:   printf("\tEOR B,(X)\n\tEOR A,(X+1)\n"); break;
+			case T_MINUSEQ: printf("\tNEG D\n\tADD D,(X)\n"); break;
+			case T_ANDEQ:   printf("\tAND D,(X)\n"); break;
+			case T_OREQ:    printf("\tOR D,(X)\n"); break;
+			case T_HATEQ:   printf("\tXOR D,(X)\n"); break;
 			}
 			printf("\tST D,(X)\n");
 		}
@@ -1099,7 +1193,7 @@ static unsigned op_eq_node(struct node *n)
 			else
 				printf("\tSEX\n");
 		}
-		printf("\tPSHS $06\n");			/* push RHS; &lval stays below it */
+		printf("\tPUSH $06\n");			/* push RHS; &lval stays below it */
 		printf("\tLD X,(SP+2)\n");		/* X = &lval */
 		if (s == 1) {
 			printf("\tLD B,(X)\n");		/* B = *lval */
@@ -1110,7 +1204,7 @@ static unsigned op_eq_node(struct node *n)
 		} else {
 			printf("\tLD D,(X)\n");		/* D = *lval = LHS */
 		}
-		printf("\tPSHS $06\n");			/* push LHS -> (SP+2) after the JSR */
+		printf("\tPUSH $06\n");			/* push LHS -> (SP+2) after the JSR */
 		printf("\tLD D,(SP+2)\n");		/* D = RHS */
 		printf("\tJSR %s\n", h);		/* pops ret+LHS, result in D */
 		printf("\tLD X,(SP+2)\n");		/* reload &lval (helper clobbered X) */
@@ -1154,10 +1248,10 @@ static unsigned post_incdec_node(struct node *n)
 			printf("\t%s B,$%02X\n", inc ? "SUB" : "ADD", delta & 0xFF);
 	} else {
 		printf("\tLD D,(X)\n");
-		printf("\t%s D,$%04X\n", inc ? "ADD" : "SUB", delta);
+		op_d_imm(inc ? "ADD" : "SUB", delta);
 		printf("\tST D,(X)\n");
 		if (!nr)
-			printf("\t%s D,$%04X\n", inc ? "SUB" : "ADD", delta);
+			op_d_imm(inc ? "SUB" : "ADD", delta);
 	}
 	return 1;
 }
@@ -1196,20 +1290,24 @@ static unsigned shifteq_direct(struct node *n)
 
 /*
  *	32-bit (long) working value lives in D:Y - D = low word, Y = high word,
- *	little-endian (isa.md S3). A pushed long (gen_push: PSHS $26) lands as the
+ *	little-endian (isa.md S3). A pushed long (gen_push: PUSH $26) lands as the
  *	low word at (SP+0) and the high word at (SP+2). These two helpers are the
  *	multi-word primitives (isa.md S8.8): XCHG is a register move so it preserves
  *	the carry between the low and high halves (S8.5).
  */
 
-/* Negate the 32-bit working value in D:Y (two's complement). */
+/* Negate the 32-bit working value in D:Y (two's complement). The explicit
+   COM/ADD/ADC carry chain is kept (NEG D's carry is a borrow flag, not the
+   carry-out of the +1 the high word needs); COM D's own C write is dead here
+   because the ADD below redefines C before the ADC reads it, and XCHG is
+   CC-neutral. */
 static void emit_neg32(void)
 {
-	printf("\tCOM A\n\tCOM B\n");		/* ~low word (D) */
+	printf("\tCOM D\n");			/* ~low word (D) */
 	printf("\tXCHG D,Y\n");
-	printf("\tCOM A\n\tCOM B\n");		/* ~high word */
+	printf("\tCOM D\n");			/* ~high word */
 	printf("\tXCHG D,Y\n");			/* D = ~low, Y = ~high */
-	printf("\tADD D,$0001\n");		/* + 1, carry out */
+	printf("\tADD D,#1\n");			/* + 1, carry out */
 	printf("\tXCHG D,Y\n");
 	printf("\tADC D,$0000\n");		/* propagate carry into high */
 	printf("\tXCHG D,Y\n");
@@ -1251,11 +1349,11 @@ unsigned gen_node(struct node *n)
 			return 1;
 		}
 		if (s == 2) {
-			printf("\tLD D,$%04X\n", (unsigned)(n->value & 0xFFFF));
+			load_d_const(n->value);
 			return 1;
 		}
 		if (s == 4) {	/* long: D = low word, Y = high word */
-			printf("\tLD D,$%04X\n", (unsigned)(n->value & 0xFFFF));
+			load_d_const(n->value);
 			printf("\tLD Y,$%04X\n", (unsigned)((n->value >> 16) & 0xFFFF));
 			return 1;
 		}
@@ -1428,7 +1526,7 @@ unsigned gen_node(struct node *n)
 			return 1;
 		}
 		if (s == 2) {
-			printf("\tCOM A\n\tCOM B\n\tADD D,$0001\n");
+			printf("\tNEG D\n");
 			printf("\tADD D,(SP+0)\n");
 			printf("\tLEA SP,SP+2\n");
 			return 1;
@@ -1443,22 +1541,26 @@ unsigned gen_node(struct node *n)
 	case T_OR:
 	case T_HAT: {
 		const char *op = (n->op == T_AND) ? "AND" :
-				 (n->op == T_OR)  ? "OR"  : "EOR";
-		/* The stacked left operand is at (SP). Point X at it so we can
-		   use the (X)/(X+n) byte forms (AND/OR/EOR have no SP forms). */
-		printf("\tLEA X,SP+0\n");
-		printf("\t%s B,(X)\n", op);
-		if (s >= 2)
-			printf("\t%s A,(X+1)\n", op);
-		if (s == 4) {	/* high word: fold (X+2)/(X+3) into Y */
+				 (n->op == T_OR)  ? "OR"  : "XOR";
+		/* The stacked left operand is at (SP). The 16-bit D forms have a
+		   (SP+n8) mode, so words fold directly against the stack; only
+		   the byte forms (no SP mode) still go through X. */
+		if (s == 2) {
+			printf("\t%s D,(SP+0)\n", op);
+			printf("\tLEA SP,SP+2\n");
+			return 1;
+		}
+		if (s == 4) {	/* low word at (SP+0), high word at (SP+2) into Y */
+			printf("\t%s D,(SP+0)\n", op);
 			printf("\tXCHG D,Y\n");
-			printf("\t%s B,(X+2)\n", op);
-			printf("\t%s A,(X+3)\n", op);
+			printf("\t%s D,(SP+2)\n", op);
 			printf("\tXCHG D,Y\n");
 			printf("\tLEA SP,SP+4\n");
-		} else {
-			printf("\tLEA SP,SP+2\n");
+			return 1;
 		}
+		printf("\tLEA X,SP+0\n");
+		printf("\t%s B,(X)\n", op);
+		printf("\tLEA SP,SP+2\n");
 		return 1;
 	}
 	case T_EQEQ:
@@ -1476,7 +1578,7 @@ unsigned gen_node(struct node *n)
 			return 1;
 		}
 		if (s == 2) {
-			printf("\tCOM A\n\tCOM B\n\tADD D,$0001\n");
+			printf("\tNEG D\n");
 			return 1;
 		}
 		if (s == 4) {
@@ -1490,13 +1592,13 @@ unsigned gen_node(struct node *n)
 			return 1;
 		}
 		if (s == 2) {
-			printf("\tCOM A\n\tCOM B\n");
+			printf("\tCOM D\n");
 			return 1;
 		}
-		if (s == 4) {	/* complement all four bytes */
-			printf("\tCOM A\n\tCOM B\n");
+		if (s == 4) {	/* complement both words */
+			printf("\tCOM D\n");
 			printf("\tXCHG D,Y\n");
-			printf("\tCOM A\n\tCOM B\n");
+			printf("\tCOM D\n");
 			printf("\tXCHG D,Y\n");
 			return 1;
 		}
@@ -1516,7 +1618,7 @@ unsigned gen_node(struct node *n)
 		if (os == 1)
 			printf("\tCMP B,$00\n");
 		else
-			printf("\tCMP D,$0000\n");
+			printf("\tTST D\n");	/* SEQ reads Z only: TST is safe */
 		make_bool_from_cc("LBEQ");
 		return 1;
 	}
@@ -1536,7 +1638,7 @@ unsigned gen_node(struct node *n)
 		if (os == 1)
 			printf("\tCMP B,$00\n");
 		else
-			printf("\tCMP D,$0000\n");
+			printf("\tTST D\n");	/* SNE reads Z only: TST is safe */
 		make_bool_from_cc("LBNE");
 		return 1;
 	}
@@ -1588,7 +1690,7 @@ unsigned gen_node(struct node *n)
 				/* Y = (D < 0) ? 0xFFFF : 0 */
 				unsigned lp = label++;
 				printf("\tLD Y,$0000\n");
-				printf("\tCMP D,$0000\n");
+				printf("\tTST D\n");	/* BPL reads N only */
 				printf("\tBPL X%u\n", lp);
 				printf("\tLD Y,$FFFF\n");
 				printf("X%u:\n", lp);

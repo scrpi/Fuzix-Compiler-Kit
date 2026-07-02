@@ -2,7 +2,7 @@
 ;	__divl / __reml — signed 32-bit divide and modulo.
 ;
 ;	Convention (matches backend gen for signed long '/' and '%'):
-;	    LHS (dividend) pushed by caller (PSHS $26) at (SP+2..SP+5); RHS
+;	    LHS (dividend) pushed by caller (PUSH $26) at (SP+2..SP+5); RHS
 ;	    (divisor) in D:Y; result in D:Y; helper pops its own LHS + return.
 ;
 ;	C99 truncation toward zero:
@@ -32,7 +32,7 @@ neg32dy:
 	RTS
 
 __divl:
-	PSHS $26		; push divisor.  R@SP+0..3, ret@SP+4, L@SP+6..9
+	PUSH $26		; push divisor.  R@SP+0..3, ret@SP+4, L@SP+6..9
 	LD Y,$0000		; sign parity (# of negative operands)
 	; --- |divisor|, count its sign ---
 	LD A,(SP+3)
@@ -84,10 +84,10 @@ dvl_rpos:
 dvl_lpos:
 	; --- finish the udiv frame and divide ---
 	LD D,$0000
-	PSHS $06
-	PSHS $06		; rem = 0
+	PUSH $06
+	PUSH $06		; rem = 0
 	LD D,$0020
-	PSHS $06		; count/ovf
+	PUSH $06		; count/ovf
 	JSR udiv32		; Y (parity) preserved
 	; quotient @SP+12..15
 	CMP Y,$0001		; exactly one operand negative -> negate quotient
@@ -105,7 +105,7 @@ dvl_ret:
 	JMP X
 
 __reml:
-	PSHS $26
+	PUSH $26
 	LD Y,$0000		; remainder sign = dividend sign
 	; --- |divisor| (sign irrelevant for the remainder) ---
 	LD A,(SP+3)
@@ -155,10 +155,10 @@ rml_rpos:
 	ST D,(SP+8)
 rml_lpos:
 	LD D,$0000
-	PSHS $06
-	PSHS $06
+	PUSH $06
+	PUSH $06
 	LD D,$0020
-	PSHS $06
+	PUSH $06
 	JSR udiv32
 	; remainder @SP+2..5
 	CMP Y,$0001

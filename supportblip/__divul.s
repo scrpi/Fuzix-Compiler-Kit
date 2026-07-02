@@ -3,7 +3,7 @@
 ;	restoring-division core udiv32.
 ;
 ;	Calling convention (matches backend gen for long '/' and '%'):
-;	    LHS (dividend) pushed by caller (PSHS $26) at (SP+2..SP+5); RHS
+;	    LHS (dividend) pushed by caller (PUSH $26) at (SP+2..SP+5); RHS
 ;	    (divisor) in D:Y on entry; result in D:Y; helper pops its own LHS +
 ;	    return and returns via JMP X.
 ;
@@ -81,12 +81,12 @@ udiv_next:
 
 ;	Build the working frame, divide, extract the quotient.
 __divul:
-	PSHS $26		; divisor
+	PUSH $26		; divisor
 	LD D,$0000
-	PSHS $06		; rem high = 0
-	PSHS $06		; rem low  = 0
+	PUSH $06		; rem high = 0
+	PUSH $06		; rem low  = 0
 	LD D,$0020		; B = 32 (count), A = 0 (ovf)
-	PSHS $06
+	PUSH $06
 	JSR udiv32
 	; frame: SP+0=count SP+1=ovf SP+2..5=rem SP+6..9=divisor
 	;        SP+10=ret SP+12..15=quotient
@@ -97,12 +97,12 @@ __divul:
 	JMP X
 
 __remul:
-	PSHS $26
+	PUSH $26
 	LD D,$0000
-	PSHS $06
-	PSHS $06
+	PUSH $06
+	PUSH $06
 	LD D,$0020
-	PSHS $06
+	PUSH $06
 	JSR udiv32
 	LD D,(SP+2)		; remainder low word
 	LD Y,(SP+4)		; remainder high word

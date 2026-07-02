@@ -2,7 +2,7 @@
 ;	__shll — 32-bit (long) left shift.
 ;
 ;	Calling convention (matches backend-blip.c gen for a long '<<'):
-;	    The long is pushed by the caller (PSHS $26) -> at (SP+2..SP+5)
+;	    The long is pushed by the caller (PUSH $26) -> at (SP+2..SP+5)
 ;	    above the 2-byte return address, little-endian (low word at SP+2,
 ;	    high word at SP+4).  The shift COUNT arrives in D.  The result is
 ;	    returned in D:Y (D = low word, Y = high word).  The helper pops its

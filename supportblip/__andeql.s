@@ -2,7 +2,7 @@
 ;	__andeql — 32-bit (long) `&=` op-assign helper.
 ;
 ;	Convention matches the other long op-assign helpers (cf. __pluseql): the
-;	lvalue POINTER is pushed by the caller (PSHS $06) just above the 2-byte
+;	lvalue POINTER is pushed by the caller (PUSH $06) just above the 2-byte
 ;	return address; the RHS arrives in D:Y (D = low word, Y = high word).
 ;	Combines *p &= RHS byte by byte and writes it back, leaves the result in
 ;	D:Y, pops its own pointer + return, and returns via JMP X.
@@ -13,7 +13,7 @@
 	.export __andeql
 	.code
 __andeql:
-	PSHS $26		; stack RHS a0..a3 at (SP+0..3); (SP+4)=ret,(SP+6)=ptr
+	PUSH $26		; stack RHS a0..a3 at (SP+0..3); (SP+4)=ret,(SP+6)=ptr
 	LD X,(SP+6)		; X = lvalue pointer
 	LD A,(SP+0)		; RHS byte0
 	AND A,(X)		; &= *p byte0

@@ -3,7 +3,7 @@
 ;	the low 32 bits of a product are sign-independent).
 ;
 ;	Convention matches the other long op-assign helpers (cf. __pluseql,
-;	__divequl): the lvalue POINTER is pushed by the caller (PSHS $06) just
+;	__divequl): the lvalue POINTER is pushed by the caller (PUSH $06) just
 ;	above the 2-byte return address; the RHS arrives in D:Y (D = low word,
 ;	Y = high word).  Computes *p = *p * rhs, writes the product back through
 ;	the pointer, pops its own pointer + return, and returns via JMP X with the
@@ -18,8 +18,8 @@
 
 __muleql:
 	; On entry: (SP+0)=ret, (SP+2)=ptr; D:Y = RHS.
-	PSHS $26		; save RHS at (SP+0..3).  (SP+4)=ret,(SP+6)=ptr.
-	PSHS $26		; reserve LHS cell.  Now:
+	PUSH $26		; save RHS at (SP+0..3).  (SP+4)=ret,(SP+6)=ptr.
+	PUSH $26		; reserve LHS cell.  Now:
 				;   (SP+0..3)=LHS (SP+4..7)=RHS (SP+8)=ret (SP+10)=ptr
 	LD X,(SP+10)		; X = lvalue pointer
 	LD A,(X)		; LHS = *p (little-endian, 4 bytes; clobbers A)

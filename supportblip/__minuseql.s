@@ -2,7 +2,7 @@
 ;	__minuseql — long (32-bit) `-=` op-assign helper.
 ;
 ;	Same convention as __pluseql: the lvalue POINTER is pushed by the caller
-;	(PSHS $06) above the 2-byte return address; the RHS amount is in D:Y (D =
+;	(PUSH $06) above the 2-byte return address; the RHS amount is in D:Y (D =
 ;	low word, Y = high word).  Subtract the amount from *p (4 bytes, little-
 ;	endian, borrow propagated via SBC), pop the pushed pointer + return, and
 ;	return via JMP X with the result in D:Y.
@@ -11,7 +11,7 @@
 	.code
 
 __minuseql:
-	PSHS $26		; stack the amount a0..a3 at (SP+0..3)
+	PUSH $26		; stack the amount a0..a3 at (SP+0..3)
 				;  (SP+4)=ret  (SP+6)=ptr
 	LD X,(SP+6)		; X = lvalue pointer
 	LD A,(X)		; *p -= amount, byte by byte with borrow

@@ -2,7 +2,7 @@
 ;	__mull / __mulul — 32x32 -> 32 multiply (low 32 bits).
 ;
 ;	Calling convention (matches backend gen for a long '*'):
-;	    LHS pushed by caller (PSHS $26) -> at (SP+2..SP+5) above the 2-byte
+;	    LHS pushed by caller (PUSH $26) -> at (SP+2..SP+5) above the 2-byte
 ;	    return address (low word SP+2, high word SP+4); RHS in D:Y on entry
 ;	    (D = low word, Y = high word).  Result in D:Y.  The helper pops its
 ;	    own LHS + return and returns via JMP X.
@@ -19,12 +19,12 @@
 
 __mull:
 __mulul:
-	PSHS $26		; save RHS (b0..b3).  Frame:
+	PUSH $26		; save RHS (b0..b3).  Frame:
 				;  (SP+0)=b0 (SP+1)=b1 (SP+2)=b2 (SP+3)=b3
 				;  (SP+4)=ret  (SP+6)=a0..a3
 	LD D,$0000
-	PSHS $06		; result high half = 0
-	PSHS $06		; result low half  = 0.  Frame now:
+	PUSH $06		; result high half = 0
+	PUSH $06		; result low half  = 0.  Frame now:
 				;  (SP+0..3)=r0..r3
 				;  (SP+4..7)=b0..b3
 				;  (SP+8..9)=ret

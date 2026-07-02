@@ -2,7 +2,7 @@
 ;	__pluseql — long (32-bit) `+=` op-assign helper.
 ;
 ;	Calling convention (backend-blip gen for `*p += v` on a 32-bit type):
-;	    the lvalue POINTER is pushed by the caller (PSHS $06) just above the
+;	    the lvalue POINTER is pushed by the caller (PUSH $06) just above the
 ;	    2-byte return address; the RHS amount arrives in D:Y (D = low word,
 ;	    Y = high word).  The helper adds the amount into *p (4 bytes, little-
 ;	    endian) and — like the other long helpers — pops its own pushed
@@ -12,7 +12,7 @@
 	.code
 
 __pluseql:
-	PSHS $26		; stack the amount a0..a3 at (SP+0..3)
+	PUSH $26		; stack the amount a0..a3 at (SP+0..3)
 				;  (SP+4)=ret  (SP+6)=ptr
 	LD X,(SP+6)		; X = lvalue pointer
 	LD A,(X)		; *p += amount, byte by byte with carry

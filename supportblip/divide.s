@@ -20,9 +20,9 @@
 	.code
 
 div16x16:
-	PSHS $06		; push divisor at (SP).  D free now.
+	PUSH $06		; push divisor at (SP).  D free now.
 	LD D,$0010		; 16
-	PSHS $04		; push B (=$10) as the loop counter at (SP).
+	PUSH $04		; push B (=$10) as the loop counter at (SP).
 				; Frame: (SP+0)=count
 				;        (SP+1)=divisor_lo (SP+2)=divisor_hi
 	LD D,$0000		; work = 0

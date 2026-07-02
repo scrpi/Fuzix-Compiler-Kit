@@ -2,7 +2,7 @@
 ;	__shl — 16-bit (int) left shift.
 ;
 ;	Calling convention (matches backend-blip.c gen for an int '<<', same shape
-;	as __mul/__shll): the value is pushed by the caller (PSHS $06) -> at
+;	as __mul/__shll): the value is pushed by the caller (PUSH $06) -> at
 ;	(SP+2..SP+3) above the 2-byte return address, little-endian (low at SP+2).
 ;	The shift COUNT arrives in D (low byte = count).  The result is returned in
 ;	D.  The helper pops its own operand + return address and returns via JMP X.

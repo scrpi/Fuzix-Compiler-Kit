@@ -3,7 +3,7 @@
 ;
 ;	The generic backend lowers `*p /= v` on a 32-bit type to a call whose
 ;	convention matches the other long op-assign helpers (cf. __pluseql):
-;	    the lvalue POINTER is pushed by the caller (PSHS $06) just above the
+;	    the lvalue POINTER is pushed by the caller (PUSH $06) just above the
 ;	    2-byte return address; the RHS (divisor) arrives in D:Y (D = low word,
 ;	    Y = high word).  The helper computes *p = *p / divisor (unsigned),
 ;	    writes the quotient back through the pointer, pops its own pushed
@@ -22,8 +22,8 @@
 
 __divequl:
 	; On entry: (SP+0)=ret, (SP+2)=ptr; D:Y = divisor.
-	PSHS $26		; save divisor at (SP+0..3).  (SP+4)=ret,(SP+6)=ptr.
-	PSHS $26		; reserve LHS cell at (SP+0..3).  Now:
+	PUSH $26		; save divisor at (SP+0..3).  (SP+4)=ret,(SP+6)=ptr.
+	PUSH $26		; reserve LHS cell at (SP+0..3).  Now:
 				;   (SP+0..3)=LHS  (SP+4..7)=divisor  (SP+8)=ret
 				;   (SP+10)=ptr
 	LD X,(SP+10)		; X = lvalue pointer

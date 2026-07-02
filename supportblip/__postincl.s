@@ -10,12 +10,12 @@
 	.code
 
 __postincl:
-	PSHS $26		; stack the amount a0..a3 at (SP+0..3)
+	PUSH $26		; stack the amount a0..a3 at (SP+0..3)
 				;  (SP+4)=ret  (SP+6)=ptr
 	LD X,(SP+6)		; X = lvalue pointer
 	LD D,(X)		; D:Y = original *p ...
 	LD Y,(X+2)
-	PSHS $26		; ... stashed at (SP+0..3); amount -> (SP+4..7),
+	PUSH $26		; ... stashed at (SP+0..3); amount -> (SP+4..7),
 				;  (SP+8)=ret  (SP+10)=ptr
 	LD A,(X)		; *p += amount, byte by byte with carry
 	ADD A,(SP+4)
